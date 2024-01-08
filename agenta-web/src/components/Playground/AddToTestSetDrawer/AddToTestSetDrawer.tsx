@@ -14,6 +14,7 @@ import {
     Space,
     Switch,
     Typography,
+    Tooltip,
     message,
 } from "antd"
 import {useRouter} from "next/router"
@@ -247,7 +248,12 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                 <div className={classes.footer}>
                     {isChatVariant && (
                         <Space align="center">
-                            <Typography.Text>Turn by Turn:</Typography.Text>
+                            <Tooltip
+                                placement="topLeft"
+                                title="Add each exchange in the conversation as an individual data point"
+                            >
+                                <Typography.Text>Add all conversation turns:</Typography.Text>
+                            </Tooltip>
                             <Switch
                                 checked={Array.isArray(turnModeChat)}
                                 onChange={(checked) => {

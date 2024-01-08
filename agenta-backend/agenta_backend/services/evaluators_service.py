@@ -1,4 +1,5 @@
 import re
+import json
 import httpx
 from typing import Any, Dict, Tuple
 
@@ -48,9 +49,14 @@ def auto_webhook_test(
 ) -> Result:
     try:
         with httpx.Client() as client:
-            response = client.post(
-                url=settings_values["webhook_url"], json=settings_values["webhook_body"]
-            )
+            webhook_body = settings_values.get("webhook_body", None)
+            if isinstance(webhook_body, str):
+                payload = json.loads(webhook_body)
+            if not webhook_body:
+                payload = {}
+            if isinstance(webhook_body, dict):
+                payload = webhook_body
+            response = client.post(url=settings_values["webhook_url"], json=payload)
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
@@ -64,10 +70,13 @@ def auto_webhook_test(
     except httpx.HTTPError as e:
         print(f"An HTTP error occurred: {e}")
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         print(f"An error occurred: {e}")
 
 
-def custom_code_run(
+def auto_custom_code_run(
     variant_output: str,
     correct_answer: str,
     settings_values: Dict[str, Any],
@@ -79,7 +88,7 @@ def custom_code_run(
             inputs=kwargs["inputs"],
             output=variant_output,
             correct_answer=correct_answer,
-            code=settings_values["python_code"],
+            code=settings_values["code"],
         )
         return Result(type="number", value=result)
     except Exception as exc:
@@ -160,8 +169,10 @@ def evaluate(
     *additional_args: Tuple[Any],
     **additional_kwargs: Dict[str, Any],
 ) -> Result:
+    evaluation_function = globals().get(evaluator_name, None)
+    if not evaluation_function:
+        raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
     try:
-        evaluation_function = globals()[evaluator_name]
         return evaluation_function(
             correct_answer,
             variant_output,
@@ -169,5 +180,7 @@ def evaluate(
             *additional_args,
             **additional_kwargs,
         )
-    except KeyError:
-        raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
+    except Exception as exc:
+        raise RuntimeError(
+            f"Error occurred while running {evaluator_name} evaluation. Exception: {str(exc)}"
+        )

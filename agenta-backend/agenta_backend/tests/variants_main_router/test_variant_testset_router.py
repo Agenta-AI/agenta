@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
@@ -10,9 +9,6 @@ import httpx
 
 import pytest
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -32,7 +28,7 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_testset():
-    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
 
     payload = {
         "name": "create_testset_main",
@@ -54,15 +50,14 @@ async def test_create_testset():
     response = await test_client.post(
         f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=payload
     )
-
     assert response.status_code == 200
     assert response.json()["name"] == payload["name"]
 
 
 @pytest.mark.asyncio
 async def test_update_testset():
-    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
-    testset = await engine.find_one(TestSetDB, TestSetDB.app == app.id)
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
+    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
 
     payload = {
         "name": "update_testset",
@@ -93,7 +88,7 @@ async def test_update_testset():
 
 @pytest.mark.asyncio
 async def test_get_testsets():
-    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
     response = await test_client.get(
         f"{BACKEND_API_HOST}/testsets/?app_id={str(app.id)}"
     )
@@ -104,8 +99,8 @@ async def test_get_testsets():
 
 @pytest.mark.asyncio()
 async def test_get_testset():
-    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
-    testset = await engine.find_one(TestSetDB, TestSetDB.app == app.id)
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
+    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
 
     response = await test_client.get(f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/")
 
@@ -116,8 +111,8 @@ async def test_get_testset():
 
 @pytest.mark.asyncio
 async def test_delete_testsets():
-    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
-    testsets = await engine.find(TestSetDB, TestSetDB.app == app.id)
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
+    testsets = await TestSetDB.find(TestSetDB.app.id == app.id).to_list()
 
     testset_ids = [str(testset.id) for testset in testsets]
     payload = {"testset_ids": testset_ids}

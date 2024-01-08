@@ -177,7 +177,6 @@ def add_variant(
             get_user_id = client.user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
@@ -200,7 +199,6 @@ def add_variant(
             get_user_id = client.user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
