@@ -271,7 +271,9 @@ Answer ONLY with one of the given grading or evaluation options.
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
-
+                if (typeof result !== "string") {
+                    result = result.message
+                }
                 if (variantData[idx].isChatVariant) {
                     result = contentToChatMessageString(result)
                 }

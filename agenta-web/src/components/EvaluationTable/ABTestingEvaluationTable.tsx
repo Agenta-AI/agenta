@@ -21,6 +21,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
+import {PassThrough} from "stream"
 
 const {Title} = Typography
 
@@ -238,6 +239,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
+                    if (typeof result !== "string") {
+                        result = result.message
+                    }
 
                     setRowValue(rowIndex, variant.variantId, result)
                     ;(outputs as KeyValuePair)[variant.variantId] = result
