@@ -9,13 +9,11 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     EvaluationScenarioInput,
     EvaluationType,
-    EvaluationTypeSettings,
     HumanEvaluation,
     HumanEvaluationScenario,
     HumanEvaluationUpdate,
     NewEvaluation,
     EvaluationScenarioUpdate,
-    CreateCustomEvaluation,
     EvaluationStatusEnum,
     NewHumanEvaluation,
 )
@@ -33,7 +31,6 @@ from agenta_backend.models.db_models import (
     HumanEvaluationScenarioOutput,
     UserDB,
     AppDB,
-    CustomEvaluationDB,
 )
 
 from beanie import PydanticObjectId as ObjectId
@@ -268,21 +265,6 @@ async def update_human_evaluation_service(
     if update_payload.status is not None:
         updates["status"] = update_payload.status
 
-    if update_payload.evaluation_type_settings is not None:
-        current_settings = evaluation.evaluation_type_settings
-        new_settings = update_payload.evaluation_type_settings
-
-        # Update only the fields that are explicitly set in the payload
-        for field in EvaluationTypeSettings.__annotations__.keys():
-            setattr(
-                current_settings,
-                field,
-                getattr(new_settings, field, None)
-                or getattr(current_settings, field, None),
-            )
-
-        updates["evaluation_type_settings"] = current_settings
-
     # Update the evaluation
     await evaluation.update({"$set": updates})
 
@@ -376,11 +358,6 @@ async def update_human_evaluation_scenario(
     new_eval_set = {}
 
     if updated_data["score"] is not None and evaluation_type in [
-        EvaluationType.auto_exact_match,
-        EvaluationType.auto_similarity_match,
-        EvaluationType.auto_regex_test,
-        EvaluationType.auto_webhook_test,
-        EvaluationType.auto_ai_critique,
         EvaluationType.single_model_test,
     ]:
         new_eval_set["score"] = updated_data["score"]
@@ -389,8 +366,6 @@ async def update_human_evaluation_scenario(
         and evaluation_type == EvaluationType.human_a_b_testing
     ):
         new_eval_set["vote"] = updated_data["vote"]
-    elif evaluation_type == EvaluationType.custom_code_run:
-        new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
     if updated_data["outputs"] is not None:
         new_outputs = [
@@ -471,14 +446,7 @@ async def get_evaluation_scenario_score_service(
 
 def _extend_with_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
-    if (
-        evaluation_type == EvaluationType.auto_exact_match
-        or evaluation_type == EvaluationType.auto_similarity_match
-        or evaluation_type == EvaluationType.auto_regex_test
-        or evaluation_type == EvaluationType.auto_webhook_test
-        or evaluation_type == EvaluationType.single_model_test
-        or EvaluationType.auto_ai_critique
-    ):
+    if evaluation_type == EvaluationType.single_model_test:
         evaluation["score"] = ""
 
     if evaluation_type == EvaluationType.human_a_b_testing:
@@ -488,15 +456,8 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
 
 def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
-    if (
-        evaluation_type == EvaluationType.auto_exact_match
-        or evaluation_type == EvaluationType.auto_similarity_match
-        or evaluation_type == EvaluationType.auto_regex_test
-        or evaluation_type == EvaluationType.auto_ai_critique
-        or evaluation_type == EvaluationType.auto_webhook_test
-    ):
-        if row["correct_answer"]:
-            correct_answer["correct_answer"] = row["correct_answer"]
+    if row["correct_answer"]:
+        correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
 
@@ -632,42 +593,6 @@ async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -
             evaluation_id=evaluation_id, **user_org_data
         )
         await evaluation.delete()
-
-
-async def create_custom_code_evaluation(
-    payload: CreateCustomEvaluation, **user_org_data: dict
-) -> str:
-    """Save the custom evaluation code in the database.
-
-    Args:
-        payload (CreateCustomEvaluation): the required payload
-
-    Returns:
-        str: the custom evaluation id
-    """
-
-    # Initialize custom evaluation instance
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=payload.app_id
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {payload.app_id}",
-        )
-    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-    custom_eval = CustomEvaluationDB(
-        evaluation_name=payload.evaluation_name,
-        user=app.user,
-        organization=app.organization,
-        app=app,
-        python_code=payload.python_code,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
-
-    await custom_eval.create()
-    return str(custom_eval.id)
 
 
 async def create_new_human_evaluation(
