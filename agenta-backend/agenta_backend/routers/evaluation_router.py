@@ -67,7 +67,7 @@ async def create_evaluation(
                 app_id=payload.app_id,
                 variant_id=variant_id,
                 evaluator_config_ids=payload.evaluators_configs,
-                testset_id=payload.testset_id
+                testset_id=payload.testset_id,
             )
 
             evaluate.delay(
@@ -76,7 +76,8 @@ async def create_evaluation(
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
                 evaluation_id=evaluation.id,
-                rate_limit_config=payload.rate_limit.dict())
+                rate_limit_config=payload.rate_limit.dict(),
+            )
             evaluations.append(evaluation)
 
         return evaluations
