@@ -1607,7 +1607,7 @@ async def create_new_evaluation(
     user: UserDB,
     testset: TestSetDB,
     status: str,
-    variants: [AppVariantDB],
+    variants: AppVariantDB,
     evaluators_configs: List[str],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
