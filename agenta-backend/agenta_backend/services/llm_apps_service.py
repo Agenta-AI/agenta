@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from typing import Any, Dict, List
+import traceback
 
 import httpx
 
@@ -165,6 +166,7 @@ async def batch_invoke(
                 list_of_app_outputs.append(batch_output)
                 print(f"Adding outputs to batch {start_idx}")
             except Exception as exc:
+                traceback.print_exc()
                 logger.info(
                     f"Error processing batch[{start_idx}]:[{end_idx}] ==> {str(exc)}"
                 )
