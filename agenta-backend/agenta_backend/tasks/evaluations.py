@@ -233,7 +233,7 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
             list_inputs.append({"name": param["name"], "type": "input"})
         elif param["type"] == "dict":
             for input_name in app_variant_parameters[param["name"]]:
-                list_inputs.append({"name": input_name, "type": "dict_input"})
+                list_inputs.append({"name": input_name["name"], "type": "dict_input"})
         elif param["type"] == "messages":
             list_inputs.append({"name": param["name"], "type": "messages"})
         elif param["type"] == "file_url":
