@@ -133,27 +133,41 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         label="Which testset do you want to use?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
-                        <Select placeholder="Select testset">
+                        <Select placeholder="Select testset" data-cy="select-testset-group">
                             {testSets.map((testSet) => (
-                                <Select.Option key={testSet._id} value={testSet._id}>
+                                <Select.Option
+                                    key={testSet._id}
+                                    value={testSet._id}
+                                    data-cy="select-testset-option"
+                                >
                                     {testSet.name}
                                 </Select.Option>
                             ))}
                         </Select>
                     </Form.Item>
+
                     <Form.Item
                         name="variant_ids"
                         label="Which variants you would like to evaluate?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
-                        <Select mode="multiple" placeholder="Select variants">
+                        <Select
+                            mode="multiple"
+                            placeholder="Select variants"
+                            data-cy="select-variant-group"
+                        >
                             {variants.map((variant) => (
-                                <Select.Option key={variant.variantId} value={variant.variantId}>
+                                <Select.Option
+                                    key={variant.variantId}
+                                    value={variant.variantId}
+                                    data-cy="select-variant-option"
+                                >
                                     {variant.variantName}
                                 </Select.Option>
                             ))}
                         </Select>
                     </Form.Item>
+
                     <Form.Item
                         name="evaluators_configs"
                         label="Which evaluators you would like to evaluate on?"
@@ -171,13 +185,18 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     false
                                 )
                             }}
+                            data-cy="select-evaluators-group"
                         >
                             {evaluatorConfigs.map((config) => {
                                 const evaluator = evaluators.find(
                                     (item) => item.key === config.evaluator_key,
                                 )!
                                 return (
-                                    <Select.Option key={config.id} value={config.id}>
+                                    <Select.Option
+                                        key={config.id}
+                                        value={config.id}
+                                        data-cy="select-evaluators-option"
+                                    >
                                         <div className={classes.configRow}>
                                             <div className={classes.configRowContent}>
                                                 {evaluator.icon_url && (

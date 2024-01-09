@@ -92,7 +92,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
                         danger
-                        data-cy="abTesting-app-variant-vote-button"
+                        data-cy="evaluation-vote-panel-comparison-vote-button"
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
                     </Button>
@@ -107,7 +107,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                 type={value === badId ? "primary" : undefined}
                 key={badId}
                 onClick={getOnClick(badId)}
-                data-cy="abTesting-both-bad-vote-button"
+                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
             >
                 Both are bad
             </Button>
@@ -230,6 +230,7 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                             }
                             min={min}
                             max={max}
+                            data-cy="evaluation-vote-panel-numeric-vote-input"
                             onChange={(score) => _onChange(variant.variantId, score)}
                         />
                         <Typography.Text>/ {max}</Typography.Text>
