@@ -6,7 +6,8 @@ import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
-dayjs.extend(utc)
+// causing all cypress test to fail
+// dayjs.extend(utc)
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
