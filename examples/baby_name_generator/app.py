@@ -1,5 +1,5 @@
-from agenta import FloatParam, TextParam
 import agenta as ag
+from agenta import FloatParam, TextParam
 from openai import OpenAI
 
 client = OpenAI()
@@ -31,4 +31,9 @@ def generate(country: str, gender: str) -> str:
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    return chat_completion.choices[0].message.content
+    token_usage = chat_completion.usage.dict()
+    return {
+        "message": chat_completion.choices[0].message.content,
+        **{"usage": token_usage},
+        "cost": ag.calculate_token_usage("gpt-3.5-turbo", token_usage),
+    }

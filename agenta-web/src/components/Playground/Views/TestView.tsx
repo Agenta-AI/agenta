@@ -98,6 +98,11 @@ interface BoxComponentProps {
     inputParams: Parameter[] | null
     testData: GenericObject
     result: string
+    additionalData: {
+        cost: number | null
+        latency: number | null
+        usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+    }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
@@ -110,6 +115,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
     testData,
     result,
+    additionalData,
     onInputParamChange,
     onRun,
     onAddToTestset,
@@ -162,6 +168,30 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     imageSize="large"
                 />
             </Row>
+            {additionalData?.cost || additionalData?.latency ? (
+                <Space>
+                    <p>
+                        Tokens:{" "}
+                        {additionalData.usage !== null
+                            ? JSON.stringify(additionalData.usage.total_tokens)
+                            : 0}
+                    </p>
+                    <p>
+                        Cost:{" "}
+                        {additionalData.cost !== null
+                            ? `$${additionalData.cost.toFixed(4)}`
+                            : "$0.00"}
+                    </p>
+                    <p>
+                        Latency:{" "}
+                        {additionalData.latency !== null
+                            ? `${Math.round(additionalData.latency * 1000)}ms`
+                            : "0ms"}
+                    </p>
+                </Space>
+            ) : (
+                ""
+            )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
                     <Button
@@ -200,12 +230,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
                         style={{
-                            background: result.startsWith("❌ Error code")
+                            background: result?.startsWith("❌ Error code")
                                 ? appTheme === "dark"
                                     ? "#490b0b"
                                     : "#fff1f0"
                                 : "",
-                            color: result.startsWith("❌ Error code")
+                            color: result?.startsWith("❌ Error code")
                                 ? appTheme === "dark"
                                     ? "#ffffffd9"
                                     : "#000000e0"
@@ -238,6 +268,13 @@ const App: React.FC<TestViewProps> = ({
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [additionalDataList, setAdditionalDataList] = useState<
+        Array<{
+            cost: number | null
+            latency: number | null
+            usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+        }>
+    >(testList.map(() => ({cost: null, latency: null, usage: null})))
 
     useEffect(() => {
         setResultsList((prevResultsList) => {
@@ -319,8 +356,17 @@ const App: React.FC<TestViewProps> = ({
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
             )
-
-            setResultForIndex(res, index)
+            // check if res is an object or string
+            if (typeof res === "string") {
+                setResultForIndex(res, index)
+            } else {
+                setResultForIndex(res.message, index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    return newDataList
+                })
+            }
         } catch (e) {
             setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
         } finally {
@@ -408,6 +454,7 @@ const App: React.FC<TestViewProps> = ({
                                   ?.content
                             : resultsList[index]
                     }
+                    additionalData={additionalDataList[index]}
                     onInputParamChange={(paramName, value) =>
                         handleInputParamChange(paramName, value, index)
                     }
