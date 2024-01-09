@@ -275,6 +275,7 @@ const EvaluationResults: React.FC<Props> = () => {
             disabled={compareDisabled}
             icon={<SwapOutlined />}
             type="primary"
+            data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
                     `/apps/${appId}/evaluations/compare/?evaluations=${selected

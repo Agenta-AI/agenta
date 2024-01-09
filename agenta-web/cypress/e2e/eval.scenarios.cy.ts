@@ -38,6 +38,7 @@ describe("Evaluation Scenarios Test", function () {
         })
 
         it("Should double click on the Evaluation and successfully navigate to the evalaution results page", () => {
+            cy.get('.ag-root-wrapper').should("exist")
             cy.get('.ag-row-first > [col-id="aggregated_results"]').click()
             cy.wait(1000)
             cy.get(".ag-cell-focus").dblclick()
