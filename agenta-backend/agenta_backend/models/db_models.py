@@ -284,7 +284,7 @@ class EvaluationDB(Document):
     user: Link[UserDB]
     status: str = Field(default="EVALUATION_INITIALIZED")
     testset: Link[TestSetDB]
-    variants: List[PydanticObjectId]
+    variant: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())

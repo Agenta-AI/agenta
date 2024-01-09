@@ -57,26 +57,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def evaluation_db_to_simple_evaluation_output(
-    evaluation_db: EvaluationDB,
+def human_evaluation_db_to_simple_evaluation_output(
+    human_evaluation_db: HumanEvaluationDB,
 ) -> SimpleEvaluationOutput:
     return SimpleEvaluationOutput(
-        id=str(evaluation_db.id),
-        app_id=str(evaluation_db.app.id),
-        status=evaluation_db.status,
-        evaluation_type=evaluation_db.evaluation_type,
-        variant_ids=[str(variant) for variant in evaluation_db.variants],
+        id=str(human_evaluation_db.id),
+        app_id=str(human_evaluation_db.app.id),
+        status=human_evaluation_db.status,
+        evaluation_type=human_evaluation_db.evaluation_type,
+        variant_ids=[str(variant) for variant in human_evaluation_db.variants],
     )
 
 
 async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
-    variant_names = []
-    for variant_id in evaluation_db.variants:
-        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
-        variant_name = variant.variant_name if variant else str(variant_id)
-        variant_names.append(str(variant_name))
+    variant = await db_manager.get_app_variant_instance_by_id(str(evaluation_db.variant))
+    variant_name = variant.variant_name if variant else str(evaluation_db.variant)
 
     return Evaluation(
         id=str(evaluation_db.id),
@@ -84,8 +81,8 @@ async def evaluation_db_to_pydantic(
         user_id=str(evaluation_db.user.id),
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
-        variant_ids=[str(variant) for variant in evaluation_db.variants],
-        variant_names=variant_names,
+        variant_ids=[str(evaluation_db.variant)],
+        variant_names=[variant_name],
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         aggregated_results=await aggregated_result_to_pydantic(
