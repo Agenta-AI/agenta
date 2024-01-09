@@ -135,7 +135,7 @@ async def get_image_by_id(image_id: str) -> ImageDB:
         ImageDB: instance of image object
     """
 
-    image = await ImageDB.find_one(ImageDB.id == image_id)
+    image = await ImageDB.find_one(ImageDB.id == ObjectId(image_id))
     return image
 
 
