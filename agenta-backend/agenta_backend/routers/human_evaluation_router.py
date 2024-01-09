@@ -74,11 +74,10 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        new_evaluation_db = await evaluation_service.create_new_human_evaluation(
+        new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
             payload, **user_org_data
         )
-        print(new_evaluation_db)
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        return converters.human_evaluation_db_to_simple_evaluation_output(new_human_evaluation_db)
     except KeyError:
         raise HTTPException(
             status_code=400,
