@@ -192,7 +192,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     </div>
                     <span>
                         Check out{" "}
-                        <a href="https://docs.agenta.ai/tutorials/your-first-llm-app">
+                        <a href="https://docs.agenta.ai/advanced_guides/custom_applications">
                             our tutorial for writing your first LLM app
                         </a>
                     </span>
