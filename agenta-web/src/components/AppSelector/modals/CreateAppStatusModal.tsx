@@ -196,8 +196,8 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                                 type === "success"
                                     ? "success"
                                     : type === "error"
-                                    ? "danger"
-                                    : "secondary"
+                                      ? "danger"
+                                      : "secondary"
                             }
                             strong={Object.keys(messages)[ix] === "success"}
                         >
