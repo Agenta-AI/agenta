@@ -13,9 +13,7 @@ logger.setLevel(logging.DEBUG)
 
 
 async def make_payload(
-    datapoint: Any,
-    parameters: Dict,
-    openapi_parameters: List[Dict]
+    datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
 ) -> Dict:
     """
     Constructs the payload for invoking an app based on OpenAPI parameters.
@@ -51,10 +49,7 @@ async def make_payload(
 
 
 async def invoke_app(
-    uri: str,
-    datapoint: Any,
-    parameters: Dict,
-    openapi_parameters: List[Dict]
+    uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
 ) -> AppOutput:
     """
     Invokes an app for one datapoint using the openapi_parameters to determine
