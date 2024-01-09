@@ -25,11 +25,7 @@ const useBlockNavigation = (
         blocking.current = _blocking
 
         // prevent from reload or closing tab with unsaved changes
-        if (blocking.current) {
-            window.addEventListener("beforeunload", beforeUnloadHandler)
-        } else {
-            window.removeEventListener("beforeunload", beforeUnloadHandler)
-        }
+        window.addEventListener("beforeunload", beforeUnloadHandler)
 
         return () => {
             window.removeEventListener("beforeunload", beforeUnloadHandler)
