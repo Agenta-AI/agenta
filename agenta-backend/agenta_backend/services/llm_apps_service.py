@@ -12,12 +12,53 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+async def make_payload(
+    datapoint: Any,
+    parameters: Dict,
+    openapi_parameters: List[Dict]
+) -> Dict:
+    """
+    Constructs the payload for invoking an app based on OpenAPI parameters.
+
+    Args:
+        datapoint (Any): The data to be sent to the app.
+        parameters (Dict): The parameters required by the app taken from the db.
+        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
+
+    Returns:
+        Dict: The constructed payload for the app.
+    """
+    payload = {}
+    inputs_dict = {}
+    for param in openapi_parameters:
+        if param["type"] == "input":
+            payload[param["name"]] = datapoint.get(param["name"], "")
+        elif param["type"] == "dict":
+            for input_name in parameters[param["name"]]:
+                input_name_ = input_name["name"]
+                inputs_dict[input_name_] = datapoint.get(input_name_, "")
+        elif param["type"] == "messages":
+            # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
+            payload[param["name"]] = json.loads(datapoint.get("chat", ""))
+        elif param["type"] == "file_url":
+            payload[param["name"]] = datapoint.get(param["name"], "")
+        else:
+            payload[param["name"]] = parameters[param["name"]]
+
+    if inputs_dict:
+        payload["inputs"] = inputs_dict
+    return payload
+
+
 async def invoke_app(
-    uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+    uri: str,
+    datapoint: Any,
+    parameters: Dict,
+    openapi_parameters: List[Dict]
 ) -> AppOutput:
     """
-    Invokes an app for one datapoint.
-    Uses the openapi_parameters from the openapi.json to determine how to invoke the app
+    Invokes an app for one datapoint using the openapi_parameters to determine
+    how to invoke the app.
 
     Args:
         uri (str): The URI of the app to invoke.
@@ -31,28 +72,8 @@ async def invoke_app(
     Raises:
         httpx.HTTPError: If the POST request fails.
     """
-
     url = f"{uri}/generate"
-
-    payload = {}
-    inputs_dict = {}
-    for param in openapi_parameters:
-        if param["type"] == "input":
-            payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":
-            for input_name in parameters[param["name"]]:
-                input_name_ = input_name["name"]
-                inputs_dict[input_name_] = datapoint.get(input_name_, "")
-        elif param["type"] == "messages":
-            # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
-            payload[param["name"]] = json.loads(datapoint.get("chat", ""))
-
-        elif param["type"] == "file_url":
-            payload[param["name"]] = datapoint.get(param["name"], "")
-        else:
-            payload[param["name"]] = parameters[param["name"]]
-    if len(inputs_dict) > 0:
-        payload["inputs"] = inputs_dict
+    payload = await make_payload(datapoint, parameters, openapi_parameters)
 
     async with httpx.AsyncClient() as client:
         logger.debug(f"Invoking app {uri} with payload {payload}")
