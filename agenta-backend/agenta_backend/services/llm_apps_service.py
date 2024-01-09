@@ -41,7 +41,8 @@ async def invoke_app(
             payload[param["name"]] = datapoint.get(param["name"], "")
         elif param["type"] == "dict":
             for input_name in parameters[param["name"]]:
-                inputs_dict[input_name] = datapoint.get(input_name, "")
+                input_name_ = input_name["name"]
+                inputs_dict[input_name_] = datapoint.get(input_name_, "")
         elif param["type"] == "messages":
             payload[param["name"]] = datapoint.get(param["name"], "")
         elif param["type"] == "file_url":
