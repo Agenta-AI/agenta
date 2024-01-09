@@ -597,7 +597,7 @@ async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -
 
 async def create_new_human_evaluation(
     payload: NewHumanEvaluation, **user_org_data: dict
-) -> EvaluationDB:
+) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
 
@@ -606,7 +606,7 @@ async def create_new_human_evaluation(
         **user_org_data (dict): Additional keyword arguments, e.g., user id.
 
     Returns:
-        EvaluationDB
+        HumanEvaluationDB
     """
     user = await get_user(user_uid=user_org_data["uid"])
 
@@ -657,24 +657,27 @@ async def create_new_human_evaluation(
 
 
 async def create_new_evaluation(
-    app_data: dict, new_evaluation_data: dict, evaluators_configs: List[str]
+    app_id: str,
+    variant_id: str,
+    evaluator_config_ids: List[str],
+    testset_id: str,
 ) -> Evaluation:
     """
-    Create a new evaluation.
+    Create a new evaluation in the db
 
     Args:
-        app_data (dict): Required app data
-        new_evaluation_data (dict): Required new evaluation data
-        evaluators_configs (List[str]): List of evaluator configurations
+        app_id (str): The ID of the app.
+        variant_id (str): The ID of the variant.
+        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
+        testset_id (str): The ID of the testset.
 
     Returns:
-        Evaluation
+        Evaluation: The newly created evaluation.
     """
 
-    new_evaluation = NewEvaluation(**new_evaluation_data)
-    app = AppDB(**app_data)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
-    testset = await db_manager.fetch_testset_by_id(new_evaluation.testset_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id)
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -682,8 +685,8 @@ async def create_new_evaluation(
         user=app.user,
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
-        variants=new_evaluation.variant_ids,
-        evaluators_configs=new_evaluation.evaluators_configs,
+        variant=variant_id,
+        evaluators_configs=evaluator_config_ids,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 

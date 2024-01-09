@@ -1,39 +1,77 @@
 import asyncio
+import json
 import logging
-from typing import Any, List
-
-from agenta_backend.models.api.evaluation_model import AppOutput
+from typing import Any, Dict, List
 
 import httpx
 
+from agenta_backend.models.api.evaluation_model import AppOutput
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-async def get_llm_app_output(uri: str, datapoint: Any, parameters: dict) -> AppOutput:
-    prompt_user = replace_placeholders(parameters["prompt_user"], datapoint)
-    prompt_system = replace_placeholders(parameters["prompt_system"], datapoint)
+async def make_payload(
+    datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+) -> Dict:
+    """
+    Constructs the payload for invoking an app based on OpenAPI parameters.
 
+    Args:
+        datapoint (Any): The data to be sent to the app.
+        parameters (Dict): The parameters required by the app taken from the db.
+        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
+
+    Returns:
+        Dict: The constructed payload for the app.
+    """
+    payload = {}
+    inputs_dict = {}
+    for param in openapi_parameters:
+        if param["type"] == "input":
+            payload[param["name"]] = datapoint.get(param["name"], "")
+        elif param["type"] == "dict":
+            for input_name in parameters[param["name"]]:
+                input_name_ = input_name["name"]
+                inputs_dict[input_name_] = datapoint.get(input_name_, "")
+        elif param["type"] == "messages":
+            # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
+            payload[param["name"]] = json.loads(datapoint.get("chat", ""))
+        elif param["type"] == "file_url":
+            payload[param["name"]] = datapoint.get(param["name"], "")
+        else:
+            payload[param["name"]] = parameters[param["name"]]
+
+    if inputs_dict:
+        payload["inputs"] = inputs_dict
+    return payload
+
+
+async def invoke_app(
+    uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+) -> AppOutput:
+    """
+    Invokes an app for one datapoint using the openapi_parameters to determine
+    how to invoke the app.
+
+    Args:
+        uri (str): The URI of the app to invoke.
+        datapoint (Any): The data to be sent to the app.
+        parameters (Dict): The parameters required by the app taken from the db.
+        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
+
+    Returns:
+        AppOutput: The output of the app.
+
+    Raises:
+        httpx.HTTPError: If the POST request fails.
+    """
     url = f"{uri}/generate"
-
-    payload = {
-        "temperature": parameters["temperature"],
-        "model": parameters["model"],
-        "max_tokens": parameters["max_tokens"],
-        "prompt_system": prompt_system,
-        "prompt_user": prompt_user,
-        "top_p": parameters["top_p"],
-        "frequence_penalty": parameters["frequence_penalty"],
-        "presence_penalty": parameters["presence_penalty"],
-        "inputs": {
-            input_item["name"]: datapoint.get(input_item["name"], "")
-            for input_item in parameters["inputs"]
-        },
-    }
+    payload = await make_payload(datapoint, parameters, openapi_parameters)
 
     async with httpx.AsyncClient() as client:
+        logger.debug(f"Invoking app {uri} with payload {payload}")
         response = await client.post(
             url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
         )
@@ -42,13 +80,33 @@ async def get_llm_app_output(uri: str, datapoint: Any, parameters: dict) -> AppO
 
 
 async def run_with_retry(
-    uri: str, input_data: Any, parameters: dict, max_retry_count: int, retry_delay: int
+    uri: str,
+    input_data: Any,
+    parameters: Dict,
+    max_retry_count: int,
+    retry_delay: int,
+    openapi_parameters: List[Dict],
 ) -> AppOutput:
+    """
+    Runs the specified app with retry mechanism.
+
+    Args:
+        uri (str): The URI of the app.
+        input_data (Any): The input data for the app.
+        parameters (Dict): The parameters for the app.
+        max_retry_count (int): The maximum number of retries.
+        retry_delay (int): The delay between retries in seconds.
+        openapi_parameters (List[Dict]): The OpenAPI parameters for the app.
+
+    Returns:
+        AppOutput: The output of the app.
+
+    """
     retries = 0
     last_exception = None
     while retries < max_retry_count:
         try:
-            result = await get_llm_app_output(uri, input_data, parameters)
+            result = await invoke_app(uri, input_data, parameters, openapi_parameters)
             return result
         except (httpx.TimeoutException, httpx.ConnectTimeout, httpx.ConnectError) as e:
             last_exception = e
@@ -61,8 +119,20 @@ async def run_with_retry(
 
 
 async def batch_invoke(
-    uri: str, testset_data: List[dict], parameters: dict, rate_limit_config: dict
+    uri: str, testset_data: List[Dict], parameters: Dict, rate_limit_config: Dict
 ) -> List[AppOutput]:
+    """
+    Invokes the LLm apps in batches, processing the testset data.
+
+    Args:
+        uri (str): The URI of the LLm app.
+        testset_data (List[Dict]): The testset data to be processed.
+        parameters (Dict): The parameters for the LLm app.
+        rate_limit_config (Dict): The rate limit configuration.
+
+    Returns:
+        List[AppOutput]: The list of app outputs after running all batches.
+    """
     batch_size = rate_limit_config[
         "batch_size"
     ]  # Number of testset to make in each batch
@@ -77,6 +147,7 @@ async def batch_invoke(
     ]  # Delay between batches (in seconds)
 
     list_of_app_outputs: List[AppOutput] = []  # Outputs after running all batches
+    openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
@@ -84,7 +155,12 @@ async def batch_invoke(
         for index in range(start_idx, end_idx):
             try:
                 batch_output: AppOutput = await run_with_retry(
-                    uri, testset_data[index], parameters, max_retries, retry_delay
+                    uri,
+                    testset_data[index],
+                    parameters,
+                    max_retries,
+                    retry_delay,
+                    openapi_parameters,
                 )
                 list_of_app_outputs.append(batch_output)
                 print(f"Adding outputs to batch {start_idx}")
@@ -104,7 +180,48 @@ async def batch_invoke(
     return list_of_app_outputs
 
 
-def replace_placeholders(text, data):
-    for key, value in data.items():
-        text = text.replace(f"{{{key}}}", value)
-    return text
+async def get_parameters_from_openapi(uri: str) -> List[Dict]:
+    """
+    Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
+    Args:
+    uri (str): The URI of the OpenAPI schema.
+
+    Returns:
+        list: A list of parameters. Each a dict with name and type.
+        Type can be one of: input, text, choice, float, dict, bool, int, file_url, messages.
+
+    Raises:
+        KeyError: If the required keys are not found in the schema.
+
+    """
+
+    schema = await _get_openai_json_from_uri(uri)
+
+    try:
+        body_schema_name = (
+            schema["paths"]["/generate"]["post"]["requestBody"]["content"][
+                "application/json"
+            ]["schema"]["$ref"]
+            .split("/")
+            .pop()
+        )
+    except KeyError:
+        body_schema_name = ""
+
+    try:
+        properties = schema["components"]["schemas"][body_schema_name]["properties"]
+    except KeyError:
+        properties = {}
+
+    parameters = []
+    for name, param in properties.items():
+        parameters.append({"name": name, "type": param.get("x-parameter", "input")})
+
+    return parameters
+
+
+async def _get_openai_json_from_uri(uri):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(uri)
+        json_data = json.loads(resp.text)
+        return json_data

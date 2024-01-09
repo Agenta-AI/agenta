@@ -104,10 +104,10 @@ async def create_new_evaluator_config(
 
 
 @router.put("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
-async def get_evaluator_config(
+async def update_evaluator_config(
     evaluator_config_id: str, payload: UpdateEvaluatorConfig
 ):
-    """Endpoint to fetch evaluator configurations for a specific app.
+    """Endpoint to update evaluator configurations for a specific app.
 
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
