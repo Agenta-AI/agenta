@@ -1,4 +1,4 @@
-describe("Evaluators CRUD Test", function () {
+describe("Evaluation Scenarios Test", function () {
     let app_id
     before(() => {
         cy.createVariant()
@@ -8,13 +8,13 @@ describe("Evaluators CRUD Test", function () {
         cy.get('[data-cy="playground-save-changes-button"]').eq(0).click()
     })
 
-    context("CRUD operation with evaluators", () => {
+    context("Executing Evaluation Scenarios Workflow", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.location("pathname").should("include", "/evaluations")
         })
 
-        it("should create a new evaluator", () => {
+        it("Should successfully create an Evaluation", () => {
             cy.get('[data-cy="new-evaluation-button"]').click()
             cy.get(".ant-modal-content").should("exist")
 
@@ -32,10 +32,14 @@ describe("Evaluators CRUD Test", function () {
             cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
         })
 
-        it("should create a new Evaluation", () => {
+        it("Should verify that evalaution was created and completed successfully", () => {
             cy.get('.ag-row[row-index="0"]').should("exist")
             cy.get('.ag-cell[col-id="status"]').should("contain.text", "Completed")
+        })
+
+        it("Should double click on the Evaluation and successfully navigate to the evalaution results page", () => {
             cy.get('.ag-row-first > [col-id="aggregated_results"]').click()
+            cy.wait(1000)
             cy.get(".ag-cell-focus").dblclick()
             cy.contains(/Evaluation Results/i)
             cy.get('[data-cy="evalaution-scenarios-table"]').should("exist")

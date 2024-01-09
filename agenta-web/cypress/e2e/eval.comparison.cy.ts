@@ -1,4 +1,4 @@
-describe("Evaluators CRUD Test", function () {
+describe("Evaluation Comparison Test", function () {
     let app_id
     before(() => {
         cy.createVariant()
@@ -8,13 +8,13 @@ describe("Evaluators CRUD Test", function () {
         cy.get('[data-cy="playground-save-changes-button"]').eq(0).click()
     })
 
-    context("CRUD operation with evaluators", () => {
+    context("Executing Evaluation Comparison Workflow", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.location("pathname").should("include", "/evaluations")
         })
 
-        it("should create a new Evaluation", () => {
+        it("Should create 2 new Evaluations", () => {
             Array.from({length: 2}).map((_) => {
                 cy.get('[data-cy="new-evaluation-button"]').click()
                 cy.get(".ant-modal-content").should("exist")
@@ -37,13 +37,13 @@ describe("Evaluators CRUD Test", function () {
             })
         })
 
-        it("should create a new Evaluation", () => {
+        it("Should verify that there are completed evaluations in the list", () => {
             cy.get('.ag-row[row-index="0"]').should("exist")
             cy.get('.ag-row[row-index="1"]').should("exist")
             cy.get('.ag-cell[col-id="status"]').should("contain.text", "Completed")
         })
 
-        it("should create a new Evaluation", () => {
+        it("Should select 2 evaluations, click on the compare button, and successfully navigate to the comparison page", () => {
             cy.get("#ag-33-input").check()
             cy.get("#ag-35-input").check()
             cy.get(":nth-child(2) > .ant-btn > .ant-btn-icon > .anticon > svg").click()
