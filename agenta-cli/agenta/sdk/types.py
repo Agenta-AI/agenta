@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Extra, HttpUrl, Field
 
@@ -8,6 +8,19 @@ class InFile:
     def __init__(self, file_name: str, file_path: str):
         self.file_name = file_name
         self.file_path = file_path
+
+
+class LLMTokenUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
+
+
+class FuncResponse(BaseModel):
+    message: str
+    usage: Optional[LLMTokenUsage]
+    cost: Optional[float]
+    latency: float
 
 
 class DictInput(dict):
