@@ -38,7 +38,12 @@ async def get_llm_app_output(uri: str, datapoint: Any, parameters: dict) -> AppO
             url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
         )
         response.raise_for_status()
-        return AppOutput(output=response.json(), status="success")
+        response_data = response.json()
+        if isinstance(response_data, dict):
+            llm_output = response_data["message"]
+        else:
+            llm_output = response_data
+        return AppOutput(output=llm_output, status="success")
 
 
 async def run_with_retry(
