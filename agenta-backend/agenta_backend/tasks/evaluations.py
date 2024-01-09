@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import traceback
 from collections import defaultdict
 from typing import Dict, List
 
@@ -170,7 +171,8 @@ def evaluate(
             )
 
     except Exception as e:
-        logger.error(f"An error occurred during evaluation: {e.__traceback__}")
+        logger.error(f"An error occurred during evaluation: {e}")
+        traceback.print_exc()
         loop.run_until_complete(
             update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
         )
