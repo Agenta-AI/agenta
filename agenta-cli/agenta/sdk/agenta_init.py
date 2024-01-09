@@ -1,3 +1,5 @@
+from agenta.client.exceptions import APIRequestError
+from agenta.client.backend.client import AgentaApi
 import os
 import logging
 from typing import Any, Optional
@@ -7,8 +9,6 @@ from .utils.globals import set_global
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from agenta.client.backend.client import AgentaApi
-from agenta.client.exceptions import APIRequestError
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
@@ -104,11 +104,11 @@ class Config:
         else:
             self.persist = True
 
-    def register_default(self, overwrite=True, **kwargs):
+    def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
         return self.default(overwrite=overwrite, **kwargs)
 
-    def default(self, overwrite=True, **kwargs):
+    def default(self, overwrite=False, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
             overwrite: Whether to overwrite the existing configuration or not

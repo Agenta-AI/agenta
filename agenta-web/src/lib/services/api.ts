@@ -72,8 +72,10 @@ export function restartAppVariantContainer(variantId: string) {
  * @param inputParametersDict A dictionary of the input parameters to be passed to the variant endpoint
  * @param inputParamDefinition A list of the parameters that are defined in the openapi.json (these are only part of the input params, the rest is defined by the user in the optparms)
  * @param optionalParameters The optional parameters (prompt, models, AND DICTINPUTS WHICH ARE TO BE USED TO ADD INPUTS )
- * @param URIPath
- * @returns
+ * @param appId - The ID of the app.
+ * @param baseId - The base ID.
+ * @param chatMessages - An optional array of chat messages.
+ * @returns A Promise that resolves with the response data from the POST request.
  */
 export async function callVariant(
     inputParametersDict: KeyValuePair,
