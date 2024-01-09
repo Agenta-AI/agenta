@@ -12,17 +12,25 @@ from langchain.prompts import PromptTemplate
 
 
 def auto_exact_match(
-    variant_output: str, correct_answer: str, settings_values: Dict[str, Any]
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
 ) -> Result:
-    exact_match = True if variant_output == correct_answer else False
+    exact_match = True if output == correct_answer else False
     result = Result(type="bool", value=exact_match)
     return result
 
 
 def auto_similarity_match(
-    variant_output: str, correct_answer: str, settings_values: Dict[str, Any]
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
 ) -> Result:
-    set1 = set(variant_output.split())
+    set1 = set(output.split())
     set2 = set(correct_answer.split())
     intersect = set1.intersection(set2)
     union = set1.union(set2)
@@ -35,17 +43,25 @@ def auto_similarity_match(
 
 
 def auto_regex_test(
-    variant_output: str, correct_answer: str, settings_values: Dict[str, Any]
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
 ) -> Result:
     re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
     result = (
-        bool(re_pattern.search(variant_output)) == settings_values["regex_should_match"]
+        bool(re_pattern.search(output)) == settings_values["regex_should_match"]
     )
     return Result(type="bool", value=result)
 
 
 def auto_webhook_test(
-    variant_output: str, correct_answer: str, settings_values: Dict[str, Any]
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
 ) -> Result:
     try:
         with httpx.Client() as client:
@@ -77,16 +93,17 @@ def auto_webhook_test(
 
 
 def auto_custom_code_run(
-    variant_output: str,
+    inputs: Dict[str, Any],
+    output: str,
     correct_answer: str,
+    app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
-    **kwargs: Dict[str, Any],
 ) -> Result:
     try:
         result = sandbox.execute_code_safely(
-            app_params=kwargs["app_params"],
-            inputs=kwargs["inputs"],
-            output=variant_output,
+            app_params=app_params,
+            inputs=inputs,
+            output=output,
             correct_answer=correct_answer,
             code=settings_values["code"],
         )
@@ -96,7 +113,12 @@ def auto_custom_code_run(
 
 
 def auto_ai_critique(
-    variant_output: str, correct_answer: str, settings_values: dict
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+
 ) -> str:
     """Evaluate a response using an AI critique based on provided
      - An evaluation prompt,
@@ -144,7 +166,7 @@ def auto_ai_critique(
     chain_run_args = {
         "llm_app_prompt_template": settings_values["llm_app_prompt_template"],
         "correct_answer": correct_answer,
-        "variant_output": variant_output,
+        "variant_output": output,
     }
 
     for input_item in settings_values["llm_app_inputs"]:
@@ -162,25 +184,25 @@ def auto_ai_critique(
 
 
 def evaluate(
-    evaluator_name: str,
+    evaluator_key: str,
+    inputs: Dict[str, Any],
+    output: str,
     correct_answer: str,
-    variant_output: str,
+    app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
-    *additional_args: Tuple[Any],
-    **additional_kwargs: Dict[str, Any],
 ) -> Result:
-    evaluation_function = globals().get(evaluator_name, None)
+    evaluation_function = globals().get(evaluator_key, None)
     if not evaluation_function:
-        raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
+        raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
     try:
         return evaluation_function(
+            inputs,
+            output,
             correct_answer,
-            variant_output,
-            settings_values,
-            *additional_args,
-            **additional_kwargs,
+            app_params,
+            settings_values
         )
     except Exception as exc:
         raise RuntimeError(
-            f"Error occurred while running {evaluator_name} evaluation. Exception: {str(exc)}"
+            f"Error occurred while running {evaluator_key} evaluation. Exception: {str(exc)}"
         )
