@@ -1,6 +1,6 @@
 import os
 import asyncio
-from typing import List
+from typing import List, Dict
 from celery import shared_task
 from collections import defaultdict
 
@@ -32,65 +32,81 @@ from agenta_backend.models.api.evaluation_model import NewEvaluation, AppOutput
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
 def evaluate(
-    app_data: dict,
-    new_evaluation_data: dict,
-    evaluation_id: str,
+    app_id: str,
+    variant_id: str,
+    evaluators_config_ids: List[str],
     testset_id: str,
+    evaluation_id: str,
+    rate_limit_config: Dict[str, int],
 ):
+    """
+    Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
+    Saves the results in the Database
+
+    Args:
+        app_id (str): The ID of the app.
+        variant_id (str): The ID of the app variant.
+        evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
+        testset_id (str): The ID of the testset.
+        rate_limit_config (Dict[str,int]): See LLMRunRateLimit
+
+    Returns:
+        None
+    """
+
     loop = asyncio.get_event_loop()
 
     try:
+        # Fetch data from the database
         loop.run_until_complete(DBEngine().init_db())
-        app = loop.run_until_complete(fetch_app_by_id(app_data["_id"]))
-        evaluation = NewEvaluation(**new_evaluation_data)
-        variant_id = str(evaluation.variant_ids[0])
+        app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         app_variant_parameters = app_variant_db.config.parameters
-
-        if (
-            not app_variant_parameters
-            or "inputs" not in app_variant_parameters
-            or not app_variant_parameters["inputs"]
-        ):
-            loop.run_until_complete(
-                update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
-            )
-            return
-
-        testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
+        testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
             fetch_evaluation_by_id(evaluation_id)
         )
-        evaluators_aggregated_data = defaultdict(
-            lambda: {"evaluator_key": "", "results": list()}
-        )
-
-        deployment = loop.run_until_complete(
+        evaluator_config_dbs = []
+        for evaluator_config_id in evaluators_config_ids:
+            evaluator_config = loop.run_until_complete(
+                fetch_evaluator_config(evaluator_config_id)
+            )
+            evaluator_config_dbs.append(evaluator_config)
+        deployment_db = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
 
+        # initialize vars
+        evaluators_aggregated_data = {
+            evaluator_config_db.id: {
+                "evaluator_key": evaluator_config.evaluator_key,
+                "results": []
+            }
+            for evaluator_config_db in evaluator_config_dbs
+        }
+
         #!NOTE: do not remove! this will be used in github workflow!
-        backend_environment = os.environ.get("ENVIRONMENT")
+        backend_environment = os.environ.get("ENVIRONMENT")  # TODO @abram rename the environment variable to something other than environment!!!
         if backend_environment is not None and backend_environment == "github":
-            uri = f"http://{deployment.container_name}"
+            uri = f"http://{deployment_db.container_name}"  # TODO: @abram Remove this from here. Move it to the deployment manager
         else:
-            uri = deployment.uri.replace(
+            uri = deployment_db.uri.replace(
                 "http://localhost", "http://host.docker.internal"
             )
 
-        # 1. We get the output from the llm app
+        # 1. Invoke the application and get the outputs
         app_outputs: List[AppOutput] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
-                testset.csvdata,
+                testset_db.csvdata,
                 app_variant_parameters,
-                evaluation.rate_limit.dict(),
+                rate_limit_config,
             )
         )
-        for data_point, app_output in zip(testset.csvdata, app_outputs):
-            if len(testset.csvdata) != len(app_outputs):
+        for data_point, app_output in zip(testset_db.csvdata, app_outputs):
+            if len(testset_db.csvdata) != len(app_outputs):
                 raise ValueError(
-                    "Length of testset.csvdata and app_outputs are not the same"
+                    "Length of csv data and app_outputs are not the same"
                 )
 
             # 2. We prepare the inputs
@@ -112,45 +128,24 @@ def evaluate(
 
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config_id in evaluation.evaluators_configs:
-                evaluator_config = loop.run_until_complete(
-                    fetch_evaluator_config(evaluator_config_id)
-                )
-
-                additional_kwargs = (
-                    {
-                        "app_params": app_variant_parameters,
-                        "inputs": data_point,
-                    }
-                    if evaluator_config.evaluator_key == "auto_custom_code_run"
-                    else {}
-                )
+            for evaluator_config_db in evaluator_config_dbs:
                 result = evaluators_service.evaluate(
-                    evaluator_config.evaluator_key,
-                    app_output.output,
-                    data_point["correct_answer"],
-                    evaluator_config.settings_values,
-                    **additional_kwargs,
+                    evaluator_key=evaluator_config_db.evaluator_key,
+                    variant_output=app_output.output,
+                    correct_answer=data_point["correct_answer"],
+                    settings_values=evaluator_config_db.settings_values,
+                    app_params=app_variant_parameters,
+                    inputs=data_point,
                 )
 
                 result_object = EvaluationScenarioResult(
-                    evaluator_config=evaluator_config.id,
+                    evaluator_config=evaluator_config_db.id,
                     result=result,
                 )
                 evaluators_results.append(result_object)
-                if (
-                    evaluators_aggregated_data[evaluator_config_id]["evaluator_key"]
-                    == ""
-                ):
-                    evaluators_aggregated_data[evaluator_config_id][
-                        "evaluator_key"
-                    ] = evaluator_config.evaluator_key
-                evaluators_aggregated_data[evaluator_config_id]["results"].append(
-                    result
-                )
 
-            # 4. We create a new evaluation scenario
-            evaluation_scenario = loop.run_until_complete(
+            # 4. We save the result of the eval scenario in the db
+            loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
                     organization=app.organization,
@@ -177,7 +172,7 @@ def evaluate(
     aggregated_results = loop.run_until_complete(
         aggregate_evaluator_results(app, evaluators_aggregated_data)
     )
-    updated_evaluation = loop.run_until_complete(
+    loop.run_until_complete(
         update_evaluation_with_aggregated_results(
             new_evaluation_db.id, aggregated_results
         )
