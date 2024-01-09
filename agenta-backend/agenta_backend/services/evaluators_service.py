@@ -50,9 +50,7 @@ def auto_regex_test(
     settings_values: Dict[str, Any],
 ) -> Result:
     re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
-    result = (
-        bool(re_pattern.search(output)) == settings_values["regex_should_match"]
-    )
+    result = bool(re_pattern.search(output)) == settings_values["regex_should_match"]
     return Result(type="bool", value=result)
 
 
@@ -118,7 +116,6 @@ def auto_ai_critique(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
-
 ) -> str:
     """Evaluate a response using an AI critique based on provided
      - An evaluation prompt,
@@ -196,11 +193,7 @@ def evaluate(
         raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
     try:
         return evaluation_function(
-            inputs,
-            output,
-            correct_answer,
-            app_params,
-            settings_values
+            inputs, output, correct_answer, app_params, settings_values
         )
     except Exception as exc:
         raise RuntimeError(

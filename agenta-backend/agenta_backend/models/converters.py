@@ -72,7 +72,9 @@ def human_evaluation_db_to_simple_evaluation_output(
 async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
-    variant = await db_manager.get_app_variant_instance_by_id(str(evaluation_db.variant))
+    variant = await db_manager.get_app_variant_instance_by_id(
+        str(evaluation_db.variant)
+    )
     variant_name = variant.variant_name if variant else str(evaluation_db.variant)
 
     return Evaluation(

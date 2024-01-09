@@ -85,7 +85,7 @@ def evaluate(
         evaluators_aggregated_data = {
             evaluator_config_db.id: {
                 "evaluator_key": evaluator_config.evaluator_key,
-                "results": []
+                "results": [],
             }
             for evaluator_config_db in evaluator_config_dbs
         }
@@ -99,22 +99,20 @@ def evaluate(
             )
         )
 
-        openapi_parameters = loop.run_until_complete(llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json"))
+        openapi_parameters = loop.run_until_complete(
+            llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
+        )
         # 4. Evaluate the app ourputss
 
         if len(testset_db.csvdata) != len(app_outputs):
             loop.run_until_complete(
                 update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
             )
-            self.update_state(
-                state=states.FAILURE)
+            self.update_state(state=states.FAILURE)
 
-            raise ValueError(
-                "Length of csv data and app_outputs are not the same"
-            )
+            raise ValueError("Length of csv data and app_outputs are not the same")
             return
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
-
             # 2. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
@@ -123,7 +121,11 @@ def evaluate(
                 EvaluationScenarioInputDB(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[input_item["name"] if input_item["type"] != "messages" else "chat"],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
+                    value=data_point[
+                        input_item["name"]
+                        if input_item["type"] != "messages"
+                        else "chat"
+                    ],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
@@ -172,8 +174,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
         )
-        self.update_state(
-            state=states.FAILURE)
+        self.update_state(state=states.FAILURE)
 
         return
 
@@ -227,7 +228,9 @@ async def aggregate_evaluator_results(
 
 def _get_deployment_uri(deployment_db) -> str:
     #!NOTE: do not remove! this will be used in github workflow!
-    backend_environment = os.environ.get("ENVIRONMENT")  # TODO @abram rename the environment variable to something other than environment!!!
+    backend_environment = os.environ.get(
+        "ENVIRONMENT"
+    )  # TODO @abram rename the environment variable to something other than environment!!!
     if backend_environment is not None and backend_environment == "github":
         return f"http://{deployment_db.container_name}"  # TODO: @abram Remove this from here. Move it to the deployment manager
     else:
