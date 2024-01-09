@@ -66,7 +66,7 @@ async def create_evaluation(
         for variant_id in payload.variant_ids:
             new_evaluation_data = {
                 "app_id": payload.app_id,
-                "variant_ids": [variant_id],  # Only this variant ID
+                "variant_id": variant_id,  # Only this variant ID
                 "evaluators_configs": payload.evaluators_configs,
                 "testset_id": payload.testset_id,
                 "rate_limit": payload.rate_limit.dict(),

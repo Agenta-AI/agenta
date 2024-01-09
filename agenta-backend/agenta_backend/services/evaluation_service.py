@@ -597,7 +597,7 @@ async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -
 
 async def create_new_human_evaluation(
     payload: NewHumanEvaluation, **user_org_data: dict
-) -> EvaluationDB:
+) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
 
@@ -606,7 +606,7 @@ async def create_new_human_evaluation(
         **user_org_data (dict): Additional keyword arguments, e.g., user id.
 
     Returns:
-        EvaluationDB
+        HumanEvaluationDB
     """
     user = await get_user(user_uid=user_org_data["uid"])
 
@@ -683,7 +683,7 @@ async def create_new_evaluation(
         user=app.user,
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
-        variants=new_evaluation.variant_ids,
+        variant=new_evaluation.variant_id,
         evaluators_configs=new_evaluation.evaluators_configs,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
