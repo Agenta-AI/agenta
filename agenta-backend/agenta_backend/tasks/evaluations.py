@@ -57,7 +57,7 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        # Fetch data from the database
+        # 1. Fetch data from the database
         loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
@@ -75,8 +75,8 @@ def evaluate(
         deployment_db = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
-
-        # initialize vars
+        uri = _get_deployment_uri(deployment_db)
+        # 2. Initialize vars
         evaluators_aggregated_data = {
             evaluator_config_db.id: {
                 "evaluator_key": evaluator_config.evaluator_key,
@@ -84,17 +84,7 @@ def evaluate(
             }
             for evaluator_config_db in evaluator_config_dbs
         }
-
-        #!NOTE: do not remove! this will be used in github workflow!
-        backend_environment = os.environ.get("ENVIRONMENT")  # TODO @abram rename the environment variable to something other than environment!!!
-        if backend_environment is not None and backend_environment == "github":
-            uri = f"http://{deployment_db.container_name}"  # TODO: @abram Remove this from here. Move it to the deployment manager
-        else:
-            uri = deployment_db.uri.replace(
-                "http://localhost", "http://host.docker.internal"
-            )
-
-        # 1. Invoke the application and get the outputs
+        # 3. Invoke the app
         app_outputs: List[AppOutput] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
@@ -103,6 +93,9 @@ def evaluate(
                 rate_limit_config,
             )
         )
+
+        openapi_parameters = loop.run_until_complete(llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json"))
+        # 4. Evaluate the app ourputss
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
             if len(testset_db.csvdata) != len(app_outputs):
                 raise ValueError(
@@ -110,21 +103,16 @@ def evaluate(
                 )
 
             # 2. We prepare the inputs
-            raw_inputs = (
-                app_variant_parameters.get("inputs", [])
-                if app_variant_parameters
-                else []
-            )
-            inputs = []
-            if raw_inputs:
-                inputs = [
-                    EvaluationScenarioInputDB(
-                        name=input_item["name"],
-                        type="text",
-                        value=data_point[input_item["name"]],
-                    )
-                    for input_item in raw_inputs
-                ]
+            list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
+
+            inputs = [
+                EvaluationScenarioInputDB(
+                    name=input_item["name"],
+                    type="text",
+                    value=data_point[input_item["name"]],
+                )
+                for input_item in list_inputs
+            ]
 
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
@@ -215,3 +203,39 @@ async def aggregate_evaluator_results(
         )
         aggregated_results.append(aggregated_result)
     return aggregated_results
+
+
+def _get_deployment_uri(deployment_db) -> str:
+    #!NOTE: do not remove! this will be used in github workflow!
+    backend_environment = os.environ.get("ENVIRONMENT")  # TODO @abram rename the environment variable to something other than environment!!!
+    if backend_environment is not None and backend_environment == "github":
+        return f"http://{deployment_db.container_name}"  # TODO: @abram Remove this from here. Move it to the deployment manager
+    else:
+        return deployment_db.uri.replace(
+            "http://localhost", "http://host.docker.internal"
+        )
+
+
+def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str, str]]:
+    """
+    Get a list of application inputs based on the app variant parameters and openapi parameters.
+
+    Args:
+        app_variant_parameters (dict): A dictionary containing the app variant parameters.
+        openapi_parameters (list): A list of openapi parameters.
+
+    Returns:
+        list: A list of dictionaries representing the application inputs, where each dictionary contains the input name and type.
+    """
+    list_inputs = []
+    for param in openapi_parameters:
+        if param["type"] == "input":
+            list_inputs.append({"name": param["name"], "type": "input"})
+        elif param["type"] == "dict":
+            for input_name in app_variant_parameters[param["name"]]:
+                list_inputs.append({"name": input_name, "type": "dict_input"})
+        elif param["type"] == "messages":
+            list_inputs.append({"name": param["name"], "type": "messages"})
+        elif param["type"] == "file_url":
+            list_inputs.append({"name": param["name"], "type": "file_url"})
+    return list_inputs
