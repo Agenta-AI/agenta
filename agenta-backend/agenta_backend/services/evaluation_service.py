@@ -658,24 +658,27 @@ async def create_new_human_evaluation(
 
 
 async def create_new_evaluation(
-    app_data: dict, new_evaluation_data: dict, evaluators_configs: List[str]
+    app_id: str,
+    variant_id: str,
+    evaluator_config_ids: List[str],
+    testset_id: str,
 ) -> Evaluation:
     """
-    Create a new evaluation.
+    Create a new evaluation in the db
 
     Args:
-        app_data (dict): Required app data
-        new_evaluation_data (dict): Required new evaluation data
-        evaluators_configs (List[str]): List of evaluator configurations
+        app_id (str): The ID of the app.
+        variant_id (str): The ID of the variant.
+        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
+        testset_id (str): The ID of the testset.
 
     Returns:
-        Evaluation
+        Evaluation: The newly created evaluation.
     """
 
-    new_evaluation = NewEvaluation(**new_evaluation_data)
-    app = AppDB(**app_data)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
-    testset = await db_manager.fetch_testset_by_id(new_evaluation.testset_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id)
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -683,8 +686,8 @@ async def create_new_evaluation(
         user=app.user,
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
-        variant=new_evaluation.variant_id,
-        evaluators_configs=new_evaluation.evaluators_configs,
+        variant=variant_id,
+        evaluators_configs=evaluator_config_ids,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
