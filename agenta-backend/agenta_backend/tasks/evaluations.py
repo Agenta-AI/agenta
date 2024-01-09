@@ -116,20 +116,22 @@ def evaluate(
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
 
             # 2. We prepare the inputs
+            logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
-
+            logger.debug(f"List of inputs: {list_inputs}")
             inputs = [
                 EvaluationScenarioInputDB(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[input_item["name"]],
+                    value=data_point[input_item["name"] if input_item["type"] != "messages" else "chat"],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
-
+            logger.debug(f"Inputs: {inputs}")
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
+                logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 result = evaluators_service.evaluate(
                     evaluator_key=evaluator_config_db.evaluator_key,
                     output=app_output.output,
@@ -143,6 +145,7 @@ def evaluate(
                     evaluator_config=evaluator_config_db.id,
                     result=result,
                 )
+                logger.debug(f"Result: {result_object}")
                 evaluators_results.append(result_object)
 
             # 4. We save the result of the eval scenario in the db
@@ -165,7 +168,7 @@ def evaluate(
             )
 
     except Exception as e:
-        print(f"An error occurred during evaluation: {e}")
+        logger.error(f"An error occurred during evaluation: {e.__traceback__}")
         loop.run_until_complete(
             update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
         )
