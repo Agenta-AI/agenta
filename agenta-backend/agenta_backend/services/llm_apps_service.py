@@ -44,7 +44,8 @@ async def invoke_app(
                 input_name_ = input_name["name"]
                 inputs_dict[input_name_] = datapoint.get(input_name_, "")
         elif param["type"] == "messages":
-            payload[param["name"]] = datapoint.get(param["name"], "")
+            # payload[param["name"]] = datapoint.get(param["name"], "")
+            payload[param["name"]] = datapoint.get("chat", "")  # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
         elif param["type"] == "file_url":
             payload[param["name"]] = datapoint.get(param["name"], "")
         else:
@@ -53,6 +54,7 @@ async def invoke_app(
         payload["inputs"] = inputs_dict
 
     async with httpx.AsyncClient() as client:
+        logger.debug(f"Invoking app {uri} with payload {payload}")
         response = await client.post(
             url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
         )
