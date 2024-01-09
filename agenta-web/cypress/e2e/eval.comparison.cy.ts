@@ -46,7 +46,8 @@ describe("Evaluation Comparison Test", function () {
         it("Should select 2 evaluations, click on the compare button, and successfully navigate to the comparison page", () => {
             cy.get("#ag-33-input").check()
             cy.get("#ag-35-input").check()
-            cy.get(":nth-child(2) > .ant-btn > .ant-btn-icon > .anticon > svg").click()
+            cy.get('[data-cy="evaluation-results-compare-button"]').should("not.be.disabled")
+            cy.get('[data-cy="evaluation-results-compare-button"]').click()
             cy.location("pathname").should("include", "/evaluations/compare")
             cy.contains(/Evaluations Comparison/i)
             cy.get('[data-cy="evaluation-compare-table"]').should("exist")
