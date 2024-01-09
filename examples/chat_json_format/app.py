@@ -39,4 +39,9 @@ def chat(inputs: ag.MessagesInput = ag.MessagesInput()):
         max_tokens=max_tokens,
         response_format=response_format,
     )
-    return chat_completion.choices[0].message.content
+    token_usage = chat_completion.usage.dict()
+    return {
+        "message": chat_completion.choices[0].message.content,
+        **{"usage": token_usage},
+        "cost": ag.calculate_token_usage(ag.config.model, token_usage),
+    }

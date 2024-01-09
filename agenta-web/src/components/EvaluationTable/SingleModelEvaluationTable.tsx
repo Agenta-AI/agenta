@@ -298,6 +298,9 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
+                    if (typeof result !== "string") {
+                        result = result.message
+                    }
 
                     setRowValue(rowIndex, variant.variantId, result)
                     ;(outputs as KeyValuePair)[variant.variantId] = result
