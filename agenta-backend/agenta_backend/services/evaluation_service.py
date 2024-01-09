@@ -611,7 +611,6 @@ async def create_new_human_evaluation(
     user = await get_user(user_uid=user_org_data["uid"])
 
     # Initialize evaluation type settings
-    settings = payload.evaluation_type_settings
     evaluation_type_settings = {}
 
     current_time = datetime.utcnow()
