@@ -1,37 +1,42 @@
-import os
 import asyncio
-from typing import List, Dict
-from celery import shared_task
+import logging
+import os
 from collections import defaultdict
+from typing import Dict, List
 
-from agenta_backend.services import llm_apps_service
-from agenta_backend.services.db_manager import (
-    fetch_evaluation_by_id,
-    fetch_app_variant_by_id,
-    fetch_evaluator_config,
-    fetch_app_by_id,
-    get_deployment_by_objectid,
-    update_evaluation,
-    fetch_testset_by_id,
-    create_new_evaluation_scenario,
-    fetch_evaluator_config_by_appId,
-    update_evaluation_with_aggregated_results,
-)
+from agenta_backend.models.api.evaluation_model import AppOutput, NewEvaluation
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
+    AggregatedResult,
     AppDB,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
-    AggregatedResult,
     Result,
 )
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services import evaluators_service
-from agenta_backend.models.api.evaluation_model import NewEvaluation, AppOutput
+from agenta_backend.services import evaluators_service, llm_apps_service
+from agenta_backend.services.db_manager import (
+    create_new_evaluation_scenario,
+    fetch_app_by_id,
+    fetch_app_variant_by_id,
+    fetch_evaluation_by_id,
+    fetch_evaluator_config,
+    fetch_evaluator_config_by_appId,
+    fetch_testset_by_id,
+    get_deployment_by_objectid,
+    update_evaluation,
+    update_evaluation_with_aggregated_results,
+)
+from celery import shared_task, states
+
+# Set logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
-@shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
+@shared_task(queue="agenta_backend.tasks.evaluations.evaluate", bind=True)
 def evaluate(
+    self,
     app_id: str,
     variant_id: str,
     evaluators_config_ids: List[str],
@@ -96,11 +101,19 @@ def evaluate(
 
         openapi_parameters = loop.run_until_complete(llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json"))
         # 4. Evaluate the app ourputss
+
+        if len(testset_db.csvdata) != len(app_outputs):
+            loop.run_until_complete(
+                update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
+            )
+            self.update_state(
+                state=states.FAILURE)
+
+            raise ValueError(
+                "Length of csv data and app_outputs are not the same"
+            )
+            return
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
-            if len(testset_db.csvdata) != len(app_outputs):
-                raise ValueError(
-                    "Length of csv data and app_outputs are not the same"
-                )
 
             # 2. We prepare the inputs
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
@@ -119,7 +132,7 @@ def evaluate(
             for evaluator_config_db in evaluator_config_dbs:
                 result = evaluators_service.evaluate(
                     evaluator_key=evaluator_config_db.evaluator_key,
-                    variant_output=app_output.output,
+                    output=app_output.output,
                     correct_answer=data_point["correct_answer"],
                     settings_values=evaluator_config_db.settings_values,
                     app_params=app_variant_parameters,
@@ -156,6 +169,10 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
         )
+        self.update_state(
+            state=states.FAILURE)
+
+        return
 
     aggregated_results = loop.run_until_complete(
         aggregate_evaluator_results(app, evaluators_aggregated_data)
