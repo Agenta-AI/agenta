@@ -696,7 +696,7 @@ async def get_orga_image_instance_by_uri(
     if not parsed_url.scheme and not parsed_url.netloc:
         raise ValueError(f"Invalid URL: {template_uri}")
 
-    image = await ImageDB.fine_one(
+    image = await ImageDB.find_one(
         ImageDB.template_uri == template_uri,
         ImageDB.organization.id == ObjectId(organization_id),
     )
