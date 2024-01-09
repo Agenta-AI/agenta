@@ -75,6 +75,7 @@ async def create_evaluation(
                 variant_id=variant_id,
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
+                evaluation_id=evaluation.id,
                 rate_limit_config=payload.rate_limit.dict())
             evaluations.append(evaluation)
 
