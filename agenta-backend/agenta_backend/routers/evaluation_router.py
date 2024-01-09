@@ -60,30 +60,22 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        app_data = jsonable_encoder(app)
         evaluations = []
 
         for variant_id in payload.variant_ids:
-            new_evaluation_data = {
-                "app_id": payload.app_id,
-                "variant_id": variant_id,  # Only this variant ID
-                "evaluators_configs": payload.evaluators_configs,
-                "testset_id": payload.testset_id,
-                "rate_limit": payload.rate_limit.dict(),
-            }
-
             evaluation = await evaluation_service.create_new_evaluation(
-                app_data=app_data,
-                new_evaluation_data=new_evaluation_data,
-                evaluators_configs=payload.evaluators_configs,
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluator_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id
             )
 
             evaluate.delay(
-                app_data,
-                new_evaluation_data,
-                evaluation.id,
-                evaluation.testset_id,
-            )
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluators_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+                rate_limit_config=payload.rate_limit.dict())
             evaluations.append(evaluation)
 
         return evaluations
