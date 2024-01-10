@@ -1,6 +1,13 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
-import {ComparisonResultRow, JSSTheme, TestSet, _Evaluation, _EvaluationScenario} from "@/lib/Types"
+import {
+    ComparisonResultRow,
+    EvaluatorConfig,
+    JSSTheme,
+    TestSet,
+    _Evaluation,
+    _EvaluationScenario,
+} from "@/lib/Types"
 import {fetchAllComparisonResults} from "@/services/evaluations"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
@@ -15,6 +22,7 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 import {stringToNumberInRange} from "@/lib/helpers/utils"
 import Link from "next/link"
+import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -29,9 +37,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     tag: {
         "& a": {
-            color: "inherit",
+            color: "inherit !important",
+            fontWeight: 600,
             "&:hover": {
-                color: "inherit",
+                color: "inherit !important",
                 textDecoration: "underline",
             },
         },
@@ -56,9 +65,13 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
     const colors = useMemo(() => {
         const colors = getTagColors()
-        return variants.map(
-            (v) => colors[stringToNumberInRange(v.evaluationId, 0, colors.length - 1)],
-        )
+        const previous = new Set<string>()
+        return variants.map((v) => {
+            const color = colors[stringToNumberInRange(v.evaluationId, 0, colors.length - 1)]
+            if (previous.has(color)) return colors.find((c) => !previous.has(c))!
+            previous.add(color)
+            return color
+        })
     }, [variants])
 
     const evaluationIds = useMemo(
@@ -96,11 +109,13 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
         variants.forEach((variant, vi) => {
             colDefs.push({
-                headerComponent: () => (
-                    <Space direction="vertical">
-                        <span>Output</span>
-                        <Tag color={colors[vi]}>{variant.variantName}</Tag>
-                    </Space>
+                headerComponent: (props: any) => (
+                    <AgCustomHeader {...props}>
+                        <Space direction="vertical">
+                            <span>Output</span>
+                            <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                        </Space>
+                    </AgCustomHeader>
                 ),
                 minWidth: 280,
                 flex: 1,
@@ -115,16 +130,32 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 },
                 cellRenderer: LongTextCellRenderer,
             })
+        })
+
+        const confgisMap: Record<
+            string,
+            {config: EvaluatorConfig; variant: ComparisonResultRow["variants"][0]; color: string}[]
+        > = {}
+        variants.forEach((variant, vi) => {
             variant.evaluatorConfigs.forEach(({evaluatorConfig: config}, ix) => {
+                if (!confgisMap[config.id]) confgisMap[config.id] = []
+                confgisMap[config.id].push({variant, config, color: colors[vi]})
+            })
+        })
+
+        Object.entries(confgisMap).forEach(([configId, configs]) => {
+            configs.forEach(({config, variant, color}) => {
                 colDefs.push({
                     flex: 1,
-                    headerComponent: () => (
-                        <Space direction="vertical">
-                            <span>Evaluator: {config.name}</span>
-                            <Tag color={colors[vi]}>{variant.variantName}</Tag>
-                        </Space>
+                    headerComponent: (props: any) => (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical">
+                                <span>Evaluator: {config.name}</span>
+                                <Tag color={color}>{variant.variantName}</Tag>
+                            </Space>
+                        </AgCustomHeader>
                     ),
-                    field: `variants.${vi}.evaluatorConfigs.${ix}.result` as any,
+                    field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
                     valueGetter: (params) => {
                         return getTypedValue(
@@ -166,6 +197,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     useEffect(() => {
         fetcher()
     }, [appId, evaluationIdsStr])
+
+    // useAgGridCustomHeaders(gridRef.current?.api)
 
     const handleDeleteVariant = (evalId: string) => {
         setEvaluationIdsStr(evaluationIds.filter((item) => item !== evalId).join(","))

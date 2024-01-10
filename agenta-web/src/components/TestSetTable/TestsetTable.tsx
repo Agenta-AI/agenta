@@ -268,9 +268,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const [scopedInputValues, setScopedInputValues] = useState(
             columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
         )
-        const [index, setIndex] = useState(attributes["aria-colindex"].nodeValue - 2)
-
-        const [displayName, setDisplayName] = useState(params.displayName)
+        const index = attributes["aria-colindex"].nodeValue - 2
+        const displayName = params.displayName
 
         const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
         const handleOpenEditInput = () => {
@@ -341,7 +340,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             return () => window.removeEventListener("keydown", handleEscape)
         }, [isEditInputOpen, scopedInputValues])
 
-        if (displayName === "") {
+        if (displayName === "" && params.column?.colId !== "0") {
             return (
                 <div className={classes.plusIcon}>
                     <Button onClick={onAddColumn}>
