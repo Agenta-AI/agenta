@@ -3,7 +3,7 @@ import logging
 import os
 import traceback
 from collections import defaultdict
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from agenta_backend.models.api.evaluation_model import AppOutput, NewEvaluation
 from agenta_backend.models.db_engine import DBEngine
@@ -44,6 +44,7 @@ def evaluate(
     testset_id: str,
     evaluation_id: str,
     rate_limit_config: Dict[str, int],
+    lm_providers_keys: Dict[str, Any],
 ):
     """
     Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
@@ -82,6 +83,7 @@ def evaluate(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
         uri = _get_deployment_uri(deployment_db)
+
         # 2. Initialize vars
         evaluators_aggregated_data = {
             evaluator_config_db.id: {
@@ -90,6 +92,7 @@ def evaluate(
             }
             for evaluator_config_db in evaluator_config_dbs
         }
+
         # 3. Invoke the app
         app_outputs: List[AppOutput] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
@@ -103,8 +106,8 @@ def evaluate(
         openapi_parameters = loop.run_until_complete(
             llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
         )
-        # 4. Evaluate the app ourputss
 
+        # 4. Evaluate the app outputs
         if len(testset_db.csvdata) != len(app_outputs):
             loop.run_until_complete(
                 update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
@@ -131,6 +134,7 @@ def evaluate(
                 for input_item in list_inputs
             ]
             logger.debug(f"Inputs: {inputs}")
+
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
@@ -142,6 +146,7 @@ def evaluate(
                     settings_values=evaluator_config_db.settings_values,
                     app_params=app_variant_parameters,
                     inputs=data_point,
+                    lm_providers_keys=lm_providers_keys,
                 )
 
                 result_object = EvaluationScenarioResult(

@@ -10,6 +10,7 @@ from agenta_backend.utils.common import APIRouter
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
+    LMProvidersEnum,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationWebhook,
@@ -19,6 +20,9 @@ from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
 
+from agenta_backend.services.db_manager import (
+    check_if_ai_critique_exists_in_list_of_evlautors_configs,
+)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -60,6 +64,28 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
+        if await check_if_ai_critique_exists_in_list_of_evlautors_configs(
+            payload.evaluators_configs
+        ):
+            # Check if lm_providers_keys is provided and not empty
+            if not payload.lm_providers_keys:
+                return JSONResponse(
+                    {"detail": "Missing Key"},
+                    status_code=400,
+                )
+
+            # Check if there is an OpenAI key and if it starts with 'sk-'
+            has_valid_open_ai_key = any(
+                key == LMProvidersEnum.open_ai and value.startswith("sk-")
+                for key, value in payload.lm_providers_keys.items()
+            )
+
+            if not has_valid_open_ai_key:
+                return JSONResponse(
+                    {"detail": "Invalid or missing OpenAI key"},
+                    status_code=400,
+                )
+
         evaluations = []
 
         for variant_id in payload.variant_ids:
@@ -77,6 +103,7 @@ async def create_evaluation(
                 testset_id=payload.testset_id,
                 evaluation_id=evaluation.id,
                 rate_limit_config=payload.rate_limit.dict(),
+                lm_providers_keys=payload.lm_providers_keys,
             )
             evaluations.append(evaluation)
 
