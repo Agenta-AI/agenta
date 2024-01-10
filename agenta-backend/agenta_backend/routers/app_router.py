@@ -277,6 +277,10 @@ async def add_variant_from_image(
             **user_org_data,
         )
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+
+        logger.debug("Step 8: We create ready-to use evaluators")
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -396,20 +400,7 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug("Step 8: We create ready-to use evaluators")
-        evaluators = evaluator_manager.get_evaluators()
-        direct_use_evaluators = [
-            evaluator for evaluator in evaluators if evaluator.get("direct_use")
-        ]
-
-        for evaluator in direct_use_evaluators:
-            await db_manager.create_evaluator_config(
-                app=app,
-                organization=app.organization,
-                user=app.user,
-                name=evaluator["name"],
-                evaluator_key=evaluator["key"],
-                settings_values={},
-            )
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug("Step 9: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
