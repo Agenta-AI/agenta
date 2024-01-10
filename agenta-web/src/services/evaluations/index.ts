@@ -6,6 +6,7 @@ import {
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
+    KeyValuePair,
     LLMRunRateLimit,
     TestSet,
     _Evaluation,
@@ -121,6 +122,7 @@ export type CreateEvaluationData = {
     variant_ids: string[]
     evaluators_configs: string[]
     rate_limit: LLMRunRateLimit
+    lm_providers_keys: KeyValuePair
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
     return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
