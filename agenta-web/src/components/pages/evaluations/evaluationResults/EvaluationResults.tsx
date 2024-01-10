@@ -3,7 +3,7 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Space, Spin, Tooltip, theme} from "antd"
+import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
 import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
 import {EvaluationStatus, GenericObject, JSSTheme, TypedValue, _Evaluation} from "@/lib/Types"
 import {capitalize, round, uniqBy} from "lodash"
@@ -15,7 +15,7 @@ import {useAppId} from "@/hooks/useAppId"
 import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
 import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
-import {shortPoll} from "@/lib/helpers/utils"
+import {redirectIfNoLLMKeys, shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {
     LinkCellRenderer,
@@ -23,6 +23,9 @@ import {
     runningStatuses,
     statusMapper,
 } from "../cellRenderers/cellRenderers"
+import {useAtom} from "jotai"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -99,11 +102,13 @@ const EvaluationResults: React.FC<Props> = () => {
     const appId = useAppId()
     const router = useRouter()
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
+    const [evaluators] = useAtom(evaluatorsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [fetching, setFetching] = useState(false)
     const [selected, setSelected] = useState<_Evaluation[]>([])
     const stoppers = useRef<Function>()
     const {token} = theme.useToken()
+    const gridRef = useRef<AgGridReact>()
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -173,7 +178,14 @@ const EvaluationResults: React.FC<Props> = () => {
         () =>
             uniqBy(
                 evaluations
-                    .map((item) => item.aggregated_results.map((item) => item.evaluator_config))
+                    .map((item) =>
+                        item.aggregated_results.map((item) => ({
+                            ...item.evaluator_config,
+                            evaluator: evaluators.find(
+                                (e) => e.key === item.evaluator_config.evaluator_key,
+                            ),
+                        })),
+                    )
                     .flat(),
                 "id",
             ),
@@ -218,13 +230,26 @@ const EvaluationResults: React.FC<Props> = () => {
                 (config) =>
                     ({
                         flex: 1,
-                        minWidth: 140,
+                        minWidth: 190,
                         field: "aggregated_results",
-                        headerComponent: () => (
-                            <span>
-                                <SlidersOutlined /> {config.name}
-                            </span>
+                        headerComponent: (props: any) => (
+                            <AgCustomHeader {...props}>
+                                <Space
+                                    direction="vertical"
+                                    size="small"
+                                    style={{padding: "0.75rem 0"}}
+                                >
+                                    <Space size="small">
+                                        <SlidersOutlined />
+                                        <span>{config.name}</span>
+                                    </Space>
+                                    <Tag color={config.evaluator?.color}>
+                                        {config.evaluator?.name}
+                                    </Tag>
+                                </Space>
+                            </AgCustomHeader>
                         ),
+                        autoHeaderHeight: true,
                         ...getFilterParams("number"),
                         valueGetter: (params) =>
                             getTypedValue(
@@ -310,7 +335,9 @@ const EvaluationResults: React.FC<Props> = () => {
                 <Button
                     icon={<PlusCircleOutlined />}
                     type="primary"
-                    onClick={() => setNewEvalModalOpen(true)}
+                    onClick={() => {
+                        if (!redirectIfNoLLMKeys()) setNewEvalModalOpen(true)
+                    }}
                     data-cy="new-evaluation-button"
                 >
                     New Evaluation
@@ -323,6 +350,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     } ${classes.table}`}
                 >
                     <AgGridReact<_Evaluation>
+                        ref={gridRef as any}
                         rowData={evaluations}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}

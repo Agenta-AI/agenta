@@ -8,7 +8,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getApikeys, isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -181,16 +181,7 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const providerKeys = getApikeys()
-        if (!providerKeys && !isDemo()) {
-            notification.error({
-                message: "OpenAI API Key Missing",
-                description: "Please provide your OpenAI API key to access this feature.",
-                duration: 5,
-            })
-            router.push("/settings?tab=secrets")
-            return
-        }
+        if (redirectIfNoLLMKeys()) return
 
         setFetchingTemplate(true)
         setStatusModalOpen(true)
@@ -200,7 +191,7 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            providerKey: isDemo() ? "" : (providerKeys as string),
+            providerKey: isDemo() ? "" : getApikeys(),
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))

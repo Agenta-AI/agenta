@@ -6,6 +6,8 @@ import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
+import {notification} from "antd"
+import Router from "next/router"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
@@ -384,4 +386,18 @@ export const generateOrRetrieveDistinctId = (): string => {
     } else {
         return uuidv4()
     }
+}
+
+export const redirectIfNoLLMKeys = () => {
+    const providerKeys = getApikeys()
+    if (!providerKeys && !isDemo()) {
+        notification.error({
+            message: "OpenAI API Key Missing",
+            description: "Please provide your OpenAI API key to access this feature.",
+            duration: 5,
+        })
+        Router.push("/settings?tab=secrets")
+        return true
+    }
+    return false
 }
