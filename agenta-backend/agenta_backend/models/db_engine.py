@@ -24,8 +24,6 @@ from agenta_backend.models.db_models import (
     HumanEvaluationScenarioDB,
     EvaluationDB,
     EvaluationScenarioDB,
-    OldEvaluationDB,
-    OldEvaluationScenarioDB,
     SpanDB,
     TraceDB,
 )
@@ -53,8 +51,6 @@ document_models: List[Document] = [
     HumanEvaluationScenarioDB,
     EvaluationDB,
     EvaluationScenarioDB,
-    OldEvaluationDB,
-    OldEvaluationScenarioDB,
     SpanDB,
     TraceDB,
 ]
