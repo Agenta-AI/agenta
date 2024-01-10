@@ -1,5 +1,6 @@
 import useSWR from "swr"
 import axios from "@/lib//helpers/axiosConfig"
+import ax, {CancelToken} from "axios"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
@@ -84,16 +85,16 @@ export async function callVariant(
     appId: string,
     baseId: string,
     chatMessages?: ChatMessage[],
+    signal?: AbortSignal, // New parameter for the AbortController signal
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
-    const mainInputParams: Record<string, string> = {} // Parameters with input = true
-    const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
+    const mainInputParams: Record<string, string> = {}
+    const secondaryInputParams: Record<string, string> = {}
+
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
-        // If parameter definition is found and its 'input' property is false,
-        // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
         if (paramDefinition && !paramDefinition.input) {
             secondaryInputParams[key] = inputParametersDict[key]
         } else {
@@ -105,7 +106,7 @@ export async function callVariant(
 
     const optParams = optionalParameters
         .filter((param) => param.default)
-        .filter((param) => param.type !== "object") // remove dicts from optional parameters
+        .filter((param) => param.type !== "object")
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
             return acc
@@ -120,9 +121,30 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
-        return res.data
-    })
+    // Pass the signal to the axios request using CancelToken.source()
+    const {token, cancel} = CancelToken.source()
+    if (signal) {
+        signal.addEventListener("abort", () => {
+            // Cancel the axios request when the AbortController is aborted
+            cancel()
+        })
+    }
+
+    return ax
+        .post(`${appContainerURI}/generate`, requestBody, {
+            cancelToken: token, // Pass the CancelToken to link with the AbortController signal
+        })
+        .then((res) => {
+            return res.data
+        })
+        .catch((error) => {
+            if (ax.isCancel(error)) {
+                throw new Error("Request canceled")
+            } else {
+                // Handle other errors
+                throw error
+            }
+        })
 }
 
 /**
