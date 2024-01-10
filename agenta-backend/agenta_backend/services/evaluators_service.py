@@ -17,6 +17,7 @@ def auto_exact_match(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     exact_match = True if output == correct_answer else False
     result = Result(type="bool", value=exact_match)
@@ -29,6 +30,7 @@ def auto_similarity_match(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     set1 = set(output.split())
     set2 = set(correct_answer.split())
@@ -48,6 +50,7 @@ def auto_regex_test(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
     result = bool(re_pattern.search(output)) == settings_values["regex_should_match"]
@@ -60,6 +63,7 @@ def auto_webhook_test(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
         with httpx.Client() as client:
@@ -96,6 +100,7 @@ def auto_custom_code_run(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
         result = sandbox.execute_code_safely(
@@ -116,6 +121,7 @@ def auto_ai_critique(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> str:
     """Evaluate a response using an AI critique based on provided
      - An evaluation prompt,
@@ -134,8 +140,9 @@ def auto_ai_critique(
         str: returns an evaluation
     """
     llm = OpenAI(
-        openai_api_key=settings_values["open_ai_key"],
-        temperature=settings_values["temperature"],
+        openai_api_key=lm_providers_keys["open_ai"],
+        temperature=0.8,
+        model="gpt-3.5-turbo-1106",
     )
 
     input_variables = []
@@ -187,13 +194,19 @@ def evaluate(
     correct_answer: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
 ) -> Result:
     evaluation_function = globals().get(evaluator_key, None)
     if not evaluation_function:
         raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
     try:
         return evaluation_function(
-            inputs, output, correct_answer, app_params, settings_values
+            inputs,
+            output,
+            correct_answer,
+            app_params,
+            settings_values,
+            lm_providers_keys,
         )
     except Exception as exc:
         raise RuntimeError(

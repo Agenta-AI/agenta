@@ -1715,6 +1715,32 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         raise e
 
 
+async def check_if_ai_critique_exists_in_list_of_evlautors_configs(
+    evaluators_configs_ids: List[str],
+) -> bool:
+    """Fetch evaluator configurations from the database.
+
+    Returns:
+        EvaluatorConfigDB: the evaluator configuration object.
+    """
+
+    try:
+        evaluator_configs_object_ids = [
+            ObjectId(evaluator_config_id)
+            for evaluator_config_id in evaluators_configs_ids
+        ]
+        evaluators_configs: List[EvaluatorConfigDB] = await EvaluatorConfigDB.find(
+            {
+                "_id": {"$in": evaluator_configs_object_ids},
+                "evaluator_key": "auto_ai_critique",
+            }
+        ).to_list()
+
+        return bool(evaluators_configs)
+    except Exception as e:
+        raise e
+
+
 async def fetch_evaluator_config_by_appId(
     app_id: str, evaluator_name: str
 ) -> EvaluatorConfigDB:
