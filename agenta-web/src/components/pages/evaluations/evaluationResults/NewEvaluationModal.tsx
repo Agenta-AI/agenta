@@ -1,6 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {getApikeys} from "@/lib/helpers/utils"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
 import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
@@ -104,8 +105,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
 
     const onSubmit = (values: CreateEvaluationData) => {
         setSubmitLoading(true)
-        const EvaluationRateLimit: LLMRunRateLimit = rateLimitValues
-        createEvalutaiton(appId, {...values, rate_limit: EvaluationRateLimit})
+        createEvalutaiton(appId, {
+            ...values,
+            rate_limit: rateLimitValues,
+            lm_providers_keys: {open_ai: getApikeys()},
+        })
             .then(onSuccess)
             .catch(console.error)
             .finally(() => setSubmitLoading(false))
