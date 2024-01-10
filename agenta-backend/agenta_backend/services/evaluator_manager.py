@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, List
 from agenta_backend.services import db_manager
 
 
-from agenta_backend.models.db_models import EvaluatorConfigDB
+from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 
@@ -122,3 +122,36 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         bool: True if the deletion was successful, False otherwise.
     """
     return await db_manager.delete_evaluator_config(evaluator_config_id)
+
+
+async def create_ready_to_use_evaluators(app: AppDB):
+    """
+    Create configurations for all evaluators that are marked for direct use.
+
+    This function retrieves all evaluators from the evaluator manager, filters
+    out those marked for direct use, and creates configuration entries for them
+    in the database using the database manager.
+
+    Parameters:
+    - evaluator_manager: The manager object responsible for handling evaluators.
+    - db_manager: The database manager object used for database operations.
+    - app: The application context, containing details like organization and user.
+
+    Returns:
+    Nothing. The function works by side effect, modifying the database.
+    """
+    evaluators = get_evaluators()
+
+    direct_use_evaluators = [
+        evaluator for evaluator in evaluators if evaluator.get("direct_use")
+    ]
+
+    for evaluator in direct_use_evaluators:
+        await db_manager.create_evaluator_config(
+            app=app,
+            organization=app.organization,
+            user=app.user,
+            name=evaluator["name"],
+            evaluator_key=evaluator["key"],
+            settings_values={},
+        )
