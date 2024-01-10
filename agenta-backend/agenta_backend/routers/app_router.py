@@ -277,6 +277,10 @@ async def add_variant_from_image(
             **user_org_data,
         )
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+
+        logger.debug("Step 8: We create ready-to use evaluators")
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
