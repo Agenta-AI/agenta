@@ -396,20 +396,7 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug("Step 8: We create ready-to use evaluators")
-        evaluators = evaluator_manager.get_evaluators()
-        direct_use_evaluators = [
-            evaluator for evaluator in evaluators if evaluator.get("direct_use")
-        ]
-
-        for evaluator in direct_use_evaluators:
-            await db_manager.create_evaluator_config(
-                app=app,
-                organization=app.organization,
-                user=app.user,
-                name=evaluator["name"],
-                evaluator_key=evaluator["key"],
-                settings_values={},
-            )
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug("Step 9: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
