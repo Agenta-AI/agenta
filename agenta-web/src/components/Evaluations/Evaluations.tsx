@@ -515,8 +515,8 @@ export default function Evaluations() {
                 btnText={error.btnText}
             />
             <div>
-                <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
+                <AutomaticEvaluationResult />
             </div>
 
             <ShareEvaluationModal

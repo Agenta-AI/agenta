@@ -53,6 +53,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.inputs.forEach((input, index) => {
             colDefs.push({
                 flex: 1,
+                minWidth: 240,
                 headerName: `Input: ${input.name}`,
                 ...getFilterParams(input.type === "number" ? "number" : "text"),
                 field: `inputs.${index}`,
@@ -64,6 +65,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         })
         colDefs.push({
             flex: 1,
+            minWidth: 300,
             headerName: "Expected Output",
             field: "correct_answer",
             ...getFilterParams("text"),
@@ -71,10 +73,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 return params.data?.correct_answer?.toString() || ""
             },
             cellRenderer: LongTextCellRenderer,
+            // wrapText: true,
+            // autoHeight: true,
         })
         evalaution?.variants.forEach((_, index) => {
             colDefs.push({
                 flex: 1,
+                minWidth: 300,
                 headerName: "Output",
                 ...getFilterParams("text"),
                 field: `outputs.0`,
@@ -82,6 +87,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     return getTypedValue(params.data?.outputs[index])
                 },
                 cellRenderer: LongTextCellRenderer,
+                // wrapText: true,
+                // autoHeight: true,
             })
         })
         scenarios[0]?.evaluators_configs.forEach((config) => {
