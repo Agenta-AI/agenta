@@ -344,6 +344,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
             },
         },
+        {
+            key: "correctAnswer",
+            title: "Expected Output",
+            dataIndex: "correctAnswer",
+            width: "25%",
+        },
         ...dynamicColumns,
         {
             title: "Evaluate",
