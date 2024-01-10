@@ -477,8 +477,5 @@ async def add_variant_based_on_image(
         config=config_db,
     )
 
-    logger.debug("Step 8: We create ready-to use evaluators")
-    await evaluator_manager.create_ready_to_use_evaluators(app=app)
-
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant
