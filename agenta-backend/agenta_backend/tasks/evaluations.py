@@ -261,9 +261,16 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":
-            for input_name in app_variant_parameters[param["name"]]:
-                list_inputs.append({"name": input_name["name"], "type": "dict_input"})
+        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+            # let's get the list of the dynamic inputs
+            if (
+                param["name"] in app_variant_parameters
+            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
+                input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
+            else:  # otherwise we use the default from the openapi
+                input_names = param["default"]
+            for input_name in input_names:
+                list_inputs.append({"name": input_name, "type": "dict_input"})
         elif param["type"] == "messages":
             list_inputs.append({"name": param["name"], "type": "messages"})
         elif param["type"] == "file_url":

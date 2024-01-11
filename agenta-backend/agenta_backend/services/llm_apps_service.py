@@ -32,10 +32,18 @@ async def make_payload(
     for param in openapi_parameters:
         if param["type"] == "input":
             payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":
-            for input_name in parameters[param["name"]]:
-                input_name_ = input_name["name"]
-                inputs_dict[input_name_] = datapoint.get(input_name_, "")
+        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+            # let's get the list of the dynamic inputs
+            if (
+                param["name"] in parameters
+            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
+                input_names = [_["name"] for _ in parameters[param["name"]]]
+            else:  # otherwise we use the default from the openapi
+                input_names = param["default"]
+            # now we put them in a dict which we would put under "inputs" in the payload
+
+            for input_name in input_names:
+                inputs_dict[input_name] = datapoint.get(input_name, "")
         elif param["type"] == "messages":
             # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
             payload[param["name"]] = json.loads(datapoint.get("chat", ""))
@@ -219,8 +227,13 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
     parameters = []
     for name, param in properties.items():
-        parameters.append({"name": name, "type": param.get("x-parameter", "input")})
-
+        parameters.append(
+            {
+                "name": name,
+                "type": param.get("x-parameter", "input"),
+                "default": param.get("default", []),
+            }
+        )
     return parameters
 
 
