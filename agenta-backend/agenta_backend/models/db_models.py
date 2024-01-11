@@ -1,9 +1,39 @@
+from enum import Enum
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId
+
+
+class WorkspaceRole(str, Enum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+
+
+class Permission(str, Enum):
+    CREATE_APPLICATION = "create_application"
+    DELETE_APPLICATION = "delete_application"
+    MODIFY_CONFIGURATIONS = "modify_configurations"
+    DEPLOY_APPLICATION = "deploy_application"
+    RUN_EVALUATIONS = "run_evaluations"
+    CHANGE_USER_ROLES = "change_user_roles"
+    CREATE_NEW_WORKSPACE = "create_workspace"
+    ADD_NEW_USER_TO_ORGANIZATION = "add_new_user_to_organization"
+    ADD_NEW_USER_TO_WORKSPACE = "add_new_user_to_workspace"
+    MODIFY_USER_ROLES = "modify_user_roles"
+    
+
+class WorkspacePermissionDB(BaseModel):
+    role_name: WorkspaceRole
+    permissions: List[Permission]
+
+
+class WorkspaceMemberDB(BaseModel):
+    user_id: PydanticObjectId
+    roles: List[WorkspacePermissionDB]
 
 
 class APIKeyDB(Document):
@@ -34,6 +64,7 @@ class OrganizationDB(Document):
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
     invitations: Optional[List[InvitationDB]] = []
+    workspaces: Optional[List[PydanticObjectId]] = []
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -41,11 +72,52 @@ class OrganizationDB(Document):
         name = "organizations"
 
 
+class WorkspaceDB(Document):
+    name: str
+    type: Optional[str]
+    description: str = Field(default="")
+    organization: Link[OrganizationDB]
+    members: Optional[List[WorkspaceMemberDB]] = []
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    def get_member_roles(self, user_id: PydanticObjectId) -> Optional[List[WorkspacePermissionDB]]:
+        for member in self.members:
+            if member.user_id == user_id:
+                return member.roles
+        return None
+
+    def get_member_role_names(self, user_id: PydanticObjectId) -> List[str]:
+        roles = self.get_member_roles(user_id)
+        return [role.role_name for role in roles] if roles else []
+    
+    def get_all_members(self) -> List[PydanticObjectId]:
+        return [member.user_id for member in self.members]
+
+    def has_permission(self, user_id: PydanticObjectId, permission: Permission) -> bool:
+        roles = self.get_member_roles(user_id)
+        if roles:
+            for role in roles:
+                if permission in role.permissions:
+                    return True
+        return False
+
+    def is_owner(self, user_id: PydanticObjectId) -> bool:
+        for member in self.members:
+            if member.user_id == user_id and WorkspaceRole.OWNER in self.get_member_role_names(user_id):
+                return True
+        return False
+
+    class Settings:
+        name = "workspaces"
+
+
 class UserDB(Document):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
+    workspaces: Optional[List[PydanticObjectId]] = []
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -63,6 +135,7 @@ class ImageDB(Document):
     deletable: bool = Field(default=True)
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
     deletable: bool = Field(default=True)
@@ -74,6 +147,7 @@ class ImageDB(Document):
 class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -85,6 +159,7 @@ class AppDB(Document):
 class DeploymentDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     container_name: Optional[str]
     container_id: Optional[str]
@@ -100,6 +175,7 @@ class DeploymentDB(Document):
 class VariantBaseDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     base_name: str
     image: Link[ImageDB]
@@ -136,6 +212,7 @@ class AppVariantDB(Document):
     image: Link[ImageDB]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
@@ -158,6 +235,7 @@ class AppEnvironmentDB(Document):
     name: str
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     deployed_app_variant: Optional[PydanticObjectId]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -188,6 +266,7 @@ class TestSetDB(Document):
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -198,6 +277,7 @@ class TestSetDB(Document):
 class EvaluatorConfigDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     name: str
     evaluator_key: str
@@ -248,6 +328,7 @@ class HumanEvaluationScenarioOutput(BaseModel):
 class HumanEvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     status: str
     evaluation_type: str
@@ -263,6 +344,7 @@ class HumanEvaluationDB(Document):
 class HumanEvaluationScenarioDB(Document):
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     evaluation: Link[HumanEvaluationDB]
     inputs: List[HumanEvaluationScenarioInput]
     outputs: List[HumanEvaluationScenarioOutput]
@@ -281,6 +363,7 @@ class HumanEvaluationScenarioDB(Document):
 class EvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     user: Link[UserDB]
     status: str = Field(default="EVALUATION_INITIALIZED")
     testset: Link[TestSetDB]
@@ -297,6 +380,7 @@ class EvaluationDB(Document):
 class EvaluationScenarioDB(Document):
     user: Link[UserDB]
     organization: Link[OrganizationDB]
+    workspace: Link[WorkspaceDB]
     evaluation: Link[EvaluationDB]
     variant_id: PydanticObjectId
     inputs: List[EvaluationScenarioInputDB]
