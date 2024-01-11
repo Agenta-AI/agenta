@@ -382,9 +382,11 @@ class Forward:
             OrganizationDB,
             UserDB,
             TestSetDB,
+            EvaluationDB,
             OldEvaluationDB,
             OldEvaluationScenarioDB,
             EvaluationScenarioDB,
+            HumanEvaluationDB,
             HumanEvaluationScenarioDB,
         ]
     )
