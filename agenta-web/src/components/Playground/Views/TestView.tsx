@@ -211,7 +211,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         shape="round"
                     />
                     {loading ? (
-                        <Button icon={<CloseCircleOutlined />} onClick={onCancel}>
+                        <Button
+                            icon={<CloseCircleOutlined />}
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={onCancel}
+                        >
                             Cancel
                         </Button>
                     ) : (
@@ -380,21 +385,16 @@ const App: React.FC<TestViewProps> = ({
                 controller.signal,
             )
 
-            if (!controller.signal.aborted) {
-                if (typeof res === "string") {
-                    setResultForIndex(res, index)
-                } else {
-                    setResultForIndex(res.message, index)
-                    setAdditionalDataList((prev) => {
-                        const newDataList = [...prev]
-                        newDataList[index] = {
-                            cost: res.cost,
-                            latency: res.latency,
-                            usage: res.usage,
-                        }
-                        return newDataList
-                    })
-                }
+            // check if res is an object or string
+            if (typeof res === "string") {
+                setResultForIndex(res, index)
+            } else {
+                setResultForIndex(res.message, index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    return newDataList
+                })
             }
         } catch (e) {
             if (!controller.signal.aborted) {
@@ -440,7 +440,7 @@ const App: React.FC<TestViewProps> = ({
         const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
-            .forEach((btn, index) => funcs.push(() => handleRun(index)))
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
         batchExecute(funcs)
     }
