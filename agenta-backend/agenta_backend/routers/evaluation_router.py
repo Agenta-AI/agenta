@@ -279,3 +279,48 @@ async def fetch_evaluation_scenarios(
     )
 
     return eval_scenarios
+
+
+# Write a GET endpoint that takes in a query param type = "variant" or "testset" or "evaluator config"
+# and a query param id = "variant_id" or "testset_id" or "evaluator_config_id" and returns the evaluation ids
+@router.get(
+    "/evaluation_ids/",
+    response_model=any,
+)
+async def fetch_evaluation_ids(
+    app_id: str,
+    resourceType: str,
+    resourceId: str,
+    request: Request,
+):
+    print("resourceType: ", resourceType)
+    print("resourceId: ", resourceId)
+    """Fetches evaluation ids for a given type and id.
+
+    Arguments:
+        resourceType (str): The type of the object for which to fetch evaluations.
+        resourceId (str): The ID of the object for which to fetch evaluations.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[str]: A list of evaluation ids.
+    """
+    # user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    # access_app = await check_access_to_app(
+    #     user_org_data=user_org_data,
+    #     app_id=app_id,
+    # )
+    # if not access_app:
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail=f"You do not have access to this app: {str(app_id)}",
+    #     )
+
+    evaluations = await evaluation_service.fetch_evaluations(resourceType, resourceId)
+    print("evaluations: ", evaluations)
+    evaluation_ids = list(map(lambda x: x.id, evaluations))
+    print("evaluation_ids: ", evaluation_ids)
+
+    return evaluation_ids
