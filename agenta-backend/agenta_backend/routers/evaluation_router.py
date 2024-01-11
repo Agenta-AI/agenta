@@ -21,7 +21,7 @@ from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
 
 from agenta_backend.services.db_manager import (
-    check_if_ai_critique_exists_in_list_of_evlautors_configs,
+    check_if_ai_critique_exists_in_list_of_evaluators_configs,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -64,25 +64,13 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        if await check_if_ai_critique_exists_in_list_of_evlautors_configs(
+        if await check_if_ai_critique_exists_in_list_of_evaluators_configs(
             payload.evaluators_configs
         ):
             # Check if lm_providers_keys is provided and not empty
             if not payload.lm_providers_keys:
                 return JSONResponse(
-                    {"detail": "Missing Key"},
-                    status_code=400,
-                )
-
-            # Check if there is an OpenAI key and if it starts with 'sk-'
-            has_valid_open_ai_key = any(
-                key == LMProvidersEnum.open_ai and value.startswith("sk-")
-                for key, value in payload.lm_providers_keys.items()
-            )
-
-            if not has_valid_open_ai_key:
-                return JSONResponse(
-                    {"detail": "Invalid or missing OpenAI key"},
+                    {"detail": "Missing LM provider Key"},
                     status_code=400,
                 )
 

@@ -1715,7 +1715,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         raise e
 
 
-async def check_if_ai_critique_exists_in_list_of_evlautors_configs(
+async def check_if_ai_critique_exists_in_list_of_evaluators_configs(
     evaluators_configs_ids: List[str],
 ) -> bool:
     """Fetch evaluator configurations from the database.
