@@ -88,12 +88,14 @@ export async function callVariant(
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
-    const mainInputParams: Record<string, string> = {}
-    const secondaryInputParams: Record<string, string> = {}
+    const mainInputParams: Record<string, string> = {} // Parameters with input = true
+    const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
 
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
+        // If parameter definition is found and its 'input' property is false,
+        // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
         if (paramDefinition && !paramDefinition.input) {
             secondaryInputParams[key] = inputParametersDict[key]
         } else {
@@ -105,7 +107,7 @@ export async function callVariant(
 
     const optParams = optionalParameters
         .filter((param) => param.default)
-        .filter((param) => param.type !== "object")
+        .filter((param) => param.type !== "object") // remove dicts from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
             return acc
