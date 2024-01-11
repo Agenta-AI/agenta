@@ -15,14 +15,15 @@ import {Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "../evaluationResults/EvaluationResults"
-import {getTagColors} from "@/lib/helpers/colors"
+import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
 import {DownloadOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
-import {stringToNumberInRange} from "@/lib/helpers/utils"
 import Link from "next/link"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
+import {useAtom} from "jotai"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -57,6 +58,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
+    const [evaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
 
     const variants = useMemo(() => {
@@ -64,10 +66,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     }, [rows])
 
     const colors = useMemo(() => {
-        const colors = getTagColors()
         const previous = new Set<string>()
+        const colors = getRandomColors()
         return variants.map((v) => {
-            const color = colors[stringToNumberInRange(v.evaluationId, 0, colors.length - 1)]
+            const color = getColorFromStr(v.evaluationId)
             if (previous.has(color)) return colors.find((c) => !previous.has(c))!
             previous.add(color)
             return color
@@ -143,18 +145,27 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             })
         })
 
-        Object.entries(confgisMap).forEach(([configId, configs]) => {
+        Object.entries(confgisMap).forEach(([_, configs]) => {
             configs.forEach(({config, variant, color}) => {
                 colDefs.push({
                     flex: 1,
-                    headerComponent: (props: any) => (
-                        <AgCustomHeader {...props}>
-                            <Space direction="vertical">
-                                <span>Evaluator: {config.name}</span>
-                                <Tag color={color}>{variant.variantName}</Tag>
-                            </Space>
-                        </AgCustomHeader>
-                    ),
+                    headerName: config.name,
+                    headerComponent: (props: any) => {
+                        const evaluator = evaluators.find(
+                            (item) => item.key === config.evaluator_key,
+                        )
+                        return (
+                            <AgCustomHeader {...props}>
+                                <Space direction="vertical">
+                                    <Space>
+                                        <span>{config.name}</span>
+                                        <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
+                                    </Space>
+                                    <Tag color={color}>{variant.variantName}</Tag>
+                                </Space>
+                            </AgCustomHeader>
+                        )
+                    },
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
                     valueGetter: (params) => {
