@@ -34,6 +34,7 @@ from agenta_backend.models.db_models import (
 )
 
 from beanie import PydanticObjectId as ObjectId
+from beanie.operators import Eq
 
 
 logger = logging.getLogger(__name__)
@@ -798,3 +799,19 @@ def remove_duplicates(csvdata):
             unique_entries.append(entry)
 
     return unique_entries
+
+
+def fetch_evaluations(resourceType: str, resourceId: str):
+    if resourceType == "variant":
+        return EvaluationDB.find(EvaluationDB.variant == ObjectId(resourceId)).to_list()
+    elif resourceType == "testset":
+        return EvaluationDB.find(EvaluationDB.testset == ObjectId(resourceId)).to_list()
+    elif resourceType == "evaluator_config":
+        return EvaluationDB.find(
+            Eq(EvaluationDB.evaluators_configs, ObjectId(resourceId))
+        ).to_list()
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"resourceType {resourceType} is not supported",
+        )
