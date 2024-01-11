@@ -1,6 +1,8 @@
 import json
 import os
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Tuple
+
+from fastapi.responses import JSONResponse
 
 from agenta_backend.services import db_manager
 
@@ -155,3 +157,28 @@ async def create_ready_to_use_evaluators(app: AppDB):
             evaluator_key=evaluator["key"],
             settings_values={},
         )
+
+
+async def check_ai_critique_inputs(
+    evaluators_configs: List[str], lm_providers_keys: Optional[Dict[str, Any]]
+) -> Tuple[bool, Optional[JSONResponse]]:
+    """
+    Checks if AI critique exists in evaluators configs and validates lm_providers_keys.
+
+    Args:
+        evaluators_configs (List[str]): List of evaluator configurations.
+        lm_providers_keys (Optional[Dict[str, Any]]): Language model provider keys.
+
+    Returns:
+        Tuple[bool, Optional[JSONResponse]]: Returns a tuple containing a boolean indicating success,
+                                             and a JSONResponse in case of error.
+    """
+    if await db_manager.check_if_ai_critique_exists_in_list_of_evaluators_configs(
+        evaluators_configs
+    ):
+        if not lm_providers_keys:
+            return False, JSONResponse(
+                {"detail": "Missing LM provider Key"},
+                status_code=400,
+            )
+    return True, None

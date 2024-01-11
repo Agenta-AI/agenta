@@ -20,8 +20,8 @@ from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
 
-from agenta_backend.services.db_manager import (
-    check_if_ai_critique_exists_in_list_of_evaluators_configs,
+from agenta_backend.services.evaluator_manager import (
+    check_ai_critique_inputs,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -64,15 +64,11 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        if await check_if_ai_critique_exists_in_list_of_evaluators_configs(
-            payload.evaluators_configs
-        ):
-            # Check if lm_providers_keys is provided and not empty
-            if not payload.lm_providers_keys:
-                return JSONResponse(
-                    {"detail": "Missing LM provider Key"},
-                    status_code=400,
-                )
+        success, response = await check_ai_critique_inputs(
+            payload.evaluators_configs, payload.lm_providers_keys
+        )
+        if not success:
+            return response
 
         evaluations = []
 
