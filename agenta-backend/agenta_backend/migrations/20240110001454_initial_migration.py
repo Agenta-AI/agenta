@@ -250,7 +250,7 @@ class Forward:
             VariantBaseDB,
             ConfigDB,
             AppVariantDB,
-            OldAppVariantDB
+            OldAppVariantDB,
         ]
     )
     async def change_app_variant_fields(
@@ -259,20 +259,23 @@ class Forward:
         output_document.base = input_document.bases
         output_document.config = input_document.configs
 
-    @iterative_migration(document_models=[
+    @iterative_migration(
+        document_models=[
             OrganizationDB,
             UserDB,
             AppDB,
             TestSetDB,
             EvaluationDB,
-            OldEvaluationDB
-    ])
+            OldEvaluationDB,
+        ]
+    )
     async def rename_evaluation_fields(
         self, input_document: OldEvaluationDB, output_document: EvaluationDB
     ):
         output_document.testset = input_document.testsets
 
-    @iterative_migration(document_models=[
+    @iterative_migration(
+        document_models=[
             OrganizationDB,
             UserDB,
             AppDB,
@@ -280,8 +283,9 @@ class Forward:
             EvaluationDB,
             OldEvaluationDB,
             EvaluationScenarioDB,
-            OldEvaluationScenarioDB
-    ])
+            OldEvaluationScenarioDB,
+        ]
+    )
     async def rename_evaluation_scenarios_fields(
         self,
         input_document: OldEvaluationScenarioDB,
@@ -299,7 +303,7 @@ class Backward:
             VariantBaseDB,
             ConfigDB,
             AppVariantDB,
-            OldAppVariantDB
+            OldAppVariantDB,
         ]
     )
     async def change_app_variant_fields(
@@ -308,20 +312,23 @@ class Backward:
         output_document.bases = input_document.base
         output_document.configs = input_document.config
 
-    @iterative_migration(document_models=[
+    @iterative_migration(
+        document_models=[
             OrganizationDB,
             UserDB,
             AppDB,
             TestSetDB,
             EvaluationDB,
-            OldEvaluationDB
-    ])
+            OldEvaluationDB,
+        ]
+    )
     async def rename_evaluation_fields(
         self, input_document: EvaluationDB, output_document: OldEvaluationDB
     ):
         output_document.testsets = input_document.testset
 
-    @iterative_migration(document_models=[
+    @iterative_migration(
+        document_models=[
             OrganizationDB,
             UserDB,
             AppDB,
@@ -329,8 +336,9 @@ class Backward:
             EvaluationDB,
             OldEvaluationDB,
             EvaluationScenarioDB,
-            OldEvaluationScenarioDB
-    ])
+            OldEvaluationScenarioDB,
+        ]
+    )
     async def rename_evaluation_scenarios_fields(
         self,
         input_document: EvaluationScenarioDB,
