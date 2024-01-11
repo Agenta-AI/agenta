@@ -223,12 +223,17 @@ class LLMRunRateLimit(BaseModel):
     delay_between_batches: int
 
 
+class LMProvidersEnum(str, Enum):
+    openai = "openai"
+
+
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
     rate_limit: LLMRunRateLimit
+    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
 
 
 class NewEvaluatorConfig(BaseModel):

@@ -118,7 +118,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         createEvalutaiton(appId, {
             ...values,
             rate_limit: rateLimitValues,
-            lm_providers_keys: {open_ai: getApikeys()},
+            lm_providers_keys: {openai: getApikeys()},
         })
             .then(onSuccess)
             .catch(console.error)
