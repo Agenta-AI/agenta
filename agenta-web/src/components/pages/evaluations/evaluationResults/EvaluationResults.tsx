@@ -336,7 +336,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     icon={<PlusCircleOutlined />}
                     type="primary"
                     onClick={() => {
-                        if (!redirectIfNoLLMKeys()) setNewEvalModalOpen(true)
+                        setNewEvalModalOpen(true)
                     }}
                     data-cy="new-evaluation-button"
                 >

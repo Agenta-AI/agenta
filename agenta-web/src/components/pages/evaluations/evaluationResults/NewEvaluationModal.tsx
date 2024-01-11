@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {getApikeys} from "@/lib/helpers/utils"
+import {getApikeys, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
 import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
@@ -104,6 +104,16 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     }
 
     const onSubmit = (values: CreateEvaluationData) => {
+        // redirect if no llm keys and an AI Critique config is selected
+        if (
+            values.evaluators_configs.some(
+                (id) =>
+                    evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
+                    "auto_ai_critique",
+            ) &&
+            redirectIfNoLLMKeys()
+        )
+            return
         setSubmitLoading(true)
         createEvalutaiton(appId, {
             ...values,
