@@ -290,6 +290,7 @@ const App: React.FC<TestViewProps> = ({
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
 
     const abortControllersRef = useRef<AbortController[]>([])
+    const [isRunningAll, setIsRunningAll] = useState(false)
 
     useEffect(() => {
         return () => {
@@ -429,7 +430,15 @@ const App: React.FC<TestViewProps> = ({
         })
     }
 
-    const handleRunAll = () => {
+    const handleRunAll = async () => {
+        if (isRunningAll) {
+            handleCancelAll()
+            setIsRunningAll(false)
+            return
+        }
+
+        setIsRunningAll(true)
+
         abortControllersRef.current.forEach((controller) => controller && controller.abort())
 
         const newAbortControllers = Array(testList.length)
@@ -442,7 +451,13 @@ const App: React.FC<TestViewProps> = ({
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
             .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
-        batchExecute(funcs)
+        try {
+            await batchExecute(funcs)
+        } catch (e) {
+            setIsRunningAll(false)
+        } finally {
+            setIsRunningAll(false)
+        }
     }
 
     const handleAddRow = () => {
@@ -509,17 +524,25 @@ const App: React.FC<TestViewProps> = ({
                 <Space size={10}>
                     <LoadTestsModal onLoad={onLoadTests} />
 
-                    <Button
-                        type="primary"
-                        size="middle"
-                        className={classes.runAllBtn}
-                        onClick={handleRunAll}
-                    >
-                        Run all
-                    </Button>
-                    <Button type="primary" size="middle" onClick={handleCancelAll}>
-                        Cancel All
-                    </Button>
+                    {!isRunningAll ? (
+                        <Button
+                            type="primary"
+                            size="middle"
+                            className={classes.runAllBtn}
+                            onClick={handleRunAll}
+                        >
+                            Run all
+                        </Button>
+                    ) : (
+                        <Button
+                            size="middle"
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={handleCancelAll}
+                        >
+                            Cancel All
+                        </Button>
+                    )}
                 </Space>
             </div>
 
