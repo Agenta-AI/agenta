@@ -79,3 +79,5 @@ export const fadeColor = (hex: string, opacity: number) => {
 }
 
 export const getTagColors = () => [...tagColors]
+
+export const getRandomColors = () => [...colors]

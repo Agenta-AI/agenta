@@ -5,7 +5,7 @@ import {deleteEvaluations, fetchAllEvaluationScenarios} from "@/services/evaluat
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Tooltip, Typography} from "antd"
+import {Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -14,6 +14,9 @@ import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
+import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
+import {useAtom} from "jotai"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -43,6 +46,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const evaluationId = router.query.evaluation_id as string
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
     const [fetching, setFetching] = useState(false)
+    const [evaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
 
@@ -73,8 +77,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 return params.data?.correct_answer?.toString() || ""
             },
             cellRenderer: LongTextCellRenderer,
-            // wrapText: true,
-            // autoHeight: true,
         })
         evalaution?.variants.forEach((_, index) => {
             colDefs.push({
@@ -87,13 +89,23 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     return getTypedValue(params.data?.outputs[index])
                 },
                 cellRenderer: LongTextCellRenderer,
-                // wrapText: true,
-                // autoHeight: true,
             })
         })
         scenarios[0]?.evaluators_configs.forEach((config) => {
             colDefs.push({
-                headerName: `Evaluator: ${config.name}`,
+                headerName: config.name,
+                headerComponent: (props: any) => {
+                    const evaluator = evaluators.find((item) => item.key === config.evaluator_key)!
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" style={{padding: "0.5rem 0"}}>
+                                <span>{config.name}</span>
+                                <Tag color={evaluator.color}>{evaluator.name}</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
+                autoHeaderHeight: true,
                 field: `results`,
                 ...getFilterParams("text"),
                 valueGetter: (params) => {
