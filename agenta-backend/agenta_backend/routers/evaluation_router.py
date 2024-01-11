@@ -10,6 +10,7 @@ from agenta_backend.utils.common import APIRouter
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
+    LMProvidersEnum,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationWebhook,
@@ -19,6 +20,9 @@ from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
 
+from agenta_backend.services.evaluator_manager import (
+    check_ai_critique_inputs,
+)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -60,6 +64,12 @@ async def create_evaluation(
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
+        success, response = await check_ai_critique_inputs(
+            payload.evaluators_configs, payload.lm_providers_keys
+        )
+        if not success:
+            return response
+
         evaluations = []
 
         for variant_id in payload.variant_ids:
@@ -77,6 +87,7 @@ async def create_evaluation(
                 testset_id=payload.testset_id,
                 evaluation_id=evaluation.id,
                 rate_limit_config=payload.rate_limit.dict(),
+                lm_providers_keys=payload.lm_providers_keys,
             )
             evaluations.append(evaluation)
 
