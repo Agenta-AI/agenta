@@ -77,7 +77,9 @@ async def invoke_app(
             url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
         )
         response.raise_for_status()
-        return AppOutput(output=response.json(), status="success")
+
+        lm_app_response = response.json()
+        return AppOutput(output=lm_app_response["message"], status="success")
 
 
 async def run_with_retry(
