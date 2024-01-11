@@ -342,12 +342,10 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleRun = async (index: number) => {
-        // Cancel the existing request if it's still running
         if (abortControllersRef.current[index]) {
             abortControllersRef.current[index].abort()
         }
 
-        // Create a new AbortController for the current request
         const controller = new AbortController()
         abortControllersRef.current[index] = controller
         try {
@@ -379,12 +377,10 @@ const App: React.FC<TestViewProps> = ({
                 appId || "",
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
-                controller.signal, // Pass the signal to allow manual cancellation
+                controller.signal,
             )
 
-            // Check if the request was not cancelled
             if (!controller.signal.aborted) {
-                // Update the result and additional data
                 if (typeof res === "string") {
                     setResultForIndex(res, index)
                 } else {
@@ -401,7 +397,6 @@ const App: React.FC<TestViewProps> = ({
                 }
             }
         } catch (e) {
-            // Check if the error is not due to cancellation
             if (!controller.signal.aborted) {
                 setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
             }
@@ -418,14 +413,12 @@ const App: React.FC<TestViewProps> = ({
         abortControllersRef.current.forEach((controller, index) => {
             if (controller) {
                 controller.abort()
-                // Update the loading state to false
                 setIsRunning((prevState) => {
                     const newState = [...prevState]
                     newState[index] = false
                     return newState
                 })
 
-                // Optional: If you want to clear the result or perform additional cleanup
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
@@ -436,13 +429,9 @@ const App: React.FC<TestViewProps> = ({
         })
     }
 
-    // ...
-
     const handleRunAll = () => {
-        // Clear any existing abort controllers
         abortControllersRef.current.forEach((controller) => controller && controller.abort())
 
-        // Create new abort controllers for each request
         const newAbortControllers = Array(testList.length)
             .fill(undefined)
             .map(() => new AbortController())
@@ -499,14 +488,12 @@ const App: React.FC<TestViewProps> = ({
             abortControllersRef.current[index].abort()
         }
 
-        // Update the loading state to false
         setIsRunning((prevState) => {
             const newState = [...prevState]
             newState[index] = false
             return newState
         })
 
-        // Optional: If you want to clear the result or perform additional cleanup
         setResultForIndex("", index)
         setAdditionalDataList((prev) => {
             const newDataList = [...prev]
@@ -530,11 +517,7 @@ const App: React.FC<TestViewProps> = ({
                     >
                         Run all
                     </Button>
-                    <Button
-                        type="primary"
-                        size="middle"
-                        onClick={handleCancelAll}
-                    >
+                    <Button type="primary" size="middle" onClick={handleCancelAll}>
                         Cancel All
                     </Button>
                 </Space>

@@ -1,6 +1,5 @@
 import useSWR from "swr"
 import axios from "@/lib//helpers/axiosConfig"
-import ax, {CancelToken} from "axios"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
@@ -85,7 +84,7 @@ export async function callVariant(
     appId: string,
     baseId: string,
     chatMessages?: ChatMessage[],
-    signal?: AbortSignal, // New parameter for the AbortController signal
+    signal?: AbortSignal,
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -121,30 +120,9 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    // Pass the signal to the axios request using CancelToken.source()
-    const {token, cancel} = CancelToken.source()
-    if (signal) {
-        signal.addEventListener("abort", () => {
-            // Cancel the axios request when the AbortController is aborted
-            cancel()
-        })
-    }
-
-    return ax
-        .post(`${appContainerURI}/generate`, requestBody, {
-            cancelToken: token, // Pass the CancelToken to link with the AbortController signal
-        })
-        .then((res) => {
-            return res.data
-        })
-        .catch((error) => {
-            if (ax.isCancel(error)) {
-                throw new Error("Request canceled")
-            } else {
-                // Handle other errors
-                throw error
-            }
-        })
+    return axios.post(`${appContainerURI}/generate`, requestBody, {signal}).then((res) => {
+        return res.data
+    })
 }
 
 /**
