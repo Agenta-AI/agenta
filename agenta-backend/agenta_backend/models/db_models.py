@@ -1,6 +1,6 @@
 from uuid import uuid4
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId
@@ -65,7 +65,6 @@ class ImageDB(Document):
     organization: Link[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    deletable: bool = Field(default=True)
 
     class Settings:
         name = "docker_images"
