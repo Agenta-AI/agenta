@@ -202,8 +202,7 @@ async def fetch_app_variant_by_id(
 
 
 async def fetch_base_by_id(
-    base_id: str,
-    user_org_data: dict,
+    base_id: str
 ) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.
@@ -217,13 +216,6 @@ async def fetch_base_by_id(
     base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id))
     if base is None:
         logger.error("Base not found")
-        return False
-    organization_id = base.organization.id
-    access = await check_user_org_access(
-        user_org_data, str(organization_id), check_owner=False
-    )
-    if not access:
-        logger.error("User does not have access to this base")
         return False
     return base
 
@@ -252,6 +244,7 @@ async def fetch_app_variant_by_name_and_appid(
 async def create_new_variant_base(
     app: AppDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     user: UserDB,
     base_name: str,
     image: ImageDB,
@@ -260,6 +253,10 @@ async def create_new_variant_base(
     Args:
         base_name (str): The name of the base.
         image (ImageDB): The image of the base.
+        user (UserDB): The User Object creating the variant.
+        app (AppDB): The associated App Object.
+        organization (OrganizationDB): The Organization the variant belongs to.
+        workspace (WorkspaceDB): The Workspace the variant belongs to.
     Returns:
         VariantBaseDB: The created base.
     """
@@ -267,6 +264,7 @@ async def create_new_variant_base(
     base = VariantBaseDB(
         app=app,
         organization=organization,
+        workspace=workspace,
         user=user,
         base_name=base_name,
         image=image,
@@ -303,6 +301,7 @@ async def create_new_config(
 async def create_new_app_variant(
     app: AppDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     user: UserDB,
     variant_name: str,
     image: ImageDB,
@@ -324,6 +323,7 @@ async def create_new_app_variant(
     variant = AppVariantDB(
         app=app,
         organization=organization,
+        workspace=workspace,
         user=user,
         variant_name=variant_name,
         image=image,
@@ -342,6 +342,7 @@ async def create_image(
     user: UserDB,
     deletable: bool,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     template_uri: str = None,
     docker_id: str = None,
     tags: str = None,
@@ -353,6 +354,7 @@ async def create_image(
         user (UserDB): The user that the image belongs to.
         deletable (bool): Whether the image can be deleted.
         organization (OrganizationDB): The organization that the image belongs to.
+        workspace (WorkspaceDB): The workspace that the image belongs to.
     Returns:
         ImageDB: The created image.
     """
@@ -388,6 +390,7 @@ async def create_image(
             deletable=deletable,
             user=user,
             organization=organization,
+            workspace=workspace,
         )
     await image.create()
     return image
@@ -396,6 +399,7 @@ async def create_image(
 async def create_deployment(
     app: AppVariantDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     user: UserDB,
     container_name: str,
     container_id: str,
@@ -406,6 +410,7 @@ async def create_deployment(
     Args:
         app (AppVariantDB): The app variant to create the deployment for.
         organization (OrganizationDB): The organization that the deployment belongs to.
+        workspace (WorkspaceDB): The Workspace that the deployment belongs to.
         user (UserDB): The user that the deployment belongs to.
         container_name (str): The name of the container.
         container_id (str): The ID of the container.
@@ -417,6 +422,7 @@ async def create_deployment(
     deployment = DeploymentDB(
         app=app,
         organization=organization,
+        workspace=workspace,
         user=user,
         container_name=container_name,
         container_id=container_id,
@@ -459,22 +465,6 @@ async def create_app_and_envs(
     await app.create()
     await initialize_environments(app, **user_org_data)
     return app
-
-
-async def create_user_organization(user_uid: str) -> OrganizationDB:
-    """Create a default organization for a user.
-
-    Args:
-        user_uid (str): The uid of the user
-
-    Returns:
-        OrganizationDB: Instance of OrganizationDB
-    """
-
-    user = await UserDB.find_one(UserDB.uid == user_uid)
-    org_db = OrganizationDB(owner=str(user.id), type="default")
-    await org_db.create()
-    return org_db
 
 
 async def get_deployment_by_objectid(
@@ -1680,6 +1670,7 @@ async def fetch_app_by_name_and_organization(
 async def create_new_evaluation(
     app: AppDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     user: UserDB,
     testset: TestSetDB,
     status: str,
@@ -1693,6 +1684,7 @@ async def create_new_evaluation(
     evaluation = EvaluationDB(
         app=app,
         organization=organization,
+        workspace=workspace,
         user=user,
         testset=testset,
         status=status,
@@ -1709,6 +1701,7 @@ async def create_new_evaluation(
 async def create_new_evaluation_scenario(
     user: UserDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     evaluation: EvaluationDB,
     variant_id: str,
     inputs: List[EvaluationScenarioInputDB],
@@ -1726,6 +1719,7 @@ async def create_new_evaluation_scenario(
     evaluation_scenario = EvaluationScenarioDB(
         user=user,
         organization=organization,
+        workspace=workspace,
         evaluation=evaluation,
         variant_id=ObjectId(variant_id),
         inputs=inputs,
@@ -1844,6 +1838,7 @@ async def create_evaluator_config(
     app: AppDB,
     user: UserDB,
     organization: OrganizationDB,
+    workspace: WorkspaceDB,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -1854,6 +1849,7 @@ async def create_evaluator_config(
         app=app,
         user=user,
         organization=organization,
+        workspace=workspace,
         name=name,
         evaluator_key=evaluator_key,
         settings_values=settings_values,
