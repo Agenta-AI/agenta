@@ -316,11 +316,65 @@ class EvaluationScenarioDB(Document):
 
 class Forward:
     @iterative_migration(document_models=[OrganizationDB, UserDB, ImageDB])
-    async def rename_image_db_reference_to_link(self, input_document: ImageDB, output_document: ImageDB):
+    async def rename_image_db_reference_to_link(
+        self, input_document: ImageDB, output_document: ImageDB
+    ):
         output_document.user = input_document.user
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB])
+    async def rename_app_db_reference_to_link(
+        self, input_document: AppDB, output_document: AppDB
+    ):
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB, DeploymentDB])
+    async def rename_deployment_db_reference_to_link(
+        self, input_document: DeploymentDB, output_document: DeploymentDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, ImageDB, VariantBaseDB]
+    )
+    async def rename_variant_base_db_reference_to_link(
+        self, input_document: VariantBaseDB, output_document: VariantBaseDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+        output_document.image = input_document.image
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, AppEnvironmentDB]
+    )
+    async def rename_app_environment_db_reference_to_link(
+        self, input_document: AppEnvironmentDB, output_document: AppEnvironmentDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB, TestSetDB])
+    async def rename_testset_db_reference_to_link(
+        self, input_document: TestSetDB, output_document: TestSetDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, EvaluatorConfigDB]
+    )
+    async def rename_evaluator_config_db_reference_to_link(
+        self, input_document: EvaluatorConfigDB, output_document: EvaluatorConfigDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
 
 class Backward:
-    @iterative_migration(document_models=[OrganizationDB, UserDB, ImageDB])
-    async def rename_image_db_reference_to_link(self, input_document: ImageDB, output_document: ImageDB):
-        output_document.user = input_document.user
-
+    pass

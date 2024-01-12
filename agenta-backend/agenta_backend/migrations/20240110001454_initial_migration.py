@@ -167,9 +167,9 @@ class OldEvaluationDB(Document):
     organization: Link[OrganizationDB]
     user: Link[UserDB]
     status: str
-    evaluation_type: str
-    evaluation_type_settings: OldEvaluationTypeSettings
-    variants: List[PydanticObjectId]
+    evaluation_type: Optional[str]
+    evaluation_type_settings: Optional[OldEvaluationTypeSettings]
+    variants: Optional[List[PydanticObjectId]]
     testsets: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -183,9 +183,9 @@ class EvaluationDB(Document):
     organization: Link[OrganizationDB]
     user: Link[UserDB]
     status: str
-    evaluation_type: str
-    evaluation_type_settings: OldEvaluationTypeSettings
-    variants: List[PydanticObjectId]
+    evaluation_type: Optional[str]
+    evaluation_type_settings: Optional[OldEvaluationTypeSettings]
+    variants: Optional[List[PydanticObjectId]]
     testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
