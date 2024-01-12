@@ -290,7 +290,7 @@ class EvaluationDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "evaluations"
+        name = "new_evaluations"
 
 
 class EvaluationScenarioDB(Document):
@@ -309,7 +309,7 @@ class EvaluationScenarioDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "evaluation_scenarios"
+        name = "new_evaluation_scenarios"
 
 
 class SpanDB(Document):
