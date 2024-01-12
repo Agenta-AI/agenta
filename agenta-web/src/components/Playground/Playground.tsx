@@ -15,6 +15,7 @@ import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-ki
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -198,6 +199,17 @@ const Playground: React.FC = () => {
             },
             onOk: async () => {
                 try {
+                    const variantId =
+                        variants.find((item) => item.variantId === tabID.current)?.variantId ||
+                        variants.find((item) => item.variantName === activeKey)?.variantId
+                    if (
+                        variantId &&
+                        !(await checkIfResourceValidForDeletion({
+                            resourceType: "variant",
+                            resourceIds: [variantId],
+                        }))
+                    )
+                        return
                     if (deleteAction) await deleteAction()
                     removeTab()
                     messageApi.open({

@@ -9,6 +9,7 @@ import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {deleteEvaluatorConfig} from "@/services/evaluations"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
@@ -57,14 +58,23 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
     const [evaluators] = useAtom(evaluatorsAtom)
     const evaluator = evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
 
-    const onDelete = () => {
+    const onDelete = async () => {
         AlertPopup({
             title: "Delete evaluator",
             message: "Are you sure you want to delete this evaluator?",
-            onOk: () =>
-                deleteEvaluatorConfig(evaluatorConfig.id)
-                    .then(onSuccessDelete)
-                    .catch(console.error),
+            onOk: async () => {
+                if (
+                    !(await checkIfResourceValidForDeletion({
+                        resourceType: "evaluator_config",
+                        resourceIds: [evaluatorConfig.id],
+                    }))
+                )
+                    return
+                try {
+                    await deleteEvaluatorConfig(evaluatorConfig.id)
+                    onSuccessDelete?.()
+                } catch (error) {}
+            },
         })
     }
 
