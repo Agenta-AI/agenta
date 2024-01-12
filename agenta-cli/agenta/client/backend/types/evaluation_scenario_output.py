@@ -12,8 +12,8 @@ except ImportError:
 
 
 class EvaluationScenarioOutput(pydantic.BaseModel):
-    variant_id: str
-    variant_output: str
+    type: str
+    value: typing.Optional[typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

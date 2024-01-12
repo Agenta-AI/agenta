@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .evaluation_type import EvaluationType
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -11,11 +12,17 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class CustomEvaluationDetail(pydantic.BaseModel):
+class HumanEvaluation(pydantic.BaseModel):
     id: str
     app_id: str
-    evaluation_name: str
-    python_code: str
+    user_id: str
+    user_username: str
+    evaluation_type: EvaluationType
+    variant_ids: typing.List[str]
+    variant_names: typing.List[str]
+    testset_id: str
+    testset_name: str
+    status: str
     created_at: dt.datetime
     updated_at: dt.datetime
 

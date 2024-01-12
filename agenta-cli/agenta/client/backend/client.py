@@ -20,24 +20,25 @@ from .types.app_variant_output import AppVariantOutput
 from .types.base_output import BaseOutput
 from .types.container_templates_response import ContainerTemplatesResponse
 from .types.create_app_output import CreateAppOutput
-from .types.create_custom_evaluation import CreateCustomEvaluation
-from .types.custom_evaluation_detail import CustomEvaluationDetail
-from .types.custom_evaluation_names import CustomEvaluationNames
-from .types.custom_evaluation_output import CustomEvaluationOutput
+from .types.delete_evaluation import DeleteEvaluation
 from .types.docker_env_vars import DockerEnvVars
 from .types.environment_output import EnvironmentOutput
 from .types.evaluation import Evaluation
-from .types.evaluation_scenario import EvaluationScenario
-from .types.evaluation_scenario_input import EvaluationScenarioInput
-from .types.evaluation_scenario_output import EvaluationScenarioOutput
-from .types.evaluation_scenario_update_score import EvaluationScenarioUpdateScore
 from .types.evaluation_status_enum import EvaluationStatusEnum
 from .types.evaluation_type import EvaluationType
-from .types.evaluation_type_settings import EvaluationTypeSettings
 from .types.evaluation_webhook import EvaluationWebhook
+from .types.evaluator import Evaluator
+from .types.evaluator_config import EvaluatorConfig
 from .types.feedback import Feedback
 from .types.get_config_reponse import GetConfigReponse
 from .types.http_validation_error import HttpValidationError
+from .types.human_evaluation import HumanEvaluation
+from .types.human_evaluation_scenario import HumanEvaluationScenario
+from .types.human_evaluation_scenario_input import HumanEvaluationScenarioInput
+from .types.human_evaluation_scenario_output import HumanEvaluationScenarioOutput
+from .types.human_evaluation_scenario_update_score import (
+    HumanEvaluationScenarioUpdateScore,
+)
 from .types.image import Image
 from .types.invite_request import InviteRequest
 from .types.list_api_keys_output import ListApiKeysOutput
@@ -61,7 +62,7 @@ except ImportError:
 OMIT = typing.cast(typing.Any, ...)
 
 
-class AgentaApi:
+class AakremApi:
     def __init__(
         self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
@@ -82,9 +83,9 @@ class AgentaApi:
         List[ListAPIKeysOutput]: A list of API Keys associated with the user.
 
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_api_keys()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -142,9 +143,9 @@ class AgentaApi:
         Parameters:
             - key_prefix: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_api_key(key_prefix="key-prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -445,9 +446,9 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_app_variants(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -534,9 +535,9 @@ class AgentaApi:
 
             - org_id: typing.Optional[str].
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_apps()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -762,9 +763,9 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_environments(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1006,7 +1007,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
+    def fetch_list_evaluations_evaluations_get(
+        self, *, app_id: str
+    ) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -1019,10 +1022,10 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.fetch_list_evaluations(app_id="app-id")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_list_evaluations_evaluations_get(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1049,7 +1052,6 @@ class AgentaApi:
         app_id: str,
         variant_ids: typing.List[str],
         evaluation_type: EvaluationType,
-        evaluation_type_settings: typing.Optional[EvaluationTypeSettings] = OMIT,
         inputs: typing.List[str],
         testset_id: str,
         status: str,
@@ -1068,30 +1070,27 @@ class AgentaApi:
 
             - evaluation_type: EvaluationType.
 
-            - evaluation_type_settings: typing.Optional[EvaluationTypeSettings].
-
             - inputs: typing.List[str].
 
             - testset_id: str.
 
             - status: str.
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "app_id": app_id,
-            "variant_ids": variant_ids,
-            "evaluation_type": evaluation_type,
-            "inputs": inputs,
-            "testset_id": testset_id,
-            "status": status,
-        }
-        if evaluation_type_settings is not OMIT:
-            _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
             ),
-            json=jsonable_encoder(_request),
+            json=jsonable_encoder(
+                {
+                    "app_id": app_id,
+                    "variant_ids": variant_ids,
+                    "evaluation_type": evaluation_type,
+                    "inputs": inputs,
+                    "testset_id": testset_id,
+                    "status": status,
+                }
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1105,9 +1104,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
-    ) -> typing.List[str]:
+    def delete_evaluations(self, *, request: DeleteEvaluation) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -1118,24 +1115,133 @@ class AgentaApi:
         A list of the deleted comparison tables' IDs.
 
         Parameters:
-            - evaluations_ids: typing.List[str].
+            - request: DeleteEvaluation.
         ---
-        from agenta.client import AgentaApi
+        from aakrem import DeleteEvaluation
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.delete_evaluations(evaluations_ids=[])
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_evaluations(request=DeleteEvaluation(evaluations_ids=[]))
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/", "evaluations"
             ),
-            json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
+            json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_evaluation_status(self, evaluation_id: str) -> typing.Any:
+        """
+        Fetches the status of the evaluation.
+
+        Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+        Returns:
+        (str): the evaluation status
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/status",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_evaluation_results(self, evaluation_id: str) -> typing.Any:
+        """
+        Fetches the results of the evaluation
+
+        Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+        Returns:
+        _type_: _description_
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/results",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_evaluation_scenarios(
+        self, evaluation_id: str
+    ) -> typing.List[HumanEvaluationScenario]:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
+
+        Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+        Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+
+        Parameters:
+            - evaluation_id: str.
+        ---
+        from aakrem.client import AakremApi
+
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"human-evaluations/{evaluation_id}/evaluation_scenarios",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[HumanEvaluationScenario], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -1176,12 +1282,186 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation(
+    def webhook_example_fake(self) -> EvaluationWebhook:
+        """
+        Returns a fake score response for example webhook evaluation
+
+        Returns:
+        _description_
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/webhook_example_fake",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_evaluation_scenarios_evaluations_evaluation_scenarios_comparison_results_get(
+        self, *, evaluations_ids: str
+    ) -> typing.Any:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
+
+        Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+        Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+
+        Parameters:
+            - evaluations_ids: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/evaluation_scenarios/comparison-results",
+            ),
+            params=remove_none_from_dict({"evaluations_ids": evaluations_ids}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_list_human_evaluations_human_evaluations_get(
+        self, *, app_id: str
+    ) -> typing.List[HumanEvaluation]:
+        """
+        Fetches a list of evaluations, optionally filtered by an app ID.
+
+        Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+
+        Returns:
+        List[HumanEvaluation]: A list of evaluations.
+
+        Parameters:
+            - app_id: str.
+        ---
+        from aakrem.client import AakremApi
+
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_list_human_evaluations_human_evaluations_get(app_id="app-id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
+            ),
+            params=remove_none_from_dict({"app_id": app_id}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[HumanEvaluation], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def delete_evaluations_human_evaluations_delete(
+        self, *, request: DeleteEvaluation
+    ) -> typing.List[str]:
+        """
+        Delete specific comparison tables based on their unique IDs.
+
+        Args:
+        delete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.
+
+        Returns:
+        A list of the deleted comparison tables' IDs.
+
+        Parameters:
+            - request: DeleteEvaluation.
+        ---
+        from aakrem import DeleteEvaluation
+        from aakrem.client import AakremApi
+
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_evaluations_human_evaluations_delete(request=DeleteEvaluation(evaluations_ids=[]))
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
+            ),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_human_evaluation_human_evaluations_evaluation_id_get(
+        self, evaluation_id: str
+    ) -> HumanEvaluation:
+        """
+        Fetches a single evaluation based on its ID.
+
+        Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+
+        Returns:
+        HumanEvaluation: The fetched evaluation.
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"human-evaluations/{evaluation_id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(HumanEvaluation, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_human_evaluation(
         self,
         evaluation_id: str,
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
-        evaluation_type_settings: typing.Optional[EvaluationTypeSettings] = OMIT,
     ) -> typing.Any:
         """
         Updates an evaluation's status.
@@ -1196,19 +1476,15 @@ class AgentaApi:
             - evaluation_id: str.
 
             - status: typing.Optional[EvaluationStatusEnum].
-
-            - evaluation_type_settings: typing.Optional[EvaluationTypeSettings].
         """
         _request: typing.Dict[str, typing.Any] = {}
         if status is not OMIT:
             _request["status"] = status
-        if evaluation_type_settings is not OMIT:
-            _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
+                f"human-evaluations/{evaluation_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1224,96 +1500,17 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
-        """
-        Fetches evaluation scenarios for a given evaluation ID.
-
-        Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
-
-        Raises:
-        HTTPException: If the evaluation is not found or access is denied.
-
-        Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
-
-        Parameters:
-            - evaluation_id: str.
-        ---
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[EvaluationScenario], _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def create_evaluation_scenario(
-        self, evaluation_id: str, *, request: EvaluationScenario
-    ) -> typing.Any:
-        """
-        Create a new evaluation scenario for a given evaluation ID.
-
-        Raises:
-        HTTPException: If evaluation not found or access denied.
-
-        Returns:
-        None: 204 No Content status code upon success.
-
-        Parameters:
-            - evaluation_id: str.
-
-            - request: EvaluationScenario.
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def update_evaluation_scenario(
+    def update_evaluation_scenario_router_human_evaluations_evaluation_id_evaluation_scenario_evaluation_scenario_id_evaluation_type_put(
         self,
         evaluation_id: str,
         evaluation_scenario_id: str,
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[EvaluationScenarioUpdateScore] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
-        outputs: typing.Optional[typing.List[EvaluationScenarioOutput]] = OMIT,
-        inputs: typing.Optional[typing.List[EvaluationScenarioInput]] = OMIT,
+        outputs: typing.Optional[typing.List[HumanEvaluationScenarioOutput]] = OMIT,
+        inputs: typing.Optional[typing.List[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
     ) -> typing.Any:
@@ -1335,13 +1532,13 @@ class AgentaApi:
 
             - vote: typing.Optional[str].
 
-            - score: typing.Optional[EvaluationScenarioUpdateScore].
+            - score: typing.Optional[HumanEvaluationScenarioUpdateScore].
 
             - correct_answer: typing.Optional[str].
 
-            - outputs: typing.Optional[typing.List[EvaluationScenarioOutput]].
+            - outputs: typing.Optional[typing.List[HumanEvaluationScenarioOutput]].
 
-            - inputs: typing.Optional[typing.List[EvaluationScenarioInput]].
+            - inputs: typing.Optional[typing.List[HumanEvaluationScenarioInput]].
 
             - is_pinned: typing.Optional[bool].
 
@@ -1366,7 +1563,7 @@ class AgentaApi:
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}",
+                f"human-evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1382,74 +1579,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def evaluate_ai_critique(
-        self,
-        *,
-        correct_answer: str,
-        llm_app_prompt_template: typing.Optional[str] = OMIT,
-        inputs: typing.List[EvaluationScenarioInput],
-        outputs: typing.List[EvaluationScenarioOutput],
-        evaluation_prompt_template: typing.Optional[str] = OMIT,
-        open_ai_key: typing.Optional[str] = OMIT,
-    ) -> str:
-        """
-        Evaluate AI critique based on the given payload.
-
-        Args:
-        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-        stoken_session (SessionContainer): The session container verified by `verify_session`.
-
-        Returns:
-        str: The output of the AI critique evaluation.
-
-        Raises:
-        HTTPException: If any exception occurs during the evaluation.
-
-        Parameters:
-            - correct_answer: str.
-
-            - llm_app_prompt_template: typing.Optional[str].
-
-            - inputs: typing.List[EvaluationScenarioInput].
-
-            - outputs: typing.List[EvaluationScenarioOutput].
-
-            - evaluation_prompt_template: typing.Optional[str].
-
-            - open_ai_key: typing.Optional[str].
-        """
-        _request: typing.Dict[str, typing.Any] = {
-            "correct_answer": correct_answer,
-            "inputs": inputs,
-            "outputs": outputs,
-        }
-        if llm_app_prompt_template is not OMIT:
-            _request["llm_app_prompt_template"] = llm_app_prompt_template
-        if evaluation_prompt_template is not OMIT:
-            _request["evaluation_prompt_template"] = evaluation_prompt_template
-        if open_ai_key is not OMIT:
-            _request["open_ai_key"] = open_ai_key
-        _response = self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenario/ai_critique",
-            ),
-            json=jsonable_encoder(_request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def get_evaluation_scenario_score(
+    def get_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
         self, evaluation_scenario_id: str
     ) -> typing.Dict[str, str]:
         """
@@ -1465,16 +1595,18 @@ class AgentaApi:
         Parameters:
             - evaluation_scenario_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
+            evaluation_scenario_id="evaluation-scenario-id"
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
+                f"human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1489,7 +1621,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_scenario_score(
+    def update_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_put(
         self, evaluation_scenario_id: str, *, score: float
     ) -> typing.Any:
         """
@@ -1510,7 +1642,7 @@ class AgentaApi:
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
+                f"human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             json=jsonable_encoder({"score": score}),
             headers=self._client_wrapper.get_headers(),
@@ -1543,7 +1675,7 @@ class AgentaApi:
             "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
+                f"human-evaluations/{evaluation_id}/results",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1558,137 +1690,66 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_custom_evaluation(
-        self, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    def get_evaluators_endpoint_evaluators_get(self) -> typing.List[Evaluator]:
         """
-        Create evaluation with custom python code.
-
-        Args:
-
-        custom_evaluation_payload (CreateCustomEvaluation): the required payload
-
-        Parameters:
-            - request: CreateCustomEvaluation.
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/custom_evaluation",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def get_custom_evaluation(self, id: str) -> CustomEvaluationDetail:
-        """
-        Get the custom code evaluation detail.
-
-        Args:
-        id (str): the id of the custom evaluation
+        Endpoint to fetch a list of evaluators.
 
         Returns:
-        CustomEvaluationDetail: Detail of the custom evaluation
+        List[Evaluator]: A list of evaluator objects.
 
-        Parameters:
-            - id: str.
+        ---
+        from aakrem.client import AakremApi
+
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_evaluators_endpoint_evaluators_get()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+            return pydantic.parse_obj_as(typing.List[Evaluator], _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_custom_evaluation(
-        self, id: str, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    def get_evaluator_configs_evaluators_configs_get(
+        self, *, app_id: str
+    ) -> typing.List[EvaluatorConfig]:
         """
-        Update a custom code evaluation.
-        Args:
-        id (str): the ID of the custom evaluation to update
-        updated_data (CreateCustomEvaluation): the payload with updated data
-        stoken_session (SessionContainer): session container for authentication
-
-        Parameters:
-            - id: str.
-
-            - request: CreateCustomEvaluation.
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def list_custom_evaluations(
-        self, app_id: str
-    ) -> typing.List[CustomEvaluationOutput]:
-        """
-        List the custom code evaluations for a given app.
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): the id of the app
+        app_id (str): The ID of the app.
 
         Returns:
-        List[CustomEvaluationOutput]: a list of custom evaluation
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.list_custom_evaluations(app_id="app-id")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_evaluator_configs_evaluators_configs_get(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/list/{app_id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
             ),
+            params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[CustomEvaluationOutput], _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.List[EvaluatorConfig], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -1697,98 +1758,50 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_custom_evaluation_names(
-        self, app_name: str
-    ) -> typing.List[CustomEvaluationNames]:
-        """
-        Get the names of custom evaluation for a given app.
-
-        Args:
-        app_name (str): the name of the app the evaluation belongs to
-
-        Returns:
-        List[CustomEvaluationNames]: the list of name of custom evaluations
-
-        Parameters:
-            - app_name: str.
-        ---
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_custom_evaluation_names(app_name="app-name")
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{app_name}/names",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[CustomEvaluationNames], _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def execute_custom_evaluation(
+    def create_new_evaluator_config_evaluators_configs_post(
         self,
-        evaluation_id: str,
         *,
-        inputs: typing.List[typing.Dict[str, typing.Any]],
         app_id: str,
-        variant_id: str,
-        correct_answer: str,
-        outputs: typing.List[typing.Dict[str, typing.Any]],
-    ) -> typing.Any:
+        name: str,
+        evaluator_key: str,
+        settings_values: typing.Dict[str, typing.Any],
+    ) -> EvaluatorConfig:
         """
-        Execute a custom evaluation code.
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        evaluation_id (str): the custom evaluation id
-        payload (ExecuteCustomEvaluationCode): the required payload
+        app_id (str): The ID of the app.
 
         Returns:
-        float: the result of the evaluation custom code
+        EvaluatorConfigDB: Evaluator configuration api model.
 
         Parameters:
-            - evaluation_id: str.
-
-            - inputs: typing.List[typing.Dict[str, typing.Any]].
-
             - app_id: str.
 
-            - variant_id: str.
+            - name: str.
 
-            - correct_answer: str.
+            - evaluator_key: str.
 
-            - outputs: typing.List[typing.Dict[str, typing.Any]].
+            - settings_values: typing.Dict[str, typing.Any].
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/execute/{evaluation_id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
             ),
             json=jsonable_encoder(
                 {
-                    "inputs": inputs,
                     "app_id": app_id,
-                    "variant_id": variant_id,
-                    "correct_answer": correct_answer,
-                    "outputs": outputs,
+                    "name": name,
+                    "evaluator_key": evaluator_key,
+                    "settings_values": settings_values,
                 }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -1797,24 +1810,115 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def webhook_example_fake(self) -> EvaluationWebhook:
+    def get_evaluator_config_evaluators_configs_evaluator_config_id_get(
+        self, evaluator_config_id: str
+    ) -> EvaluatorConfig:
         """
-        Returns a fake score response for example webhook evaluation
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Returns:
-        _description_
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+
+        Parameters:
+            - evaluator_config_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
-            "POST",
+            "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_evaluator_config_evaluators_configs_evaluator_config_id_put(
+        self,
+        evaluator_config_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        evaluator_key: typing.Optional[str] = OMIT,
+        settings_values: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+    ) -> EvaluatorConfig:
+        """
+        Endpoint to update evaluator configurations for a specific app.
+
+        Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+
+        Parameters:
+            - evaluator_config_id: str.
+
+            - name: typing.Optional[str].
+
+            - evaluator_key: typing.Optional[str].
+
+            - settings_values: typing.Optional[typing.Dict[str, typing.Any]].
+        """
+        _request: typing.Dict[str, typing.Any] = {}
+        if name is not OMIT:
+            _request["name"] = name
+        if evaluator_key is not OMIT:
+            _request["evaluator_key"] = evaluator_key
+        if settings_values is not OMIT:
+            _request["settings_values"] = settings_values
+        _response = self._client_wrapper.httpx_client.request(
+            "PUT",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
+            ),
+            json=jsonable_encoder(_request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def delete_evaluator_config_evaluators_configs_evaluator_config_id_delete(
+        self, evaluator_config_id: str
+    ) -> bool:
+        """
+        Endpoint to delete a specific evaluator configuration.
+
+        Args:
+        evaluator_config_id (str): The unique identifier of the evaluator configuration.
+
+        Returns:
+        bool: True if deletion was successful, False otherwise.
+
+        Parameters:
+            - evaluator_config_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
@@ -2018,9 +2122,9 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_testsets(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2053,9 +2157,9 @@ class AgentaApi:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_testsets(testset_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2338,9 +2442,9 @@ class AgentaApi:
 
             - variant_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2521,9 +2625,9 @@ class AgentaApi:
         Parameters:
             - trace_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2550,9 +2654,9 @@ class AgentaApi:
         Parameters:
             - trace_id: str.
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_feedbacks(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2705,9 +2809,9 @@ class AgentaApi:
         HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_organizations()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2768,9 +2872,9 @@ class AgentaApi:
 
             - base_name: typing.Optional[str].
         ---
-        from agenta.client import AgentaApi
+        from aakrem.client import AakremApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2871,7 +2975,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
 
-class AsyncAgentaApi:
+class AsyncAakremApi:
     def __init__(
         self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
@@ -2892,9 +2996,9 @@ class AsyncAgentaApi:
         List[ListAPIKeysOutput]: A list of API Keys associated with the user.
 
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_api_keys()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -2952,9 +3056,9 @@ class AsyncAgentaApi:
         Parameters:
             - key_prefix: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_api_key(key_prefix="key-prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3257,9 +3361,9 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_app_variants(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3348,9 +3452,9 @@ class AsyncAgentaApi:
 
             - org_id: typing.Optional[str].
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_apps()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3576,9 +3680,9 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_environments(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3822,7 +3926,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
+    async def fetch_list_evaluations_evaluations_get(
+        self, *, app_id: str
+    ) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -3835,10 +3941,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.fetch_list_evaluations(app_id="app-id")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_list_evaluations_evaluations_get(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -3865,7 +3971,6 @@ class AsyncAgentaApi:
         app_id: str,
         variant_ids: typing.List[str],
         evaluation_type: EvaluationType,
-        evaluation_type_settings: typing.Optional[EvaluationTypeSettings] = OMIT,
         inputs: typing.List[str],
         testset_id: str,
         status: str,
@@ -3884,30 +3989,27 @@ class AsyncAgentaApi:
 
             - evaluation_type: EvaluationType.
 
-            - evaluation_type_settings: typing.Optional[EvaluationTypeSettings].
-
             - inputs: typing.List[str].
 
             - testset_id: str.
 
             - status: str.
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "app_id": app_id,
-            "variant_ids": variant_ids,
-            "evaluation_type": evaluation_type,
-            "inputs": inputs,
-            "testset_id": testset_id,
-            "status": status,
-        }
-        if evaluation_type_settings is not OMIT:
-            _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
             ),
-            json=jsonable_encoder(_request),
+            json=jsonable_encoder(
+                {
+                    "app_id": app_id,
+                    "variant_ids": variant_ids,
+                    "evaluation_type": evaluation_type,
+                    "inputs": inputs,
+                    "testset_id": testset_id,
+                    "status": status,
+                }
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3922,7 +4024,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
+        self, *, request: DeleteEvaluation
     ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
@@ -3934,24 +4036,133 @@ class AsyncAgentaApi:
         A list of the deleted comparison tables' IDs.
 
         Parameters:
-            - evaluations_ids: typing.List[str].
+            - request: DeleteEvaluation.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem import DeleteEvaluation
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.delete_evaluations(evaluations_ids=[])
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_evaluations(request=DeleteEvaluation(evaluations_ids=[]))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/", "evaluations"
             ),
-            json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
+            json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_evaluation_status(self, evaluation_id: str) -> typing.Any:
+        """
+        Fetches the status of the evaluation.
+
+        Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+        Returns:
+        (str): the evaluation status
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/status",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_evaluation_results(self, evaluation_id: str) -> typing.Any:
+        """
+        Fetches the results of the evaluation
+
+        Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+        Returns:
+        _type_: _description_
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/results",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_evaluation_scenarios(
+        self, evaluation_id: str
+    ) -> typing.List[HumanEvaluationScenario]:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
+
+        Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+        Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+
+        Parameters:
+            - evaluation_id: str.
+        ---
+        from aakrem.client import AsyncAakremApi
+
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"human-evaluations/{evaluation_id}/evaluation_scenarios",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[HumanEvaluationScenario], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -3992,12 +4203,186 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation(
+    async def webhook_example_fake(self) -> EvaluationWebhook:
+        """
+        Returns a fake score response for example webhook evaluation
+
+        Returns:
+        _description_
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/webhook_example_fake",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_evaluation_scenarios_evaluations_evaluation_scenarios_comparison_results_get(
+        self, *, evaluations_ids: str
+    ) -> typing.Any:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
+
+        Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+        Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+
+        Parameters:
+            - evaluations_ids: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/evaluation_scenarios/comparison-results",
+            ),
+            params=remove_none_from_dict({"evaluations_ids": evaluations_ids}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_list_human_evaluations_human_evaluations_get(
+        self, *, app_id: str
+    ) -> typing.List[HumanEvaluation]:
+        """
+        Fetches a list of evaluations, optionally filtered by an app ID.
+
+        Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+
+        Returns:
+        List[HumanEvaluation]: A list of evaluations.
+
+        Parameters:
+            - app_id: str.
+        ---
+        from aakrem.client import AsyncAakremApi
+
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_list_human_evaluations_human_evaluations_get(app_id="app-id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
+            ),
+            params=remove_none_from_dict({"app_id": app_id}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[HumanEvaluation], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def delete_evaluations_human_evaluations_delete(
+        self, *, request: DeleteEvaluation
+    ) -> typing.List[str]:
+        """
+        Delete specific comparison tables based on their unique IDs.
+
+        Args:
+        delete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.
+
+        Returns:
+        A list of the deleted comparison tables' IDs.
+
+        Parameters:
+            - request: DeleteEvaluation.
+        ---
+        from aakrem import DeleteEvaluation
+        from aakrem.client import AsyncAakremApi
+
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_evaluations_human_evaluations_delete(request=DeleteEvaluation(evaluations_ids=[]))
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "human-evaluations"
+            ),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_human_evaluation_human_evaluations_evaluation_id_get(
+        self, evaluation_id: str
+    ) -> HumanEvaluation:
+        """
+        Fetches a single evaluation based on its ID.
+
+        Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+
+        Returns:
+        HumanEvaluation: The fetched evaluation.
+
+        Parameters:
+            - evaluation_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"human-evaluations/{evaluation_id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(HumanEvaluation, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_human_evaluation(
         self,
         evaluation_id: str,
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
-        evaluation_type_settings: typing.Optional[EvaluationTypeSettings] = OMIT,
     ) -> typing.Any:
         """
         Updates an evaluation's status.
@@ -4012,19 +4397,15 @@ class AsyncAgentaApi:
             - evaluation_id: str.
 
             - status: typing.Optional[EvaluationStatusEnum].
-
-            - evaluation_type_settings: typing.Optional[EvaluationTypeSettings].
         """
         _request: typing.Dict[str, typing.Any] = {}
         if status is not OMIT:
             _request["status"] = status
-        if evaluation_type_settings is not OMIT:
-            _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
+                f"human-evaluations/{evaluation_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -4040,96 +4421,17 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
-        """
-        Fetches evaluation scenarios for a given evaluation ID.
-
-        Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
-
-        Raises:
-        HTTPException: If the evaluation is not found or access is denied.
-
-        Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
-
-        Parameters:
-            - evaluation_id: str.
-        ---
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[EvaluationScenario], _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def create_evaluation_scenario(
-        self, evaluation_id: str, *, request: EvaluationScenario
-    ) -> typing.Any:
-        """
-        Create a new evaluation scenario for a given evaluation ID.
-
-        Raises:
-        HTTPException: If evaluation not found or access denied.
-
-        Returns:
-        None: 204 No Content status code upon success.
-
-        Parameters:
-            - evaluation_id: str.
-
-            - request: EvaluationScenario.
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def update_evaluation_scenario(
+    async def update_evaluation_scenario_router_human_evaluations_evaluation_id_evaluation_scenario_evaluation_scenario_id_evaluation_type_put(
         self,
         evaluation_id: str,
         evaluation_scenario_id: str,
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[EvaluationScenarioUpdateScore] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
-        outputs: typing.Optional[typing.List[EvaluationScenarioOutput]] = OMIT,
-        inputs: typing.Optional[typing.List[EvaluationScenarioInput]] = OMIT,
+        outputs: typing.Optional[typing.List[HumanEvaluationScenarioOutput]] = OMIT,
+        inputs: typing.Optional[typing.List[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
     ) -> typing.Any:
@@ -4151,13 +4453,13 @@ class AsyncAgentaApi:
 
             - vote: typing.Optional[str].
 
-            - score: typing.Optional[EvaluationScenarioUpdateScore].
+            - score: typing.Optional[HumanEvaluationScenarioUpdateScore].
 
             - correct_answer: typing.Optional[str].
 
-            - outputs: typing.Optional[typing.List[EvaluationScenarioOutput]].
+            - outputs: typing.Optional[typing.List[HumanEvaluationScenarioOutput]].
 
-            - inputs: typing.Optional[typing.List[EvaluationScenarioInput]].
+            - inputs: typing.Optional[typing.List[HumanEvaluationScenarioInput]].
 
             - is_pinned: typing.Optional[bool].
 
@@ -4182,7 +4484,7 @@ class AsyncAgentaApi:
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}",
+                f"human-evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -4198,74 +4500,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def evaluate_ai_critique(
-        self,
-        *,
-        correct_answer: str,
-        llm_app_prompt_template: typing.Optional[str] = OMIT,
-        inputs: typing.List[EvaluationScenarioInput],
-        outputs: typing.List[EvaluationScenarioOutput],
-        evaluation_prompt_template: typing.Optional[str] = OMIT,
-        open_ai_key: typing.Optional[str] = OMIT,
-    ) -> str:
-        """
-        Evaluate AI critique based on the given payload.
-
-        Args:
-        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-        stoken_session (SessionContainer): The session container verified by `verify_session`.
-
-        Returns:
-        str: The output of the AI critique evaluation.
-
-        Raises:
-        HTTPException: If any exception occurs during the evaluation.
-
-        Parameters:
-            - correct_answer: str.
-
-            - llm_app_prompt_template: typing.Optional[str].
-
-            - inputs: typing.List[EvaluationScenarioInput].
-
-            - outputs: typing.List[EvaluationScenarioOutput].
-
-            - evaluation_prompt_template: typing.Optional[str].
-
-            - open_ai_key: typing.Optional[str].
-        """
-        _request: typing.Dict[str, typing.Any] = {
-            "correct_answer": correct_answer,
-            "inputs": inputs,
-            "outputs": outputs,
-        }
-        if llm_app_prompt_template is not OMIT:
-            _request["llm_app_prompt_template"] = llm_app_prompt_template
-        if evaluation_prompt_template is not OMIT:
-            _request["evaluation_prompt_template"] = evaluation_prompt_template
-        if open_ai_key is not OMIT:
-            _request["open_ai_key"] = open_ai_key
-        _response = await self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenario/ai_critique",
-            ),
-            json=jsonable_encoder(_request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def get_evaluation_scenario_score(
+    async def get_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
         self, evaluation_scenario_id: str
     ) -> typing.Dict[str, str]:
         """
@@ -4281,16 +4516,18 @@ class AsyncAgentaApi:
         Parameters:
             - evaluation_scenario_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
+            evaluation_scenario_id="evaluation-scenario-id"
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
+                f"human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4305,7 +4542,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_scenario_score(
+    async def update_evaluation_scenario_score_router_human_evaluations_evaluation_scenario_evaluation_scenario_id_score_put(
         self, evaluation_scenario_id: str, *, score: float
     ) -> typing.Any:
         """
@@ -4326,7 +4563,7 @@ class AsyncAgentaApi:
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
+                f"human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             json=jsonable_encoder({"score": score}),
             headers=self._client_wrapper.get_headers(),
@@ -4359,7 +4596,7 @@ class AsyncAgentaApi:
             "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
+                f"human-evaluations/{evaluation_id}/results",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4374,137 +4611,66 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_custom_evaluation(
-        self, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    async def get_evaluators_endpoint_evaluators_get(self) -> typing.List[Evaluator]:
         """
-        Create evaluation with custom python code.
-
-        Args:
-
-        custom_evaluation_payload (CreateCustomEvaluation): the required payload
-
-        Parameters:
-            - request: CreateCustomEvaluation.
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/custom_evaluation",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def get_custom_evaluation(self, id: str) -> CustomEvaluationDetail:
-        """
-        Get the custom code evaluation detail.
-
-        Args:
-        id (str): the id of the custom evaluation
+        Endpoint to fetch a list of evaluators.
 
         Returns:
-        CustomEvaluationDetail: Detail of the custom evaluation
+        List[Evaluator]: A list of evaluator objects.
 
-        Parameters:
-            - id: str.
+        ---
+        from aakrem.client import AsyncAakremApi
+
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_evaluators_endpoint_evaluators_get()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+            return pydantic.parse_obj_as(typing.List[Evaluator], _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_custom_evaluation(
-        self, id: str, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    async def get_evaluator_configs_evaluators_configs_get(
+        self, *, app_id: str
+    ) -> typing.List[EvaluatorConfig]:
         """
-        Update a custom code evaluation.
-        Args:
-        id (str): the ID of the custom evaluation to update
-        updated_data (CreateCustomEvaluation): the payload with updated data
-        stoken_session (SessionContainer): session container for authentication
-
-        Parameters:
-            - id: str.
-
-            - request: CreateCustomEvaluation.
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
-            json=jsonable_encoder(request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def list_custom_evaluations(
-        self, app_id: str
-    ) -> typing.List[CustomEvaluationOutput]:
-        """
-        List the custom code evaluations for a given app.
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): the id of the app
+        app_id (str): The ID of the app.
 
         Returns:
-        List[CustomEvaluationOutput]: a list of custom evaluation
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.list_custom_evaluations(app_id="app-id")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_evaluator_configs_evaluators_configs_get(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/list/{app_id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
             ),
+            params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[CustomEvaluationOutput], _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.List[EvaluatorConfig], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -4513,98 +4679,50 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_custom_evaluation_names(
-        self, app_name: str
-    ) -> typing.List[CustomEvaluationNames]:
-        """
-        Get the names of custom evaluation for a given app.
-
-        Args:
-        app_name (str): the name of the app the evaluation belongs to
-
-        Returns:
-        List[CustomEvaluationNames]: the list of name of custom evaluations
-
-        Parameters:
-            - app_name: str.
-        ---
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_custom_evaluation_names(app_name="app-name")
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{app_name}/names",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[CustomEvaluationNames], _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def execute_custom_evaluation(
+    async def create_new_evaluator_config_evaluators_configs_post(
         self,
-        evaluation_id: str,
         *,
-        inputs: typing.List[typing.Dict[str, typing.Any]],
         app_id: str,
-        variant_id: str,
-        correct_answer: str,
-        outputs: typing.List[typing.Dict[str, typing.Any]],
-    ) -> typing.Any:
+        name: str,
+        evaluator_key: str,
+        settings_values: typing.Dict[str, typing.Any],
+    ) -> EvaluatorConfig:
         """
-        Execute a custom evaluation code.
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        evaluation_id (str): the custom evaluation id
-        payload (ExecuteCustomEvaluationCode): the required payload
+        app_id (str): The ID of the app.
 
         Returns:
-        float: the result of the evaluation custom code
+        EvaluatorConfigDB: Evaluator configuration api model.
 
         Parameters:
-            - evaluation_id: str.
-
-            - inputs: typing.List[typing.Dict[str, typing.Any]].
-
             - app_id: str.
 
-            - variant_id: str.
+            - name: str.
 
-            - correct_answer: str.
+            - evaluator_key: str.
 
-            - outputs: typing.List[typing.Dict[str, typing.Any]].
+            - settings_values: typing.Dict[str, typing.Any].
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/execute/{evaluation_id}",
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
             ),
             json=jsonable_encoder(
                 {
-                    "inputs": inputs,
                     "app_id": app_id,
-                    "variant_id": variant_id,
-                    "correct_answer": correct_answer,
-                    "outputs": outputs,
+                    "name": name,
+                    "evaluator_key": evaluator_key,
+                    "settings_values": settings_values,
                 }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -4613,24 +4731,115 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def webhook_example_fake(self) -> EvaluationWebhook:
+    async def get_evaluator_config_evaluators_configs_evaluator_config_id_get(
+        self, evaluator_config_id: str
+    ) -> EvaluatorConfig:
         """
-        Returns a fake score response for example webhook evaluation
+        Endpoint to fetch evaluator configurations for a specific app.
 
         Returns:
-        _description_
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+
+        Parameters:
+            - evaluator_config_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "POST",
+            "GET",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_evaluator_config_evaluators_configs_evaluator_config_id_put(
+        self,
+        evaluator_config_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        evaluator_key: typing.Optional[str] = OMIT,
+        settings_values: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+    ) -> EvaluatorConfig:
+        """
+        Endpoint to update evaluator configurations for a specific app.
+
+        Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+
+        Parameters:
+            - evaluator_config_id: str.
+
+            - name: typing.Optional[str].
+
+            - evaluator_key: typing.Optional[str].
+
+            - settings_values: typing.Optional[typing.Dict[str, typing.Any]].
+        """
+        _request: typing.Dict[str, typing.Any] = {}
+        if name is not OMIT:
+            _request["name"] = name
+        if evaluator_key is not OMIT:
+            _request["evaluator_key"] = evaluator_key
+        if settings_values is not OMIT:
+            _request["settings_values"] = settings_values
+        _response = await self._client_wrapper.httpx_client.request(
+            "PUT",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
+            ),
+            json=jsonable_encoder(_request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(EvaluatorConfig, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def delete_evaluator_config_evaluators_configs_evaluator_config_id_delete(
+        self, evaluator_config_id: str
+    ) -> bool:
+        """
+        Endpoint to delete a specific evaluator configuration.
+
+        Args:
+        evaluator_config_id (str): The unique identifier of the evaluator configuration.
+
+        Returns:
+        bool: True if deletion was successful, False otherwise.
+
+        Parameters:
+            - evaluator_config_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
@@ -4836,9 +5045,9 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_testsets(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4873,9 +5082,9 @@ class AsyncAgentaApi:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_testsets(testset_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5162,9 +5371,9 @@ class AsyncAgentaApi:
 
             - variant_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5345,9 +5554,9 @@ class AsyncAgentaApi:
         Parameters:
             - trace_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5374,9 +5583,9 @@ class AsyncAgentaApi:
         Parameters:
             - trace_id: str.
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_feedbacks(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5529,9 +5738,9 @@ class AsyncAgentaApi:
         HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_organizations()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5592,9 +5801,9 @@ class AsyncAgentaApi:
 
             - base_name: typing.Optional[str].
         ---
-        from agenta.client import AsyncAgentaApi
+        from aakrem.client import AsyncAakremApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client = AsyncAakremApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(

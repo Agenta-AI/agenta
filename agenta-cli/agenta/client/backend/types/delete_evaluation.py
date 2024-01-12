@@ -11,14 +11,8 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class EvaluationTypeSettings(pydantic.BaseModel):
-    similarity_threshold: typing.Optional[float]
-    regex_pattern: typing.Optional[str]
-    regex_should_match: typing.Optional[bool]
-    webhook_url: typing.Optional[str]
-    custom_code_evaluation_id: typing.Optional[str]
-    llm_app_prompt_template: typing.Optional[str]
-    evaluation_prompt_template: typing.Optional[str]
+class DeleteEvaluation(pydantic.BaseModel):
+    evaluations_ids: typing.List[str]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

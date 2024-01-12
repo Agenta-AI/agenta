@@ -11,10 +11,9 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class CreateCustomEvaluation(pydantic.BaseModel):
-    evaluation_name: str
-    python_code: str
-    app_id: str
+class Result(pydantic.BaseModel):
+    type: str
+    value: typing.Optional[typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
