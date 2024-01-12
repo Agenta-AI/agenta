@@ -9,21 +9,49 @@ from beanie import Document, Link, PydanticObjectId
 
 class WorkspaceRole(str, Enum):
     OWNER = "owner"
-    ADMIN = "admin"
     MEMBER = "member"
+    WORKSPACE_ADMIN = "workspace_admin"
 
 
 class Permission(str, Enum):
-    CREATE_APPLICATION = "create_application"
-    DELETE_APPLICATION = "delete_application"
+    # general
     MODIFY_CONFIGURATIONS = "modify_configurations"
-    DEPLOY_APPLICATION = "deploy_application"
-    RUN_EVALUATIONS = "run_evaluations"
     CHANGE_USER_ROLES = "change_user_roles"
-    CREATE_NEW_WORKSPACE = "create_workspace"
-    ADD_NEW_USER_TO_ORGANIZATION = "add_new_user_to_organization"
-    ADD_NEW_USER_TO_WORKSPACE = "add_new_user_to_workspace"
+    READ_SYSTEM = "read_system"
+    
+    VIEW_APPLICATION = "view_application"
+    CREATE_APPLICATION = "create_application"
+    EDIT_APPLICATION = "edit_application"
+    DELETE_APPLICATION = "delete_application"
+    
+    # Testset
+    VIEW_TESTSET = "view_testset"
+    CREATE_TESTSET = "create_testset"
+    EDIT_TESTSET = "edit_testset"
+    DELETE_TESTSET = "delete_testset"
+    
+    # Evaluation
+    VIEW_EVALUATION = "view_evaluation"
+    CREATE_EVALUATION = "create_evaluation"
+    RUN_EVALUATIONS = "run_evaluations"
+    EDIT_EVALUATION = "edit_evaluation"
+    DELETE_EVALUATION = "delete_evaluation"
+    
+    # Deployment
+    DEPLOY_APPLICATION = "deploy_application"
+    
+    # Workspace
+    VIEW_WORKSPACE = "view_workspace"
+    CREATE_WORKSPACE = "create_workspace"
+    EDIT_WORKSPACE = "edit_workspace"
+    DELETE_WORKSPACE = "delete_workspace"
     MODIFY_USER_ROLES = "modify_user_roles"
+    ADD_NEW_USER_TO_WORKSPACE = "add_new_user_to_workspace"
+    
+    # Organization
+    ADD_NEW_USER_TO_ORGANIZATION = "add_new_user_to_organization"
+    EDIT_ORGANIZATION = "edit_organizayion"
+    
     
 
 class WorkspacePermissionDB(BaseModel):
@@ -101,6 +129,14 @@ class WorkspaceDB(Document):
                 if permission in role.permissions:
                     return True
         return False
+    
+    def has_role(self, user_id: PydanticObjectId, role_to_check: WorkspaceRole) -> bool:
+        roles = self.get_member_roles(user_id)
+        if roles:
+            for role in roles:
+                if role.role_name == role_to_check:
+                    return True
+        return False    
 
     def is_owner(self, user_id: PydanticObjectId) -> bool:
         for member in self.members:
