@@ -10,6 +10,7 @@ import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
 import {testset} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 
 const useStyles = createUseStyles({
     container: {
@@ -71,6 +72,13 @@ export default function Testsets() {
     const onDelete = async () => {
         const testsetsIds = selectedRowKeys.map((key) => key.toString())
         try {
+            if (
+                !(await checkIfResourceValidForDeletion({
+                    resourceType: "testset",
+                    resourceIds: testsetsIds,
+                }))
+            )
+                return
             await deleteTestsets(testsetsIds)
             mutate()
             setSelectedRowKeys([])

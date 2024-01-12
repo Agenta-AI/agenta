@@ -1,6 +1,9 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import {Evaluation, GenericObject, Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
+import {fetchEvaluatonIdsByResource} from "@/services/evaluations"
+import {getAppValues} from "@/contexts/app.context"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 
 export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -63,4 +66,31 @@ export const calculateResultsDataAvg = (
 export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {
     const variant = record.votesData.variants[index]
     return record.votesData.variants_votes_data[variant]?.percentage
+}
+
+export const checkIfResourceValidForDeletion = async (
+    data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
+) => {
+    const appId = getAppValues().currentApp?.app_id
+    if (!appId) return false
+
+    const response = await fetchEvaluatonIdsByResource({...data, appId})
+    if (response.data.length > 0) {
+        const name =
+            (data.resourceType === "testset"
+                ? "Testset"
+                : data.resourceType === "evaluator_config"
+                  ? "Evaluator"
+                  : "Variant") + (data.resourceIds.length > 1 ? "s" : "")
+
+        const suffix = response.data.length > 1 ? "s" : ""
+        AlertPopup({
+            title: `${name} is in use`,
+            message: `The ${name} is currently in used by ${response.data.length} evaluation${suffix}. Please delete the evaluation${suffix} first.`,
+            cancelText: null,
+            okText: "Ok",
+        })
+        return false
+    }
+    return true
 }
