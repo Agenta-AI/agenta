@@ -398,78 +398,67 @@ class Forward:
         old_scenarios = await OldEvaluationScenarioDB.find(fetch_links=True).to_list()
         new_evaluations = await EvaluationDB.find(fetch_links=True).to_list()
         new_human_evaluations = await HumanEvaluationDB.find(fetch_links=True).to_list()
-        combined_evaluations = new_evaluations + new_human_evaluations
-        for old_scenario in old_scenarios:
-            for new_evaluation in combined_evaluations:
-                if type(
-                    new_evaluation
-                ) == HumanEvaluationDB and old_scenario.evaluation.evaluation_type in [
-                    "human_a_b_testing",
-                    "single_model_test",
-                ]:
-                    scenario_inputs = [
-                        HumanEvaluationScenarioInput(
-                            input_name=input.input_name,
-                            input_value=input.input_value,
-                        )
-                        for input in old_scenario.inputs
-                    ]
-                    scenario_outputs = [
-                        HumanEvaluationScenarioOutput(
-                            variant_id=output.variant_id,
-                            variant_output=output.variant_output,
-                        )
-                        for output in old_scenario.outputs
-                    ]
-                    if old_scenario.evaluation.app.id == new_evaluation.app.id:
-                        new_scenario = HumanEvaluationScenarioDB(
-                            user=new_evaluation.user,
-                            organization=new_evaluation.organization,
-                            evaluation=new_evaluation,
-                            inputs=scenario_inputs,
-                            outputs=scenario_outputs,
-                            correct_answer=old_scenario.correct_answer,
-                            is_pinned=old_scenario.is_pinned,
-                            note=old_scenario.note,
-                            vote=old_scenario.vote,
-                            score=old_scenario.score,
-                        )
-                        await new_scenario.insert(session=session)
 
-                if type(
-                    new_evaluation
-                ) == EvaluationDB and old_scenario.evaluation.evaluation_type not in [
-                    "human_a_b_testing",
-                    "single_model_test",
-                ]:
-                    if old_scenario.evaluation.app.id == new_evaluation.app.id:
-                        new_scenario = EvaluationScenarioDB(
-                            user=new_evaluation.user,
-                            organization=new_evaluation.organization,
-                            evaluation=new_evaluation,
-                            variant_id=old_scenario.evaluation.variants[0],
-                            inputs=[
-                                EvaluationScenarioInputDB(
-                                    name=input.input_name,
-                                    type=type(input.input_value).__name__,
-                                    value=input.input_value,
-                                )
-                                for input in old_scenario.inputs
-                            ],
-                            outputs=[
-                                EvaluationScenarioOutputDB(
-                                    type=type(output.variant_output).__name__,
-                                    value=output.variant_output,
-                                )
-                                for output in old_scenario.outputs
-                            ],
-                            correct_answer=old_scenario.correct_answer,
-                            is_pinned=old_scenario.is_pinned,
-                            note=old_scenario.note,
-                            evaluators_configs=[],
-                            results=[],
-                        )
-                        await new_scenario.insert(session=session)
+        for old_scenario in old_scenarios:
+            for evaluation in new_evaluations:
+                if old_scenario.evaluation.app.id == evaluation.app.id:
+                    new_scenario = EvaluationScenarioDB(
+                        user=evaluation.user,
+                        organization=evaluation.organization,
+                        evaluation=evaluation,
+                        variant_id=old_scenario.evaluation.variants[0],
+                        inputs=[
+                            EvaluationScenarioInputDB(
+                                name=input.input_name,
+                                type=type(input.input_value).__name__,
+                                value=input.input_value,
+                            )
+                            for input in old_scenario.inputs
+                        ],
+                        outputs=[
+                            EvaluationScenarioOutputDB(
+                                type=type(output.variant_output).__name__,
+                                value=output.variant_output,
+                            )
+                            for output in old_scenario.outputs
+                        ],
+                        correct_answer=old_scenario.correct_answer,
+                        is_pinned=old_scenario.is_pinned,
+                        note=old_scenario.note,
+                        evaluators_configs=[],
+                        results=[],
+                    )
+                    await new_scenario.insert(session=session)
+
+            for evaluation in new_human_evaluations:
+                scenario_inputs = [
+                    HumanEvaluationScenarioInput(
+                        input_name=input.input_name,
+                        input_value=input.input_value,
+                    )
+                    for input in old_scenario.inputs
+                ]
+                scenario_outputs = [
+                    HumanEvaluationScenarioOutput(
+                        variant_id=output.variant_id,
+                        variant_output=output.variant_output,
+                    )
+                    for output in old_scenario.outputs
+                ]
+                if old_scenario.evaluation.app.id == evaluation.app.id:
+                    new_scenario = HumanEvaluationScenarioDB(
+                        user=evaluation.user,
+                        organization=evaluation.organization,
+                        evaluation=evaluation,
+                        inputs=scenario_inputs,
+                        outputs=scenario_outputs,
+                        correct_answer=old_scenario.correct_answer,
+                        is_pinned=old_scenario.is_pinned,
+                        note=old_scenario.note,
+                        vote=old_scenario.vote,
+                        score=old_scenario.score,
+                    )
+                    await new_scenario.insert(session=session)
 
 
 class Backward:
