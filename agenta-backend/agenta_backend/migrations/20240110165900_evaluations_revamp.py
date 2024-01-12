@@ -310,27 +310,27 @@ class Forward:
                     for custom_code_evaluation in custom_code_evaluations:
                         eval_config = EvaluatorConfigDB(
                             app=PydanticObjectId(app_id),
-                            organization=old_eval.organization.id,
-                            user=old_eval.user.id,
+                            organization=old_eval.organization,
+                            user=old_eval.user,
                             name=f"{old_eval.app.app_name}_{old_eval.evaluation_type}",
                             evaluator_key=f"auto_{evaluation_type}",
                             settings_values={}
                             if custom_code_evaluation is None
                             else {"code": custom_code_evaluation.python_code},
                         )
-                        await eval_config.create(session=session)
+                        await eval_config.insert(session=session)
                         app_evaluator_configs.append(eval_config)
 
                 if evaluation_type != "custom_code_run":
                     eval_config = EvaluatorConfigDB(
                         app=PydanticObjectId(app_id),
-                        organization=old_eval.organization.id,
-                        user=old_eval.user.id,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{old_eval.evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values={},
                     )
-                    await eval_config.create(session=session)
+                    await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
 
             # STEP 3 (a):
@@ -343,7 +343,7 @@ class Forward:
                     "human_a_b_testing",
                     "single_model_test",
                 ]:
-                    auto_evaluator_configs.append(evaluator_config.id)
+                    auto_evaluator_configs.append(PydanticObjectId(evaluator_config.id))
 
             # STEP 3 (b):
             # In the case where the evaluator key is a human evaluator,
@@ -355,14 +355,14 @@ class Forward:
                 ]:
                     new_eval = HumanEvaluationDB(
                         app=PydanticObjectId(app_id),
-                        organization=old_eval.organization.id,
-                        user=old_eval.user.id,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
                         status=old_eval.status,
                         evaluation_type=evaluator_config.evaluator_key,
                         variants=app_id_store["variant_ids"],
-                        testset=old_eval.testset.id,
+                        testset=old_eval.testset,
                     )
-                    await new_eval.create(session=session)  # replace(session=session)
+                    await new_eval.insert(session=session)  # replace(session=session)
 
             # STEP 3 (c):
             # Proceed to create a single evaluation for every variant in the app_id_store
@@ -371,15 +371,15 @@ class Forward:
                 for variant in app_id_store["variant_ids"]:
                     new_eval = EvaluationDB(
                         app=PydanticObjectId(app_id),
-                        organization=old_eval.organization.id,
-                        user=old_eval.user.id,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
                         status=old_eval.status,
-                        testset=old_eval.testset.id,
-                        variant=variant,
+                        testset=old_eval.testset,
+                        variant=PydanticObjectId(variant),
                         evaluators_configs=auto_evaluator_configs,
                         aggregated_results=[],
                     )
-                    await new_eval.create(session=session)
+                    await new_eval.insert(session=session)
 
     @free_fall_migration(
         document_models=[
@@ -417,9 +417,9 @@ class Forward:
                     for output in old_scenario.outputs
                 ]
                 new_scenario = HumanEvaluationScenarioDB(
-                    user=old_scenario.user.id,
-                    organization=old_scenario.organization.id,
-                    evaluation=old_scenario.evaluation.id,
+                    user=old_scenario.user,
+                    organization=old_scenario.organization,
+                    evaluation=old_scenario.evaluation,
                     inputs=scenario_inputs,
                     outputs=scenario_outputs,
                     correct_answer=old_scenario.correct_answer,
@@ -431,9 +431,9 @@ class Forward:
                 await new_scenario.insert(session=session)
             else:
                 new_scenario = EvaluationScenarioDB(
-                    user=old_scenario.user.id,
-                    organization=old_scenario.organization.id,
-                    evaluation=old_scenario.evaluation.id,
+                    user=old_scenario.user,
+                    organization=old_scenario.organization,
+                    evaluation=old_scenario.evaluation,
                     variant_id=old_scenario.evaluation.variants[0],
                     inputs=[
                         EvaluationScenarioInputDB(
