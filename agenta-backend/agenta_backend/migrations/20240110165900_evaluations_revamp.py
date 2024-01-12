@@ -1,7 +1,8 @@
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-
+from pymongo import MongoClient
 from pydantic import BaseModel, Field
 from beanie import free_fall_migration, Document, Link, PydanticObjectId
 
@@ -265,6 +266,26 @@ def modify_app_id_store(
         app_id_store["evaluation_types"] = list(set(app_id_store_evaluation_types))
 
 
+def set_odmantic_version_in_old_evaluation_records():
+    # Initialize mongo client
+    client = MongoClient("mongodb://username:password@192.168.16.1:27017")
+    db = client["agenta_v2"]
+
+    evaluation_db = db.get_collection("evaluations")
+    evaluation_scenario_db = db.get_collection("evaluation_scenarios")
+
+    def update_evaluation_version():
+        for document in evaluation_db.find():
+            document.update({"_id": document["_id"], "$set": {"version": "odmantic"}})
+
+    def update_evaluation_scenario_version():
+        for document in evaluation_scenario_db.find():
+            document.update({"_id": document["_id"], "$set": {"version": "odmantic"}})
+
+    update_evaluation_version()
+    update_evaluation_scenario_version()
+
+
 class Forward:
     @free_fall_migration(
         document_models=[
@@ -280,6 +301,11 @@ class Forward:
         ]
     )
     async def migrate_old_evaluation_to_new_evaluation(self, session):
+        # PREPARATION:
+        # Update old evaluation, and scenario records version to
+        # odmantic to clean up records after use
+        set_odmantic_version_in_old_evaluation_records()
+
         # STEP 1:
         # Create a key-value store that saves all the variants & evaluation types for a particular app id
         # Example: {"app_id": {"evaluation_types": ["string", "string"], "variant_ids": ["string", "string"]}}
@@ -455,6 +481,11 @@ class Forward:
                     results=[],
                 )
                 await new_scenario.insert(session=session)
+
+        # # Cleanup: remove old evaluation records with odmantic as their version
+        await OldCustomEvaluationDB.find(lazy_parse=True).to_list()
+        await OldEvaluationDB.find({"version": "odmantic"}, lazy_parse=True).to_list()
+        await OldEvaluationScenarioDB.find({"version": "odmantic"}, lazy_parse=True).delete()
 
 
 class Backward:
