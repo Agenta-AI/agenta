@@ -201,6 +201,7 @@ class OldEvaluationDB(Document):
     evaluation_type: str
     evaluation_type_settings: OldEvaluationTypeSettings
     variants: List[PydanticObjectId]
+    version: str = Field("odmantic")
     testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -216,6 +217,7 @@ class OldEvaluationScenarioDB(Document):
     inputs: List[OldEvaluationScenarioInput]
     outputs: List[OldEvaluationScenarioOutput]  # EvaluationScenarioOutput
     vote: Optional[str]
+    version: str = Field("odmantic")
     score: Optional[Any]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -230,6 +232,7 @@ class OldEvaluationScenarioDB(Document):
 class OldCustomEvaluationDB(Document):
     evaluation_name: str
     python_code: str
+    version: str = Field("odmantic")
     app: Link[AppDB]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
