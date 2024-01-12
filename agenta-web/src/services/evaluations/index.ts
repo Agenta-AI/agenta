@@ -81,11 +81,13 @@ const evaluationTransformer = (item: any) => ({
     appId: item.app_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
-    duration: dayjs(
-        [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(item.status)
-            ? Date.now()
-            : item.updated_at,
-    ).diff(dayjs(item.created_at), "milliseconds"),
+    duration:
+        500000 ||
+        dayjs(
+            [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(item.status)
+                ? Date.now()
+                : item.updated_at,
+        ).diff(dayjs(item.created_at), "milliseconds"),
     status: item.status,
     testset: {
         id: item.testset_id,
