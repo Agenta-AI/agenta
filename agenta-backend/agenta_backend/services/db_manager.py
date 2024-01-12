@@ -11,6 +11,10 @@ from agenta_backend.models.api.api_models import (
     ImageExtended,
     Template,
 )
+from agenta_backend.models.api.workspace_models import (
+    Workspace,
+    CreateWorkspace,
+)
 from agenta_backend.models.converters import (
     app_db_to_pydantic,
     image_db_to_pydantic,
@@ -40,6 +44,11 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     TestSetDB,
     UserDB,
+    Permission,
+    WorkspaceDB,
+    WorkspaceRole,
+    WorkspaceMemberDB,
+    WorkspacePermissionDB
 )
 from agenta_backend.utils.common import check_user_org_access
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
@@ -568,6 +577,55 @@ async def list_variants_for_base(
     return app_variants_db
 
 
+async def get_workspace(workspace_id: str) -> Workspace:
+    """
+    Retrieve a workspace.
+
+    Args:
+        workspace_id (str): The workspace id.
+
+    Returns:
+        Workspace: The retrieved workspace.
+    """
+    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == ObjectId(workspace_id))
+    return workspace
+
+
+async def create_workspace(payload: CreateWorkspace, user) -> WorkspaceDB:
+    """Create a new workspace.
+
+    Args:
+        payload (Workspace): The workspace payload.
+        user (UserDB): The user that the workspace belongs to.
+
+    Returns:
+        Workspace: The created workspace.
+    """
+    organization = await get_organization_object(payload.organization_id)
+    
+    # create default workspace
+    workspace = WorkspaceDB(
+        name=payload.name,
+        type=payload.type if payload.type else "",
+        description=payload.description if payload.description else "",
+        organization=organization
+    )
+    
+    # Assign the creator as the owner with all permissions
+    workspace.members = WorkspaceMemberDB(
+        user_id = user.id,
+        roles = [WorkspacePermissionDB(
+            role_name=WorkspaceRole.OWNER, 
+            permissions=list(Permission))
+        ]
+    )
+    await workspace.create()
+    logger.info(f"Created workspace {workspace} for organization {organization.id}")
+    
+    return workspace
+
+
+
 async def get_user(user_uid: str) -> UserDB:
     """Get the user object from the database.
 
@@ -581,15 +639,33 @@ async def get_user(user_uid: str) -> UserDB:
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+            
+            # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
 
+            # create default organization for user
             org_db = OrganizationDB(type="default", owner=str(user.id))
             org = await org_db.create()
-
+            
+            # create default workspace for user
+            workspace_payload = CreateWorkspace(
+                name=org_db.name,
+                type=org_db.type,
+                description="My Default Workspace",
+                organization_id=str(org_db.id)
+            )
+            workspace = await create_workspace(workspace_payload, user)
+            
+            # update organization with default workspace id
+            org_db.workspaces = [workspace.id]
+            await org_db.update({"$set": org_db.dict(exclude_unset=True)})
+            
+            # update user with organization and workspace
             user_db.organizations.append(org.id)
-            await user_db.save()
-
+            user_db.workspaces.append(workspace.id)
+            await user_db.update({"$set": user_db.dict(exclude_unset=True)})
+            
             return user
         raise Exception("Please login or signup")
     return user
