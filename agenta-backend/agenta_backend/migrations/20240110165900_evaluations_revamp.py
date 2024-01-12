@@ -308,10 +308,10 @@ class Forward:
                 if evaluation_type == "custom_code_run":
                     for custom_code_evaluation in custom_code_evaluations:
                         eval_config = EvaluatorConfigDB(
-                            app=PydanticObjectId(app_id),
+                            app=old_eval.app,
                             organization=old_eval.organization,
                             user=old_eval.user,
-                            name=f"{old_eval.app.app_name}_{old_eval.evaluation_type}",
+                            name=f"{old_eval.app.app_name}_{evaluation_type}",
                             evaluator_key=f"auto_{evaluation_type}",
                             settings_values={}
                             if custom_code_evaluation is None
@@ -322,10 +322,10 @@ class Forward:
 
                 if evaluation_type != "custom_code_run":
                     eval_config = EvaluatorConfigDB(
-                        app=PydanticObjectId(app_id),
+                        app=old_eval.app,
                         organization=old_eval.organization,
                         user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{old_eval.evaluation_type}",
+                        name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values={},
                     )
@@ -401,6 +401,7 @@ class Forward:
 
         for old_scenario in old_scenarios:
             for evaluation in new_evaluations:
+                print(f"Checking scenario for evaluation: {old_scenario.evaluation.app.id} == {evaluation.app.id}")
                 if old_scenario.evaluation.app.id == evaluation.app.id:
                     new_scenario = EvaluationScenarioDB(
                         user=evaluation.user,
@@ -431,6 +432,7 @@ class Forward:
                     await new_scenario.insert(session=session)
 
             for evaluation in new_human_evaluations:
+                print(f"Checking human scenario for evaluation: {old_scenario.evaluation.app.id} == {evaluation.app.id}")
                 scenario_inputs = [
                     HumanEvaluationScenarioInput(
                         input_name=input.input_name,
