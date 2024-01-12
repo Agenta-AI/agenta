@@ -15,8 +15,8 @@ async def get_user_and_org_id(user_uid_id) -> Dict[str, List]:
     Returns:
         A dictionary containing the user_id and a list of the user's organization_ids.
     """
-    user_id, org_ids = await get_user_objectid(user_uid_id)
-    return {"uid": user_id, "organization_ids": org_ids}
+    user, org_ids = await get_user_objectid(user_uid_id)
+    return {"uid": str(user.uid), "id": str(user.id), "organization_ids": org_ids}
 
 
 async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
@@ -33,11 +33,10 @@ async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
 
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is not None:
-        user_id = str(user.uid)
         organization_ids: List = (
             [org for org in user.organizations] if user.organizations else []
         )
-        return user_id, organization_ids
+        return user, organization_ids
     return None, []
 
 
