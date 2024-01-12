@@ -2,6 +2,33 @@
 title: "Changelog"
 ---
 
+## v0.7.1 - Adding Cost and Token Usage to the Playground
+
+*12th January 2023*
+<Warning> This change requires you to pull the latest version of the agenta platform if you're using the self-serve version.</Warning>
+
+<img height="600" src="/images/changelog/screenshot_cost_and_token_usage.png" />
+
+We've added a feature that allows you to compare the time taken by an LLM app, its cost, and track token usage, all in one place.
+
+### Changes to the SDK
+
+This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
+
+```
+{
+ "message": string,
+ "usage": {
+  "prompt_tokens": int,
+  "completion_tokens": int,
+  "total_tokens": int
+ },
+ "cost": float
+}
+```
+
+
+
 ## v0.6.6 - Improving Side-by-side Comparison in the Playground
 *19th December 2023* 
 - Enhanced the side-by-side comparison in the playground for better user experience
