@@ -17,11 +17,19 @@ class Organization(BaseModel):
     owner: str
     members: Optional[List[str]]
     invitations: Optional[List]
+    
+    
+class CreateOrganization(BaseModel):
+    name: str
+    description: Optional[str]
+    type: Optional[str]
+    owner: Optional[str]
 
 
 class OrganizationUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
+    updated_at: Optional[datetime]
 
 
 class OrganizationOutput(BaseModel):
