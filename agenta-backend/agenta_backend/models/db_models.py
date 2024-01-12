@@ -59,7 +59,7 @@ class InvitationDB(BaseModel):
 
 class OrganizationDB(Document):
     name: str = Field(default="agenta")
-    description: str = Field(default="")
+    description: Optional[str] = Field(default="")
     type: Optional[str]
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
@@ -75,7 +75,7 @@ class OrganizationDB(Document):
 class WorkspaceDB(Document):
     name: str
     type: Optional[str]
-    description: str = Field(default="")
+    description: Optional[str] = Field(default="")
     organization: Link[OrganizationDB]
     members: Optional[List[WorkspaceMemberDB]] = []
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
