@@ -7,7 +7,7 @@ import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
 import {ApiOutlined, DownOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Space, Typography} from "antd"
+import {Alert, Button, Dropdown, Empty, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -136,7 +136,7 @@ export default function VariantEndpoint() {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
     if (!variant) {
-        return <ResultComponent status={"info"} title="No variants available" />
+        return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
     }
     if (isLoading) {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
