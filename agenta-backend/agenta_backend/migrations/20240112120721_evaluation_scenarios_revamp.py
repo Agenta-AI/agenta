@@ -405,7 +405,6 @@ class Forward:
                 )
                 await new_scenario.insert(session=session)
 
-
     @free_fall_migration(
         document_models=[
             AppDB,
