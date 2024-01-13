@@ -248,6 +248,7 @@ class Forward:
             aggregated_results = aggregate_evaluator_results(
                 evaluation_keyvalue_store[str(auto_evaluation.id)]
             )
+            auto_evaluation.status = "EVALUATION_FINISHED"
             auto_evaluation.aggregated_results = aggregated_results
             auto_evaluation.updated_at = datetime.utcnow().isoformat()
             await auto_evaluation.save()
