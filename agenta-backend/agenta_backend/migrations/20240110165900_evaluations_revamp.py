@@ -1,8 +1,6 @@
-import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pymongo import MongoClient
 from pydantic import BaseModel, Field
 from beanie import free_fall_migration, Document, Link, PydanticObjectId
 
@@ -75,35 +73,9 @@ class Result(BaseModel):
     value: Any
 
 
-class EvaluationScenarioResult(BaseModel):
-    evaluator_config: PydanticObjectId
-    result: Result
-
-
 class AggregatedResult(BaseModel):
     evaluator_config: PydanticObjectId
     result: Result
-
-
-class EvaluationScenarioInputDB(BaseModel):
-    name: str
-    type: str
-    value: str
-
-
-class EvaluationScenarioOutputDB(BaseModel):
-    type: str
-    value: Any
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
 
 
 class HumanEvaluationDB(Document):
@@ -119,24 +91,6 @@ class HumanEvaluationDB(Document):
 
     class Settings:
         name = "human_evaluations"
-
-
-class HumanEvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    evaluation: Link[HumanEvaluationDB]
-    inputs: List[HumanEvaluationScenarioInput]
-    outputs: List[HumanEvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Any]
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    is_pinned: Optional[bool]
-    note: Optional[str]
-
-    class Settings:
-        name = "human_evaluations_scenarios"
 
 
 class EvaluationDB(Document):
@@ -155,25 +109,6 @@ class EvaluationDB(Document):
         name = "new_evaluations"
 
 
-class EvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    evaluation: Link[EvaluationDB]
-    variant_id: PydanticObjectId
-    inputs: List[EvaluationScenarioInputDB]
-    outputs: List[EvaluationScenarioOutputDB]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
-    evaluators_configs: List[PydanticObjectId]
-    results: List[EvaluationScenarioResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "new_evaluation_scenarios"
-
-
 class OldEvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
@@ -182,16 +117,6 @@ class OldEvaluationTypeSettings(BaseModel):
     llm_app_prompt_template: Optional[str]
     custom_code_evaluation_id: Optional[str]
     evaluation_prompt_template: Optional[str]
-
-
-class OldEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-
-class OldEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
 
 
 class OldEvaluationDB(Document):
@@ -209,25 +134,6 @@ class OldEvaluationDB(Document):
 
     class Settings:
         name = "evaluations"
-
-
-class OldEvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    evaluation: Link[OldEvaluationDB]
-    inputs: List[OldEvaluationScenarioInput]
-    outputs: List[OldEvaluationScenarioOutput]  # EvaluationScenarioOutput
-    vote: Optional[str]
-    version: str = Field("odmantic")
-    score: Optional[Any]
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    is_pinned: Optional[bool]
-    note: Optional[str]
-
-    class Settings:
-        name = "evaluation_scenarios"
 
 
 class OldCustomEvaluationDB(Document):
@@ -354,7 +260,7 @@ class Forward:
                     "human_a_b_testing",
                     "single_model_test",
                 ]:
-                    auto_evaluator_configs.append(PydanticObjectId(evaluator_config.id))
+                    auto_evaluator_configs.append(evaluator_config.id)
 
             # STEP 3 (b):
             # In the case where the evaluator key is a human evaluator,
@@ -365,7 +271,7 @@ class Forward:
                     "single_model_test",
                 ]:
                     new_eval = HumanEvaluationDB(
-                        app=PydanticObjectId(app_id),
+                        app=old_eval.app,
                         organization=old_eval.organization,
                         user=old_eval.user,
                         status=old_eval.status,
@@ -381,110 +287,16 @@ class Forward:
             if auto_evaluator_configs is not None:
                 for variant in app_id_store["variant_ids"]:
                     new_eval = EvaluationDB(
-                        app=PydanticObjectId(app_id),
+                        app=old_eval.app,
                         organization=old_eval.organization,
                         user=old_eval.user,
                         status=old_eval.status,
                         testset=old_eval.testset,
                         variant=PydanticObjectId(variant),
                         evaluators_configs=auto_evaluator_configs,
+                        aggregated_results=[],
                     )
                     await new_eval.insert(session=session)
-
-    @free_fall_migration(
-        document_models=[
-            AppDB,
-            OrganizationDB,
-            UserDB,
-            TestSetDB,
-            EvaluationDB,
-            OldEvaluationDB,
-            OldEvaluationScenarioDB,
-            EvaluationScenarioDB,
-            HumanEvaluationDB,
-            HumanEvaluationScenarioDB,
-        ]
-    )
-    async def migrate_old_evaluation_scenario_to_new_evaluation_scenario(self, session):
-        old_scenarios = await OldEvaluationScenarioDB.find(fetch_links=True).to_list()
-        new_evaluations = await EvaluationDB.find(fetch_links=True).to_list()
-        new_human_evaluations = await HumanEvaluationDB.find(fetch_links=True).to_list()
-
-        for old_scenario in old_scenarios:
-            matching_evaluations = [
-                evaluation
-                for evaluation in new_evaluations
-                if old_scenario.evaluation.app == evaluation.app.id
-            ]
-            for evaluation in matching_evaluations:
-                results = [
-                    EvaluationScenarioResult(
-                        evaluator_config=PydanticObjectId(evaluator_config),
-                        result=old_scenario.score,
-                    )
-                    for evaluator_config in evaluation.evaluators_configs
-                ]
-                new_scenario = EvaluationScenarioDB(
-                    user=evaluation.user,
-                    organization=evaluation.organization,
-                    evaluation=evaluation,
-                    variant_id=old_scenario.evaluation.variants[0],
-                    inputs=[
-                        EvaluationScenarioInputDB(
-                            name=input.input_name,
-                            type=type(input.input_value).__name__,
-                            value=input.input_value,
-                        )
-                        for input in old_scenario.inputs
-                    ],
-                    outputs=[
-                        EvaluationScenarioOutputDB(
-                            type=type(output.variant_output).__name__,
-                            value=output.variant_output,
-                        )
-                        for output in old_scenario.outputs
-                    ],
-                    correct_answer=old_scenario.correct_answer,
-                    is_pinned=old_scenario.is_pinned,
-                    note=old_scenario.note,
-                    evaluators_configs=evaluation.evaluators_configs,
-                    results=results,
-                )
-                await new_scenario.insert(session=session)
-
-            matching_human_evaluations = [
-                evaluation
-                for evaluation in new_human_evaluations
-                if old_scenario.evaluation.app == evaluation.app.id
-            ]
-            for human_evaluation in matching_human_evaluations:
-                scenario_inputs = [
-                    HumanEvaluationScenarioInput(
-                        input_name=input.input_name,
-                        input_value=input.input_value,
-                    )
-                    for input in old_scenario.inputs
-                ]
-                scenario_outputs = [
-                    HumanEvaluationScenarioOutput(
-                        variant_id=output.variant_id,
-                        variant_output=output.variant_output,
-                    )
-                    for output in old_scenario.outputs
-                ]
-                new_scenario = HumanEvaluationScenarioDB(
-                    user=human_evaluation.user,
-                    organization=human_evaluation.organization,
-                    evaluation=human_evaluation,
-                    inputs=scenario_inputs,
-                    outputs=scenario_outputs,
-                    correct_answer=old_scenario.correct_answer,
-                    is_pinned=old_scenario.is_pinned,
-                    note=old_scenario.note,
-                    vote=old_scenario.vote,
-                    score=old_scenario.score,
-                )
-                await new_scenario.insert(session=session)
 
 
 class Backward:
