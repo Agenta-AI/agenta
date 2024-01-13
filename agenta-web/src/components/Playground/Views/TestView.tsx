@@ -216,6 +216,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             type="primary"
                             style={{backgroundColor: "#d32f2f"}}
                             onClick={onCancel}
+                            className={`testview-cancel-button-${testData._id}`}
                         >
                             Cancel
                         </Button>
@@ -410,6 +411,37 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
+    const handleCancel = (index: number) => {
+        if (abortControllersRef.current[index]) {
+            abortControllersRef.current[index].abort()
+        }
+
+        const testItem = testList[index]
+        setIsRunning(
+            (prevState) => {
+                const newState = [...prevState]
+                newState[index] = false
+                return newState
+            },
+            () => {
+                document
+                    .querySelectorAll(`.testview-cancel-button-${testItem._id}`)
+                    .forEach((btn) => {
+                        if (btn.parentElement?.id !== variant.variantId) {
+                            ;(btn as HTMLButtonElement).click()
+                        }
+                    })
+            },
+        )
+
+        setResultForIndex("", index)
+        setAdditionalDataList((prev) => {
+            const newDataList = [...prev]
+            newDataList[index] = {cost: null, latency: null, usage: null}
+            return newDataList
+        })
+    }
+
     const handleCancelAll = () => {
         abortControllersRef.current.forEach((controller, index) => {
             if (controller) {
@@ -496,25 +528,6 @@ const App: React.FC<TestViewProps> = ({
         } else {
             _setTestList((prev) => [...prev, ...testsList])
         }
-    }
-
-    const handleCancel = (index: number) => {
-        if (abortControllersRef.current[index]) {
-            abortControllersRef.current[index].abort()
-        }
-
-        setIsRunning((prevState) => {
-            const newState = [...prevState]
-            newState[index] = false
-            return newState
-        })
-
-        setResultForIndex("", index)
-        setAdditionalDataList((prev) => {
-            const newDataList = [...prev]
-            newDataList[index] = {cost: null, latency: null, usage: null}
-            return newDataList
-        })
     }
 
     return (
