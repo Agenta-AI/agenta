@@ -363,19 +363,17 @@ class Forward:
             HumanEvaluationScenarioDB,
         ]
     )
-    async def migrate_old_human_evaluation_scenario_to_new_human_evaluation_scenario(
+    async def migrate_old_human_a_b_evaluation_scenario_to_new_human_evaluation_scenario(
         self, session
     ):
-        old_human_scenarios = await OldEvaluationScenarioDB.find(
-            In(
-                OldEvaluationScenarioDB.evaluation.evaluation_type,
-                ["human_a_b_testing", "single_model_test"],
-            ),
+        old_human_ab_testing_scenarios = await OldEvaluationScenarioDB.find(
+            OldEvaluationScenarioDB.evaluation.evaluation_type == "human_a_b_testing",
             fetch_links=True,
         ).to_list()
-        for old_scenario in old_human_scenarios:
+        for ab_testing_scenario in old_human_ab_testing_scenarios:
             matching_human_evaluation = await HumanEvaluationDB.find_one(
-                HumanEvaluationDB.app.id == old_scenario.evaluation.app.id,
+                HumanEvaluationDB.app.id == ab_testing_scenario.evaluation.app.id,
+                HumanEvaluationDB.evaluation_type == "human_a_b_testing",
                 fetch_links=True,
             )
             if matching_human_evaluation:
@@ -384,14 +382,14 @@ class Forward:
                         input_name=input.input_name,
                         input_value=input.input_value,
                     )
-                    for input in old_scenario.inputs
+                    for input in ab_testing_scenario.inputs
                 ]
                 scenario_outputs = [
                     HumanEvaluationScenarioOutput(
                         variant_id=output.variant_id,
                         variant_output=output.variant_output,
                     )
-                    for output in old_scenario.outputs
+                    for output in ab_testing_scenario.outputs
                 ]
                 new_scenario = HumanEvaluationScenarioDB(
                     user=matching_human_evaluation.user,
@@ -399,11 +397,68 @@ class Forward:
                     evaluation=matching_human_evaluation,
                     inputs=scenario_inputs,
                     outputs=scenario_outputs,
-                    correct_answer=old_scenario.correct_answer,
-                    is_pinned=old_scenario.is_pinned,
-                    note=old_scenario.note,
-                    vote=old_scenario.vote,
-                    score=old_scenario.score,
+                    correct_answer=ab_testing_scenario.correct_answer,
+                    is_pinned=ab_testing_scenario.is_pinned,
+                    note=ab_testing_scenario.note,
+                    vote=ab_testing_scenario.vote,
+                    score=ab_testing_scenario.score,
+                )
+                await new_scenario.insert(session=session)
+
+
+    @free_fall_migration(
+        document_models=[
+            AppDB,
+            OrganizationDB,
+            UserDB,
+            TestSetDB,
+            EvaluationDB,
+            OldEvaluationDB,
+            OldEvaluationScenarioDB,
+            EvaluationScenarioDB,
+            HumanEvaluationDB,
+            HumanEvaluationScenarioDB,
+        ]
+    )
+    async def migrate_old_human_single_model_evaluation_scenario_to_new_human_evaluation_scenario(
+        self, session
+    ):
+        old_human_single_model_scenarios = await OldEvaluationScenarioDB.find(
+            OldEvaluationScenarioDB.evaluation.evaluation_type == "single_model_test",
+            fetch_links=True,
+        ).to_list()
+        for single_model_scenario in old_human_single_model_scenarios:
+            matching_human_evaluation = await HumanEvaluationDB.find_one(
+                HumanEvaluationDB.app.id == single_model_scenario.evaluation.app.id,
+                HumanEvaluationDB.evaluation_type == "single_model_test",
+                fetch_links=True,
+            )
+            if matching_human_evaluation:
+                scenario_inputs = [
+                    HumanEvaluationScenarioInput(
+                        input_name=input.input_name,
+                        input_value=input.input_value,
+                    )
+                    for input in single_model_scenario.inputs
+                ]
+                scenario_outputs = [
+                    HumanEvaluationScenarioOutput(
+                        variant_id=output.variant_id,
+                        variant_output=output.variant_output,
+                    )
+                    for output in single_model_scenario.outputs
+                ]
+                new_scenario = HumanEvaluationScenarioDB(
+                    user=matching_human_evaluation.user,
+                    organization=matching_human_evaluation.organization,
+                    evaluation=matching_human_evaluation,
+                    inputs=scenario_inputs,
+                    outputs=scenario_outputs,
+                    correct_answer=single_model_scenario.correct_answer,
+                    is_pinned=single_model_scenario.is_pinned,
+                    note=single_model_scenario.note,
+                    vote=single_model_scenario.vote,
+                    score=single_model_scenario.score,
                 )
                 await new_scenario.insert(session=session)
 
