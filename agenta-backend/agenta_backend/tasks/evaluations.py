@@ -150,7 +150,9 @@ def evaluate(
                 )
 
                 # Update evaluators aggregated data
-                evaluator_results: List[Result] = evaluators_aggregated_data[str(evaluator_config_db.id)]["results"]
+                evaluator_results: List[Result] = evaluators_aggregated_data[
+                    str(evaluator_config_db.id)
+                ]["results"]
                 evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
