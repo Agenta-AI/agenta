@@ -250,7 +250,7 @@ class Forward:
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
 
-            # STEP 3 (a):
+            # STEP 3:
             # Retrieve evaluator configs for app id
             auto_evaluator_configs: List[PydanticObjectId] = []
             for evaluator_config in app_evaluator_configs:
@@ -262,26 +262,7 @@ class Forward:
                 ]:
                     auto_evaluator_configs.append(evaluator_config.id)
 
-            # STEP 3 (b):
-            # In the case where the evaluator key is a human evaluator,
-            # Proceed to create the human evaluation with the evaluator config
-            for evaluator_config in app_evaluator_configs:
-                if evaluator_config.evaluator_key in [
-                    "human_a_b_testing",
-                    "single_model_test",
-                ]:
-                    new_eval = HumanEvaluationDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        status=old_eval.status,
-                        evaluation_type=evaluator_config.evaluator_key,
-                        variants=app_id_store["variant_ids"],
-                        testset=old_eval.testset,
-                    )
-                    await new_eval.insert(session=session)
-
-            # STEP 3 (c):
+            # STEP 4:
             # Proceed to create a single evaluation for every variant in the app_id_store
             # with the auto_evaluator_configs
             if auto_evaluator_configs is not None:
@@ -297,6 +278,24 @@ class Forward:
                         aggregated_results=[],
                     )
                     await new_eval.insert(session=session)
+
+        # STEP 5:
+        # Create the human evaluation
+        for old_evaluation in old_evaluations:
+            if old_evaluation.evaluation_type in [
+                "human_a_b_testing",
+                "single_model_test",
+            ]:
+                new_eval = HumanEvaluationDB(
+                    app=old_evaluation.app,
+                    organization=old_evaluation.organization,
+                    user=old_evaluation.user,
+                    status=old_evaluation.status,
+                    evaluation_type=old_evaluation.evaluation_type,
+                    variants=old_evaluation.variants,
+                    testset=old_evaluation.testset,
+                )
+                await new_eval.insert(session=session)
 
 
 class Backward:
