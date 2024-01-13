@@ -60,7 +60,7 @@ class EvaluatorConfigDB(Document):
     user: Link[UserDB]
     name: str
     evaluator_key: str
-    settings_values: Optional[Dict[str, Any]] = None
+    settings_values: Optional[Dict[str, Any]]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -219,9 +219,9 @@ class Forward:
                             user=old_eval.user,
                             name=f"{old_eval.app.app_name}_{evaluation_type}",
                             evaluator_key=f"auto_{evaluation_type}",
-                            settings_values={}
-                            if custom_code_evaluation is None
-                            else {"code": custom_code_evaluation.python_code},
+                            settings_values=dict(
+                                {"code": custom_code_evaluation.python_code}
+                            ),
                         )
                         await eval_config.insert(session=session)
                         app_evaluator_configs.append(eval_config)
@@ -233,7 +233,11 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={"similarity_threshold": 0.5},
+                        settings_values=dict(
+                            {
+                                "similarity_threshold": float(old_eval.evaluation_type_settings.similarity_threshold)
+                            }
+                        ),
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
@@ -245,7 +249,7 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={},
+                        settings_values={}
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
@@ -257,10 +261,12 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={
-                            "regex_pattern": old_eval.evaluation_type_settings.regex_pattern,
-                            "regex_should_match": old_eval.evaluation_type_settings.regex_should_match,
-                        },
+                        settings_values=dict(
+                            {
+                                "regex_pattern": old_eval.evaluation_type_settings.regex_pattern,
+                                "regex_should_match": old_eval.evaluation_type_settings.regex_should_match,
+                            }
+                        ),
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
@@ -272,9 +278,12 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={
-                            "webhook_url": old_eval.evaluation_type_settings.webhook_url,
-                        },
+                        settings_values=dict(
+                            {
+                                "webhook_url": old_eval.evaluation_type_settings.webhook_url,
+                                "webhook_body": {},
+                            }
+                        ),
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
@@ -286,9 +295,11 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={
-                            "prompt_template": old_eval.evaluation_type_settings.evaluation_prompt_template
-                        },
+                        settings_values=dict(
+                            {
+                                "prompt_template": old_eval.evaluation_type_settings.evaluation_prompt_template
+                            }
+                        ),
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
