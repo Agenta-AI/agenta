@@ -320,7 +320,19 @@ class Forward:
                         await eval_config.insert(session=session)
                         app_evaluator_configs.append(eval_config)
 
-                if evaluation_type != "custom_code_run":
+                if evaluation_type == "auto_similarity_match":
+                    eval_config = EvaluatorConfigDB(
+                        app=old_eval.app,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
+                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        evaluator_key=evaluation_type,
+                        settings_values={"similarity_threshold": 0.5},
+                    )
+                    await eval_config.insert(session=session)
+                    app_evaluator_configs.append(eval_config)
+
+                if evaluation_type not in ["custom_code_run", "auto_similarity_match"]:
                     eval_config = EvaluatorConfigDB(
                         app=old_eval.app,
                         organization=old_eval.organization,
@@ -361,7 +373,7 @@ class Forward:
                         variants=app_id_store["variant_ids"],
                         testset=old_eval.testset,
                     )
-                    await new_eval.insert(session=session)  # replace(session=session)
+                    await new_eval.insert(session=session)
 
             # STEP 3 (c):
             # Proceed to create a single evaluation for every variant in the app_id_store
@@ -376,7 +388,6 @@ class Forward:
                         testset=old_eval.testset,
                         variant=PydanticObjectId(variant),
                         evaluators_configs=auto_evaluator_configs,
-                        aggregated_results=[],
                     )
                     await new_eval.insert(session=session)
 
@@ -401,9 +412,18 @@ class Forward:
 
         for old_scenario in old_scenarios:
             matching_evaluations = [
-                evaluation for evaluation in new_evaluations if old_scenario.evaluation.app.id == evaluation.app.id
+                evaluation
+                for evaluation in new_evaluations
+                if old_scenario.evaluation.app == evaluation.app.id
             ]
             for evaluation in matching_evaluations:
+                results = [
+                    EvaluationScenarioResult(
+                        evaluator_config=PydanticObjectId(evaluator_config),
+                        result=old_scenario.score,
+                    )
+                    for evaluator_config in evaluation.evaluators_configs
+                ]
                 new_scenario = EvaluationScenarioDB(
                     user=evaluation.user,
                     organization=evaluation.organization,
@@ -427,15 +447,15 @@ class Forward:
                     correct_answer=old_scenario.correct_answer,
                     is_pinned=old_scenario.is_pinned,
                     note=old_scenario.note,
-                    evaluators_configs=[],
-                    results=[],
+                    evaluators_configs=evaluation.evaluators_configs,
+                    results=results,
                 )
                 await new_scenario.insert(session=session)
 
             matching_human_evaluations = [
                 evaluation
                 for evaluation in new_human_evaluations
-                if old_scenario.evaluation.app.id == evaluation.app.id
+                if old_scenario.evaluation.app == evaluation.app.id
             ]
             for human_evaluation in matching_human_evaluations:
                 scenario_inputs = [
