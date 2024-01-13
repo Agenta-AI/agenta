@@ -238,7 +238,7 @@ class Forward:
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
 
-                if evaluation_type not in ["custom_code_run", "auto_similarity_match"]:
+                if evaluation_type == "auto_exact_match":
                     eval_config = EvaluatorConfigDB(
                         app=old_eval.app,
                         organization=old_eval.organization,
@@ -246,6 +246,49 @@ class Forward:
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values={},
+                    )
+                    await eval_config.insert(session=session)
+                    app_evaluator_configs.append(eval_config)
+
+                if evaluation_type == "auto_regex_test":
+                    eval_config = EvaluatorConfigDB(
+                        app=old_eval.app,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
+                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        evaluator_key=evaluation_type,
+                        settings_values={
+                            "regex_pattern": old_eval.evaluation_type_settings.regex_pattern,
+                            "regex_should_match": old_eval.evaluation_type_settings.regex_should_match,
+                        },
+                    )
+                    await eval_config.insert(session=session)
+                    app_evaluator_configs.append(eval_config)
+
+                if evaluation_type == "auto_webhook_test":
+                    eval_config = EvaluatorConfigDB(
+                        app=old_eval.app,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
+                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        evaluator_key=evaluation_type,
+                        settings_values={
+                            "webhook_url": old_eval.evaluation_type_settings.webhook_url,
+                        },
+                    )
+                    await eval_config.insert(session=session)
+                    app_evaluator_configs.append(eval_config)
+
+                if evaluation_type == "auto_ai_critique":
+                    eval_config = EvaluatorConfigDB(
+                        app=old_eval.app,
+                        organization=old_eval.organization,
+                        user=old_eval.user,
+                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        evaluator_key=evaluation_type,
+                        settings_values={
+                            "prompt_template": old_eval.evaluation_type_settings.evaluation_prompt_template
+                        },
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
