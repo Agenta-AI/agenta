@@ -162,7 +162,7 @@ def modify_app_id_store(
         app_id_store = app_keyvalue_store[app_id]
 
     app_id_store_variant_ids = list(app_id_store["variant_ids"])
-    if variant_ids not in list(app_id_store["variant_ids"]):
+    if variant_ids not in app_id_store_variant_ids:
         app_id_store_variant_ids.extend(variant_ids)
         app_id_store["variant_ids"] = list(set(app_id_store_variant_ids))
 
@@ -235,7 +235,9 @@ class Forward:
                         evaluator_key=evaluation_type,
                         settings_values=dict(
                             {
-                                "similarity_threshold": float(old_eval.evaluation_type_settings.similarity_threshold)
+                                "similarity_threshold": float(
+                                    old_eval.evaluation_type_settings.similarity_threshold
+                                )
                             }
                         ),
                     )
@@ -249,7 +251,7 @@ class Forward:
                         user=old_eval.user,
                         name=f"{old_eval.app.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
-                        settings_values={}
+                        settings_values={},
                     )
                     await eval_config.insert(session=session)
                     app_evaluator_configs.append(eval_config)
