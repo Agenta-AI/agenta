@@ -200,7 +200,7 @@ class EvaluatorConfigDB(Document):
     user: Link[UserDB]
     name: str
     evaluator_key: str
-    settings_values: Optional[Dict[str, Any]] = None
+    settings_values: Dict[str, Any] = Field(default=dict)
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
