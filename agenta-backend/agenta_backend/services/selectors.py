@@ -3,6 +3,7 @@ from typing import Tuple, Dict, List
 from agenta_backend.models.db_models import (
     UserDB,
     OrganizationDB,
+    WorkspaceDB,
 )
 
 
@@ -58,3 +59,20 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
         return org
     else:
         return None
+
+
+async def get_org_default_workspace(organization: OrganizationDB) -> WorkspaceDB:
+    """Get's the default workspace for an organization from the database.
+
+    Arguments:
+        organization (OrganizationDB): The organization
+
+    Returns:
+        WorkspaceDB: Instance of WorkspaceDB
+    """
+
+    workspace: WorkspaceDB = await WorkspaceDB.find_one(
+        WorkspaceDB.organization == organization.id, WorkspaceDB.type == "default"
+    )
+    return workspace
+    

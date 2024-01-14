@@ -1,9 +1,8 @@
 import os
-from agenta_backend.models.db_models import UserDB
 from fastapi import HTTPException, Request
-from agenta_backend.models.api.user_models import User
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import APIRouter
+from agenta_backend.models.api.user_models import User
 
 router = APIRouter()
 
