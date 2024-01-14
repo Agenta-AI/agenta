@@ -399,6 +399,7 @@ async def create_image(
             deletable=deletable,
             user=user,
             organization=organization,
+            workspace=workspace,
         )
     elif image_type == "image":
         image = ImageDB(
@@ -896,23 +897,30 @@ async def list_apps(
     assert user is not None, "User is None"
 
     # assert that if org_id is provided, workspace_id is also provided, and vice versa
-    assert (
-        org_id is not None and workspace_id is not None
-    ), "org_id and workspace_id must be provided together"
+    # assert (                                                                                  # TODO: Enable this check when workspace_id is provided
+    #     org_id is not None and workspace_id is not None
+    # ), "org_id and workspace_id must be provided together"
 
     if app_name is not None:
         app_db = await fetch_app_by_name(
             app_name, org_id, workspace_id, **user_org_data
         )
         return [app_db_to_pydantic(app_db)]
-    elif org_id is not None and workspace_id is not None:
-        action_access = await check_user_workspace_access(
-            user_org_data, workspace_id, org_id
-        )
-        if action_access:
+    # elif org_id is not None and workspace_id is not None:                                     # TODO: Enable this check when workspace_id is provided
+    #     action_access = await check_user_workspace_access(
+    #         user_org_data, workspace_id, org_id
+    #     )
+    #     if action_access:
+    #         apps: List[AppDB] = await AppDB.find(
+    #             AppDB.organization.id == ObjectId(org_id),
+    #             AppDB.workspace.id == ObjectId(workspace_id),
+    #         ).to_list()
+    #         return [app_db_to_pydantic(app) for app in apps]
+    elif org_id is not None:
+        organization_access = await check_user_org_access(user_org_data, org_id)
+        if organization_access:
             apps: List[AppDB] = await AppDB.find(
-                AppDB.organization.id == ObjectId(org_id),
-                AppDB.workspace.id == ObjectId(workspace_id),
+                AppDB.organization.id == ObjectId(org_id)
             ).to_list()
             return [app_db_to_pydantic(app) for app in apps]
 
