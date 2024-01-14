@@ -508,7 +508,11 @@ def evaluate_with_ai_critique(
     Returns:
         str: returns an evaluation
     """
-    llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
+    llm = OpenAI(
+        openai_api_key=open_ai_key,
+        model="gpt-3.5-turbo-instruct",
+        temperature=temperature,
+    )
 
     input_variables = []
 
