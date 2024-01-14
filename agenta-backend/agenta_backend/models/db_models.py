@@ -50,7 +50,7 @@ class Permission(str, Enum):
     
     # Organization
     ADD_NEW_USER_TO_ORGANIZATION = "add_new_user_to_organization"
-    EDIT_ORGANIZATION = "edit_organizayion"
+    EDIT_ORGANIZATION = "edit_organization"
     
     
 
@@ -81,6 +81,9 @@ class APIKeyDB(Document):
 class InvitationDB(BaseModel):
     token: str = Field(unique=True)
     email: str
+    organization: str
+    workspace = str
+    workspace_role: Optional[List[WorkspacePermissionDB]]
     expiration_date: datetime = Field(default="0")
     used: bool = False
 
@@ -118,9 +121,23 @@ class WorkspaceDB(Document):
     def get_member_role_names(self, user_id: PydanticObjectId) -> List[str]:
         roles = self.get_member_roles(user_id)
         return [role.role_name for role in roles] if roles else []
-    
+
     def get_all_members(self) -> List[PydanticObjectId]:
         return [member.user_id for member in self.members]
+    
+    def get_member_with_roles(self, user_id: PydanticObjectId) -> Optional[WorkspaceMemberDB]:
+        for member in self.members:
+            if member.user_id == user_id:
+                return member
+        return None
+    
+    def get_member_permissions(self, user_id: PydanticObjectId, role_to_check: WorkspaceRole) -> List[Permission]:
+        roles = self.get_member_roles(user_id)
+        if roles:
+            for role in roles:
+                if role.role_name == role_to_check:
+                    return role.permissions
+        return []
 
     def has_permission(self, user_id: PydanticObjectId, permission: Permission) -> bool:
         roles = self.get_member_roles(user_id)
