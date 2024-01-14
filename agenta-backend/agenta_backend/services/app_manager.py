@@ -71,6 +71,7 @@ async def start_variant(
             db_app_variant.image.tags,
             db_app_variant.app.app_name,
             db_app_variant.organization,
+            db_app_variant.workspace,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
         # update the env variables
@@ -140,6 +141,7 @@ async def update_variant_image(
         user=app_variant_db.user,
         deletable=True,
         organization=app_variant_db.organization,
+        workspace=app_variant_db.workspace,
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
@@ -412,11 +414,13 @@ async def add_variant_based_on_image(
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
             organization_id=str(app.organization.id),
+            workspace_id=str(app.workspace.id),
             template_uri=docker_id_or_template_uri,
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
             organization_id=str(app.organization.id),
+            workspace_id=str(app.workspace.id),
             docker_id=docker_id_or_template_uri,
         )
 
@@ -430,6 +434,7 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization,
+                workspace=app.workspace
             )
         else:
             docker_id = docker_id_or_template_uri
@@ -440,6 +445,7 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization,
+                workspace=app.workspace
             )
 
     # Create config
@@ -457,6 +463,7 @@ async def add_variant_based_on_image(
     db_base = await db_manager.create_new_variant_base(
         app=app,
         organization=app.organization,
+        workspace=app.workspace,
         user=user_instance,
         base_name=base_name,  # the first variant always has default base
         image=db_image,
@@ -470,6 +477,7 @@ async def add_variant_based_on_image(
         image=db_image,
         user=user_instance,
         organization=app.organization,
+        workspace=app.workspace,
         parameters={},
         base_name=base_name,
         config_name=config_name,
