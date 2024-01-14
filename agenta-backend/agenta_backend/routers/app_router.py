@@ -13,7 +13,7 @@ from agenta_backend.models.db_models import Permission, WorkspaceRole
 
 from agenta_backend.services.selectors import (
     get_user_own_org,
-    get_org_default_workspace
+    get_org_default_workspace,
 )
 from agenta_backend.services import (
     db_manager,
@@ -183,7 +183,7 @@ async def create_app(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        
+
         if payload.organization_id:
             organization_id = payload.organization_id
         else:
@@ -195,13 +195,13 @@ async def create_app(
                     status_code=403,
                     detail="User Organization not found",
                 )
-                
+
         if payload.workspace_id:
             workspace_id = payload.workspace_id
         else:
             workspace = await get_org_default_workspace(organization)
             workspace_id = str(workspace.id)
-            
+
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
@@ -248,7 +248,9 @@ async def list_apps(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        apps = await db_manager.list_apps(app_name, org_id, workspace_id, **user_org_data)
+        apps = await db_manager.list_apps(
+            app_name, org_id, workspace_id, **user_org_data
+        )
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
@@ -396,14 +398,14 @@ async def create_app_and_variant_from_template(
             organization_id = str(organization.id)
         else:
             organization_id = payload.organization_id
-            
+
         logger.debug("Step 3: Setting workspace ID")
         if payload.workspace_id is None:
             workspace = await get_org_default_workspace(organization)
             workspace_id = str(workspace.id)
         else:
             workspace_id = payload.workspace_id
-            
+
         logger.debug("Step 4: Checking user has permission to create app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,

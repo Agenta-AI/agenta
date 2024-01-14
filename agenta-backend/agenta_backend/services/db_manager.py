@@ -48,10 +48,13 @@ from agenta_backend.models.db_models import (
     WorkspaceDB,
     WorkspaceRole,
     WorkspaceMemberDB,
-    WorkspacePermissionDB
+    WorkspacePermissionDB,
 )
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-from agenta_backend.utils.common import check_user_org_access, check_user_workspace_access
+from agenta_backend.utils.common import (
+    check_user_org_access,
+    check_user_workspace_access,
+)
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -69,7 +72,12 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
 async def add_testset_to_app_variant(
-    app_id: str, org_id: str, workspace_id: str, template_name: str, app_name: str, **kwargs: dict
+    app_id: str,
+    org_id: str,
+    workspace_id: str,
+    template_name: str,
+    app_name: str,
+    **kwargs: dict,
 ):
     """Add testset to app variant.
     Args:
@@ -102,7 +110,11 @@ async def add_testset_to_app_variant(
                 "csvdata": csvdata,
             }
             testset_db = TestSetDB(
-                **testset, app=app_db, user=user_db, organization=org_db, workspace=workspace_db
+                **testset,
+                app=app_db,
+                user=user_db,
+                organization=org_db,
+                workspace=workspace_db,
             )
             await testset_db.create()
 
@@ -162,7 +174,10 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
 
 
 async def fetch_app_by_name(
-    app_name: str, organization_id: Optional[str] = None, workspace_id: Optional[str] = None, **user_org_data: dict
+    app_name: str,
+    organization_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    **user_org_data: dict,
 ) -> Optional[AppDB]:
     """Fetches an app by its name.
 
@@ -204,9 +219,7 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
-async def fetch_base_by_id(
-    base_id: str
-) -> Optional[VariantBaseDB]:
+async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.
     Args:
@@ -216,7 +229,9 @@ async def fetch_base_by_id(
     """
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id), fetch_links=True)
+    base = await VariantBaseDB.find_one(
+        VariantBaseDB.id == ObjectId(base_id), fetch_links=True
+    )
     if base is None:
         logger.error("Base not found")
         return False
@@ -456,7 +471,9 @@ async def create_app_and_envs(
     """
 
     user_instance = await get_user(user_uid=user_org_data["uid"])
-    app = await fetch_app_by_name(app_name, organization_id, workspace_id, **user_org_data)
+    app = await fetch_app_by_name(
+        app_name, organization_id, workspace_id, **user_org_data
+    )
     if app is not None:
         raise ValueError("App with the same name already exists")
 
@@ -584,11 +601,15 @@ async def get_workspace(workspace_id: str):
         Workspace: The retrieved workspace.
     """
     logger.debug(f"workspace_id: {workspace_id}")
-    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == ObjectId(workspace_id), fetch_links=True)
+    workspace = await WorkspaceDB.find_one(
+        WorkspaceDB.id == ObjectId(workspace_id), fetch_links=True
+    )
     return workspace
 
 
-async def create_workspace(payload: CreateWorkspace, organization: OrganizationDB, user: UserDB) -> WorkspaceDB:
+async def create_workspace(
+    payload: CreateWorkspace, organization: OrganizationDB, user: UserDB
+) -> WorkspaceDB:
     """Create a new workspace.
 
     Args:
@@ -599,26 +620,29 @@ async def create_workspace(payload: CreateWorkspace, organization: OrganizationD
     Returns:
         Workspace: The created workspace.
     """
-    
+
     # create default workspace
     workspace = WorkspaceDB(
         name=payload.name,
         type=payload.type if payload.type else "",
         description=payload.description if payload.description else "",
-        organization=organization
+        organization=organization,
     )
-    
+
     # Assign the creator as the owner with all permissions
-    workspace.members = [WorkspaceMemberDB(
-        user_id = user.id,
-        roles = [WorkspacePermissionDB(
-            role_name=WorkspaceRole.OWNER, 
-            permissions=list(Permission))
-        ]
-    )]
+    workspace.members = [
+        WorkspaceMemberDB(
+            user_id=user.id,
+            roles=[
+                WorkspacePermissionDB(
+                    role_name=WorkspaceRole.OWNER, permissions=list(Permission)
+                )
+            ],
+        )
+    ]
     await workspace.create()
     logger.info(f"Created workspace {workspace} for organization {organization.id}")
-    
+
     return workspace
 
 
@@ -635,7 +659,6 @@ async def get_user(user_uid: str) -> UserDB:
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
-            
             # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
@@ -643,25 +666,25 @@ async def get_user(user_uid: str) -> UserDB:
             # create default organization for user
             org_db = OrganizationDB(type="default", owner=str(user.id))
             org = await org_db.create()
-            
+
             # create default workspace for user
             workspace_payload = CreateWorkspace(
                 name=org_db.name,
                 type=org_db.type,
                 description="My Default Workspace",
-                organization_id=str(org_db.id)
+                organization_id=str(org_db.id),
             )
             workspace = await create_workspace(workspace_payload, org, user)
-            
+
             # update organization with default workspace id
             org_db.workspaces = [workspace.id]
             await org_db.update({"$set": org_db.dict(exclude_unset=True)})
-            
+
             # update user with organization and workspace
             user_db.organizations.append(org.id)
             user_db.workspaces.append(workspace.id)
             await user_db.update({"$set": user_db.dict(exclude_unset=True)})
-            
+
             return user
         raise Exception("Please login or signup")
     return user
@@ -772,7 +795,7 @@ async def get_orga_image_instance_by_uri(
     image = await ImageDB.find_one(
         ImageDB.template_uri == template_uri,
         ImageDB.organization.id == ObjectId(organization_id),
-        ImageDB.workspace.id == ObjectId(workspace_id)
+        ImageDB.workspace.id == ObjectId(workspace_id),
     )
     return image
 
@@ -854,7 +877,10 @@ async def add_variant_from_base_and_config(
 
 
 async def list_apps(
-    app_name: str = None, org_id: str = None, workspace_id: str = None, **user_org_data: dict
+    app_name: str = None,
+    org_id: str = None,
+    workspace_id: str = None,
+    **user_org_data: dict,
 ) -> List[App]:
     """
     Lists all the unique app names and their IDs from the database
@@ -868,19 +894,25 @@ async def list_apps(
 
     user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
-    
+
     # assert that if org_id is provided, workspace_id is also provided, and vice versa
-    assert org_id is not None and workspace_id is not None, "org_id and workspace_id must be provided together"
+    assert (
+        org_id is not None and workspace_id is not None
+    ), "org_id and workspace_id must be provided together"
 
     if app_name is not None:
-        app_db = await fetch_app_by_name(app_name, org_id, workspace_id, **user_org_data)
+        app_db = await fetch_app_by_name(
+            app_name, org_id, workspace_id, **user_org_data
+        )
         return [app_db_to_pydantic(app_db)]
     elif org_id is not None and workspace_id is not None:
-        action_access = await check_user_workspace_access(user_org_data, workspace_id, org_id)
+        action_access = await check_user_workspace_access(
+            user_org_data, workspace_id, org_id
+        )
         if action_access:
             apps: List[AppDB] = await AppDB.find(
                 AppDB.organization.id == ObjectId(org_id),
-                AppDB.workspace.id == ObjectId(workspace_id)
+                AppDB.workspace.id == ObjectId(workspace_id),
             ).to_list()
             return [app_db_to_pydantic(app) for app in apps]
 
@@ -1678,7 +1710,12 @@ async def fetch_app_by_name_and_organization_and_workspace(
     """
 
     app_db = await AppDB.find_one(
-        {"app_name": app_name, "organization": ObjectId(organization_id), "workspace": ObjectId(workspace_id)}, fetch_links=True
+        {
+            "app_name": app_name,
+            "organization": ObjectId(organization_id),
+            "workspace": ObjectId(workspace_id),
+        },
+        fetch_links=True,
     )
     return app_db
 
@@ -1956,57 +1993,57 @@ async def get_object_workspace_org_id(object_id: str, type: str) -> dict:
             app = await fetch_app_by_id(object_id)
             organization_id = app.organization.id
             workspace_id = app.workspace.id
-            
+
         elif type == "app_variant":
             app_variant = await fetch_app_variant_by_id(object_id)
             organization_id = app_variant.organization.id
             workspace_id = app_variant.workspace.id
-            
+
         elif type == "base":
             base = await fetch_base_by_id(object_id)
             organization_id = base.organization.id
             workspace_id = base.workspace.id
-            
+
         elif type == "deployment":
             deployment = await get_deployment_by_objectid(object_id)
             organization_id = deployment.organization.id
             workspace_id = deployment.workspace.id
-            
+
         elif type == "testset":
             testset = await fetch_testset_by_id(object_id)
             organization_id = testset.organization.id
             workspace_id = testset.workspace.id
-            
+
         elif type == "evaluation":
             evaluation = await fetch_evaluation_by_id(object_id)
             organization_id = evaluation.organization.id
             workspace_id = evaluation.workspace.id
-            
+
         elif type == "evaluation_scenario":
             evaluation_scenario = await fetch_evaluation_scenario_by_id(object_id)
             organization_id = evaluation_scenario.organization.id
             workspace_id = evaluation_scenario.workspace.id
-            
+
         elif type == "evaluator_config":
             evaluator_config = await fetch_evaluator_config(object_id)
             organization_id = evaluator_config.organization.id
             workspace_id = evaluator_config.workspace.id
-        
+
         elif type == "human_evaluation":
             human_evaluation = await fetch_human_evaluation_by_id(object_id)
             organization_id = human_evaluation.human_evaluation.id
             workspace_id = human_evaluation.human_evaluation.id
-        
+
         elif type == "human_evaluation_scenario":
             human_evaluation_scenario = await fetch_human_evaluation_scenario_by_id(
                 object_id
             )
             organization_id = human_evaluation_scenario.organization.id
             workspace_id = human_evaluation_scenario.workspace.id
-            
+
         else:
             raise ValueError(f"Unknown object type: {type}")
-        
+
         return {"organization_id": organization_id, "workspace_id": workspace_id}
     except Exception as e:
         raise e

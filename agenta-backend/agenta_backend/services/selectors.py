@@ -72,4 +72,3 @@ async def get_org_default_workspace(organization: OrganizationDB) -> WorkspaceDB
         WorkspaceDB.organization == organization.id, WorkspaceDB.type == "default"
     )
     return workspace
-    

@@ -16,8 +16,8 @@ class Organization(BaseModel):
     owner: str
     members: Optional[List[str]]
     invitations: Optional[List]
-    
-    
+
+
 class CreateOrganization(BaseModel):
     name: str
     description: Optional[str]
