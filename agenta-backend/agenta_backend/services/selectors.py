@@ -55,10 +55,7 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
     org: OrganizationDB = await OrganizationDB.find_one(
         OrganizationDB.owner == str(user.id), OrganizationDB.type == "default"
     )
-    if org is not None:
-        return org
-    else:
-        return None
+    return org
 
 
 async def get_org_default_workspace(organization: OrganizationDB) -> WorkspaceDB:

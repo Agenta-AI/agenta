@@ -1,32 +1,35 @@
 import os
 import logging
+from typing import List, Optional
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
-from typing import List, Optional
 from fastapi import HTTPException, Request
+from agenta_backend.models import converters
+from beanie import PydanticObjectId as ObjectId
 from agenta_backend.utils.common import APIRouter
-from agenta_backend.services.selectors import get_user_own_org
-from agenta_backend.services import (
-    app_manager,
-    db_manager,
-    evaluator_manager,
+from agenta_backend.utils.common import check_rbac_permission
+from agenta_backend.models.db_models import Permission, WorkspaceRole
+
+from agenta_backend.services.selectors import (
+    get_user_own_org,
+    get_org_default_workspace
 )
-from agenta_backend.utils.common import (
-    check_access_to_app,
-    check_user_org_access,
+from agenta_backend.services import (
+    db_manager,
+    app_manager,
+    evaluator_manager,
 )
 from agenta_backend.models.api.api_models import (
     App,
+    Image,
     CreateApp,
     CreateAppOutput,
     CreateAppVariant,
     AppVariantOutput,
-    AddVariantFromImagePayload,
     EnvironmentOutput,
-    Image,
+    AddVariantFromImagePayload,
 )
-from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (
@@ -72,12 +75,15 @@ async def list_app_variants(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data, app_id=app_id
+        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=WorkspaceRole.MEMBER,
         )
-        if not access_app:
-            error_msg = f"You cannot access app: {app_id}"
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -122,8 +128,21 @@ async def get_variant_by_env(
     """
     try:
         # Retrieve the user and organization ID based on the session token
-        user_org_data = await get_user_and_org_id(request.state.user_id)
-        await check_access_to_app(user_org_data, app_id=app_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=WorkspaceRole.MEMBER,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         # Fetch the app variant using the provided app_id and environment
         app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
@@ -164,26 +183,42 @@ async def create_app(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        
         if payload.organization_id:
-            access = await check_user_org_access(user_org_data, payload.organization_id)
-            if not access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You do not have permission to access this app",
-                )
             organization_id = payload.organization_id
         else:
             # Retrieve or create user organization
             organization = await get_user_own_org(user_org_data["uid"])
-            if organization is None:  # TODO: Check whether we need this
-                logger.error("Organization for user not found.")
-                organization = await db_manager.create_user_organization(
-                    user_org_data["uid"]
-                )
             organization_id = str(organization.id)
+            if not organization_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="User Organization not found",
+                )
+                
+        if payload.workspace_id:
+            workspace_id = payload.workspace_id
+        else:
+            workspace = await get_org_default_workspace(organization)
+            workspace_id = str(workspace.id)
+            
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=ObjectId(workspace_id),
+            organization_id=ObjectId(organization_id),
+            permission=Permission.CREATE_APPLICATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         app_db = await db_manager.create_app_and_envs(
-            payload.app_name, organization_id, **user_org_data
+            payload.app_name, organization_id, workspace_id, **user_org_data
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -195,6 +230,7 @@ async def list_apps(
     request: Request,
     app_name: Optional[str] = None,
     org_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> List[App]:
     """
     Retrieve a list of apps filtered by app_name and org_id.
@@ -212,7 +248,7 @@ async def list_apps(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
+        apps = await db_manager.list_apps(app_name, org_id, workspace_id, **user_org_data)
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
@@ -256,9 +292,15 @@ async def add_variant_from_image(
 
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(user_org_data, app_id=app_id)
-        if not access_app:
-            error_msg = f"You cannot access app: {app_id}"
+        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            permission=Permission.CREATE_APPLICATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -295,17 +337,21 @@ async def remove_app(app_id: str, request: Request):
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(
-            user_org_data, app_id=app_id, check_owner=True
+        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            permission=Permission.DELETE_APPLICATION,
         )
-
-        if not access_app:
-            error_msg = f"You do not have permission to delete app: {app_id}"
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
+
         else:
             await app_manager.remove_app(app_id=app_id, **user_org_data)
     except DockerException as e:
@@ -347,33 +393,55 @@ async def create_app_and_variant_from_template(
         logger.debug("Step 2: Setting organization ID")
         if payload.organization_id is None:
             organization = await get_user_own_org(user_org_data["uid"])
-            organization_id = organization.id
+            organization_id = str(organization.id)
         else:
             organization_id = payload.organization_id
+            
+        logger.debug("Step 3: Setting workspace ID")
+        if payload.workspace_id is None:
+            workspace = await get_org_default_workspace(organization)
+            workspace_id = str(workspace.id)
+        else:
+            workspace_id = payload.workspace_id
+            
+        logger.debug("Step 4: Checking user has permission to create app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_id,
+            organization_id=organization_id,
+            permission=Permission.CREATE_APPLICATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
-        logger.debug(f"Step 3 Checking if app {payload.app_name} already exists")
+        logger.debug(f"Step 5: Checking if app {payload.app_name} already exists")
         app_name = payload.app_name.lower()
-        app = await db_manager.fetch_app_by_name_and_organization(
-            app_name, organization_id, **user_org_data
+        app = await db_manager.fetch_app_by_name_and_organization_and_workspace(
+            app_name, organization_id, workspace_id, **user_org_data
         )
         if app is not None:
             raise Exception(
                 f"App with name {app_name} already exists",
             )
 
-        logger.debug("Step 4: Creating new app and initializing environments")
+        logger.debug("Step 6: Creating new app and initializing environments")
         if app is None:
             app = await db_manager.create_app_and_envs(
-                app_name, organization_id, **user_org_data
+                app_name, organization_id, workspace_id, **user_org_data
             )
 
-        logger.debug("Step 5: Retrieve template from db")
+        logger.debug("Step 7: Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
-            "Step 6: Creating image instance and adding variant based on image"
+            "Step 8: Creating image instance and adding variant based on image"
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
@@ -390,19 +458,20 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 7: Creating testset for app variant")
+        logger.debug("Step 9: Creating testset for app variant")
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
             org_id=organization_id,
+            workspace_id=workspace_id,
             template_name=template_db.name,
             app_name=app.app_name,
             **user_org_data,
         )
 
-        logger.debug("Step 8: We create ready-to use evaluators")
+        logger.debug("Step 10: We create ready-to use evaluators")
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
-        logger.debug("Step 9: Starting variant and injecting environment variables")
+        logger.debug("Step 11: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
                 raise Exception(
@@ -451,17 +520,22 @@ async def list_environments(
         logger.debug("get user and org data")
         user_and_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
-        # Check if has app access
+        # Check if user has access to app
         logger.debug("check_access_to_app")
-        access_app = await check_access_to_app(
-            user_org_data=user_and_org_data, app_id=app_id
+        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_and_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=WorkspaceRole.MEMBER,
         )
-        logger.debug(f"access_app: {access_app}")
-        if not access_app:
-            error_msg = f"You do not have access to this app: {app_id}"
+        logger.debug(f"access_app: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
         else:
             environments_db = await db_manager.list_environments(
