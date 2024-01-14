@@ -86,7 +86,7 @@ def evaluate(
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
-            evaluator_config_db.id: {
+            str(evaluator_config_db.id): {
                 "evaluator_key": evaluator_config.evaluator_key,
                 "results": [],
             }
@@ -115,7 +115,7 @@ def evaluate(
             self.update_state(state=states.FAILURE)
 
             raise ValueError("Length of csv data and app_outputs are not the same")
-            return
+
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
             # 2. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
@@ -148,6 +148,12 @@ def evaluate(
                     inputs=data_point,
                     lm_providers_keys=lm_providers_keys,
                 )
+
+                # Update evaluators aggregated data
+                evaluator_results: List[Result] = evaluators_aggregated_data[
+                    str(evaluator_config_db.id)
+                ]["results"]
+                evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
                     evaluator_config=evaluator_config_db.id,
