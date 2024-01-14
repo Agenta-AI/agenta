@@ -50,8 +50,8 @@ from agenta_backend.models.db_models import (
     WorkspaceMemberDB,
     WorkspacePermissionDB
 )
-from agenta_backend.utils.common import check_user_org_access
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
+from agenta_backend.utils.common import check_user_org_access, check_user_workspace_access
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -216,7 +216,7 @@ async def fetch_base_by_id(
     """
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id))
+    base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id), fetch_links=True)
     if base is None:
         logger.error("Base not found")
         return False
@@ -868,13 +868,16 @@ async def list_apps(
 
     user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
+    
+    # assert that if org_id is provided, workspace_id is also provided, and vice versa
+    assert org_id is not None and workspace_id is not None, "org_id and workspace_id must be provided together"
 
     if app_name is not None:
         app_db = await fetch_app_by_name(app_name, org_id, workspace_id, **user_org_data)
         return [app_db_to_pydantic(app_db)]
-    elif org_id is not None:
-        organization_access = await check_user_org_access(user_org_data, org_id)
-        if organization_access:
+    elif org_id is not None and workspace_id is not None:
+        action_access = await check_user_workspace_access(user_org_data, workspace_id, org_id)
+        if action_access:
             apps: List[AppDB] = await AppDB.find(
                 AppDB.organization.id == ObjectId(org_id),
                 AppDB.workspace.id == ObjectId(workspace_id)
@@ -1359,7 +1362,7 @@ async def fetch_evaluation_scenario_by_id(
     """
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
     evaluation_scenario = await EvaluationScenarioDB.find_one(
-        EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id)
+        EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id, fetch_links=True)
     )
     return evaluation_scenario
 
@@ -1791,7 +1794,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
 
     try:
         evaluator_config: EvaluatorConfigDB = await EvaluatorConfigDB.find_one(
-            EvaluatorConfigDB.id == ObjectId(evaluator_config_id)
+            EvaluatorConfigDB.id == ObjectId(evaluator_config_id, fetch_links=True)
         )
         return evaluator_config
     except Exception as e:
@@ -1937,7 +1940,7 @@ async def update_evaluation(
     return evaluation
 
 
-async def get_object_workspace_org_id(object_id: str, type: str) -> str:
+async def get_object_workspace_org_id(object_id: str, type: str) -> dict:
     """
     Get the organization and workspace id of the object.
 
@@ -1951,55 +1954,55 @@ async def get_object_workspace_org_id(object_id: str, type: str) -> str:
     try:
         if type == "app":
             app = await fetch_app_by_id(object_id)
-            organization_id = str(app.organization.id)
-            workspace_id = str(app.workspace.id)
+            organization_id = app.organization.id
+            workspace_id = app.workspace.id
             
         elif type == "app_variant":
             app_variant = await fetch_app_variant_by_id(object_id)
-            organization_id = str(app_variant.organization.id)
-            workspace_id = str(app_variant.workspace.id)
+            organization_id = app_variant.organization.id
+            workspace_id = app_variant.workspace.id
             
         elif type == "base":
             base = await fetch_base_by_id(object_id)
-            organization_id = str(base.organization.id)
-            workspace_id = str(base.workspace.id)
+            organization_id = base.organization.id
+            workspace_id = base.workspace.id
             
         elif type == "deployment":
             deployment = await get_deployment_by_objectid(object_id)
-            organization_id = str(deployment.organization.id)
-            workspace_id = str(deployment.workspace.id)
+            organization_id = deployment.organization.id
+            workspace_id = deployment.workspace.id
             
         elif type == "testset":
             testset = await fetch_testset_by_id(object_id)
-            organization_id = str(testset.organization.id)
-            workspace_id = str(testset.workspace.id)
+            organization_id = testset.organization.id
+            workspace_id = testset.workspace.id
             
         elif type == "evaluation":
             evaluation = await fetch_evaluation_by_id(object_id)
-            organization_id = str(evaluation.organization.id)
-            workspace_id = str(evaluation.workspace.id)
+            organization_id = evaluation.organization.id
+            workspace_id = evaluation.workspace.id
             
         elif type == "evaluation_scenario":
             evaluation_scenario = await fetch_evaluation_scenario_by_id(object_id)
-            organization_id = str(evaluation_scenario.organization.id)
-            workspace_id = str(evaluation_scenario.workspace.id)
+            organization_id = evaluation_scenario.organization.id
+            workspace_id = evaluation_scenario.workspace.id
             
         elif type == "evaluator_config":
             evaluator_config = await fetch_evaluator_config(object_id)
-            organization_id = str(evaluator_config.organization.id)
-            workspace_id = str(evaluator_config.workspace.id)
+            organization_id = evaluator_config.organization.id
+            workspace_id = evaluator_config.workspace.id
         
         elif type == "human_evaluation":
             human_evaluation = await fetch_human_evaluation_by_id(object_id)
-            organization_id = str(human_evaluation.human_evaluation.id)
-            workspace_id = str(human_evaluation.human_evaluation.id)
+            organization_id = human_evaluation.human_evaluation.id
+            workspace_id = human_evaluation.human_evaluation.id
         
         elif type == "human_evaluation_scenario":
             human_evaluation_scenario = await fetch_human_evaluation_scenario_by_id(
                 object_id
             )
-            organization_id = str(human_evaluation_scenario.organization.id)
-            workspace_id = str(human_evaluation_scenario.workspace.id)
+            organization_id = human_evaluation_scenario.organization.id
+            workspace_id = human_evaluation_scenario.workspace.id
             
         else:
             raise ValueError(f"Unknown object type: {type}")
