@@ -199,6 +199,7 @@ def app_variant_db_to_pydantic(
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         organization_id=str(app_variant_db.organization.id),
+        workspace_id=str(app_variant_db.workspace.id),
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
@@ -221,6 +222,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user.id),
         organization_id=str(app_variant_db.organization.id),
+        workspace_id=str(app_variant_db.workspace.id),
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
@@ -264,6 +266,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     return ImageExtended(
         organization_id=str(image_db.organization.id),
+        workspace_id=str(image_db.workspace.id),
         docker_id=image_db.docker_id,
         tags=image_db.tags,
         id=str(image_db.id),

@@ -75,7 +75,7 @@ async def list_app_variants(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
             workspace_id=workspace_org_data["workspace_id"],
@@ -129,7 +129,7 @@ async def get_variant_by_env(
     try:
         # Retrieve the user and organization ID based on the session token
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
             workspace_id=workspace_org_data["workspace_id"],
@@ -186,8 +186,8 @@ async def create_app(
 
         if payload.organization_id:
             organization_id = payload.organization_id
+            organization = await db_manager.get_organization_object(organization_id)
         else:
-            # Retrieve or create user organization
             organization = await get_user_own_org(user_org_data["uid"])
             organization_id = str(organization.id)
             if not organization_id:
@@ -294,7 +294,7 @@ async def add_variant_from_image(
 
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
             workspace_id=workspace_org_data["workspace_id"],
@@ -339,7 +339,7 @@ async def remove_app(app_id: str, request: Request):
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
             workspace_id=workspace_org_data["workspace_id"],
@@ -398,6 +398,7 @@ async def create_app_and_variant_from_template(
             organization_id = str(organization.id)
         else:
             organization_id = payload.organization_id
+            organization = await db_manager.get_organization_object(organization_id)
 
         logger.debug("Step 3: Setting workspace ID")
         if payload.workspace_id is None:
@@ -409,8 +410,8 @@ async def create_app_and_variant_from_template(
         logger.debug("Step 4: Checking user has permission to create app")
         has_permission = await check_rbac_permission(
             user_org_data=user_org_data,
-            workspace_id=workspace_id,
-            organization_id=organization_id,
+            workspace_id=ObjectId(workspace_id),
+            organization_id=ObjectId(organization_id),
             permission=Permission.CREATE_APPLICATION,
         )
         if not has_permission:
@@ -524,7 +525,7 @@ async def list_environments(
 
         # Check if user has access to app
         logger.debug("check_access_to_app")
-        workspace_org_data = db_manager.get_object_workspace_org_id(app_id, "app")
+        workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
         has_permission = await check_rbac_permission(
             user_org_data=user_and_org_data,
             workspace_id=workspace_org_data["workspace_id"],

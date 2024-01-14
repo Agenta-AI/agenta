@@ -69,6 +69,6 @@ async def get_org_default_workspace(organization: OrganizationDB) -> WorkspaceDB
     """
 
     workspace: WorkspaceDB = await WorkspaceDB.find_one(
-        WorkspaceDB.organization == organization.id, WorkspaceDB.type == "default"
+        WorkspaceDB.organization.id == organization.id, WorkspaceDB.type == "default"
     )
     return workspace
