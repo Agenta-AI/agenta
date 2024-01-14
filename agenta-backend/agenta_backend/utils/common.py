@@ -171,10 +171,69 @@ async def check_access_to_base(
     return await check_user_org_access(user_org_data, str(organization_id), check_owner)
 
 
+async def check_user_workspace_access(
+    user_org_data: Dict[str, Union[str, list]],
+    workspace_id: str,
+    org_id: str = None,
+) -> bool:
+    """
+    Check if a user has access to a specific workspace.
+
+    Args:
+        user_org_data (Dict[str, Union[str, list]]): User-specific information.
+        workspace_id (str): The ID of the workspace.
+
+    Returns:
+        bool: True if the user has access, False otherwise.
+
+    Raises:
+        Exception: If neither or both `app` and `app_id` are provided.
+
+    """
+    workspace = await WorkspaceDB.find_one(
+        WorkspaceDB.id == ObjectId(workspace_id), fetch_links=True
+    )
+    if workspace is None:
+        raise Exception("Workspace not found")
+    
+    if org_id is not None:
+        organization_id = ObjectId(org_id)
+        
+        # validate organization exists
+        organization = await get_organization(str(organization_id))
+        if organization is None:
+            raise Exception("Organization not found")
+        
+        # check that workspace belongs to the organization
+        if workspace.organization.id != organization_id:
+            raise Exception("Workspace does not belong to the provided organization")
+    else:
+        organization_id = workspace.organization.id
+    
+    # check that user belongs to the organization
+    if not await check_user_org_access(user_org_data, str(organization_id)):
+        logger.error("User does not belong to the organization")
+        return False
+    
+    # check that user belongs to the workspace
+    user_id = user_org_data["id"]
+    if ObjectId(user_id) not in workspace.get_all_members():
+        logger.error("User does not belong to the workspace")
+        return False
+    
+    # check that workspace is in the user's workspaces
+    user = await UserDB.find_one(UserDB.id == ObjectId(user_id))
+    if ObjectId(workspace_id) not in user.workspaces:
+        logger.error("Workspace not in user's workspaces")
+        return False
+    
+    return True
+
+
 async def check_rbac_permission(
-    user_org_data: Dict[str, str, Union[str, list]],
+    user_org_data: Dict[str, Union[str, list]],
     workspace_id: ObjectId,
-    provided_organization_id: ObjectId,
+    organization_id: ObjectId,
     permission: Permission = None,
     role: str = None,
 ) -> bool:
@@ -182,9 +241,12 @@ async def check_rbac_permission(
     Check if a user belongs to a workspace and has a certain permission.
 
     Args:
-        workspace_id (ObjectId): The ID of the workspace to check.
+        user_org_data (Dict[str, Union[str, list]]): User-specific information.
         user_id (ObjectId): The user's ID.
+        organization_id (ObjectId): The ID of the organization to which the workspace belongs.
+        workspace_id (ObjectId): The ID of the workspace to check.
         permission (Permission): The permission to check.
+        role (str): The role to check.
 
     Returns:
         bool: True if the user belongs to the workspace and has the specified permission, False otherwise.
@@ -195,29 +257,29 @@ async def check_rbac_permission(
         raise Exception("Only one of permission or role must be provided")
     
     # Retrieve the workspace object using the provided workspace_id
-    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == workspace_id)
+    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == workspace_id, fetch_links=True)
     if workspace is None:
         raise Exception("Workspace not found")
     
-    provided_organization = await get_organization(str(provided_organization_id))
+    provided_organization = await get_organization(str(organization_id))
     if provided_organization is None:
         raise Exception("Organization not found")
     
     # confirm that the workspace belongs to the provided organization
-    if str(workspace.organization.id) != provided_organization_id:
+    if workspace.organization.id != organization_id:
         raise Exception("Workspace does not belong to the provided organization")
     
     # get workspace organization and check if user belongs to it
     workspace_organization_id = workspace.organization.id
-    if not check_user_org_access(user_org_data, str(workspace_organization_id)):
+    if not await check_user_org_access(user_org_data, str(workspace_organization_id)):
         return False
     
+    user_id = ObjectId(user_org_data["id"])
     # Check if the user belongs to the workspace
     if user_id not in workspace.get_all_members():
         return False
     
     # Check if user is the owner of the workspace ( they have all permissions )
-    user_id = user_org_data["id"]
     if workspace.is_owner(user_id):
         return True
 
