@@ -192,6 +192,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             **evaluation_scenario_payload,
             user=user,
             organization=app.organization,
+            workspace=app.workspace,
             evaluation=new_evaluation,
             inputs=list_of_scenario_input,
             outputs=[],
@@ -228,6 +229,7 @@ async def create_evaluation_scenario(
     new_eval_scenario = EvaluationScenarioDB(
         user=evaluation.user,
         organization=evaluation.organization,
+        workspace=evaluation.workspace,
         evaluation=evaluation,
         inputs=scenario_inputs,
         outputs=[],
@@ -630,6 +632,7 @@ async def create_new_human_evaluation(
     eval_instance = HumanEvaluationDB(
         app=app,
         organization=app.organization,  # Assuming user has an organization_id attribute
+        workspace=app.workspace,
         user=user,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
@@ -682,6 +685,7 @@ async def create_new_evaluation(
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
         organization=app.organization,
+        workspace=app.workspace,
         user=app.user,
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
