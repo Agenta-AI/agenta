@@ -36,6 +36,7 @@ class VariantAction(BaseModel):
 class CreateApp(BaseModel):
     app_name: str
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):
@@ -58,6 +59,7 @@ class AppVariant(BaseModel):
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     base_name: Optional[str]
     config_name: Optional[str]
 
@@ -74,6 +76,7 @@ class AppVariantOutput(BaseModel):
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
     organization_id: str
+    workspace_id: Optional[str]
     user_id: str
     base_name: str
     base_id: str
@@ -107,6 +110,7 @@ class AppVariantFromImage(BaseModel):
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class RestartAppContainer(BaseModel):
@@ -118,6 +122,7 @@ class Image(BaseModel):
     docker_id: str
     tags: str
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class AddVariantFromImagePayload(BaseModel):
@@ -171,6 +176,7 @@ class CreateAppVariant(BaseModel):
     template_id: str
     env_vars: Dict[str, str]
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class InviteRequest(BaseModel):
@@ -187,6 +193,7 @@ class Environment(BaseModel):
     deployed_base_name: Optional[str]
     deployed_config_name: Optional[str]
     organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class DeployToEnvironmentPayload(BaseModel):

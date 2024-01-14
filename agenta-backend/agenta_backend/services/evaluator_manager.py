@@ -86,6 +86,7 @@ async def create_evaluator_config(
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization,
+        workspace=app.workspace,
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
@@ -152,6 +153,7 @@ async def create_ready_to_use_evaluators(app: AppDB):
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization,
+            workspace=app.workspace,
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],

@@ -69,7 +69,7 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
 async def add_testset_to_app_variant(
-    app_id: str, org_id: str, template_name: str, app_name: str, **kwargs: dict
+    app_id: str, org_id: str, workspace_id: str, template_name: str, app_name: str, **kwargs: dict
 ):
     """Add testset to app variant.
     Args:
@@ -83,6 +83,7 @@ async def add_testset_to_app_variant(
     try:
         app_db = await get_app_instance_by_id(app_id)
         org_db = await get_organization_object(org_id)
+        workspace_db = await get_workspace(workspace_id)
         user_db = await get_user(user_uid=kwargs["uid"])
 
         json_path = os.path.join(
@@ -101,7 +102,7 @@ async def add_testset_to_app_variant(
                 "csvdata": csvdata,
             }
             testset_db = TestSetDB(
-                **testset, app=app_db, user=user_db, organization=org_db
+                **testset, app=app_db, user=user_db, organization=org_db, workspace=workspace_db
             )
             await testset_db.create()
 
@@ -124,6 +125,7 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         AppVariantDB.app.id == app_variant.app_id,
         AppVariantDB.variant_name == app_variant.variant_name,
         AppVariantDB.organization.id == app_variant.organization,
+        AppVariantDB.workspace.id == app_variant.workspace,
     )
 
     db_app_variant = await AppVariantDB.find_one(query_expression)
@@ -160,7 +162,7 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
 
 
 async def fetch_app_by_name(
-    app_name: str, organization_id: Optional[str] = None, **user_org_data: dict
+    app_name: str, organization_id: Optional[str] = None, workspace_id: Optional[str] = None, **user_org_data: dict
 ) -> Optional[AppDB]:
     """Fetches an app by its name.
 
@@ -171,13 +173,14 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
 
-    if not organization_id:
+    if not organization_id and not workspace_id:
         user = await get_user(user_uid=user_org_data["uid"])
         app = await AppDB.find_one(AppDB.app_name == app_name, AppDB.user.id == user.id)
     else:
         app = await AppDB.find_one(
             AppDB.app_name == app_name,
             AppDB.organization.id == ObjectId(organization_id),
+            AppDB.workspace.id == ObjectId(workspace_id),
         )
     return app
 
@@ -434,7 +437,7 @@ async def create_deployment(
 
 
 async def create_app_and_envs(
-    app_name: str, organization_id: str, **user_org_data
+    app_name: str, organization_id: str, workspace_id: str, **user_org_data
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -442,6 +445,7 @@ async def create_app_and_envs(
     Args:
         app_name (str): The name of the app to create.
         organization_id (str): The ID of the organization that the app belongs to.
+        workspace_id (str): The ID of the workspace that the app belongs to.
         **user_org_data: Additional keyword arguments.
 
     Returns:
@@ -452,14 +456,16 @@ async def create_app_and_envs(
     """
 
     user_instance = await get_user(user_uid=user_org_data["uid"])
-    app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
+    app = await fetch_app_by_name(app_name, organization_id, workspace_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
 
     organization_db = await get_organization_object(organization_id)
+    workspace_db = await get_workspace(workspace_id)
     app = AppDB(
         app_name=app_name,
         organization=organization_db,
+        workspace=workspace_db,
         user=user_instance,
     )
     await app.create()
@@ -567,7 +573,7 @@ async def list_variants_for_base(
     return app_variants_db
 
 
-async def get_workspace(workspace_id: str) -> Workspace:
+async def get_workspace(workspace_id: str):
     """
     Retrieve a workspace.
 
@@ -577,21 +583,22 @@ async def get_workspace(workspace_id: str) -> Workspace:
     Returns:
         Workspace: The retrieved workspace.
     """
-    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == ObjectId(workspace_id))
+    logger.debug(f"workspace_id: {workspace_id}")
+    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == ObjectId(workspace_id), fetch_links=True)
     return workspace
 
 
-async def create_workspace(payload: CreateWorkspace, user) -> WorkspaceDB:
+async def create_workspace(payload: CreateWorkspace, organization: OrganizationDB, user: UserDB) -> WorkspaceDB:
     """Create a new workspace.
 
     Args:
         payload (Workspace): The workspace payload.
+        organization (OrganizationDB): The organization that the workspace belongs to.
         user (UserDB): The user that the workspace belongs to.
 
     Returns:
         Workspace: The created workspace.
     """
-    organization = await get_organization_object(payload.organization_id)
     
     # create default workspace
     workspace = WorkspaceDB(
@@ -602,18 +609,17 @@ async def create_workspace(payload: CreateWorkspace, user) -> WorkspaceDB:
     )
     
     # Assign the creator as the owner with all permissions
-    workspace.members = WorkspaceMemberDB(
+    workspace.members = [WorkspaceMemberDB(
         user_id = user.id,
         roles = [WorkspacePermissionDB(
             role_name=WorkspaceRole.OWNER, 
             permissions=list(Permission))
         ]
-    )
+    )]
     await workspace.create()
     logger.info(f"Created workspace {workspace} for organization {organization.id}")
     
     return workspace
-
 
 
 async def get_user(user_uid: str) -> UserDB:
@@ -645,7 +651,7 @@ async def get_user(user_uid: str) -> UserDB:
                 description="My Default Workspace",
                 organization_id=str(org_db.id)
             )
-            workspace = await create_workspace(workspace_payload, user)
+            workspace = await create_workspace(workspace_payload, org, user)
             
             # update organization with default workspace id
             org_db.workspaces = [workspace.id]
@@ -726,7 +732,7 @@ async def get_users_by_ids(user_ids: List) -> List:
 
 
 async def get_orga_image_instance_by_docker_id(
-    organization_id: str, docker_id: str
+    organization_id: str, workspace_id: str, docker_id: str
 ) -> ImageDB:
     """Get the image object from the database with the provided id.
 
@@ -741,12 +747,13 @@ async def get_orga_image_instance_by_docker_id(
     image = await ImageDB.find_one(
         ImageDB.docker_id == docker_id,
         ImageDB.organization.id == ObjectId(organization_id),
+        ImageDB.workspace.id == ObjectId(workspace_id),
     )
     return image
 
 
 async def get_orga_image_instance_by_uri(
-    organization_id: str, template_uri: str
+    organization_id: str, workspace_id: str, template_uri: str
 ) -> ImageDB:
     """Get the image object from the database with the provided id.
 
@@ -765,6 +772,7 @@ async def get_orga_image_instance_by_uri(
     image = await ImageDB.find_one(
         ImageDB.template_uri == template_uri,
         ImageDB.organization.id == ObjectId(organization_id),
+        ImageDB.workspace.id == ObjectId(workspace_id)
     )
     return image
 
@@ -832,6 +840,7 @@ async def add_variant_from_base_and_config(
         image=base_db.image,
         user=user_db,
         organization=previous_app_variant_db.organization,
+        workspace=previous_app_variant_db.workspace,
         parameters=parameters,
         previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
         base_name=base_db.base_name,
@@ -845,7 +854,7 @@ async def add_variant_from_base_and_config(
 
 
 async def list_apps(
-    app_name: str = None, org_id: str = None, **user_org_data: dict
+    app_name: str = None, org_id: str = None, workspace_id: str = None, **user_org_data: dict
 ) -> List[App]:
     """
     Lists all the unique app names and their IDs from the database
@@ -861,13 +870,14 @@ async def list_apps(
     assert user is not None, "User is None"
 
     if app_name is not None:
-        app_db = await fetch_app_by_name(app_name, org_id, **user_org_data)
+        app_db = await fetch_app_by_name(app_name, org_id, workspace_id, **user_org_data)
         return [app_db_to_pydantic(app_db)]
     elif org_id is not None:
         organization_access = await check_user_org_access(user_org_data, org_id)
         if organization_access:
             apps: List[AppDB] = await AppDB.find(
-                AppDB.organization.id == ObjectId(org_id)
+                AppDB.organization.id == ObjectId(org_id),
+                AppDB.workspace.id == ObjectId(workspace_id)
             ).to_list()
             return [app_db_to_pydantic(app) for app in apps]
 
@@ -912,6 +922,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
 
     count_variants = await AppVariantDB.find(
         AppVariantDB.organization.id == db_app_variant.organization.id,
+        AppVariantDB.workspace.id == db_app_variant.workspace.id,
         AppVariantDB.base.id == db_app_variant.base.id,
     ).count()
     return count_variants == 1
@@ -947,7 +958,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     )
     for environment in environments:
         environment.deployed_app_variant = None
-        await environment.create()
+        await environment.delete()
     # removing the config
     config = app_variant_db.config
     await config.delete()
@@ -1055,6 +1066,7 @@ async def create_environment(
         name=name,
         user=app_db.user,
         organization=app_db.organization,
+        workspace=app_db.workspace,
     )
     await environment_db.create()
     return environment_db
@@ -1540,7 +1552,7 @@ async def update_app_variant(
         if hasattr(app_variant, key):
             setattr(app_variant, key, value)
 
-    await app_variant.update()
+    await app_variant.save()
     return app_variant
 
 
@@ -1648,21 +1660,22 @@ async def fetch_app_variant_and_check_access(
     return app_variant
 
 
-async def fetch_app_by_name_and_organization(
-    app_name: str, organization_id: str, **user_org_data: dict
+async def fetch_app_by_name_and_organization_and_workspace(
+    app_name: str, organization_id: str, workspace_id: str, **user_org_data: dict
 ):
-    """Fetch an app by it's name and organization id.
+    """Fetch an app by it's name, organization id and workspace id.
 
     Args:
         app_name (str): The name of the app
         organization_id (str): The ID of the app organization
+        workspace_id (str): The ID of the app workspace
 
     Returns:
         AppDB: the instance of the app
     """
 
     app_db = await AppDB.find_one(
-        {"app_name": app_name, "organization": ObjectId(organization_id)}
+        {"app_name": app_name, "organization": ObjectId(organization_id), "workspace": ObjectId(workspace_id)}, fetch_links=True
     )
     return app_db
 
@@ -1994,4 +2007,3 @@ async def get_object_workspace_org_id(object_id: str, type: str) -> str:
         return {"organization_id": organization_id, "workspace_id": workspace_id}
     except Exception as e:
         raise e
-

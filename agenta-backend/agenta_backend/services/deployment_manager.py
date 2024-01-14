@@ -19,11 +19,8 @@ async def start_service(
     Start a service.
 
     Args:
-        image_name: List of image tags.
-        app_name: Name of the app.
-        base_name: Base name for the container.
-        env_vars: Environment variables.
-        organization_id: ID of the organization.
+        app_variant_db (AppVariantDB): The app variant to start.
+        env_vars (Dict[str, str]): The environment variables to pass to the container.
 
     Returns:
         True if successful, False otherwise.
@@ -55,6 +52,7 @@ async def start_service(
     deployment = await db_manager.create_deployment(
         app=app_variant_db.app,
         organization=app_variant_db.organization,
+        workspace=app_variant_db.workspace,
         user=app_variant_db.user,
         container_name=container_name,
         container_id=container_id,
