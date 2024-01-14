@@ -18,28 +18,28 @@ class Permission(str, Enum):
     MODIFY_CONFIGURATIONS = "modify_configurations"
     CHANGE_USER_ROLES = "change_user_roles"
     READ_SYSTEM = "read_system"
-    
+
     VIEW_APPLICATION = "view_application"
     CREATE_APPLICATION = "create_application"
     EDIT_APPLICATION = "edit_application"
     DELETE_APPLICATION = "delete_application"
-    
+
     # Testset
     VIEW_TESTSET = "view_testset"
     CREATE_TESTSET = "create_testset"
     EDIT_TESTSET = "edit_testset"
     DELETE_TESTSET = "delete_testset"
-    
+
     # Evaluation
     VIEW_EVALUATION = "view_evaluation"
     CREATE_EVALUATION = "create_evaluation"
     RUN_EVALUATIONS = "run_evaluations"
     EDIT_EVALUATION = "edit_evaluation"
     DELETE_EVALUATION = "delete_evaluation"
-    
+
     # Deployment
     DEPLOY_APPLICATION = "deploy_application"
-    
+
     # Workspace
     VIEW_WORKSPACE = "view_workspace"
     CREATE_WORKSPACE = "create_workspace"
@@ -47,12 +47,11 @@ class Permission(str, Enum):
     DELETE_WORKSPACE = "delete_workspace"
     MODIFY_USER_ROLES = "modify_user_roles"
     ADD_NEW_USER_TO_WORKSPACE = "add_new_user_to_workspace"
-    
+
     # Organization
     ADD_NEW_USER_TO_ORGANIZATION = "add_new_user_to_organization"
     EDIT_ORGANIZATION = "edit_organization"
-    
-    
+
 
 class WorkspacePermissionDB(BaseModel):
     role_name: WorkspaceRole
@@ -112,7 +111,9 @@ class WorkspaceDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    def get_member_roles(self, user_id: PydanticObjectId) -> Optional[List[WorkspacePermissionDB]]:
+    def get_member_roles(
+        self, user_id: PydanticObjectId
+    ) -> Optional[List[WorkspacePermissionDB]]:
         for member in self.members:
             if member.user_id == user_id:
                 return member.roles
@@ -124,14 +125,18 @@ class WorkspaceDB(Document):
 
     def get_all_members(self) -> List[PydanticObjectId]:
         return [member.user_id for member in self.members]
-    
-    def get_member_with_roles(self, user_id: PydanticObjectId) -> Optional[WorkspaceMemberDB]:
+
+    def get_member_with_roles(
+        self, user_id: PydanticObjectId
+    ) -> Optional[WorkspaceMemberDB]:
         for member in self.members:
             if member.user_id == user_id:
                 return member
         return None
-    
-    def get_member_permissions(self, user_id: PydanticObjectId, role_to_check: WorkspaceRole) -> List[Permission]:
+
+    def get_member_permissions(
+        self, user_id: PydanticObjectId, role_to_check: WorkspaceRole
+    ) -> List[Permission]:
         roles = self.get_member_roles(user_id)
         if roles:
             for role in roles:
@@ -146,18 +151,21 @@ class WorkspaceDB(Document):
                 if permission in role.permissions:
                     return True
         return False
-    
+
     def has_role(self, user_id: PydanticObjectId, role_to_check: WorkspaceRole) -> bool:
         roles = self.get_member_roles(user_id)
         if roles:
             for role in roles:
                 if role.role_name == role_to_check:
                     return True
-        return False    
+        return False
 
     def is_owner(self, user_id: PydanticObjectId) -> bool:
         for member in self.members:
-            if member.user_id == user_id and WorkspaceRole.OWNER in self.get_member_role_names(user_id):
+            if (
+                member.user_id == user_id
+                and WorkspaceRole.OWNER in self.get_member_role_names(user_id)
+            ):
                 return True
         return False
 

@@ -12,7 +12,7 @@ from agenta_backend.models.db_models import (
     VariantBaseDB,
     WorkspaceDB,
     Permission,
-    WorkspaceRole
+    WorkspaceRole,
 )
 
 from beanie import PydanticObjectId as ObjectId
@@ -195,38 +195,38 @@ async def check_user_workspace_access(
     )
     if workspace is None:
         raise Exception("Workspace not found")
-    
+
     if org_id is not None:
         organization_id = ObjectId(org_id)
-        
+
         # validate organization exists
         organization = await get_organization(str(organization_id))
         if organization is None:
             raise Exception("Organization not found")
-        
+
         # check that workspace belongs to the organization
         if workspace.organization.id != organization_id:
             raise Exception("Workspace does not belong to the provided organization")
     else:
         organization_id = workspace.organization.id
-    
+
     # check that user belongs to the organization
     if not await check_user_org_access(user_org_data, str(organization_id)):
         logger.error("User does not belong to the organization")
         return False
-    
+
     # check that user belongs to the workspace
     user_id = user_org_data["id"]
     if ObjectId(user_id) not in workspace.get_all_members():
         logger.error("User does not belong to the workspace")
         return False
-    
+
     # check that workspace is in the user's workspaces
     user = await UserDB.find_one(UserDB.id == ObjectId(user_id))
     if ObjectId(workspace_id) not in user.workspaces:
         logger.error("Workspace not in user's workspaces")
         return False
-    
+
     return True
 
 
@@ -255,30 +255,32 @@ async def check_rbac_permission(
         raise Exception("Either permission or role must be provided")
     elif permission is not None and role is not None:
         raise Exception("Only one of permission or role must be provided")
-    
+
     # Retrieve the workspace object using the provided workspace_id
-    workspace = await WorkspaceDB.find_one(WorkspaceDB.id == workspace_id, fetch_links=True)
+    workspace = await WorkspaceDB.find_one(
+        WorkspaceDB.id == workspace_id, fetch_links=True
+    )
     if workspace is None:
         raise Exception("Workspace not found")
-    
+
     provided_organization = await get_organization(str(organization_id))
     if provided_organization is None:
         raise Exception("Organization not found")
-    
+
     # confirm that the workspace belongs to the provided organization
     if workspace.organization.id != organization_id:
         raise Exception("Workspace does not belong to the provided organization")
-    
+
     # get workspace organization and check if user belongs to it
     workspace_organization_id = workspace.organization.id
     if not await check_user_org_access(user_org_data, str(workspace_organization_id)):
         return False
-    
+
     user_id = ObjectId(user_org_data["id"])
     # Check if the user belongs to the workspace
     if user_id not in workspace.get_all_members():
         return False
-    
+
     # Check if user is the owner of the workspace ( they have all permissions )
     if workspace.is_owner(user_id):
         return True

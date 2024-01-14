@@ -434,7 +434,7 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization,
-                workspace=app.workspace
+                workspace=app.workspace,
             )
         else:
             docker_id = docker_id_or_template_uri
@@ -445,7 +445,7 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization,
-                workspace=app.workspace
+                workspace=app.workspace,
             )
 
     # Create config

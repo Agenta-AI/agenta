@@ -13,8 +13,8 @@ class WorkspacePermission(BaseModel):
 class WorkspaceMember(BaseModel):
     user_id: str
     roles: List[WorkspacePermission]
-    
-    
+
+
 class WorkspaceMemberOutput(BaseModel):
     user: Dict
     roles: List[WorkspacePermission]
@@ -36,7 +36,7 @@ class WorkspaceOutput(TimestampModel):
     organization: str
     members: Optional[List[WorkspaceMemberOutput]]
 
-    
+
 class CreateWorkspace(BaseModel):
     name: str
     description: Optional[str]
@@ -47,4 +47,3 @@ class UpdateWorkspace(BaseModel):
     name: Optional[str]
     description: Optional[str]
     updated_at: Optional[datetime]
-
