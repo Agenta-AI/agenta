@@ -1,5 +1,5 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
-import {Evaluation, GenericObject, Variant} from "../Types"
+import {Evaluation, EvaluationScenario, GenericObject, Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
@@ -63,7 +63,11 @@ export const exportAICritiqueEvaluationData = (evaluation: Evaluation, rows: Gen
     downloadCsv(csvData, filename)
 }
 
-export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+export const exportABTestingEvaluationData = (
+    evaluation: Evaluation,
+    scenarios: EvaluationScenario[],
+    rows: GenericObject[],
+) => {
     const exportRow = rows.map((data, ix) => {
         return {
             ["Inputs"]:
@@ -78,6 +82,8 @@ export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: Gene
             ["Vote"]:
                 evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
                 data.vote,
+            ["Expected answer"]: scenarios[ix]?.correctAnswer,
+            ["Additional notes"]: scenarios[ix]?.note,
         }
     })
     const exportCol = Object.keys(exportRow[0])
