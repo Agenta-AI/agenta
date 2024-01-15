@@ -205,6 +205,7 @@ class Forward:
         # based on the evaluation types available
         for app_id, app_id_store in app_keyvalue_store.items():
             app_evaluator_configs: List[EvaluatorConfigDB] = []
+            app_db = await AppDB.find_one(AppDB.id == PydanticObjectId(app_id))
             for evaluation_type in app_id_store[
                 "evaluation_types"
             ]:  # the values in this case are the evaluation type
@@ -214,10 +215,10 @@ class Forward:
                 if evaluation_type == "custom_code_run":
                     for custom_code_evaluation in custom_code_evaluations:
                         eval_config = EvaluatorConfigDB(
-                            app=old_eval.app,
-                            organization=old_eval.organization,
-                            user=old_eval.user,
-                            name=f"{old_eval.app.app_name}_{evaluation_type}",
+                            app=app_db,
+                            organization=app_db.organization,
+                            user=app_db.user,
+                            name=f"{app_db.app_name}_{evaluation_type}",
                             evaluator_key=f"auto_{evaluation_type}",
                             settings_values=dict(
                                 {"code": custom_code_evaluation.python_code}
@@ -228,10 +229,10 @@ class Forward:
 
                 if evaluation_type == "auto_similarity_match":
                     eval_config = EvaluatorConfigDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
+                        name=f"{app_db.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values=dict(
                             {
@@ -246,10 +247,10 @@ class Forward:
 
                 if evaluation_type == "auto_exact_match":
                     eval_config = EvaluatorConfigDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
+                        name=f"{app_db.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values={},
                     )
@@ -258,10 +259,10 @@ class Forward:
 
                 if evaluation_type == "auto_regex_test":
                     eval_config = EvaluatorConfigDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
+                        name=f"{app_db.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values=dict(
                             {
@@ -275,10 +276,10 @@ class Forward:
 
                 if evaluation_type == "auto_webhook_test":
                     eval_config = EvaluatorConfigDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
+                        name=f"{app_db.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values=dict(
                             {
@@ -292,10 +293,10 @@ class Forward:
 
                 if evaluation_type == "auto_ai_critique":
                     eval_config = EvaluatorConfigDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
-                        name=f"{old_eval.app.app_name}_{evaluation_type}",
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
+                        name=f"{app_db.app_name}_{evaluation_type}",
                         evaluator_key=evaluation_type,
                         settings_values=dict(
                             {
@@ -324,9 +325,9 @@ class Forward:
             if auto_evaluator_configs is not None:
                 for variant in app_id_store["variant_ids"]:
                     new_eval = EvaluationDB(
-                        app=old_eval.app,
-                        organization=old_eval.organization,
-                        user=old_eval.user,
+                        app=app_db,
+                        organization=app_db.organization,
+                        user=app_db.user,
                         status=old_eval.status,
                         testset=old_eval.testset,
                         variant=PydanticObjectId(variant),

@@ -155,7 +155,10 @@ def get_numeric_value(value: Any):
         elif value.lower() == "false":
             return float(False)
         else:
-            return float(value)
+            try:
+                return float(value)
+            except ValueError:
+                return 0
     return 0
 
 
