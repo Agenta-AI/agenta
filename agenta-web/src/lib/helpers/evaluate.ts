@@ -99,17 +99,29 @@ export const exportABTestingEvaluationData = (
     downloadCsv(csvData, filename)
 }
 
-export const exportSingleModelEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+export const exportSingleModelEvaluationData = (
+    evaluation: Evaluation,
+    scenarios: EvaluationScenario[],
+    rows: GenericObject[],
+) => {
     const exportRow = rows.map((data, ix) => {
+        const inputColumns = data.inputs.reduce(
+            (columns: any, input: {input_name: string; input_value: string}) => {
+                columns[`${input.input_name}`] = input.input_value
+                return columns
+            },
+            {},
+        )
         const numericScore = parseInt(data.score)
         return {
-            ["Inputs"]:
-                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
-                data.inputs[0].input_value,
+            ...inputColumns,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Score"]: isNaN(numericScore) ? "-" : numericScore,
+            ["Expected answer"]:
+                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
+            ["Additional notes"]: scenarios[ix]?.note,
         }
     })
     const exportCol = Object.keys(exportRow[0])
