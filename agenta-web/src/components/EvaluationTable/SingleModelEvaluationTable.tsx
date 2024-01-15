@@ -448,7 +448,13 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportSingleModelEvaluationData(evaluation, rows)}
+                                onClick={() =>
+                                    exportSingleModelEvaluationData(
+                                        evaluation,
+                                        evaluationScenarios,
+                                        rows,
+                                    )
+                                }
                                 disabled={false}
                             >
                                 Export results
