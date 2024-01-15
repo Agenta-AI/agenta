@@ -382,7 +382,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             </Button>
                             <SecondaryButton
                                 onClick={() => exportABTestingEvaluationData(evaluation, rows)}
-                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                                disabled={false}
                             >
                                 Export results
                             </SecondaryButton>
