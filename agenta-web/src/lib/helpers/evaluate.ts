@@ -87,7 +87,8 @@ export const exportABTestingEvaluationData = (
             ["Vote"]:
                 evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
                 data.vote,
-            ["Expected answer"]: scenarios[ix]?.correctAnswer,
+            ["Expected answer"]:
+                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
             ["Additional notes"]: scenarios[ix]?.note,
         }
     })
