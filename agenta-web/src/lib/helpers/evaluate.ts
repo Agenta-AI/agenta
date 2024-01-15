@@ -69,10 +69,15 @@ export const exportABTestingEvaluationData = (
     rows: GenericObject[],
 ) => {
     const exportRow = rows.map((data, ix) => {
+        const inputColumns = data.inputs.reduce(
+            (columns: any, input: {input_name: string; input_value: string}) => {
+                columns[`${input.input_name}`] = input.input_value
+                return columns
+            },
+            {},
+        )
         return {
-            ["Inputs"]:
-                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
-                data.inputs[0].input_value,
+            ...inputColumns,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
