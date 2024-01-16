@@ -329,7 +329,7 @@ async def create_new_app_variant(
         base=base,
         config=config,
     )
-    variant_revision.create()
+    await variant_revision.create()
 
     return variant
 
@@ -783,7 +783,7 @@ async def add_variant_from_base_and_config(
         base=base_db,
         config=config_db,
     )
-    variant_revision.create()
+    await variant_revision.create()
 
     return db_app_variant
 
@@ -897,7 +897,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
         app_variant_db, **kwargs
     )
     for app_variant_revision in app_variant_revisions:
-        app_variant_revision.delete()
+        await app_variant_revision.delete()
 
     await app_variant_db.delete()
 
