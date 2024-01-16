@@ -24,12 +24,13 @@ from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
     AppVariantDB,
+    AppVariantRevisionsDB,
+    ConfigDB,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
     VariantBaseDB,
-    ConfigDB,
     AppEnvironmentDB,
     EvaluationDB,
     EvaluationScenarioDB,
@@ -318,7 +319,18 @@ async def create_new_app_variant(
         config_name=config_name,
         parameters=parameters,
     )
+
     await variant.create()
+
+    variant_revision = AppVariantRevisionsDB(
+        variant=variant,
+        revision=1,
+        modified_by=user,
+        base=base,
+        config=config,
+    )
+    variant_revision.create()
+
     return variant
 
 

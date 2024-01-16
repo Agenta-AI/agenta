@@ -145,7 +145,7 @@ class AppVariantRevisionsDB(Document):
     revision: int
     modified_by: Link[UserDB]
     base: Link[VariantBaseDB]
-    config: Link[ConfigDB]
+    config: ConfigDB
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
