@@ -349,31 +349,30 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleRun = async (index: number) => {
-        if (abortControllersRef.current[index]) {
-            abortControllersRef.current[index].abort()
-        }
-
         const controller = new AbortController()
         abortControllersRef.current[index] = controller
         try {
             const testItem = testList[index]
             if (compareMode && !isRunning[index]) {
-                setIsRunning(
-                    (prevState) => {
-                        const newState = [...prevState]
-                        newState[index] = true
-                        return newState
-                    },
-                    () => {
-                        document
-                            .querySelectorAll(`.testview-run-button-${testItem._id}`)
-                            .forEach((btn) => {
-                                if (btn.parentElement?.id !== variant.variantId) {
-                                    ;(btn as HTMLButtonElement).click()
-                                }
-                            })
-                    },
-                )
+                let called = false
+                const callback = () => {
+                    if (called) return
+                    called = true
+                    document
+                        .querySelectorAll(`.testview-run-button-${testItem._id}`)
+                        .forEach((btn) => {
+                            if (btn.parentElement?.id !== variant.variantId) {
+                                ;(btn as HTMLButtonElement).click()
+                            }
+                        })
+                }
+
+                setIsRunning((prevState) => {
+                    const newState = [...prevState]
+                    newState[index] = true
+                    return newState
+                }, callback)
+                setTimeout(callback, 300)
             }
             setResultForIndex(LOADING_TEXT, index)
 
@@ -385,6 +384,7 @@ const App: React.FC<TestViewProps> = ({
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
                 controller.signal,
+                true,
             )
 
             // check if res is an object or string
@@ -401,6 +401,13 @@ const App: React.FC<TestViewProps> = ({
         } catch (e) {
             if (!controller.signal.aborted) {
                 setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+            } else {
+                setResultForIndex("", index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: null, latency: null, usage: null}
+                    return newDataList
+                })
             }
         } finally {
             setIsRunning((prevState) => {
@@ -415,81 +422,34 @@ const App: React.FC<TestViewProps> = ({
         if (abortControllersRef.current[index]) {
             abortControllersRef.current[index].abort()
         }
+        if (compareMode && isRunning[index]) {
+            const testItem = testList[index]
 
-        const testItem = testList[index]
-        setIsRunning(
-            (prevState) => {
-                const newState = [...prevState]
-                newState[index] = false
-                return newState
-            },
-            () => {
-                document
-                    .querySelectorAll(`.testview-cancel-button-${testItem._id}`)
-                    .forEach((btn) => {
-                        if (btn.parentElement?.id !== variant.variantId) {
-                            ;(btn as HTMLButtonElement).click()
-                        }
-                    })
-            },
-        )
-
-        setResultForIndex("", index)
-        setAdditionalDataList((prev) => {
-            const newDataList = [...prev]
-            newDataList[index] = {cost: null, latency: null, usage: null}
-            return newDataList
-        })
+            document.querySelectorAll(`.testview-cancel-button-${testItem._id}`).forEach((btn) => {
+                if (btn.parentElement?.id !== variant.variantId) {
+                    ;(btn as HTMLButtonElement).click()
+                }
+            })
+        }
     }
 
     const handleCancelAll = () => {
-        abortControllersRef.current.forEach((controller, index) => {
-            if (controller) {
-                controller.abort()
-                setIsRunning((prevState) => {
-                    const newState = [...prevState]
-                    newState[index] = false
-                    return newState
-                })
-
-                setResultForIndex("", index)
-                setAdditionalDataList((prev) => {
-                    const newDataList = [...prev]
-                    newDataList[index] = {cost: null, latency: null, usage: null}
-                    return newDataList
-                })
-            }
-        })
+        const funcs: Function[] = []
+        rootRef.current
+            ?.querySelectorAll("[class*=testview-cancel-button-]")
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
+        batchExecute(funcs)
     }
 
     const handleRunAll = async () => {
-        if (isRunningAll) {
-            handleCancelAll()
-            setIsRunningAll(false)
-            return
-        }
-
-        setIsRunningAll(true)
-
-        abortControllersRef.current.forEach((controller) => controller && controller.abort())
-
-        const newAbortControllers = Array(testList.length)
-            .fill(undefined)
-            .map(() => new AbortController())
-        abortControllersRef.current = newAbortControllers
-
         const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
             .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
-        try {
-            await batchExecute(funcs)
-        } catch (e) {
-            setIsRunningAll(false)
-        } finally {
-            setIsRunningAll(false)
-        }
+        setIsRunningAll(true)
+        await batchExecute(funcs)
+        setIsRunningAll(false)
     }
 
     const handleAddRow = () => {

@@ -85,6 +85,7 @@ export async function callVariant(
     baseId: string,
     chatMessages?: ChatMessage[],
     signal?: AbortSignal,
+    ignoreAxiosError?: boolean,
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -122,9 +123,14 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios.post(`${appContainerURI}/generate`, requestBody, {signal}).then((res) => {
-        return res.data
-    })
+    return axios
+        .post(`${appContainerURI}/generate`, requestBody, {
+            signal,
+            _ignoreError: ignoreAxiosError,
+        } as any)
+        .then((res) => {
+            return res.data
+        })
 }
 
 /**
