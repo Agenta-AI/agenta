@@ -387,7 +387,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportABTestingEvaluationData(evaluation, rows)}
+                                onClick={() =>
+                                    exportABTestingEvaluationData(
+                                        evaluation,
+                                        evaluationScenarios,
+                                        rows,
+                                    )
+                                }
                                 disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                             >
                                 Export results
