@@ -333,6 +333,7 @@ class Forward:
                         variant=PydanticObjectId(variant),
                         evaluators_configs=auto_evaluator_configs,
                         aggregated_results=[],
+                        created_at=old_evaluation.created_at,
                     )
                     await new_eval.insert(session=session)
 
@@ -351,6 +352,7 @@ class Forward:
                     evaluation_type=old_evaluation.evaluation_type,
                     variants=old_evaluation.variants,
                     testset=old_evaluation.testset,
+                    created_at=old_evaluation.created_at,
                 )
                 await new_eval.insert(session=session)
 
