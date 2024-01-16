@@ -30,7 +30,6 @@ from agenta_backend.models.db_models import (
     EvaluatorConfigDB,
     VariantBaseDB,
     ConfigDB,
-    ConfigVersionDB,
     AppEnvironmentDB,
     EvaluationDB,
     EvaluationScenarioDB,
@@ -280,12 +279,6 @@ async def create_new_config(
     config_db = ConfigDB(
         config_name=config_name,
         parameters=parameters,
-        current_version=1,
-        version_history=[
-            ConfigVersionDB(
-                version=1, parameters=parameters, created_at=datetime.utcnow()
-            )
-        ],
     )
     await config_db.create()
     return config_db
@@ -752,12 +745,6 @@ async def add_variant_from_base_and_config(
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
-        current_version=1,
-        version_history=[
-            ConfigVersionDB(
-                version=1, parameters=parameters, created_at=datetime.utcnow()
-            )
-        ],
     )
     await config_db.create()
     db_app_variant = AppVariantDB(
@@ -1142,15 +1129,6 @@ async def update_variant_parameters(
 
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
-        new_version = config_db.current_version + 1
-        config_db.version_history.append(
-            ConfigVersionDB(
-                version=new_version,
-                parameters=config_db.parameters,
-                created_at=datetime.utcnow(),
-            )
-        )
-        config_db.current_version = new_version
         config_db.parameters = parameters
 
         # Save updated ConfigDB
