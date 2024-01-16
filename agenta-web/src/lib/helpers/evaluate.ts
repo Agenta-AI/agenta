@@ -69,13 +69,15 @@ export const exportABTestingEvaluationData = (
     rows: GenericObject[],
 ) => {
     const exportRow = rows.map((data, ix) => {
-        const inputColumns = data.inputs.reduce(
-            (columns: any, input: {input_name: string; input_value: string}) => {
-                columns[`${input.input_name}`] = input.input_value
-                return columns
-            },
-            {},
-        )
+        const inputColumns = evaluation.testset.testsetChatColumn
+            ? {Input: evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn]}
+            : data.inputs.reduce(
+                  (columns: any, input: {input_name: string; input_value: string}) => {
+                      columns[`${input.input_name}`] = input.input_value
+                      return columns
+                  },
+                  {},
+              )
         return {
             ...inputColumns,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
@@ -105,13 +107,15 @@ export const exportSingleModelEvaluationData = (
     rows: GenericObject[],
 ) => {
     const exportRow = rows.map((data, ix) => {
-        const inputColumns = data.inputs.reduce(
-            (columns: any, input: {input_name: string; input_value: string}) => {
-                columns[`${input.input_name}`] = input.input_value
-                return columns
-            },
-            {},
-        )
+        const inputColumns = evaluation.testset.testsetChatColumn
+            ? {Input: evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn]}
+            : data.inputs.reduce(
+                  (columns: any, input: {input_name: string; input_value: string}) => {
+                      columns[`${input.input_name}`] = input.input_value
+                      return columns
+                  },
+                  {},
+              )
         const numericScore = parseInt(data.score)
         return {
             ...inputColumns,
