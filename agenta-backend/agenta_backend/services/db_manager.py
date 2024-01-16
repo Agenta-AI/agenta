@@ -894,8 +894,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
         await environment.save()
 
     app_variant_revisions = await list_app_variant_revisions_by_variant(
-        app_variant_db,
-        **kwargs
+        app_variant_db, **kwargs
     )
     for app_variant_revision in app_variant_revisions:
         app_variant_revision.delete()
@@ -1175,7 +1174,7 @@ async def update_variant_parameters(
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
         config_db.parameters = parameters
-        app_variant_db.revision = app_variant_db.revision+1
+        app_variant_db.revision = app_variant_db.revision + 1
         app_variant_db.modified_by = user
 
         # Save updated ConfigDB

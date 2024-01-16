@@ -365,6 +365,7 @@ class TraceDB(Document):
     class Settings:
         name = "traces"
 
+
 # New models
 
 
