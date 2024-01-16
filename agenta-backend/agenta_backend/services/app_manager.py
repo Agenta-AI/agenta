@@ -322,7 +322,7 @@ async def remove_app(app_id: str, **kwargs: dict):
 
 
 async def update_variant_parameters(
-    app_variant_id: str, parameters: Dict[str, Any], **kwargs: dict
+    app_variant_id: str, parameters: Dict[str, Any], **user_org_data: dict
 ):
     """Updates the parameters for app variant in the database.
 
@@ -338,7 +338,7 @@ async def update_variant_parameters(
         raise ValueError(error_msg)
     try:
         await db_manager.update_variant_parameters(
-            app_variant_db=app_variant_db, parameters=parameters, **kwargs
+            app_variant_db=app_variant_db, parameters=parameters, **user_org_data
         )
     except Exception as e:
         logger.error(
