@@ -776,6 +776,15 @@ async def add_variant_from_base_and_config(
         is_deleted=False,
     )
     await db_app_variant.create()
+    variant_revision = AppVariantRevisionsDB(
+        variant=db_app_variant,
+        revision=1,
+        modified_by=user_db,
+        base=base_db,
+        config=config_db,
+    )
+    variant_revision.create()
+
     return db_app_variant
 
 
@@ -1122,7 +1131,7 @@ async def remove_app_by_id(app_id: str, **kwargs):
 
 
 async def update_variant_parameters(
-    app_variant_db: AppVariantDB, parameters: Dict[str, Any], **kwargs: dict
+    app_variant_db: AppVariantDB, parameters: Dict[str, Any], **user_org_data: dict
 ) -> None:
     """
     Update the parameters of an app variant in the database.
@@ -1140,12 +1149,24 @@ async def update_variant_parameters(
 
     try:
         logging.debug("Updating variant parameters")
-
+        user = await get_user(user_uid=user_org_data["uid"])
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
         config_db.parameters = parameters
+        app_variant_db.revision = app_variant_db.revision+1
+        app_variant_db.modified_by = user
+
         # Save updated ConfigDB
         await app_variant_db.save()
+
+        variant_revision = AppVariantRevisionsDB(
+            variant=app_variant_db,
+            revision=app_variant_db.revision,
+            modified_by=user,
+            base=app_variant_db.base_db,
+            config=config_db,
+        )
+        variant_revision.save()
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
