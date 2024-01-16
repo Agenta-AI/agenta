@@ -372,7 +372,7 @@ class Forward:
         ).to_list()
         for ab_testing_scenario in old_human_ab_testing_scenarios:
             matching_human_evaluation = await HumanEvaluationDB.find_one(
-                HumanEvaluationDB.app.id == ab_testing_scenario.evaluation.app.id,
+                HumanEvaluationDB.id == ab_testing_scenario.evaluation.id,
                 HumanEvaluationDB.evaluation_type == "human_a_b_testing",
                 fetch_links=True,
             )
@@ -428,7 +428,7 @@ class Forward:
         ).to_list()
         for single_model_scenario in old_human_single_model_scenarios:
             matching_human_evaluation = await HumanEvaluationDB.find_one(
-                HumanEvaluationDB.app.id == single_model_scenario.evaluation.app.id,
+                HumanEvaluationDB.id == single_model_scenario.evaluation.id,
                 HumanEvaluationDB.evaluation_type == "single_model_test",
                 fetch_links=True,
             )
