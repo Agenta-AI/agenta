@@ -3,8 +3,8 @@ import secrets
 from typing import Any, List
 
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException, Request, status, Response, Query
+from beanie import PydanticObjectId as ObjectId
 
 from agenta_backend.utils.common import APIRouter
 from agenta_backend.models.api.evaluation_model import (
@@ -38,7 +38,7 @@ router = APIRouter()
 
 @router.get(
     "/by_resource/",
-    response_model=Any,
+    response_model=List[ObjectId],
 )
 async def fetch_evaluation_ids(
     app_id: str,
@@ -51,7 +51,7 @@ async def fetch_evaluation_ids(
     Arguments:
         app_id (str): The ID of the app for which to fetch evaluations.
         resource_type (str): The type of resource for which to fetch evaluations.
-        resource_ids List[str]: The IDs of resource for which to fetch evaluations.
+        resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
     Raises:
         HTTPException: If the resource_type is invalid or access is denied.

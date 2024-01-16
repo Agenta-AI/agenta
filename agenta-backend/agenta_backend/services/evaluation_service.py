@@ -801,14 +801,14 @@ def remove_duplicates(csvdata):
     return unique_entries
 
 
-def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
+async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
     ids = list(map(lambda x: ObjectId(x), resource_ids))
     if resource_type == "variant":
-        return EvaluationDB.find(In(EvaluationDB.variant, ids)).to_list()
+        res = await EvaluationDB.find(In(EvaluationDB.variant, ids)).to_list()
     elif resource_type == "testset":
-        return EvaluationDB.find(In(EvaluationDB.testset.id, ids)).to_list()
+        res = await EvaluationDB.find(In(EvaluationDB.testset.id, ids)).to_list()
     elif resource_type == "evaluator_config":
-        return EvaluationDB.find(
+        res = await EvaluationDB.find(
             In(
                 EvaluationDB.evaluators_configs,
                 ids,
@@ -819,3 +819,4 @@ def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
             status_code=400,
             detail=f"resource_type {resource_type} is not supported",
         )
+    return res
