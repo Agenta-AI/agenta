@@ -1184,10 +1184,10 @@ async def update_variant_parameters(
             variant=app_variant_db,
             revision=app_variant_db.revision,
             modified_by=user,
-            base=app_variant_db.base_db,
+            base=app_variant_db.base,
             config=config_db,
         )
-        variant_revision.save()
+        await variant_revision.save()
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
