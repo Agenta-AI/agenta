@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from beanie.operators import In
 from pydantic import BaseModel, Field
 from beanie import free_fall_migration, Document, Link, PydanticObjectId
 
@@ -191,7 +192,20 @@ class Forward:
         # Create a key-value store that saves all the variants & evaluation types for a particular app id
         # Example: {"app_id": {"evaluation_types": ["string", "string"], "variant_ids": ["string", "string"]}}
         app_keyvalue_store = {}
-        old_evaluations = await OldEvaluationDB.find(fetch_links=True).to_list()
+        old_evaluations = await OldEvaluationDB.find(
+            In(
+                OldEvaluationDB.evaluation_type,
+                [
+                    "auto_exact_match",
+                    "auto_similarity_match",
+                    "auto_regex_test",
+                    "auto_ai_critique",
+                    "auto_custom_code_run",
+                    "auto_webhook_test",
+                ],
+            ),
+            fetch_links=True,
+        ).to_list()
         for old_eval in old_evaluations:
             app_id = old_eval.app.id
             variant_ids = [str(variant_id) for variant_id in old_eval.variants]
@@ -338,21 +352,30 @@ class Forward:
 
         # STEP 5:
         # Create the human evaluation
-        for old_evaluation in old_evaluations:
-            if old_evaluation.evaluation_type in [
-                "human_a_b_testing",
-                "single_model_test",
-            ]:
-                new_eval = HumanEvaluationDB(
-                    app=old_evaluation.app,
-                    organization=old_evaluation.organization,
-                    user=old_evaluation.user,
-                    status=old_evaluation.status,
-                    evaluation_type=old_evaluation.evaluation_type,
-                    variants=old_evaluation.variants,
-                    testset=old_evaluation.testset,
-                )
-                await new_eval.insert(session=session)
+        old_human_evaluations = await OldEvaluationDB.find(
+            In(
+                OldEvaluationDB.evaluation_type,
+                [
+                    "human_a_b_testing",
+                    "single_model_test",
+                ],
+            ),
+            fetch_links=True,
+        ).to_list()
+        for old_evaluation in old_human_evaluations:
+            new_eval = HumanEvaluationDB(
+                id=old_evaluation.id,
+                app=old_evaluation.app,
+                organization=old_evaluation.organization,
+                user=old_evaluation.user,
+                status=old_evaluation.status,
+                evaluation_type=old_evaluation.evaluation_type,
+                variants=old_evaluation.variants,
+                testset=old_evaluation.testset,
+                created_at=old_evaluation.created_at,
+                updated_at=old_evaluation.updated_at,
+            )
+            await new_eval.insert(session=session)
 
 
 class Backward:
