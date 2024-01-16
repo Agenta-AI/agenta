@@ -1,13 +1,22 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
-import {Evaluation, GenericObject, Variant} from "../Types"
+import {Evaluation, EvaluationScenario, GenericObject, Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
 
-export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+export const exportABTestingEvaluationData = (
+    evaluation: Evaluation,
+    scenarios: EvaluationScenario[],
+    rows: GenericObject[],
+) => {
     const exportRow = rows.map((data, ix) => {
+        const inputColumns = data.inputs.reduce(
+            (columns: any, input: {input_name: string; input_value: string}) => {
+                columns[`${input.input_name}`] = input.input_value
+                return columns
+            },
+            {},
+        )
         return {
-            ["Inputs"]:
-                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
-                data.inputs[0].input_value,
+            ...inputColumns,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -17,6 +26,9 @@ export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: Gene
             ["Vote"]:
                 evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
                 data.vote,
+            ["Expected answer"]:
+                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
+            ["Additional notes"]: scenarios[ix]?.note,
         }
     })
     const exportCol = Object.keys(exportRow[0])
@@ -26,17 +38,29 @@ export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: Gene
     downloadCsv(csvData, filename)
 }
 
-export const exportSingleModelEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+export const exportSingleModelEvaluationData = (
+    evaluation: Evaluation,
+    scenarios: EvaluationScenario[],
+    rows: GenericObject[],
+) => {
     const exportRow = rows.map((data, ix) => {
+        const inputColumns = data.inputs.reduce(
+            (columns: any, input: {input_name: string; input_value: string}) => {
+                columns[`${input.input_name}`] = input.input_value
+                return columns
+            },
+            {},
+        )
         const numericScore = parseInt(data.score)
         return {
-            ["Inputs"]:
-                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
-                data.inputs[0].input_value,
+            ...inputColumns,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Score"]: isNaN(numericScore) ? "-" : numericScore,
+            ["Expected answer"]:
+                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
+            ["Additional notes"]: scenarios[ix]?.note,
         }
     })
     const exportCol = Object.keys(exportRow[0])
