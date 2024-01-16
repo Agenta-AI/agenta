@@ -428,76 +428,76 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         },
         ...dynamicColumns,
         {
-            title: "Evaluate",
-            dataIndex: "evaluate",
-            key: "evaluate",
-            width: 300,
+            title: "Score",
+            dataIndex: "score",
+            key: "score",
             render: (text: any, record: any, rowIndex: number) => {
                 return (
                     <>
-                        <div className={classes.sideBar}>
-                            <Typography.Title level={4}>Submit your feedback</Typography.Title>
+                        {
+                            <EvaluationVotePanel
+                                type="numeric"
+                                value={[
+                                    {
+                                        variantId: variants[0].variantId,
+                                        score: record.score as number,
+                                    },
+                                ]}
+                                variants={variants}
+                                onChange={(val) =>
+                                    depouncedHandleScoreChange(record.id, val[0].score as number)
+                                }
+                                loading={record.score === "loading"}
+                                showVariantName={false}
+                                key={record.id}
+                            />
+                        }
+                    </>
+                )
+            },
+        },
+        {
+            title: "Expected Answer",
+            dataIndex: "expectedAnswer",
+            key: "expectedAnswer",
+            render: (text: any, record: any, rowIndex: number) => {
+                let correctAnswer =
+                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
 
-                            {record.outputs.length > 0 &&
-                                record.outputs.every((item: any) => !!item.variant_output) && (
-                                    <Space direction="vertical">
-                                        <Typography.Text strong>Rate the response</Typography.Text>
-                                        {
-                                            <EvaluationVotePanel
-                                                type="numeric"
-                                                value={[
-                                                    {
-                                                        variantId: variants[0].variantId,
-                                                        score: record.score as number,
-                                                    },
-                                                ]}
-                                                variants={variants}
-                                                onChange={(val) =>
-                                                    depouncedHandleScoreChange(
-                                                        record.id,
-                                                        val[0].score as number,
-                                                    )
-                                                }
-                                                loading={record.score === "loading"}
-                                                showVariantName={false}
-                                                key={record.id}
-                                            />
-                                        }
-                                    </Space>
-                                )}
-
-                            <Space direction="vertical">
-                                <Typography.Text strong>Expected Answer</Typography.Text>
-                                <Input.TextArea
-                                    defaultValue={record.correctAnswer}
-                                    autoSize={{minRows: 3, maxRows: 5}}
-                                    onChange={(e) =>
-                                        depouncedUpdateEvaluationScenario(
-                                            {
-                                                correctAnswer: e.target.value,
-                                            },
-                                            record.id,
-                                        )
-                                    }
-                                    key={record.id}
-                                />
-                            </Space>
-
-                            <Space direction="vertical">
-                                <Typography.Text strong>Additional Notes</Typography.Text>
-                                <Input.TextArea
-                                    defaultValue={record?.note || ""}
-                                    autoSize={{minRows: 3, maxRows: 5}}
-                                    onChange={(e) =>
-                                        depouncedUpdateEvaluationScenario(
-                                            {note: e.target.value},
-                                            record.id,
-                                        )
-                                    }
-                                    key={record.id}
-                                />
-                            </Space>
-                        </div>
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={correctAnswer}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario(
+                                    {
+                                        correctAnswer: e.target.value,
+                                    },
+                                    record.id,
+                                )
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
+        },
+        {
+            title: "Additional Note",
+            dataIndex: "additionalNote",
+            key: "additionalNote",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={record?.note || ""}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario({note: e.target.value}, record.id)
+                            }
+                            key={record.id}
+                        />
                     </>
                 )
             },
