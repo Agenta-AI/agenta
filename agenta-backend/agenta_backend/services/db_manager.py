@@ -881,7 +881,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     )
     for environment in environments:
         environment.deployed_app_variant = None
-        await environment.create()
+        await environment.save()
     # removing the config
     config = app_variant_db.config
     await config.delete()
