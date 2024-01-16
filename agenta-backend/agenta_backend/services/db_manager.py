@@ -891,10 +891,14 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     )
     for environment in environments:
         environment.deployed_app_variant = None
-        await environment.create()
-    # removing the config
-    config = app_variant_db.config
-    await config.delete()
+        await environment.save()
+
+    app_variant_revisions = await list_app_variant_revisions_by_variant(
+        app_variant_db,
+        **kwargs
+    )
+    for app_variant_revision in app_variant_revisions:
+        app_variant_revision.delete()
 
     await app_variant_db.delete()
 
@@ -1002,6 +1006,24 @@ async def create_environment(
     )
     await environment_db.create()
     return environment_db
+
+
+async def list_app_variant_revisions_by_variant(
+    app_variant: AppVariantDB, **kwargs: dict
+) -> List[AppVariantRevisionsDB]:
+    """Returns list of app variant revision for the given app variant
+
+    Args:
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
+    """
+    app_variant_revision = await AppVariantRevisionsDB.find(
+        AppVariantRevisionsDB.variant == app_variant.id, fetch_links=True
+    ).to_list()
+    return app_variant_revision
 
 
 async def list_environments_by_variant(
