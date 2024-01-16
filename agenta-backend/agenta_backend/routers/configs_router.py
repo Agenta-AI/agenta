@@ -125,7 +125,7 @@ async def get_config(
             config = found_variant.config
         print(config.parameters)
         return GetConfigReponse(
-            config_id=str(config.id),
+            config_id=str(0),  # TODO: Remove from the model and regenerate the SDK client
             config_name=config.config_name,
             current_version=config.current_version,
             parameters=config.parameters,
