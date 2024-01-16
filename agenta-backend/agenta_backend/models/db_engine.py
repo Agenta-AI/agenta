@@ -42,7 +42,6 @@ document_models: List[Document] = [
     AppDB,
     DeploymentDB,
     VariantBaseDB,
-    ConfigDB,
     AppVariantDB,
     TemplateDB,
     TestSetDB,
