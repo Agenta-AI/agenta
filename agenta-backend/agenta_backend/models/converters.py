@@ -226,7 +226,6 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         base_name=app_variant_db.base_name,
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
-        config_id=str(app_variant_db.config.id),
         uri=uri,
     )
 

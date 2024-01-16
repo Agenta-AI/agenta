@@ -38,7 +38,6 @@ export interface Variant {
     variantId: string
     baseId: string
     baseName: string
-    configId: string
     configName: string
 }
 

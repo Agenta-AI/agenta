@@ -51,7 +51,6 @@ export async function fetchVariants(
                 variantId: variant.variant_id,
                 baseId: variant.base_id,
                 baseName: variant.base_name,
-                configId: variant.config_id,
                 configName: variant.config_name,
             }
             return v
