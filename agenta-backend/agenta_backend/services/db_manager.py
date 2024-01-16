@@ -280,7 +280,6 @@ async def create_new_config(
         config_name=config_name,
         parameters=parameters,
     )
-    await config_db.create()
     return config_db
 
 
@@ -309,6 +308,8 @@ async def create_new_app_variant(
         app=app,
         organization=organization,
         user=user,
+        modified_by=user,
+        revision=1,
         variant_name=variant_name,
         image=image,
         base=base,
@@ -746,12 +747,13 @@ async def add_variant_from_base_and_config(
         config_name=new_config_name,
         parameters=parameters,
     )
-    await config_db.create()
     db_app_variant = AppVariantDB(
         app=previous_app_variant_db.app,
         variant_name=new_variant_name,
         image=base_db.image,
         user=user_db,
+        modified_by=user_db,
+        revision=1,
         organization=previous_app_variant_db.organization,
         parameters=parameters,
         previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
@@ -1130,9 +1132,8 @@ async def update_variant_parameters(
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
         config_db.parameters = parameters
-
         # Save updated ConfigDB
-        await config_db.save()
+        await app_variant_db.save()
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
