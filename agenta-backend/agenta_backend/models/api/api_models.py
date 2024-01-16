@@ -78,7 +78,6 @@ class AppVariantOutput(BaseModel):
     base_name: str
     base_id: str
     config_name: str
-    config_id: str
     uri: Optional[str]
 
 
