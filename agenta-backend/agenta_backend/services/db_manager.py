@@ -192,6 +192,29 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
+async def fetch_app_variant_revision_by_variant_and_revision(
+    app_variant_id: str, revision: int
+) -> AppVariantRevisionsDB:
+    """Fetches app variant revision by variant id and revision
+
+    Args:
+        app_variant_id: str
+        revision: str
+
+    Returns:
+        AppVariantRevisionDB
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    assert revision is not None, "revision cannot be None"
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant == ObjectId(app_variant_id),
+        AppVariantRevisionsDB.revision == revision,
+    )
+    if app_variant_revision is None:
+        raise Exception("app variant revision not found")
+    return app_variant_revision
+
+
 async def fetch_base_by_id(
     base_id: str,
     user_org_data: dict,
@@ -919,6 +942,9 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
         None
     """
     app_variant_db = await fetch_app_variant_by_id(variant_id)
+    app_variant_revision_db = await fetch_app_variant_revision_by_variant_and_revision(
+        variant_id, app_variant_db.revision
+    )
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
@@ -937,6 +963,7 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = app_variant_db.id
+    environment_db.deployed_app_variant_revision = app_variant_revision_db
     await environment_db.save()
 
 
