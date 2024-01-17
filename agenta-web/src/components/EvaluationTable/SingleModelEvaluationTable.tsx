@@ -298,6 +298,9 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
+                    if (typeof result !== "string") {
+                        result = result.message
+                    }
 
                     setRowValue(rowIndex, variant.variantId, result)
                     ;(outputs as KeyValuePair)[variant.variantId] = result
@@ -446,7 +449,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             </Button>
                             <SecondaryButton
                                 onClick={() => exportSingleModelEvaluationData(evaluation, rows)}
-                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                                disabled={false}
                             >
                                 Export results
                             </SecondaryButton>

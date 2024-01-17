@@ -7,7 +7,8 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 from agenta_backend.services import db_manager
-from fastapi import APIRouter, Request, UploadFile, HTTPException
+from fastapi import Request, UploadFile, HTTPException
+from agenta_backend.utils.common import APIRouter
 from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -35,7 +36,7 @@ router = APIRouter()
 
 
 # TODO: We need to improve this to use the introduced abstraction to also use start and stop service
-@router.post("/build_image/")
+@router.post("/build_image/", operation_id="build_image")
 async def build_image(
     app_id: str,
     base_name: str,
@@ -71,7 +72,7 @@ async def build_image(
     return image_result
 
 
-@router.post("/restart_container/")
+@router.post("/restart_container/", operation_id="restart_container")
 async def restart_docker_container(
     payload: RestartAppContainer,
     request: Request,
@@ -100,7 +101,7 @@ async def restart_docker_container(
         return JSONResponse({"message": str(ex)}, status_code=500)
 
 
-@router.get("/templates/")
+@router.get("/templates/", operation_id="container_templates")
 async def container_templates(
     request: Request,
 ) -> Union[List[Template], str]:
@@ -121,7 +122,7 @@ async def container_templates(
     return templates
 
 
-@router.get("/container_url/")
+@router.get("/container_url/", operation_id="construct_app_container_url")
 async def construct_app_container_url(
     request: Request,
     base_id: Optional[str] = None,

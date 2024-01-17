@@ -1,14 +1,14 @@
-import {useProfileData} from "@/contexts/profile.context"
-import {isDemo} from "@/lib/helpers/utils"
-import {usePostHog} from "posthog-js/react"
 import {useLayoutEffect} from "react"
+import {isDemo, generateOrRetrieveDistinctId} from "@/lib/helpers/utils"
+import {usePostHog} from "posthog-js/react"
+import {useProfileData} from "@/contexts/profile.context"
 
 export const usePostHogAg = () => {
     const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const {user} = useProfileData()
     const posthog = usePostHog()
 
-    const _id = isDemo() ? user?.email : user?.id
+    const _id: string | undefined = isDemo() ? user?.email : generateOrRetrieveDistinctId()
 
     const capture: typeof posthog.capture = (...args) => {
         if (trackingEnabled && user?.id) {
@@ -18,7 +18,7 @@ export const usePostHogAg = () => {
 
     const identify: typeof posthog.identify = (id, ...args) => {
         if (trackingEnabled && user?.id) {
-            posthog.identify(_id || id, ...args)
+            posthog.identify(_id !== undefined ? _id : id, ...args)
         }
     }
 
