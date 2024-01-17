@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -228,6 +229,9 @@ class Forward:
                     str(evaluator_config),
                     evaluation_keyvalue_store,
                 )
+
+        print("EKVS: ", evaluation_keyvalue_store)
+        await asyncio.sleep(2)
 
         # STEP 2:
         # Update the evaluation key-value store
