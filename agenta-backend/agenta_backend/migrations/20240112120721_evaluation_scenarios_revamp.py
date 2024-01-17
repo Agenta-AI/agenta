@@ -314,5 +314,6 @@ class Forward:
                     )
                     await new_scenario.insert(session=session)
 
+
 class Backward:
     pass

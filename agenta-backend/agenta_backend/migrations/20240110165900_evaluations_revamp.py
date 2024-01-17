@@ -183,7 +183,9 @@ class Forward:
             fetch_links=True,
         ).to_list()
         for old_eval in old_evaluations:
-            if getattr(old_eval, 'id', None) and not getattr(getattr(old_eval, 'app', None), 'id', None):
+            if getattr(old_eval, "id", None) and not getattr(
+                getattr(old_eval, "app", None), "id", None
+            ):
                 continue
             list_of_eval_configs = []
             evaluation_type = old_eval.evaluation_type
