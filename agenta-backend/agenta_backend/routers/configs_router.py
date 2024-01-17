@@ -91,23 +91,23 @@ async def get_config(
                 app_id=str(base_db.app.id)
             )
             found_variant = None
-            for app_environments in app_environments:
-                if app_environments.name == environment_name:
-                    found_variant = await db_manager.get_app_variant_instance_by_id(
-                        str(app_environments.deployed_app_variant)
+            for app_environment in app_environments:
+                if app_environment.name == environment_name:
+                    found_variant_revision = (
+                        app_environment.deployed_app_variant_revision
                     )
                     break
-            if not found_variant:
+            if not found_variant_revision:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment name {environment_name} not found for base {base_id}",
                 )
-            if str(found_variant.base.id) != base_id:
+            if str(found_variant_revision.base.id) != base_id:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment {environment_name} does not deploy base {base_id}",
                 )
-            config = found_variant.config
+            config = found_variant_revision.config
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(
                 base_db, **user_org_data
@@ -123,13 +123,15 @@ async def get_config(
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
             config = found_variant.config
-        print(config.parameters)
+        logger.debug(config.parameters)
         return GetConfigReponse(
             config_id=str(
                 0
             ),  # TODO: Remove from the model and regenerate the SDK client
             config_name=config.config_name,
-            current_version=config.current_version,
+            current_version=str(
+                0
+            ),  # TODO: remove from teh model and regenerate the SDK client
             parameters=config.parameters,
         )
     except HTTPException as e:
