@@ -1474,7 +1474,7 @@ async def update_app_variant(
         if hasattr(app_variant, key):
             setattr(app_variant, key, value)
 
-    await app_variant.update()
+    await app_variant.save()
     return app_variant
 
 
