@@ -1221,43 +1221,6 @@ async def update_variant_parameters(
         raise ValueError("Issue updating variant parameters")
 
 
-async def get_app_variant_by_app_name_and_environment(
-    app_id: str, environment: str, **kwargs: dict
-) -> Optional[AppVariantDB]:
-    """
-    Retrieve the deployed app variant for a given app and environment.
-
-    Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The name of the environment to retrieve the variant for.
-        **kwargs (dict): Additional keyword arguments to pass to the function.
-
-    Returns:
-        Optional[AppVariantDB]: The deployed app variant for the given app and environment, or None if not found.
-    """
-
-    # Construct query filters for finding the environment in the database
-    query_expressions = (
-        AppEnvironmentDB.name == environment,
-        AppEnvironmentDB.app.id == ObjectId(app_id),
-    )
-
-    # Perform the database query to find the environment
-    environment_db = await AppEnvironmentDB.find_one(query_expressions)
-
-    if not environment_db:
-        logger.info(f"Environment {environment} not found")
-        return None
-    if environment_db.deployed_app_variant is None:
-        logger.info(f"No variant deployed to environment {environment}")
-        return None
-
-    app_variant_db = await get_app_variant_instance_by_id(
-        str(environment_db.deployed_app_variant)
-    )
-    return app_variant_db
-
-
 async def get_app_variant_instance_by_id(variant_id: str):
     """Get the app variant object from the database with the provided id.
 
