@@ -167,21 +167,6 @@ class Forward:
     )
     async def migrate_old_evaluation_to_new_evaluation(self, session):
         # STEP 1:
-        # Retrieve all the apps.
-        # Generate an "exact_match" evaluator and a code evaluator for each app.
-        apps_db = await AppDB.find(fetch_links=True).to_list()
-        for app_db in apps_db:
-            eval_exact_match_config = EvaluatorConfigDB(
-                app=app_db,
-                organization=app_db.organization,
-                user=app_db.user,
-                name=f"{app_db.app_name}_exact_match_default",
-                evaluator_key="auto_exact_match",
-                settings_values={},
-            )
-            await eval_exact_match_config.insert(session=session)
-
-        # STEP 2:
         # Review the evaluations and create a unique evaluation for each one.
         old_evaluations = await OldEvaluationDB.find(
             In(
@@ -213,7 +198,7 @@ class Forward:
                     app=old_eval.app,
                     organization=old_eval.organization,
                     user=old_eval.user,
-                    name=f"{old_eval.app.app_name}_custom_code_default",
+                    name="Custom Code Run",
                     evaluator_key="auto_custom_code_run",
                     settings_values=dict({"code": custom_code.python_code}),
                 )
@@ -233,7 +218,7 @@ class Forward:
                     app=old_eval.app,
                     organization=old_eval.organization,
                     user=old_eval.user,
-                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    name="Similarity Match",
                     evaluator_key=evaluation_type,
                     settings_values=dict(
                         {
@@ -251,7 +236,7 @@ class Forward:
                     app=old_eval.app,
                     organization=old_eval.organization,
                     user=old_eval.user,
-                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    name="Regex Test",
                     evaluator_key=evaluation_type,
                     settings_values=dict(
                         {
@@ -268,7 +253,7 @@ class Forward:
                     app=old_eval.app,
                     organization=old_eval.organization,
                     user=old_eval.user,
-                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    name="Webhook Test",
                     evaluator_key=evaluation_type,
                     settings_values=dict(
                         {
@@ -285,7 +270,7 @@ class Forward:
                     app=old_eval.app,
                     organization=old_eval.organization,
                     user=old_eval.user,
-                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    name="AI Critique",
                     evaluator_key=evaluation_type,
                     settings_values=dict(
                         {
