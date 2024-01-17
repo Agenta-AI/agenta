@@ -958,10 +958,11 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
 
     if environment_db is None:
         raise ValueError(f"Environment {environment_name} not found")
-    if environment_db.deployed_app_variant == app_variant_db.id:
-        raise ValueError(
-            f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
-        )
+    # TODO: Modify below to add logic to disable redployment of the same variant revision here and in frontend
+    # if environment_db.deployed_app_variant_ == app_variant_db.id:
+    #     raise ValueError(
+    #         f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
+    #     )
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = app_variant_db.id
