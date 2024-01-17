@@ -219,7 +219,7 @@ class Forward:
     async def aggregate_new_evaluation_with_evaluation_scenario_results(self, session):
         # STEP 1:
         # Create a key-value store that saves all the evaluator configs & results for a particular evaluation id
-        # Example: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
+        # Example: {"evaluation_id": {"evaluation_config_id": {"results": [}}}
         evaluation_keyvalue_store = {}
         new_auto_evaluations = await EvaluationDB.find().to_list()
         for auto_evaluation in new_auto_evaluations:
@@ -240,13 +240,20 @@ class Forward:
         ).to_list()
         for auto_evaluation in new_auto_evaluation_scenarios:
             evaluation_id = str(auto_evaluation.evaluation.id)
-            evaluation_store = evaluation_keyvalue_store[evaluation_id]
-            configs_with_results = zip(
-                auto_evaluation.evaluators_configs, auto_evaluation.results
-            )
-            for evaluator, result in configs_with_results:
-                modify_evaluation_scenario_store(
-                    str(evaluator), result, evaluation_store
+
+            # Check if the evaluation_id exists in the key-value store
+            if evaluation_id in evaluation_keyvalue_store:
+                evaluation_store = evaluation_keyvalue_store[evaluation_id]
+                configs_with_results = zip(
+                    auto_evaluation.evaluators_configs, auto_evaluation.results
+                )
+                for evaluator, result in configs_with_results:
+                    modify_evaluation_scenario_store(
+                        str(evaluator), result, evaluation_store
+                    )
+            else:
+                print(
+                    f"Warning: Evaluation ID {evaluation_id} not found in the key-value store."
                 )
 
         # STEP 3:
