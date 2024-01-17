@@ -10,6 +10,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
     db_manager,
+    evaluator_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -265,7 +266,7 @@ async def add_variant_from_image(
             )
         app = await db_manager.fetch_app_by_id(app_id)
 
-        app_variant_db = await app_manager.add_variant_based_on_image(
+        variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id_or_template_uri=payload.docker_id,
@@ -275,6 +276,11 @@ async def add_variant_from_image(
             is_template_image=False,
             **user_org_data,
         )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+
+        logger.debug("Step 8: We create ready-to use evaluators")
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -351,9 +357,8 @@ async def create_app_and_variant_from_template(
             app_name, organization_id, **user_org_data
         )
         if app is not None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"App with name {app_name} already exists",
+            raise Exception(
+                f"App with name {app_name} already exists",
             )
 
         logger.debug("Step 4: Creating new app and initializing environments")
@@ -394,12 +399,14 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 8: Starting variant and injecting environment variables")
+        logger.debug("Step 8: We create ready-to use evaluators")
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+
+        logger.debug("Step 9: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                raise Exception(
+                    "Unable to start app container. Please file an issue by clicking on the button below.",
                 )
             envvars = {
                 **(payload.env_vars or {}),

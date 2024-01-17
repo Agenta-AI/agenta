@@ -1,16 +1,18 @@
-from agenta_backend.utils.common import engine
-from agenta_backend.services.db_manager import query
-from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB
-from agenta_backend.services import evaluation_service
+from agenta_backend.models.db_models import (
+    HumanEvaluationDB,
+    EvaluationScenarioDB,
+    HumanEvaluationScenarioDB,
+)
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
-from bson import ObjectId
+
+from beanie import PydanticObjectId as ObjectId
 
 
-async def fetch_results_for_evaluation(evaluation: EvaluationDB):
-    evaluation_scenarios = await engine.find(
-        EvaluationScenarioDB, EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
-    )
+async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
+    evaluation_scenarios = await HumanEvaluationScenarioDB.find(
+        HumanEvaluationScenarioDB.evaluation.id == evaluation.id,
+    ).to_list()
 
     results = {}
     if len(evaluation_scenarios) == 0:
@@ -28,24 +30,7 @@ async def fetch_results_for_evaluation(evaluation: EvaluationDB):
         results.update(
             await _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios)
         )
-    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["correct", "wrong"]
-            )
-        )
-    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["true", "false"]
-            )
-        )
-    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["correct", "wrong"]
-            )
-        )
+
     return results
 
 
@@ -85,23 +70,21 @@ async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: 
     return results
 
 
-async def fetch_results_for_auto_ai_critique(evaluation_id: str):
-    pipeline = [
-        {"$match": {"evaluations": ObjectId(evaluation_id)}},
-        {"$group": {"_id": "$score", "count": {"$sum": 1}}},
-    ]
-
-    results = {}
-    collection = engine.get_collection(EvaluationScenarioDB)
-    aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
-    for doc in aggregation_cursor:
-        results[doc["_id"]] = doc["count"]
-    return results
+async def fetch_results_for_single_model_test(evaluation_id: str):
+    results = await HumanEvaluationScenarioDB.find(
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id)
+    ).to_list()
+    scores_and_counts = {}
+    for result in results:
+        score = result.score
+        scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
+    return scores_and_counts
 
 
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    query_exp = EvaluationScenarioDB.evaluation == ObjectId(evaluation_id)
-    eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
+    eval_scenarios = await EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id)
+    ).to_list()
 
     list_of_scores = []
     for scenario in eval_scenarios:

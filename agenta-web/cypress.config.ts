@@ -19,6 +19,7 @@ export default defineConfig({
                 },
             })
         },
+        experimentalStudio: true,
     },
     env: {
         baseApiURL: "http://localhost/api",

@@ -1,12 +1,16 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
+from agenta_backend import celery_config
 from agenta_backend.routers import (
     app_router,
     container_router,
     environment_router,
     evaluation_router,
+    human_evaluation_router,
+    evaluators_router,
     observability_router,
     organization_router,
     testset_router,
@@ -16,6 +20,7 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
+from agenta_backend.models.db_engine import DBEngine
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services import templates_manager
@@ -25,12 +30,18 @@ else:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from celery import Celery
+
+
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://0.0.0.0:3000",
     "http://0.0.0.0:3001",
 ]
+
+celery_app = Celery("agenta_app")
+celery_app.config_from_object(celery_config)
 
 
 @asynccontextmanager
@@ -41,6 +52,8 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
+    # initialize the database
+    await DBEngine().init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
 
@@ -72,6 +85,8 @@ app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
 app.include_router(variants_router.router, prefix="/variants")
 app.include_router(evaluation_router.router, prefix="/evaluations")
+app.include_router(human_evaluation_router.router, prefix="/human-evaluations")
+app.include_router(evaluators_router.router, prefix="/evaluators")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")

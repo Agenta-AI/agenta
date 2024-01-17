@@ -31,11 +31,12 @@ describe("App Navigation without errors", () => {
     it("should navigate successfully to Evaluations", () => {
         cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         cy.location("pathname").should("include", "/evaluations")
-        cy.get('[data-cy="evaluations-container"]').within(() => {
-            cy.contains("1. Select an evaluation type")
-            cy.contains("2. Which variants would you like to evaluate")
-            cy.contains("3. Which testset you want to use?")
-        })
+        //TOOD add more assertions specific to the new evaluations page
+    })
+
+    it("should navigate successfully to Annotations", () => {
+        cy.clickLinkAndWait('[data-cy="app-annotations-link"]')
+        cy.location("pathname").should("include", "/annotations")
     })
 
     if (isDemo()) {
