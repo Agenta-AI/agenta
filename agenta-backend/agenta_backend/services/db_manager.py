@@ -1009,7 +1009,7 @@ async def list_environments_by_variant(
     """
 
     environments_db = await AppEnvironmentDB.find(
-        AppEnvironmentDB.app == app_variant.app.id, fetch_links=True
+        AppEnvironmentDB.app.id == app_variant.app.id, fetch_links=True
     ).to_list()
     return environments_db
 
