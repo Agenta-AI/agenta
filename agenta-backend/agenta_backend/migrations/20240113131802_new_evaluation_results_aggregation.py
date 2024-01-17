@@ -117,6 +117,26 @@ class EvaluationScenarioDB(Document):
 
 
 def prepare_evaluation_keyvalue_store(
+    evaluation_id: str, evaluation_keyvalue_store: Dict
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Construct a key-value store to saves results based on a evaluator config in an evaluation
+
+    Args:
+        evaluation_id (str): ID of evaluation
+        evaluation_keyvalue_store (Dict): evaluation keyvalue store
+
+    Returns:
+        Dict[str, Dict[str, Any]]: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
+    """
+
+    if evaluation_id not in evaluation_keyvalue_store:
+        evaluation_keyvalue_store[evaluation_id] = {}
+
+    return evaluation_keyvalue_store
+
+
+def prepare_evaluator_keyvalue_store(
     evaluation_id: str, evaluator_id: str, evaluation_keyvalue_store: Dict
 ) -> Dict[str, Dict[str, Any]]:
     """
@@ -130,9 +150,6 @@ def prepare_evaluation_keyvalue_store(
     Returns:
         Dict[str, Dict[str, Any]]: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
     """
-
-    if evaluation_id not in evaluation_keyvalue_store:
-        evaluation_keyvalue_store[evaluation_id] = {}
 
     if evaluator_id not in evaluation_keyvalue_store[evaluation_id]:
         evaluation_keyvalue_store[evaluation_id][evaluator_id] = {"results": []}
@@ -222,14 +239,21 @@ class Forward:
         # Example: {"evaluation_id": {"evaluation_config_id": {"results": [}}}
         evaluation_keyvalue_store = {}
         new_auto_evaluations = await EvaluationDB.find().to_list()
+        print("### len new_auto_evaluations", len(new_auto_evaluations))
+
         for auto_evaluation in new_auto_evaluations:
+            evaluation_keyvalue_store = prepare_evaluation_keyvalue_store(
+                str(auto_evaluation.id),
+                evaluation_keyvalue_store,
+            )
             for evaluator_config in auto_evaluation.evaluators_configs:
-                evaluation_keyvalue_store = prepare_evaluation_keyvalue_store(
+                evaluation_keyvalue_store = prepare_evaluator_keyvalue_store(
                     str(auto_evaluation.id),
                     str(evaluator_config),
                     evaluation_keyvalue_store,
                 )
 
+        print("### len evaluation_keyvalue_store", len(evaluation_keyvalue_store))
         print("EKVS: ", evaluation_keyvalue_store)
         await asyncio.sleep(2)
 
