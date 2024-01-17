@@ -106,6 +106,10 @@ export interface EvaluationResult {
             number_of_votes: number
             percentage: number
         }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
         variants: string[]
         variant_names: string[]
         variants_votes_data: {
