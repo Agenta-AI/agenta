@@ -10,6 +10,8 @@ import Layout from "@/components/Layout/Layout"
 import ThemeContextProvider from "@/components/Layout/ThemeContextProvider"
 import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-alpine.css"
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {

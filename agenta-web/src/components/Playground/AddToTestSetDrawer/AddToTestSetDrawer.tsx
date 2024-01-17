@@ -147,7 +147,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                     row.chat = JSON.stringify(
                         row.chat.map((item: ChatMessage) => removeKeys(item, ["id"])),
                     )
-                    row.correct_answer = JSON.stringify(removeKeys(row.correct_answer, ["id"]))
+                    row.correct_answer = row.correct_answer?.content || ""
                 }
 
                 setLoading(true)
@@ -330,6 +330,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                                     }}
                                     disableAdd
                                     disableRemove
+                                    disableEditRole
                                 />
                             </div>
 
@@ -363,6 +364,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                                 }}
                                 disableAdd
                                 disableRemove
+                                disableEditRole
                             />
                         </div>
                     </div>
