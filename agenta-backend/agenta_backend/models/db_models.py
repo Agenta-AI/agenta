@@ -159,6 +159,7 @@ class AppEnvironmentDB(Document):
     user: Link[UserDB]
     organization: Link[OrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
