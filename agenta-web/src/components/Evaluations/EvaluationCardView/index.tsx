@@ -26,7 +26,7 @@ import {useVariants} from "@/lib/hooks/useVariant"
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
     "#F6D167", //"#13c2c2",
-    "#4caf50"
+    "#4caf50",
 ]
 
 const useStyles = createUseStyles({
