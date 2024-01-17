@@ -192,8 +192,8 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
-async def fetch_app_variant_revision_by_variant_and_revision(
-    app_variant_id: str, revision: int
+async def fetch_app_variant_revision_by_variant(
+    app_variant_id: str, revision: int = None
 ) -> AppVariantRevisionsDB:
     """Fetches app variant revision by variant id and revision
 
@@ -205,11 +205,16 @@ async def fetch_app_variant_revision_by_variant_and_revision(
         AppVariantRevisionDB
     """
     assert app_variant_id is not None, "app_variant_id cannot be None"
-    assert revision is not None, "revision cannot be None"
-    app_variant_revision = await AppVariantRevisionsDB.find_one(
-        AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
-        AppVariantRevisionsDB.revision == revision,
-    )
+    if revision:
+        app_variant_revision = await AppVariantRevisionsDB.find_one(
+            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+            AppVariantRevisionsDB.revision == revision,
+        )
+    else:
+        app_variant_revision = await AppVariantRevisionsDB.find(
+            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+            fetch_links=True,
+        ).to_list()
     if app_variant_revision is None:
         raise Exception(
             f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
@@ -944,8 +949,8 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
         None
     """
     app_variant_db = await fetch_app_variant_by_id(variant_id)
-    app_variant_revision_db = await fetch_app_variant_revision_by_variant_and_revision(
-        variant_id, app_variant_db.revision
+    app_variant_revision_db = await fetch_app_variant_revision_by_variant(
+        app_variant_id=variant_id, revision=app_variant_db.revision
     )
     if app_variant_db is None:
         raise ValueError("App variant not found")

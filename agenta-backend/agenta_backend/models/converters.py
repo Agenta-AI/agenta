@@ -6,6 +6,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    AppVariantRevisionsDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
     HumanEvaluationDB,
@@ -26,6 +27,8 @@ from agenta_backend.models.db_models import (
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
+    AppVariantRevision,
+    AppVariantOutputExtended,
     ImageExtended,
     Template,
     TemplateImageInfo,
@@ -227,6 +230,47 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
         uri=uri,
+    )
+
+
+async def app_variant_db_and_revision_to_extended_output(
+    app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
+) -> AppVariantOutput:
+    if app_variant_db.base.deployment:
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        uri = deployment.uri
+    else:
+        deployment = None
+        uri = None
+
+    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+    app_variant_revisions = []
+    for app_variant_revision_db in app_variant_revisions_db:
+        app_variant_revisions.append(
+            AppVariantRevision(
+                revision=app_variant_revision_db.revision,
+                modified_by=app_variant_revision_db.modified_by.username,
+                config=app_variant_revision_db.config,
+                created_at=app_variant_revision_db.created_at,
+            )
+        )
+    return AppVariantOutputExtended(
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
+        variant_name=app_variant_db.variant_name,
+        variant_id=str(app_variant_db.id),
+        user_id=str(app_variant_db.user.id),
+        organization_id=str(app_variant_db.organization.id),
+        parameters=app_variant_db.config.parameters,
+        previous_variant_name=app_variant_db.previous_variant_name,
+        base_name=app_variant_db.base_name,
+        base_id=str(app_variant_db.base.id),
+        config_name=app_variant_db.config_name,
+        uri=uri,
+        revision=app_variant_db.revision,
+        revisions=app_variant_revisions,
     )
 
 
