@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from beanie.operators import In
 from pydantic import BaseModel, Field
 from beanie import free_fall_migration, Document, Link, PydanticObjectId
 
@@ -150,26 +151,7 @@ class OldCustomEvaluationDB(Document):
         name = "custom_evaluations"
 
 
-def modify_app_id_store(
-    app_id: str,
-    variant_ids: str,
-    evaluation_type: str,
-    app_keyvalue_store: Dict[str, Dict[str, List[str]]],
-):
-    app_id_store = app_keyvalue_store.get(app_id, None)
-    if not app_id_store:
-        app_keyvalue_store[app_id] = {"variant_ids": [], "evaluation_types": []}
-        app_id_store = app_keyvalue_store[app_id]
-
-    app_id_store_variant_ids = list(app_id_store["variant_ids"])
-    if variant_ids not in app_id_store_variant_ids:
-        app_id_store_variant_ids.extend(variant_ids)
-        app_id_store["variant_ids"] = list(set(app_id_store_variant_ids))
-
-    app_id_store_evaluation_types = list(app_id_store["evaluation_types"])
-    if evaluation_type not in app_id_store_evaluation_types:
-        app_id_store_evaluation_types.append(evaluation_type)
-        app_id_store["evaluation_types"] = list(set(app_id_store_evaluation_types))
+PYTHON_CODE = "import random \nfrom typing import Dict \n\n\ndef evaluate(\n    app_params: Dict[str, str], \n    inputs: Dict[str, str], \n    output: str, correct_answer: str \n) -> float: \n    return random.uniform(0.1, 0.9)"
 
 
 class Forward:
@@ -188,171 +170,174 @@ class Forward:
     )
     async def migrate_old_evaluation_to_new_evaluation(self, session):
         # STEP 1:
-        # Create a key-value store that saves all the variants & evaluation types for a particular app id
-        # Example: {"app_id": {"evaluation_types": ["string", "string"], "variant_ids": ["string", "string"]}}
-        app_keyvalue_store = {}
-        old_evaluations = await OldEvaluationDB.find(fetch_links=True).to_list()
-        for old_eval in old_evaluations:
-            app_id = old_eval.app.id
-            variant_ids = [str(variant_id) for variant_id in old_eval.variants]
-            evaluation_type = old_eval.evaluation_type
-            modify_app_id_store(
-                str(app_id), variant_ids, evaluation_type, app_keyvalue_store
+        # Retrieve all the apps.
+        # Generate an "exact_match" evaluator and a code evaluator for each app.
+        apps_db = await AppDB.find(fetch_links=True).to_list()
+        for app_db in apps_db:
+            eval_exact_match_config = EvaluatorConfigDB(
+                app=app_db,
+                organization=app_db.organization,
+                user=app_db.user,
+                name=f"{app_db.app_name}_exact_match_default",
+                evaluator_key="auto_exact_match",
+                settings_values={},
             )
+            await eval_exact_match_config.insert(session=session)
+            eval_custom_code_config = EvaluatorConfigDB(
+                app=app_db,
+                organization=app_db.organization,
+                user=app_db.user,
+                name=f"{app_db.app_name}_custom_code_default",
+                evaluator_key="auto_custom_code_run",
+                settings_values=dict({"code": PYTHON_CODE}),
+            )
+            await eval_custom_code_config.insert(session=session)
 
         # STEP 2:
-        # Loop through the app_id key-store to create evaluator configs
-        # based on the evaluation types available
-        for app_id, app_id_store in app_keyvalue_store.items():
-            app_evaluator_configs: List[EvaluatorConfigDB] = []
-            app_db = await AppDB.find_one(AppDB.id == PydanticObjectId(app_id))
-            for evaluation_type in app_id_store[
-                "evaluation_types"
-            ]:  # the values in this case are the evaluation type
-                custom_code_evaluations = await OldCustomEvaluationDB.find(
-                    OldCustomEvaluationDB.app == PydanticObjectId(app_id)
-                ).to_list()
-                if evaluation_type == "custom_code_run":
-                    for custom_code_evaluation in custom_code_evaluations:
-                        eval_config = EvaluatorConfigDB(
-                            app=app_db,
-                            organization=app_db.organization,
-                            user=app_db.user,
-                            name=f"{app_db.app_name}_{evaluation_type}",
-                            evaluator_key=f"auto_{evaluation_type}",
-                            settings_values=dict(
-                                {"code": custom_code_evaluation.python_code}
-                            ),
-                        )
-                        await eval_config.insert(session=session)
-                        app_evaluator_configs.append(eval_config)
+        # Review the evaluations and create a unique evaluation for each one.
+        old_evaluations = await OldEvaluationDB.find(
+            In(
+                OldEvaluationDB.evaluation_type,
+                [
+                    "auto_exact_match",
+                    "auto_similarity_match",
+                    "auto_regex_test",
+                    "auto_ai_critique",
+                    "custom_code_run",
+                    "auto_webhook_test",
+                ],
+            ),
+            fetch_links=True,
+        ).to_list()
+        for old_eval in old_evaluations:
+            list_of_eval_configs = []
+            evaluation_type = old_eval.evaluation_type
+            # Use the created evaluator if the evaluation uses "exact_match" or a code evaluator.
+            # Otherwise, create a new evaluator.
+            if evaluation_type == "custom_code_run":
+                eval_config = await EvaluatorConfigDB.find_one(
+                    EvaluatorConfigDB.app.id == old_eval.app.id,
+                    EvaluatorConfigDB.evaluator_key == "auto_custom_code_run",
+                )
+                if eval_config is not None:
+                    list_of_eval_configs.append(eval_config.id)
 
-                if evaluation_type == "auto_similarity_match":
-                    eval_config = EvaluatorConfigDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        name=f"{app_db.app_name}_{evaluation_type}",
-                        evaluator_key=evaluation_type,
-                        settings_values=dict(
-                            {
-                                "similarity_threshold": float(
-                                    old_eval.evaluation_type_settings.similarity_threshold
-                                )
-                            }
-                        ),
-                    )
-                    await eval_config.insert(session=session)
-                    app_evaluator_configs.append(eval_config)
+            if evaluation_type == "auto_exact_match":
+                eval_config = await EvaluatorConfigDB.find_one(
+                    EvaluatorConfigDB.app.id == old_eval.app.id,
+                    EvaluatorConfigDB.evaluator_key == "auto_exact_match",
+                )
+                if eval_config is not None:
+                    list_of_eval_configs.append(eval_config.id)
 
-                if evaluation_type == "auto_exact_match":
-                    eval_config = EvaluatorConfigDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        name=f"{app_db.app_name}_{evaluation_type}",
-                        evaluator_key=evaluation_type,
-                        settings_values={},
-                    )
-                    await eval_config.insert(session=session)
-                    app_evaluator_configs.append(eval_config)
+            if evaluation_type == "auto_similarity_match":
+                eval_config = EvaluatorConfigDB(
+                    app=old_eval.app,
+                    organization=old_eval.organization,
+                    user=old_eval.user,
+                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    evaluator_key=evaluation_type,
+                    settings_values=dict(
+                        {
+                            "similarity_threshold": float(
+                                old_eval.evaluation_type_settings.similarity_threshold
+                            )
+                        }
+                    ),
+                )
+                await eval_config.insert(session=session)
+                list_of_eval_configs.append(eval_config.id)
 
-                if evaluation_type == "auto_regex_test":
-                    eval_config = EvaluatorConfigDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        name=f"{app_db.app_name}_{evaluation_type}",
-                        evaluator_key=evaluation_type,
-                        settings_values=dict(
-                            {
-                                "regex_pattern": old_eval.evaluation_type_settings.regex_pattern,
-                                "regex_should_match": old_eval.evaluation_type_settings.regex_should_match,
-                            }
-                        ),
-                    )
-                    await eval_config.insert(session=session)
-                    app_evaluator_configs.append(eval_config)
+            if evaluation_type == "auto_regex_test":
+                eval_config = EvaluatorConfigDB(
+                    app=old_eval.app,
+                    organization=old_eval.organization,
+                    user=old_eval.user,
+                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    evaluator_key=evaluation_type,
+                    settings_values=dict(
+                        {
+                            "regex_pattern": old_eval.evaluation_type_settings.regex_pattern,
+                            "regex_should_match": old_eval.evaluation_type_settings.regex_should_match,
+                        }
+                    ),
+                )
+                await eval_config.insert(session=session)
+                list_of_eval_configs.append(eval_config.id)
 
-                if evaluation_type == "auto_webhook_test":
-                    eval_config = EvaluatorConfigDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        name=f"{app_db.app_name}_{evaluation_type}",
-                        evaluator_key=evaluation_type,
-                        settings_values=dict(
-                            {
-                                "webhook_url": old_eval.evaluation_type_settings.webhook_url,
-                                "webhook_body": {},
-                            }
-                        ),
-                    )
-                    await eval_config.insert(session=session)
-                    app_evaluator_configs.append(eval_config)
+            if evaluation_type == "auto_webhook_test":
+                eval_config = EvaluatorConfigDB(
+                    app=old_eval.app,
+                    organization=old_eval.organization,
+                    user=old_eval.user,
+                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    evaluator_key=evaluation_type,
+                    settings_values=dict(
+                        {
+                            "webhook_url": old_eval.evaluation_type_settings.webhook_url,
+                            "webhook_body": {},
+                        }
+                    ),
+                )
+                await eval_config.insert(session=session)
+                list_of_eval_configs.append(eval_config.id)
 
-                if evaluation_type == "auto_ai_critique":
-                    eval_config = EvaluatorConfigDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        name=f"{app_db.app_name}_{evaluation_type}",
-                        evaluator_key=evaluation_type,
-                        settings_values=dict(
-                            {
-                                "prompt_template": old_eval.evaluation_type_settings.evaluation_prompt_template
-                            }
-                        ),
-                    )
-                    await eval_config.insert(session=session)
-                    app_evaluator_configs.append(eval_config)
+            if evaluation_type == "auto_ai_critique":
+                eval_config = EvaluatorConfigDB(
+                    app=old_eval.app,
+                    organization=old_eval.organization,
+                    user=old_eval.user,
+                    name=f"{old_eval.app.app_name}_{evaluation_type}",
+                    evaluator_key=evaluation_type,
+                    settings_values=dict(
+                        {
+                            "prompt_template": old_eval.evaluation_type_settings.evaluation_prompt_template
+                        }
+                    ),
+                )
+                await eval_config.insert(session=session)
+                list_of_eval_configs.append(eval_config.id)
 
-            # STEP 3:
-            # Retrieve evaluator configs for app id
-            auto_evaluator_configs: List[PydanticObjectId] = []
-            for evaluator_config in app_evaluator_configs:
-                # In the case where the evaluator key is not a human evaluator,
-                # Append the evaluator config id in the list of auto evaluator configs
-                if evaluator_config.evaluator_key not in [
+            new_eval = EvaluationDB(
+                id=old_eval.id,
+                app=old_eval.app,
+                organization=old_eval.organization,
+                user=old_eval.user,
+                status=old_eval.status,
+                testset=old_eval.testset,
+                variant=PydanticObjectId(old_eval.variants[0]),
+                evaluators_configs=list_of_eval_configs,
+                aggregated_results=[],
+                created_at=old_eval.created_at,
+            )
+            await new_eval.insert(session=session)
+
+        # STEP 3:
+        # Create the human evaluation
+        old_human_evaluations = await OldEvaluationDB.find(
+            In(
+                OldEvaluationDB.evaluation_type,
+                [
                     "human_a_b_testing",
                     "single_model_test",
-                ]:
-                    auto_evaluator_configs.append(evaluator_config.id)
-
-            # STEP 4:
-            # Proceed to create a single evaluation for every variant in the app_id_store
-            # with the auto_evaluator_configs
-            if auto_evaluator_configs is not None:
-                for variant in app_id_store["variant_ids"]:
-                    new_eval = EvaluationDB(
-                        app=app_db,
-                        organization=app_db.organization,
-                        user=app_db.user,
-                        status=old_eval.status,
-                        testset=old_eval.testset,
-                        variant=PydanticObjectId(variant),
-                        evaluators_configs=auto_evaluator_configs,
-                        aggregated_results=[],
-                    )
-                    await new_eval.insert(session=session)
-
-        # STEP 5:
-        # Create the human evaluation
-        for old_evaluation in old_evaluations:
-            if old_evaluation.evaluation_type in [
-                "human_a_b_testing",
-                "single_model_test",
-            ]:
-                new_eval = HumanEvaluationDB(
-                    app=old_evaluation.app,
-                    organization=old_evaluation.organization,
-                    user=old_evaluation.user,
-                    status=old_evaluation.status,
-                    evaluation_type=old_evaluation.evaluation_type,
-                    variants=old_evaluation.variants,
-                    testset=old_evaluation.testset,
-                )
-                await new_eval.insert(session=session)
+                ],
+            ),
+            fetch_links=True,
+        ).to_list()
+        for old_evaluation in old_human_evaluations:
+            new_eval = HumanEvaluationDB(
+                id=old_evaluation.id,
+                app=old_evaluation.app,
+                organization=old_evaluation.organization,
+                user=old_evaluation.user,
+                status=old_evaluation.status,
+                evaluation_type=old_evaluation.evaluation_type,
+                variants=old_evaluation.variants,
+                testset=old_evaluation.testset,
+                created_at=old_evaluation.created_at,
+                updated_at=old_evaluation.updated_at,
+            )
+            await new_eval.insert(session=session)
 
 
 class Backward:
