@@ -149,6 +149,9 @@ class AppVariantRevisionsDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
+    class Settings:
+        name = "app_variant_revisions"
+
 
 class AppEnvironmentDB(Document):
     app: Link[AppDB]
