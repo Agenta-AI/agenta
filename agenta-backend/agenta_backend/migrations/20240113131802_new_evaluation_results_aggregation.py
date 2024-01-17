@@ -254,7 +254,6 @@ class Forward:
                 )
 
         print("### len evaluation_keyvalue_store", len(evaluation_keyvalue_store))
-        print("EKVS: ", evaluation_keyvalue_store)
         await asyncio.sleep(2)
 
         # STEP 2:
