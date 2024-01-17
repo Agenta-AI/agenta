@@ -229,42 +229,6 @@ class OldEvaluationScenarioDB(Document):
         name = "evaluation_scenarios"
 
 
-class OldCustomEvaluationDB(Document):
-    evaluation_name: str
-    python_code: str
-    version: str = Field("odmantic")
-    app: Link[AppDB]
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "custom_evaluations"
-
-
-def modify_app_id_store(
-    app_id: str,
-    variant_ids: str,
-    evaluation_type: str,
-    app_keyvalue_store: Dict[str, Dict[str, List[str]]],
-):
-    app_id_store = app_keyvalue_store.get(app_id, None)
-    if not app_id_store:
-        app_keyvalue_store[app_id] = {"variant_ids": [], "evaluation_types": []}
-        app_id_store = app_keyvalue_store[app_id]
-
-    app_id_store_variant_ids = list(app_id_store["variant_ids"])
-    if variant_ids not in list(app_id_store["variant_ids"]):
-        app_id_store_variant_ids.extend(variant_ids)
-        app_id_store["variant_ids"] = list(set(app_id_store_variant_ids))
-
-    app_id_store_evaluation_types = list(app_id_store["evaluation_types"])
-    if evaluation_type not in app_id_store_evaluation_types:
-        app_id_store_evaluation_types.append(evaluation_type)
-        app_id_store["evaluation_types"] = list(set(app_id_store_evaluation_types))
-
-
 class Forward:
     @free_fall_migration(
         document_models=[
@@ -283,6 +247,9 @@ class Forward:
     async def migrate_old_auto_evaluation_scenario_to_new_auto_evaluation_scenario(
         self, session
     ):
+        new_evaluations = await EvaluationDB.find(
+            fetch_links=True,
+        ).to_list()
         old_auto_scenarios = await OldEvaluationScenarioDB.find(
             In(
                 OldEvaluationScenarioDB.evaluation.evaluation_type,
@@ -291,63 +258,60 @@ class Forward:
                     "auto_similarity_match",
                     "auto_regex_test",
                     "auto_ai_critique",
-                    "auto_custom_code_run",
+                    "custom_code_run",
                     "auto_webhook_test",
                 ],
             ),
             fetch_links=True,
         ).to_list()
-        for old_scenario in old_auto_scenarios:
-            matching_evaluation = await EvaluationDB.find_one(
-                EvaluationDB.app.id == old_scenario.evaluation.app.id,
-                fetch_links=True,
-            )
-            if matching_evaluation:
-                results = [
-                    EvaluationScenarioResult(
-                        evaluator_config=PydanticObjectId(evaluator_config),
-                        result=Result(
-                            type="number"
-                            if isinstance(old_scenario.score, int)
-                            else "number"
-                            if isinstance(old_scenario.score, float)
-                            else "string"
-                            if isinstance(old_scenario.score, str)
-                            else "boolean"
-                            if isinstance(old_scenario.score, bool)
-                            else "any",
-                            value=old_scenario.score,
-                        ),
+        for new_evaluation in new_evaluations:
+            for old_scenario in old_auto_scenarios:
+                if new_evaluation.id == old_scenario.evaluation.id:
+                    results = [
+                        EvaluationScenarioResult(
+                            evaluator_config=PydanticObjectId(evaluator_config),
+                            result=Result(
+                                type="number"
+                                if isinstance(old_scenario.score, int)
+                                else "number"
+                                if isinstance(old_scenario.score, float)
+                                else "string"
+                                if isinstance(old_scenario.score, str)
+                                else "boolean"
+                                if isinstance(old_scenario.score, bool)
+                                else "any",
+                                value=old_scenario.score,
+                            ),
+                        )
+                        for evaluator_config in new_evaluation.evaluators_configs
+                    ]
+                    new_scenario = EvaluationScenarioDB(
+                        user=new_evaluation.user,
+                        organization=new_evaluation.organization,
+                        evaluation=new_evaluation,
+                        variant_id=old_scenario.evaluation.variants[0],
+                        inputs=[
+                            EvaluationScenarioInputDB(
+                                name=input.input_name,
+                                type=type(input.input_value).__name__,
+                                value=input.input_value,
+                            )
+                            for input in old_scenario.inputs
+                        ],
+                        outputs=[
+                            EvaluationScenarioOutputDB(
+                                type=type(output.variant_output).__name__,
+                                value=output.variant_output,
+                            )
+                            for output in old_scenario.outputs
+                        ],
+                        correct_answer=old_scenario.correct_answer,
+                        is_pinned=old_scenario.is_pinned,
+                        note=old_scenario.note,
+                        evaluators_configs=new_evaluation.evaluators_configs,
+                        results=results,
                     )
-                    for evaluator_config in matching_evaluation.evaluators_configs
-                ]
-                new_scenario = EvaluationScenarioDB(
-                    user=matching_evaluation.user,
-                    organization=matching_evaluation.organization,
-                    evaluation=matching_evaluation,
-                    variant_id=old_scenario.evaluation.variants[0],
-                    inputs=[
-                        EvaluationScenarioInputDB(
-                            name=input.input_name,
-                            type=type(input.input_value).__name__,
-                            value=input.input_value,
-                        )
-                        for input in old_scenario.inputs
-                    ],
-                    outputs=[
-                        EvaluationScenarioOutputDB(
-                            type=type(output.variant_output).__name__,
-                            value=output.variant_output,
-                        )
-                        for output in old_scenario.outputs
-                    ],
-                    correct_answer=old_scenario.correct_answer,
-                    is_pinned=old_scenario.is_pinned,
-                    note=old_scenario.note,
-                    evaluators_configs=matching_evaluation.evaluators_configs,
-                    results=results,
-                )
-                await new_scenario.insert(session=session)
+                    await new_scenario.insert(session=session)
 
     @free_fall_migration(
         document_models=[

@@ -151,7 +151,7 @@ class OldCustomEvaluationDB(Document):
         name = "custom_evaluations"
 
 
-PYTHON_CODE = "import random from typing import Dict def evaluate( app_params: Dict[str, str], inputs: Dict[str, str], output: str, correct_answer: str ) -> float: return random.uniform(0.1, 0.9)"
+PYTHON_CODE = "import random \nfrom typing import Dict \n\n\ndef evaluate(\n    app_params: Dict[str, str], \n    inputs: Dict[str, str], \n    output: str, correct_answer: str \n) -> float: \n    return random.uniform(0.1, 0.9)"
 
 
 class Forward:
@@ -203,7 +203,7 @@ class Forward:
                     "auto_similarity_match",
                     "auto_regex_test",
                     "auto_ai_critique",
-                    "auto_custom_code_run",
+                    "custom_code_run",
                     "auto_webhook_test",
                 ],
             ),
@@ -219,14 +219,16 @@ class Forward:
                     EvaluatorConfigDB.app.id == old_eval.app.id,
                     EvaluatorConfigDB.evaluator_key == "auto_custom_code_run",
                 )
-                list_of_eval_configs.append(eval_config.id)
+                if eval_config is not None:
+                    list_of_eval_configs.append(eval_config.id)
 
             if evaluation_type == "auto_exact_match":
                 eval_config = await EvaluatorConfigDB.find_one(
                     EvaluatorConfigDB.app.id == old_eval.app.id,
                     EvaluatorConfigDB.evaluator_key == "auto_exact_match",
                 )
-                list_of_eval_configs.append(eval_config.id)
+                if eval_config is not None:
+                    list_of_eval_configs.append(eval_config.id)
 
             if evaluation_type == "auto_similarity_match":
                 eval_config = EvaluatorConfigDB(
@@ -278,7 +280,7 @@ class Forward:
                     ),
                 )
                 await eval_config.insert(session=session)
-                list_of_eval_configs.append(eval_config)
+                list_of_eval_configs.append(eval_config.id)
 
             if evaluation_type == "auto_ai_critique":
                 eval_config = EvaluatorConfigDB(
@@ -294,7 +296,7 @@ class Forward:
                     ),
                 )
                 await eval_config.insert(session=session)
-                list_of_eval_configs.append(eval_config)
+                list_of_eval_configs.append(eval_config.id)
 
             new_eval = EvaluationDB(
                 id=old_eval.id,
