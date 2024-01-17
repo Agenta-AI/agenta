@@ -210,10 +210,10 @@ class Forward:
                     )
                 )
                 eval_config = EvaluatorConfigDB(
-                    app=app_db,
-                    organization=app_db.organization,
-                    user=app_db.user,
-                    name=f"{app_db.app_name}_custom_code_default",
+                    app=old_eval.app,
+                    organization=old_eval.organization,
+                    user=old_eval.user,
+                    name=f"{old_eval.app.app_name}_custom_code_default",
                     evaluator_key="auto_custom_code_run",
                     settings_values=dict({"code": custom_code.python_code}),
                 )
