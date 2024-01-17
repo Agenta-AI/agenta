@@ -261,6 +261,7 @@ export interface Environment {
     app_id: string
     deployed_app_variant_id: string | null
     deployed_variant_name: string | null
+    deployed_app_variant_revision_id: string | null
 }
 
 export interface CustomEvaluation {
