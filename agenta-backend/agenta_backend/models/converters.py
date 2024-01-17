@@ -239,11 +239,14 @@ async def environment_db_to_output(
         else None
     )
     if deployed_app_variant_id:
-        deployed_variant_name = (
-            await db_manager.get_app_variant_instance_by_id(deployed_app_variant_id)
-        ).variant_name
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+        revision = deployed_app_variant.revision
     else:
         deployed_variant_name = None
+        revision = None
 
     return EnvironmentOutput(
         name=environment_db.name,
@@ -253,6 +256,7 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision
         ),
+        revision=str(revision),
     )
 
 
