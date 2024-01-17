@@ -3,6 +3,7 @@ import {Button, ConfigProvider, InputNumber, Spin, Typography, theme} from "antd
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
+import {v4 as uuidv4} from "uuid"
 
 const useStyles = createUseStyles({
     root: {
@@ -76,6 +77,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
     const classes = useStyles()
     const {token} = theme.useToken()
     const badId = "0"
+    const goodId = "1"
 
     const getOnClick = (variantId: string) => () => {
         onChange(variantId)
@@ -111,6 +113,18 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
             >
                 Both are bad
             </Button>
+
+            <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[2]}}}>
+                <Button
+                    danger
+                    type={value === goodId ? "primary" : undefined}
+                    key={goodId}
+                    onClick={getOnClick(goodId)}
+                    data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"
+                >
+                    Both are good
+                </Button>
+            </ConfigProvider>
         </div>
     )
 }
