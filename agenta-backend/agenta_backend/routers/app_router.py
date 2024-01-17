@@ -96,54 +96,6 @@ async def list_app_variants(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get(
-    "/get_variant_by_env/",
-    response_model=AppVariantOutput,
-    operation_id="get_variant_by_env",
-)
-async def get_variant_by_env(
-    app_id: str,
-    environment: str,
-    request: Request,
-):
-    """
-    Retrieve the app variant based on the provided app_id and environment.
-
-    Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The environment of the app variant to retrieve.
-        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
-
-    Raises:
-        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
-
-    Returns:
-        AppVariantOutput: The retrieved app variant.
-    """
-    try:
-        # Retrieve the user and organization ID based on the session token
-        user_org_data = await get_user_and_org_id(request.state.user_id)
-        await check_access_to_app(user_org_data, app_id=app_id)
-
-        # Fetch the app variant using the provided app_id and environment
-        app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
-            app_id=app_id, environment=environment, **user_org_data
-        )
-
-        # Check if the fetched app variant is None and raise exception if it is
-        if app_variant_db is None:
-            raise HTTPException(status_code=500, detail="App Variant not found")
-        return await converters.app_variant_db_to_output(app_variant_db)
-    except ValueError as e:
-        # Handle ValueErrors and return 400 status code
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        # Handle all other exceptions and return 500 status code
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/", response_model=CreateAppOutput, operation_id="create_app")
 async def create_app(
     payload: CreateApp,
