@@ -1,6 +1,7 @@
 import asyncio
 from pymongo import MongoClient
 
+
 async def drop_and_restore_collections(session=None):
     print("dropping and restoring collections")
     client = MongoClient("mongodb://username:password@mongo")
@@ -21,9 +22,11 @@ async def drop_and_restore_collections(session=None):
 
     client.close()
 
+
 # Main entry point for the script
 async def main():
     await drop_and_restore_collections()
+
 
 # Run the main function
 if __name__ == "__main__":
