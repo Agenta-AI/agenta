@@ -151,9 +151,6 @@ class OldCustomEvaluationDB(Document):
         name = "custom_evaluations"
 
 
-PYTHON_CODE = "import random \nfrom typing import Dict \n\n\ndef evaluate(\n    app_params: Dict[str, str], \n    inputs: Dict[str, str], \n    output: str, correct_answer: str \n) -> float: \n    return random.uniform(0.1, 0.9)"
-
-
 class Forward:
     @free_fall_migration(
         document_models=[
@@ -183,15 +180,6 @@ class Forward:
                 settings_values={},
             )
             await eval_exact_match_config.insert(session=session)
-            eval_custom_code_config = EvaluatorConfigDB(
-                app=app_db,
-                organization=app_db.organization,
-                user=app_db.user,
-                name=f"{app_db.app_name}_custom_code_default",
-                evaluator_key="auto_custom_code_run",
-                settings_values=dict({"code": PYTHON_CODE}),
-            )
-            await eval_custom_code_config.insert(session=session)
 
         # STEP 2:
         # Review the evaluations and create a unique evaluation for each one.
@@ -215,12 +203,22 @@ class Forward:
             # Use the created evaluator if the evaluation uses "exact_match" or a code evaluator.
             # Otherwise, create a new evaluator.
             if evaluation_type == "custom_code_run":
-                eval_config = await EvaluatorConfigDB.find_one(
-                    EvaluatorConfigDB.app.id == old_eval.app.id,
-                    EvaluatorConfigDB.evaluator_key == "auto_custom_code_run",
+                custom_code = await OldCustomEvaluationDB.find_one(
+                    OldCustomEvaluationDB.id
+                    == PydanticObjectId(
+                        old_eval.evaluation_type_settings.custom_code_evaluation_id
+                    )
                 )
-                if eval_config is not None:
-                    list_of_eval_configs.append(eval_config.id)
+                eval_config = EvaluatorConfigDB(
+                    app=app_db,
+                    organization=app_db.organization,
+                    user=app_db.user,
+                    name=f"{app_db.app_name}_custom_code_default",
+                    evaluator_key="auto_custom_code_run",
+                    settings_values=dict({"code": custom_code.python_code}),
+                )
+                await eval_config.insert(session=session)
+                list_of_eval_configs.append(eval_config.id)
 
             if evaluation_type == "auto_exact_match":
                 eval_config = await EvaluatorConfigDB.find_one(
