@@ -286,7 +286,7 @@ async def create_evaluation_scenario(
     await engine.save(new_eval_scenario)
 
 
-async def update_evaluation(
+async def update_evaluation_service(
     evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
 ) -> None:
     """
@@ -361,7 +361,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
     return eval_scenarios
 
 
-async def update_evaluation_scenario(
+async def update_evaluation_scenario_service(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
@@ -438,7 +438,7 @@ async def update_evaluation_scenario(
     await engine.save(eval_scenario)
 
 
-async def update_evaluation_scenario_score(
+async def update_evaluation_scenario_score_service(
     evaluation_scenario_id: str, score: float, **user_org_data: dict
 ) -> None:
     """
@@ -461,7 +461,7 @@ async def update_evaluation_scenario_score(
     await engine.save(eval_scenario)
 
 
-async def get_evaluation_scenario_score(
+async def get_evaluation_scenario_score_service(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> Dict[str, str]:
     """
@@ -508,7 +508,11 @@ def evaluate_with_ai_critique(
     Returns:
         str: returns an evaluation
     """
-    llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
+    llm = OpenAI(
+        openai_api_key=open_ai_key,
+        model="gpt-3.5-turbo-instruct",
+        temperature=temperature,
+    )
 
     input_variables = []
 

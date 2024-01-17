@@ -1,4 +1,7 @@
-from pydantic import BaseSettings
+try:
+    from pydantic.v1 import BaseSettings  # type: ignore
+except ImportError:
+    from pydantic import BaseSettings  # type: ignore
 
 import os
 import toml
