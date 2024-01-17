@@ -251,7 +251,9 @@ class Forward:
             OldEvaluationScenarioDB.evaluation.evaluation_type == "single_model_test",
             fetch_links=True,
         ).to_list()
-        for counter, single_model_scenario in enumerate(old_human_single_model_scenarios):
+        for counter, single_model_scenario in enumerate(
+            old_human_single_model_scenarios
+        ):
             print(f"single model evaluation {counter}")
             matching_human_evaluation = await HumanEvaluationDB.find_one(
                 HumanEvaluationDB.id == single_model_scenario.evaluation.id,
