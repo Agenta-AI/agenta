@@ -244,75 +244,50 @@ class Forward:
             HumanEvaluationScenarioDB,
         ]
     )
-    async def migrate_old_auto_evaluation_scenario_to_new_auto_evaluation_scenario(
+    async def migrate_old_human_single_model_evaluation_scenario_to_new_human_evaluation_scenario(
         self, session
     ):
-        new_evaluations = await EvaluationDB.find(
+        old_human_single_model_scenarios = await OldEvaluationScenarioDB.find(
+            OldEvaluationScenarioDB.evaluation.evaluation_type == "single_model_test",
             fetch_links=True,
         ).to_list()
-        old_auto_scenarios = await OldEvaluationScenarioDB.find(
-            In(
-                OldEvaluationScenarioDB.evaluation.evaluation_type,
-                [
-                    "auto_exact_match",
-                    "auto_similarity_match",
-                    "auto_regex_test",
-                    "auto_ai_critique",
-                    "custom_code_run",
-                    "auto_webhook_test",
-                ],
-            ),
-            fetch_links=True,
-        ).to_list()
-        for new_evaluation in new_evaluations:
-            for i, old_scenario in enumerate(old_auto_scenarios):
-                print(f"auto evaluation {i}")
-                if new_evaluation.id == old_scenario.evaluation.id:
-                    results = [
-                        EvaluationScenarioResult(
-                            evaluator_config=PydanticObjectId(evaluator_config),
-                            result=Result(
-                                type="number"
-                                if isinstance(old_scenario.score, int)
-                                else "number"
-                                if isinstance(old_scenario.score, float)
-                                else "string"
-                                if isinstance(old_scenario.score, str)
-                                else "boolean"
-                                if isinstance(old_scenario.score, bool)
-                                else "any",
-                                value=old_scenario.score,
-                            ),
-                        )
-                        for evaluator_config in new_evaluation.evaluators_configs
-                    ]
-                    new_scenario = EvaluationScenarioDB(
-                        user=new_evaluation.user,
-                        organization=new_evaluation.organization,
-                        evaluation=new_evaluation,
-                        variant_id=old_scenario.evaluation.variants[0],
-                        inputs=[
-                            EvaluationScenarioInputDB(
-                                name=input.input_name,
-                                type=type(input.input_value).__name__,
-                                value=input.input_value,
-                            )
-                            for input in old_scenario.inputs
-                        ],
-                        outputs=[
-                            EvaluationScenarioOutputDB(
-                                type=type(output.variant_output).__name__,
-                                value=output.variant_output,
-                            )
-                            for output in old_scenario.outputs
-                        ],
-                        correct_answer=old_scenario.correct_answer,
-                        is_pinned=old_scenario.is_pinned,
-                        note=old_scenario.note,
-                        evaluators_configs=new_evaluation.evaluators_configs,
-                        results=results,
+        for counter, single_model_scenario in enumerate(
+            old_human_single_model_scenarios
+        ):
+            print(f"single model evaluation {counter}")
+            matching_human_evaluation = await HumanEvaluationDB.find_one(
+                HumanEvaluationDB.id == single_model_scenario.evaluation.id,
+                HumanEvaluationDB.evaluation_type == "single_model_test",
+                fetch_links=True,
+            )
+            if matching_human_evaluation:
+                scenario_inputs = [
+                    HumanEvaluationScenarioInput(
+                        input_name=input.input_name,
+                        input_value=input.input_value,
                     )
-                    await new_scenario.insert(session=session)
+                    for input in single_model_scenario.inputs
+                ]
+                scenario_outputs = [
+                    HumanEvaluationScenarioOutput(
+                        variant_id=output.variant_id,
+                        variant_output=output.variant_output,
+                    )
+                    for output in single_model_scenario.outputs
+                ]
+                new_scenario = HumanEvaluationScenarioDB(
+                    user=matching_human_evaluation.user,
+                    organization=matching_human_evaluation.organization,
+                    evaluation=matching_human_evaluation,
+                    inputs=scenario_inputs,
+                    outputs=scenario_outputs,
+                    correct_answer=single_model_scenario.correct_answer,
+                    is_pinned=single_model_scenario.is_pinned,
+                    note=single_model_scenario.note,
+                    vote=single_model_scenario.vote,
+                    score=single_model_scenario.score,
+                )
+                await new_scenario.insert(session=session)
 
 
 class Backward:
