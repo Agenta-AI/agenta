@@ -33,6 +33,7 @@ sentry-sdk = {extras = ["fastapi"], version = "^1.34.0"}
 kubernetes = "^28.1.0"
 celery = "^5.3.6"
 watchdog = {extras = ["watchmedo"], version = "^3.0.0"}
+asgi-lifespan = "^2.1.0"
 beanie = "^1.24.0"
 
 [tool.poetry.group.dev.dependencies]
