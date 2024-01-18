@@ -1,8 +1,35 @@
 import React, {useContext, useEffect, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form} from "antd"
-import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
+import {
+    Button,
+    Input,
+    Card,
+    Row,
+    Col,
+    Space,
+    Form,
+    Drawer,
+    Tag,
+    Typography,
+    Divider,
+    Empty,
+    Result,
+} from "antd"
+import {
+    CaretRightOutlined,
+    HistoryOutlined,
+    LoadingOutlined,
+    PlusOutlined,
+    SaveOutlined,
+} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
-import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {
+    ChatMessage,
+    ChatRole,
+    GenericObject,
+    IPromptRevisions,
+    Parameter,
+    Variant,
+} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -18,6 +45,13 @@ import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
+import {PromptVersioningContext} from "../PromptVersioningProvider"
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
+const {Text} = Typography
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -84,6 +118,30 @@ const useStylesApp = createUseStyles({
         marginBottom: "24px",
         marginLeft: "12px",
     },
+    historyContainer: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        flexDirection: "column",
+        padding: "10px 20px 20px",
+        margin: "20px 0",
+        borderRadius: 10,
+        backgroundColor: themeMode === "dark" ? "#1f1f1f" : "#fff",
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
+    promptHistoryDrawer: ({themeMode}: StyleProps) => ({
+        "& .ant-drawer-body": {
+            backgroundColor: themeMode === "dark" ? "#333" : "#eceff1",
+        },
+    }),
+    tagText: {
+        color: "#656d76",
+        fontSize: 12,
+    },
+    emptyContainer: {
+        marginTop: "4rem",
+    },
+    divider: {
+        margin: "15px 0",
+    },
 })
 
 interface TestViewProps {
@@ -92,6 +150,7 @@ interface TestViewProps {
     optParams: Parameter[] | null
     isChatVariant?: boolean
     compareMode: boolean
+    setOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
 }
 
 interface BoxComponentProps {
@@ -254,6 +313,7 @@ const App: React.FC<TestViewProps> = ({
     variant,
     isChatVariant,
     compareMode,
+    setOptParams,
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
@@ -263,10 +323,13 @@ const App: React.FC<TestViewProps> = ({
         isRunning,
         setIsRunning,
     } = useContext(TestContext)
+    const {appTheme} = useAppTheme()
     const [testList, setTestList] = useState<GenericObject[]>(_testList)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
-    const classes = useStylesApp()
+    const classes = useStylesApp({themeMode: appTheme} as StyleProps)
+    const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus} =
+        useContext(PromptVersioningContext)
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
@@ -425,6 +488,30 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
+    const handleRestore = (id: number) => {
+        const revision = promptRevisions?.revisions.find((rev) => rev.revision === id)
+
+        setOptParams((prevState) => {
+            if (!prevState) {
+                return prevState
+            }
+
+            prevState[0].default = revision?.config.parameters.temperature
+            prevState[1].default = revision?.config.parameters.model
+            prevState[2].default = revision?.config.parameters.max_tokens
+            prevState[3].default = revision?.config.parameters.prompt_system
+            prevState[4].default = revision?.config.parameters.prompt_user
+            prevState[5].default = revision?.config.parameters.top_p
+            prevState[6].default = revision?.config.parameters.frequence_penalty
+            prevState[7].default = revision?.config.parameters.presence_penalty
+            prevState[8].default = revision?.config.parameters.inputs
+
+            return prevState
+        })
+
+        setIsDrawerOpen(false)
+    }
+
     return (
         <div ref={rootRef}>
             <div className={classes.testView}>
@@ -482,6 +569,95 @@ const App: React.FC<TestViewProps> = ({
                 params={params || {}}
                 isChatVariant={!!isChatVariant}
             />
+
+            <Drawer
+                open={isDrawerOpen}
+                title="History"
+                size="default"
+                destroyOnClose
+                onClose={() => setIsDrawerOpen(false)}
+                className={classes.promptHistoryDrawer}
+            >
+                {historyStatus.loading ? (
+                    <Result
+                        className={classes.emptyContainer}
+                        icon={<LoadingOutlined />}
+                        subTitle="Loading..."
+                    />
+                ) : historyStatus.error ? (
+                    <Result
+                        className={classes.emptyContainer}
+                        subTitle="Failed to Load History."
+                        status={"error"}
+                    />
+                ) : (
+                    <>
+                        {!!promptRevisions?.revisions.length ? (
+                            promptRevisions?.revisions
+                                .map((item: IPromptRevisions) => (
+                                    <div key={item.revision} className={classes.historyContainer}>
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                            }}
+                                        >
+                                            <div>
+                                                <Space direction="vertical">
+                                                    <div>
+                                                        <Tag icon={<SaveOutlined />} color="blue">
+                                                            Saved
+                                                        </Tag>
+                                                        <Text className={classes.tagText}>
+                                                            {"2 hours ago"}
+                                                        </Text>
+                                                    </div>
+                                                    <div>
+                                                        <Tag
+                                                            icon={<HistoryOutlined />}
+                                                            color="warning"
+                                                        >
+                                                            Revision
+                                                        </Tag>
+                                                        <Text className={classes.tagText}>
+                                                            {`# ${item.revision}`}
+                                                        </Text>
+                                                    </div>
+                                                </Space>
+                                            </div>
+                                            <Button
+                                                type="primary"
+                                                onClick={() => handleRestore(item.revision)}
+                                            >
+                                                Restore
+                                            </Button>
+                                        </div>
+
+                                        <Divider className={classes.divider} />
+
+                                        <Space direction="vertical">
+                                            <div>
+                                                <Text strong>Config Name: </Text>
+                                                <Text>{item.config.config_name}</Text>
+                                            </div>
+                                            <div>
+                                                <Text strong>Modified By: </Text>
+                                                <Text>{item.modified_by}</Text>
+                                            </div>
+                                        </Space>
+                                    </div>
+                                ))
+                                .reverse()
+                        ) : (
+                            <Empty
+                                className={classes.emptyContainer}
+                                description="You have no saved changes"
+                            />
+                        )}
+                    </>
+                )}
+            </Drawer>
         </div>
     )
 }

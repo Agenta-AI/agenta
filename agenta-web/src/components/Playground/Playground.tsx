@@ -3,7 +3,7 @@ import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
 import {fetchEnvironments, fetchVariants} from "@/lib/services/api"
-import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
+import {Variant, PlaygroundTabsItem, Environment, IPromptVersioning} from "@/lib/Types"
 import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -15,6 +15,7 @@ import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-ki
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
+import PromptVersioningProvider from "./PromptVersioningProvider"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -32,6 +33,8 @@ const Playground: React.FC = () => {
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
     const tabID = useRef("")
+
+    const [promptRevisions, setPromptRevisions] = useState<IPromptVersioning>()
 
     const addTab = () => {
         // Find the template variant
@@ -239,18 +242,22 @@ const Playground: React.FC = () => {
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
-            <ViewNavigation
-                compareMode={compareMode}
-                variant={variant}
-                handlePersistVariant={handlePersistVariant}
-                environments={environments}
-                deleteVariant={deleteVariant}
-                onStateChange={(isDirty) =>
-                    setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
-                }
-                getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
-                tabID={tabID}
-            />
+            <PromptVersioningProvider>
+                <ViewNavigation
+                    compareMode={compareMode}
+                    variant={variant}
+                    handlePersistVariant={handlePersistVariant}
+                    environments={environments}
+                    deleteVariant={deleteVariant}
+                    onStateChange={(isDirty) =>
+                        setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
+                    }
+                    getHelpers={(helpers) =>
+                        (variantHelpers.current[variant.variantName] = helpers)
+                    }
+                    tabID={tabID}
+                />
+            </PromptVersioningProvider>
         ),
         closable: !variant.persistent,
     }))
