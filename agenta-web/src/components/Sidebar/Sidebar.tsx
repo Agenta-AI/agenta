@@ -11,6 +11,7 @@ import {
     SettingOutlined,
     LogoutOutlined,
     ApartmentOutlined,
+    FormOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme, Avatar} from "antd"
 
@@ -266,7 +267,29 @@ const Sidebar: React.FC = () => {
                                                 >
                                                     {collapsed
                                                         ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                        : "Evaluate"}
+                                                        : "Evaluations"}
+                                                </Link>
+                                            </Menu.Item>
+                                        </Tooltip>
+
+                                        <Tooltip
+                                            placement="right"
+                                            title={
+                                                !collapsed
+                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                    : ""
+                                            }
+                                            key="annotations"
+                                        >
+                                            <Menu.Item icon={<FormOutlined />}>
+                                                <Link
+                                                    data-cy="app-annotations-link"
+                                                    href={getNavigationPath("annotations")}
+                                                    className={classes.menuLinks}
+                                                >
+                                                    {collapsed
+                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                        : "Annotations"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>

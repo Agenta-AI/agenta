@@ -18,6 +18,12 @@ RUN touch /app/agenta_backend/__init__.py
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
+# Install git and clone the necessary repository
+RUN apt-get update -y \
+    && apt-get install -y git \
+    && git clone https://github.com/mmabrouk/beanie \
+    && cd beanie && pip install .
+
 # remove dummy module
 RUN rm -r /app/agenta_backend
 EXPOSE 8000

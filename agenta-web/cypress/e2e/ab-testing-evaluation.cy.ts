@@ -39,8 +39,8 @@ describe("A/B Testing Evaluation workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.url().should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/annotations`)
+            cy.url().should("include", "/annotations")
             cy.clickLinkAndWait('[data-cy="abTesting-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
@@ -71,14 +71,18 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.url().should("include", "/human_a_b_testing")
             cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
 
-            cy.get('[data-cy="abTesting-app-variant-vote-button"]').should("not.exist")
-            cy.get('[data-cy="abTesting-both-bad-vote-button"]').should("not.exist")
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').should("not.exist")
+            cy.get(
+                '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
+            ).should("not.exist")
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
 
-            cy.get('[data-cy="abTesting-app-variant-vote-button"]').eq(0).click()
-            cy.get('[data-cy="abTesting-app-variant-vote-button"]').eq(1).click()
-            cy.get('[data-cy="abTesting-both-bad-vote-button"]').click()
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(0).click()
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(1).click()
+            cy.get(
+                '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
+            ).click()
         })
     })
 
