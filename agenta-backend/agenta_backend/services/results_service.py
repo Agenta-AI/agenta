@@ -34,15 +34,6 @@ async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     return results
 
 
-async def _compute_stats_for_evaluation(evaluation_scenarios: list, classes: list):
-    results = {}
-    for cl in classes:
-        results[cl] = [
-            scenario for scenario in evaluation_scenarios if scenario.score == cl
-        ]
-    return results
-
-
 async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: list):
     results = {}
     results["variants_votes_data"] = {}
@@ -80,18 +71,3 @@ async def fetch_results_for_single_model_test(evaluation_id: str):
         scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
     return scores_and_counts
 
-
-async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    eval_scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id)
-    ).to_list()
-
-    list_of_scores = []
-    for scenario in eval_scenarios:
-        score = scenario.score
-        if not scenario.score:
-            score = 0
-        list_of_scores.append(round(float(score), 2))
-
-    average_score = sum(list_of_scores) / len(list_of_scores)
-    return average_score
