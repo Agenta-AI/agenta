@@ -3,9 +3,14 @@ import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {CopyOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {ICellRendererParams} from "ag-grid-community"
 import {GlobalToken, Space, Typography, message, theme} from "antd"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
+import duration from "dayjs/plugin/duration"
 import Link from "next/link"
 import React, {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+dayjs.extend(relativeTime)
+dayjs.extend(duration)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     statusCell: {
@@ -71,7 +76,27 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
     }, [])
 
     const onExpand = useCallback(() => {
-        node.setRowHeight(api.getSizesForCurrentTheme().rowHeight * (expanded ? 1 : 5))
+        const cells = document.querySelectorAll(`[row-id='${node.id}'] .ag-cell > *`)
+        const cellsArr = Array.from(cells || [])
+        const defaultHeight = api.getSizesForCurrentTheme().rowHeight
+        if (!expanded) {
+            cellsArr.forEach((cell) => {
+                cell.setAttribute(
+                    "style",
+                    "overflow: visible; white-space: pre-wrap; text-overflow: unset;",
+                )
+            })
+            const height = Math.max(...cellsArr.map((cell) => cell.scrollHeight))
+            node.setRowHeight(height <= defaultHeight ? defaultHeight * 2 : height)
+        } else {
+            cellsArr.forEach((cell) => {
+                cell.setAttribute(
+                    "style",
+                    "overflow: hidden; white-space: nowrap; text-overflow: ellipsis;",
+                )
+            })
+            node.setRowHeight(defaultHeight)
+        }
         api.onRowHeightChanged()
     }, [expanded])
 
@@ -146,4 +171,20 @@ export const LinkCellRenderer = React.memo(
         return <Link href={href}>{value}</Link>
     },
     (prev, next) => prev.value === next.value && prev.href === next.href,
+)
+
+export const DateFromNowRenderer = React.memo(
+    (params: ICellRendererParams) => {
+        const [date, setDate] = useState(params.value)
+
+        useEffect(() => {
+            const interval = setInterval(() => {
+                setDate((date: any) => dayjs(date).add(1, "second").valueOf())
+            }, 60000)
+            return () => clearInterval(interval)
+        }, [])
+
+        return <Typography.Text>{dayjs(date).fromNow()}</Typography.Text>
+    },
+    (prev, next) => prev.value === next.value,
 )

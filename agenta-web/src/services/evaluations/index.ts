@@ -22,6 +22,8 @@ import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import dayjs from "dayjs"
 import {loadTestset} from "@/lib/services/api"
+import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
+import {calcEvalDuration} from "@/lib/helpers/evaluate"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -81,13 +83,7 @@ const evaluationTransformer = (item: any) => ({
     appId: item.app_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
-    duration:
-        500000 ||
-        dayjs(
-            [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(item.status)
-                ? Date.now()
-                : item.updated_at,
-        ).diff(dayjs(item.created_at), "milliseconds"),
+    duration: calcEvalDuration(item),
     status: item.status,
     testset: {
         id: item.testset_id,
@@ -103,7 +99,6 @@ const evaluationTransformer = (item: any) => ({
     })),
     aggregated_results: item.aggregated_results || [],
 })
-
 export const fetchAllEvaluations = async (appId: string) => {
     const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
     return response.data.map(evaluationTransformer) as _Evaluation[]
