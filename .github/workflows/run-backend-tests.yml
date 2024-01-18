@@ -30,7 +30,7 @@ jobs:
           sleep 10 && curl -i http://localhost/api/openapi.json
 
       - name: Run tests
-        run: sleep 10 && docker exec agenta-backend-test pytest
+        run: sleep 10 && docker exec agenta-backend-test pip install beanie && docker exec agenta-backend-test pytest
 
       - name: Docker logs
         if: always() #
