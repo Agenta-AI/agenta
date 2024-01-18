@@ -3,10 +3,10 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Empty, Space, Spin, Tag, Tooltip, Typography, theme} from "antd"
+import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
 import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, GenericObject, JSSTheme, TypedValue, _Evaluation} from "@/lib/Types"
-import {capitalize, round, uniqBy} from "lodash"
+import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
+import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -17,6 +17,7 @@ import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {
+    DateFromNowRenderer,
     LinkCellRenderer,
     StatusRenderer,
     runningStatuses,
@@ -26,15 +27,12 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useRouter} from "next/router"
+import EmptyEvaluations from "./EmptyEvaluations"
+import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    emptyRoot: {
-        height: "calc(100vh - 260px)",
-        display: "grid",
-        placeItems: "center",
-    },
     root: {
         display: "flex",
         flexDirection: "column",
@@ -48,56 +46,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignSelf: "flex-end",
     },
 }))
-
-export function getTypedValue(res?: TypedValue) {
-    const {value, type} = res || {}
-    return type === "number"
-        ? round(Number(value), 2)
-        : ["boolean", "bool"].includes(type as string)
-          ? capitalize(value?.toString())
-          : value?.toString()
-}
-
-export function getFilterParams(type: "number" | "text" | "date") {
-    const filterParams: GenericObject = {}
-    if (type == "date") {
-        filterParams.comparator = function (
-            filterLocalDateAtMidnight: Date,
-            cellValue: string | null,
-        ) {
-            if (cellValue == null) return -1
-            const cellDate = dayjs(cellValue).startOf("day").toDate()
-            if (filterLocalDateAtMidnight.getTime() === cellDate.getTime()) {
-                return 0
-            }
-            if (cellDate < filterLocalDateAtMidnight) {
-                return -1
-            }
-            if (cellDate > filterLocalDateAtMidnight) {
-                return 1
-            }
-        }
-    }
-
-    return {
-        sortable: true,
-        floatingFilter: true,
-        filter:
-            type === "number"
-                ? "agNumberColumnFilter"
-                : type === "date"
-                  ? "agDateColumnFilter"
-                  : "agTextColumnFilter",
-        cellDataType: type,
-        filterParams,
-    }
-}
-
-export const calcEvalDuration = (evaluation: _Evaluation) => {
-    return dayjs(
-        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
-    ).diff(dayjs(evaluation.created_at), "milliseconds")
-}
 
 interface Props {}
 
@@ -197,6 +145,17 @@ const EvaluationResults: React.FC<Props> = () => {
         [evaluations],
     )
 
+    const compareDisabled = useMemo(
+        () =>
+            selected.length < 2 ||
+            selected.some(
+                (item) =>
+                    item.status !== EvaluationStatus.FINISHED ||
+                    item.testset.id !== selected[0].testset.id,
+            ),
+        [selected],
+    )
+
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
             {
@@ -283,22 +242,12 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerName: "Created",
                 minWidth: 160,
                 ...getFilterParams("date"),
-                valueFormatter: (params) => dayjs(params.value).fromNow(),
+                cellRenderer: DateFromNowRenderer,
+                sort: "desc",
             },
         ]
         return colDefs
     }, [evaluatorConfigs])
-
-    const compareDisabled = useMemo(
-        () =>
-            selected.length < 2 ||
-            selected.some(
-                (item) =>
-                    item.status !== EvaluationStatus.FINISHED ||
-                    item.testset.id !== selected[0].testset.id,
-            ),
-        [selected],
-    )
 
     const compareBtnNode = (
         <Button
@@ -321,31 +270,14 @@ const EvaluationResults: React.FC<Props> = () => {
     return (
         <>
             {!fetching && !evaluations.length ? (
-                <div className={classes.emptyRoot}>
-                    <Empty description="It looks like you haven't created an evaluation yet">
-                        <Space direction="vertical">
-                            <Button
-                                icon={<PlusCircleOutlined />}
-                                type="primary"
-                                onClick={() => {
-                                    setNewEvalModalOpen(true)
-                                }}
-                            >
-                                Create Evaluation
-                            </Button>
-                            <Typography.Text>Or</Typography.Text>
-                            <Button
-                                icon={<SlidersOutlined />}
-                                type="default"
-                                onClick={() =>
-                                    router.push(`/apps/${appId}/evaluations?tab=evaluators`)
-                                }
-                            >
-                                Configure Evaluators
-                            </Button>
-                        </Space>
-                    </Empty>
-                </div>
+                <EmptyEvaluations
+                    onConfigureEvaluators={() =>
+                        router.push(`/apps/${appId}/evaluations?tab=evaluators`)
+                    }
+                    onBeginEvaluation={() => {
+                        setNewEvalModalOpen(true)
+                    }}
+                />
             ) : (
                 <div className={classes.root}>
                     <Space className={classes.buttonsGroup}>
