@@ -355,11 +355,12 @@ export function pickRandom<T>(arr: T[], len: number) {
     return result
 }
 
-export function durationToStr(duration: number) {
-    const days = Math.floor(dayjs.duration(duration, "milliseconds").asDays())
-    const hours = Math.floor(dayjs.duration(duration, "milliseconds").asHours())
-    const mins = Math.floor(dayjs.duration(duration, "milliseconds").asMinutes())
-    const secs = Math.floor(dayjs.duration(duration, "milliseconds").asSeconds())
+export function durationToStr(ms: number) {
+    const duration = dayjs.duration(ms, "milliseconds")
+    const days = Math.floor(duration.asDays())
+    const hours = Math.floor(duration.asHours() % 24)
+    const mins = Math.floor(duration.asMinutes() % 60)
+    const secs = Math.floor(duration.asSeconds() % 60)
 
     if (days > 0) return `${days}d ${hours}h`
     if (hours > 0) return `${hours}h ${mins}m`

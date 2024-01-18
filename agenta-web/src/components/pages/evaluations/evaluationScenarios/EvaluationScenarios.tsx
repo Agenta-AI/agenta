@@ -1,7 +1,11 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
-import {deleteEvaluations, fetchAllEvaluationScenarios} from "@/services/evaluations"
+import {
+    deleteEvaluations,
+    fetchAllEvaluationScenarios,
+    fetchAllEvaluators,
+} from "@/services/evaluations"
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
@@ -9,7 +13,7 @@ import {Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {getFilterParams, getTypedValue} from "../evaluationResults/EvaluationResults"
+import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
@@ -46,7 +50,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const evaluationId = router.query.evaluation_id as string
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
     const [fetching, setFetching] = useState(false)
-    const [evaluators] = useAtom(evaluatorsAtom)
+    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
 
@@ -121,9 +125,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
     const fetcher = () => {
         setFetching(true)
-        fetchAllEvaluationScenarios(evaluationId)
-            .then((scenarios) => {
+        Promise.all([
+            evaluators.length ? Promise.resolve(evaluators) : fetchAllEvaluators(),
+            fetchAllEvaluationScenarios(evaluationId),
+        ])
+            .then(([evaluators, scenarios]) => {
                 setScenarios(scenarios)
+                setEvaluators(evaluators)
                 setTimeout(() => {
                     if (!gridRef.current) return
 

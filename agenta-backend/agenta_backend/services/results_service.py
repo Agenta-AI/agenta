@@ -11,7 +11,7 @@ from beanie import PydanticObjectId as ObjectId
 
 async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     evaluation_scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        HumanEvaluationScenarioDB.evaluation.id == evaluation.id,
     ).to_list()
 
     results = {}
