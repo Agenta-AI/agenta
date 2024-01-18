@@ -298,7 +298,6 @@ const EvaluationCardView: React.FC<Props> = ({
     const correctAnswer = useMemo(() => {
         if (scenario?.correctAnswer) return scenario.correctAnswer
         let res = testsetRow?.correct_answer
-        if (isChat) res = safeParse(res)?.content
         return res || ""
     }, [testsetRow?.correct_answer, scenario?.correctAnswer])
 

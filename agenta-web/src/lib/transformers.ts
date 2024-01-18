@@ -40,7 +40,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings,
-        llmAppPromptTemplate: item.evaluation_type_settings.llm_app_prompt_template,
+        llmAppPromptTemplate: item.evaluation_type_settings?.llm_app_prompt_template,
     } as Evaluation
 }
 

@@ -426,6 +426,12 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
             },
         },
+        {
+            key: "correctAnswer",
+            title: "Expected Output",
+            dataIndex: "correctAnswer",
+            width: "25%",
+        },
         ...dynamicColumns,
         {
             title: "Score",
@@ -520,7 +526,13 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportSingleModelEvaluationData(evaluation, rows)}
+                                onClick={() =>
+                                    exportSingleModelEvaluationData(
+                                        evaluation,
+                                        evaluationScenarios,
+                                        rows,
+                                    )
+                                }
                                 disabled={false}
                             >
                                 Export results

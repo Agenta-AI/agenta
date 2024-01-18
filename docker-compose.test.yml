@@ -1,15 +1,30 @@
 version: '3.8'
-
 services:
+    reverse-proxy:
+        image: traefik:v2.10
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        ports:
+            - "80:80"
+            - "8080:8080"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        networks:
+            - agenta-network
+
     backend:
         build: ./agenta-backend
         container_name: agenta-backend-test
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017/
             - REDIS_URL=redis://redis:6379/0
-            - ENVIRONMENT=development
-            - DATABASE_MODE=test
+            - ENVIRONMENT=${ENVIRONMENT}
+            - BARE_DOMAIN_NAME=localhost
+            - DOMAIN_NAME=http://localhost
+            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         volumes:
@@ -23,34 +38,32 @@ services:
                 "--host",
                 "0.0.0.0",
                 "--port",
-                "8001",
+                "8000",
                 "--reload",
                 "--log-level",
-                "info"
+                "info",
+                "--root-path",
+                "/api",
             ]
-        ports:
-            - "8000:8001"
+        labels:
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
         depends_on:
             mongo:
                 condition: service_healthy
+        extra_hosts:
+            - host.docker.internal:host-gateway
         networks:
-            - agenta-test-network
-
-    agenta-web:
-        build:
-            context: ./agenta-web
-            dockerfile: dev.Dockerfile
-        volumes:
-            - ./agenta-web/src:/app/src
-            - ./agenta-web/public:/app/public
-            - .nextjs_cache:/app/.next
-        ports:
-            - "3000:3000"
-        networks:
-            - agenta-test-network
+            - agenta-network
 
     mongo:
         image: mongo:5.0
+        container_name: agenta-mongo-test
         environment:
             MONGO_INITDB_ROOT_USERNAME: username
             MONGO_INITDB_ROOT_PASSWORD: password
@@ -62,18 +75,56 @@ services:
             timeout: 10s
             retries: 20
         networks:
-            - agenta-test-network
+            - agenta-network
 
     redis:
         image: redis:latest
+        container_name: agenta-redis-test
         networks:
-            - agenta-test-network
+            - agenta-network
         volumes:
             - redis_data:/data
 
+    rabbitmq:
+        image: rabbitmq:3-management
+        container_name: agenta-rabbitmq-test
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        volumes:
+            - ./rabbitmq_data:/var/lib/rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: "guest"
+            RABBITMQ_DEFAULT_PASS: "guest"
+        networks:
+            - agenta-network
+
+    celery_worker:
+        build: ./agenta-backend
+        container_name: agenta-celery_worker-test
+        command: >
+            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+        environment:
+            - MONGODB_URI=mongodb://username:password@mongo:27017
+            - REDIS_URL=redis://redis:6379/0
+            - ENVIRONMENT=${ENVIRONMENT}
+            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - FEATURE_FLAG=oss
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - /var/run/docker.sock:/var/run/docker.sock
+        depends_on:
+            - rabbitmq
+            - redis
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        networks:
+            - agenta-network
+
 networks:
-    agenta-test-network:
-        name: agenta-test-network
+    agenta-network:
+        name: agenta-network
 
 volumes:
     mongodb_data:
