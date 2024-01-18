@@ -99,7 +99,7 @@ export const exportABTestingEvaluationData = (
             ["Vote"]:
                 evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
                 data.vote,
-            ["Expected answer"]:
+            ["Expected Output"]:
                 scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
             ["Additional notes"]: scenarios[ix]?.note,
         }
@@ -133,7 +133,7 @@ export const exportSingleModelEvaluationData = (
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Score"]: isNaN(numericScore) ? "-" : numericScore,
-            ["Expected answer"]:
+            ["Expected Output"]:
                 scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
             ["Additional notes"]: scenarios[ix]?.note,
         }
