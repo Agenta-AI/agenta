@@ -35,8 +35,6 @@ class VariantAction(BaseModel):
 
 class CreateApp(BaseModel):
     app_name: str
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):
@@ -58,8 +56,6 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
     base_name: Optional[str]
     config_name: Optional[str]
 
@@ -75,8 +71,6 @@ class AppVariantOutput(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    organization_id: str
-    workspace_id: Optional[str]
     user_id: str
     base_name: str
     base_id: str
@@ -109,8 +103,6 @@ class AppVariantFromImage(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
 
 
 class RestartAppContainer(BaseModel):
@@ -121,8 +113,6 @@ class Image(BaseModel):
     type: Optional[str]
     docker_id: str
     tags: str
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
 
 
 class AddVariantFromImagePayload(BaseModel):
@@ -175,16 +165,6 @@ class CreateAppVariant(BaseModel):
     app_name: str
     template_id: str
     env_vars: Dict[str, str]
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
-
-
-class InviteRequest(BaseModel):
-    email: str
-
-
-class InviteToken(BaseModel):
-    token: str
 
 
 class Environment(BaseModel):
@@ -192,8 +172,6 @@ class Environment(BaseModel):
     deployed_app_variant: Optional[str]
     deployed_base_name: Optional[str]
     deployed_config_name: Optional[str]
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
 
 
 class DeployToEnvironmentPayload(BaseModel):
@@ -215,13 +193,6 @@ class PostVariantConfigPayload(BaseModel):
     config_name: str
     parameters: Dict[str, Any]
     overwrite: bool
-
-
-class ListAPIKeysOutput(BaseModel):
-    prefix: str
-    created_at: datetime
-    last_used_at: datetime = None
-    expiration_date: datetime = None
 
 
 class BaseOutput(BaseModel):

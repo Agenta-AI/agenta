@@ -1,26 +1,24 @@
 import os
-from typing import List, Optional
-from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter
-from agenta_backend.models.api.api_models import BaseOutput
-from fastapi.responses import JSONResponse
-from agenta_backend.services import db_manager
-from agenta_backend.models import converters
-
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
-from agenta_backend.utils.common import check_access_to_app
-
 import logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from typing import List, Optional
+from fastapi.responses import JSONResponse
+from fastapi import Request, HTTPException
+
+from agenta_backend.models import converters
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter
+from agenta_backend.models.api.api_models import BaseOutput
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import WorkspaceRole
+    from agenta_backend.cmmons.utils.permissions import check_action_access
+
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @router.get("/", response_model=List[BaseOutput], operation_id="list_bases")
@@ -44,20 +42,22 @@ async def list_bases(
         HTTPException: If there was an error retrieving the bases.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data, app_id=app_id
-        )
-        if not access_app:
-            error_msg = f"You cannot access app: {app_id}"
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"] and app_id is not None:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=app_id,
+                object_type="app",
+                role=WorkspaceRole.VIEWER,
             )
-        bases = await db_manager.list_bases_for_app_id(
-            app_id, base_name, **user_org_data
-        )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        bases = await db_manager.list_bases_for_app_id(app_id, base_name)
         return [converters.base_db_to_pydantic(base) for base in bases]
     except Exception as e:
         logger.error(f"list_bases exception ===> {e}")

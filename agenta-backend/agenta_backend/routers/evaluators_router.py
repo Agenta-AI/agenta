@@ -1,10 +1,13 @@
 import os
 import json
-from typing import List
 import logging
+from typing import List
 
-from fastapi import HTTPException, APIRouter, Query
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from agenta_backend.utils.common import APIRouter
+from agenta_backend.services import evaluator_manager
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
@@ -13,20 +16,10 @@ from agenta_backend.models.api.evaluation_model import (
     UpdateEvaluatorConfig,
 )
 
-from agenta_backend.services import (
-    db_manager,
-)
-
-from agenta_backend.services import evaluator_manager
-
-from agenta_backend.utils.common import check_access_to_app
-
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
-        get_user_and_org_id,
-    )
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -41,15 +34,18 @@ async def get_evaluators_endpoint():
         List[Evaluator]: A list of evaluator objects.
     """
 
-    evaluators = evaluator_manager.get_evaluators()
+    try:
+        evaluators = evaluator_manager.get_evaluators()
 
-    if evaluators is None:
-        raise HTTPException(status_code=500, detail="Error processing evaluators file")
+        if evaluators is None:
+            raise HTTPException(status_code=500, detail="Error processing evaluators file")
 
-    if not evaluators:
-        raise HTTPException(status_code=404, detail="No evaluators found")
+        if not evaluators:
+            raise HTTPException(status_code=404, detail="No evaluators found")
 
-    return evaluators
+        return evaluators
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
@@ -63,22 +59,47 @@ async def get_evaluator_configs(app_id: str):
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
-    return evaluators_configs
+    try:
+        evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
+        return evaluators_configs
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching evaluator configurations: {str(e)}"
+        )
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
-async def get_evaluator_config(evaluator_config_id: str):
+async def get_evaluator_config(evaluator_config_id: str, request: Request):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    evaluators_configs = await evaluator_manager.get_evaluator_config(
-        evaluator_config_id
-    )
-    return evaluators_configs
+    try:
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=evaluator_config_id,
+                object_type="evaluator_config",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        evaluators_configs = await evaluator_manager.get_evaluator_config(
+            evaluator_config_id
+        )
+        return evaluators_configs
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching evaluator configuration: {str(e)}"
+        )
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)

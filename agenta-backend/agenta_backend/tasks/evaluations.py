@@ -1,6 +1,6 @@
+import os
 import asyncio
 import logging
-import os
 import traceback
 from collections import defaultdict
 from typing import Any, Dict, List
@@ -29,6 +29,8 @@ from agenta_backend.services.db_manager import (
     update_evaluation_with_aggregated_results,
 )
 from celery import shared_task, states
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -160,7 +162,6 @@ def evaluate(
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
-                    organization=app.organization,
                     evaluation=new_evaluation_db,
                     variant_id=variant_id,
                     evaluators_configs=new_evaluation_db.evaluators_configs,
@@ -172,6 +173,8 @@ def evaluate(
                         EvaluationScenarioOutputDB(type="text", value=app_output.output)
                     ],
                     results=evaluators_results,
+                    organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
+                    workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
                 )
             )
 
