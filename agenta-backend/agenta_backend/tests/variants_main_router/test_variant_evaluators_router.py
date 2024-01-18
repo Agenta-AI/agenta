@@ -23,6 +23,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 # Set global variables
 APP_NAME = "evaluation_in_backend"
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
+OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
 if ENVIRONMENT == "development":
     BACKEND_API_HOST = "http://host.docker.internal/api"
 elif ENVIRONMENT == "github":
@@ -178,7 +179,7 @@ async def test_create_evaluation():
         "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
         "testset_id": str(testset.id),
-        "lm_providers_keys": {"openai": ""},
+        "lm_providers_keys": {"openai": OPEN_AI_KEY},
         "rate_limit": {
             "batch_size": 10,
             "max_retries": 3,
