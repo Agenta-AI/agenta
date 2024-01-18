@@ -178,6 +178,7 @@ export interface Parameters {
 export interface IPromptRevisions {
     config: {
         config_name: string
+        parameters: Parameters
     }
     created_at: string
     modified_by: string
