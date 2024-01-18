@@ -60,7 +60,7 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
         isChatVariant,
-        setOptParams
+        setOptParams,
     } = useVariant(appId, variant)
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")

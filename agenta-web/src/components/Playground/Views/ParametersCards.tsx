@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 import {createUseStyles} from "react-jss"
 import {renameVariables} from "@/lib/helpers/utils"
 import {Parameter, InputParameter} from "@/lib/Types"
@@ -127,7 +127,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         )}
                                         {param.type === "array" && (
                                             <Select
-                                                defaultValue={param.default}
+                                                value={param.default}
                                                 onChange={(value) =>
                                                     handleParamChange(param.name, value)
                                                 }
@@ -197,7 +197,7 @@ export const StringParameters: React.FC<StringParametersProps> = ({
                         <Card className={classes.card} title={renameVariables(param.name)}>
                             <Input.TextArea
                                 rows={5}
-                                defaultValue={param.default}
+                                value={param.default}
                                 onChange={(e) => handleParamChange(param.name, e.target.value)}
                                 bordered={false}
                                 className={classes.textarea}
