@@ -427,10 +427,32 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             },
         },
         {
-            key: "correctAnswer",
             title: "Expected Output",
-            dataIndex: "correctAnswer",
+            dataIndex: "expectedOutput",
+            key: "expectedOutput",
             width: "25%",
+            render: (text: any, record: any, rowIndex: number) => {
+                let correctAnswer =
+                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
+
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={correctAnswer}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario(
+                                    {
+                                        correctAnswer: e.target.value,
+                                    },
+                                    record.id,
+                                )
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
         },
         ...dynamicColumns,
         {
@@ -458,33 +480,6 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 key={record.id}
                             />
                         }
-                    </>
-                )
-            },
-        },
-        {
-            title: "Expected Answer",
-            dataIndex: "expectedAnswer",
-            key: "expectedAnswer",
-            render: (text: any, record: any, rowIndex: number) => {
-                let correctAnswer =
-                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
-
-                return (
-                    <>
-                        <Input.TextArea
-                            defaultValue={correctAnswer}
-                            autoSize={{minRows: 3, maxRows: 5}}
-                            onChange={(e) =>
-                                depouncedUpdateEvaluationScenario(
-                                    {
-                                        correctAnswer: e.target.value,
-                                    },
-                                    record.id,
-                                )
-                            }
-                            key={record.id}
-                        />
                     </>
                 )
             },
