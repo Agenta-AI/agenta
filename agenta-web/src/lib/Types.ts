@@ -163,6 +163,44 @@ export interface Parameter {
     maximum?: number
 }
 
+export interface Parameters {
+    frequence_penalty: number
+    inputs: [{}]
+    max_tokens: number
+    model: string
+    presence_penalty: number
+    prompt_system: string
+    prompt_user: string
+    temperature: number
+    top_p: number
+}
+
+export interface IPromptRevisions {
+    config: {
+        config_name: string
+    }
+    created_at: string
+    modified_by: string
+    revision: number
+}
+
+export interface IPromptVersioning {
+    app_id: string
+    app_name: string
+    base_id: string
+    base_name: string
+    config_name: string
+    organization_id: string
+    parameters: Parameters
+    previous_variant_name: string | null
+    revision: number
+    revisions: [IPromptRevisions]
+    uri: string
+    user_id: string
+    variant_id: string
+    variant_name: string
+}
+
 export interface EvaluationResponseType {
     id: string
     variant_ids: string[]
