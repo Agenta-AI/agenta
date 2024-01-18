@@ -6,39 +6,52 @@ from pymongo import MongoClient
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import (
+        APIKeyDB,
+        OrganizationDB_ as OrganizationDB,
+        WorkspaceDB,
+        AppEnvironmentDB_ as AppEnvironmentDB,
+        UserDB_ as UserDB,
+        ImageDB_ as ImageDB,
+        AppDB_ as AppDB,
+        DeploymentDB_ as DeploymentDB,
+        VariantBaseDB_ as VariantBaseDB,
+        AppVariantDB_ as AppVariantDB,
+        TestSetDB_ as TestSetDB,
+        EvaluatorConfigDB_ as EvaluatorConfigDB,
+        HumanEvaluationDB_ as HumanEvaluationDB,
+        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+        EvaluationDB_ as EvaluationDB,
+        EvaluationScenarioDB_ as EvaluationScenarioDB,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        AppEnvironmentDB,
+        UserDB,
+        ImageDB,
+        AppDB,
+        DeploymentDB,
+        VariantBaseDB,
+        AppVariantDB,
+        TestSetDB,
+        EvaluatorConfigDB,
+        HumanEvaluationDB,
+        HumanEvaluationScenarioDB,
+        EvaluationDB,
+        EvaluationScenarioDB,
+    )
+    
 from agenta_backend.models.db_models import (
-    APIKeyDB,
-    AppEnvironmentDB,
-    OrganizationDB,
-    WorkspaceDB,
-    UserDB,
-    ImageDB,
-    AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    ConfigDB,
-    AppVariantDB,
     TemplateDB,
-    TestSetDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
+    ConfigDB,
     SpanDB,
     TraceDB,
 )
 
-# Configure and set logging level
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
 # Define Document Models
 document_models: List[Document] = [
-    APIKeyDB,
     AppEnvironmentDB,
-    OrganizationDB,
-    WorkspaceDB,
     UserDB,
     ImageDB,
     AppDB,
@@ -56,6 +69,14 @@ document_models: List[Document] = [
     SpanDB,
     TraceDB,
 ]
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
+
+
+# Configure and set logging level
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class DBEngine:
