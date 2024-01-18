@@ -77,6 +77,11 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    stat: {
+        "& .ant-statistic-content-value": {
+            color: "#1677ff",
+        },
+    },
     statWrong: {
         "& .ant-statistic-content-value": {
             color: "#cf1322",
@@ -411,7 +416,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                             evaluation.variants[0]?.variantName || ""
                                         } is better:`}
                                         value={`${appVariant1} out of ${num_of_rows}`}
-                                        className={classes.statCorrect}
+                                        className={classes.stat}
                                     />
                                 </Col>
                                 <Col span={10}>
@@ -420,6 +425,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                             evaluation.variants[1]?.variantName || ""
                                         } is better:`}
                                         value={`${appVariant2} out of ${num_of_rows}`}
+                                        className={classes.stat}
+                                    />
+                                </Col>
+                                <Col span={4}>
+                                    <Statistic
+                                        title="Both are good:"
+                                        value={`${positive_votes} out of ${num_of_rows}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>
@@ -428,13 +440,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                         title="Both are bad:"
                                         value={`${flag_votes} out of ${num_of_rows}`}
                                         className={classes.statWrong}
-                                    />
-                                </Col>
-                                <Col span={4}>
-                                    <Statistic
-                                        title="Both are good:"
-                                        value={`${positive_votes} out of ${num_of_rows}`}
-                                        className={classes.statCorrect}
                                     />
                                 </Col>
                             </Row>
