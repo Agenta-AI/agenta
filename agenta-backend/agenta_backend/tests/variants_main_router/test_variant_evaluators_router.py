@@ -178,6 +178,7 @@ async def test_create_evaluation():
         "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
         "testset_id": str(testset.id),
+        "lm_providers_keys": {"openai": ""},
         "rate_limit": {
             "batch_size": 10,
             "max_retries": 3,
@@ -220,7 +221,7 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 3  # seconds
+    intervals = 4  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
