@@ -1,6 +1,16 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
-import {Evaluation, EvaluationScenario, GenericObject, Variant} from "../Types"
+import {
+    Evaluation,
+    GenericObject,
+    TypedValue,
+    Variant,
+    _Evaluation,
+    EvaluationScenario,
+} from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
+import {capitalize, round} from "lodash"
+import dayjs from "dayjs"
+import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -219,4 +229,54 @@ export const calculateResultsDataAvg = (
 export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {
     const variant = record.votesData.variants[index]
     return record.votesData.variants_votes_data[variant]?.percentage
+}
+
+export function getTypedValue(res?: TypedValue) {
+    const {value, type} = res || {}
+    return type === "number"
+        ? round(Number(value), 2)
+        : ["boolean", "bool"].includes(type as string)
+          ? capitalize(value?.toString())
+          : value?.toString()
+}
+
+export function getFilterParams(type: "number" | "text" | "date") {
+    const filterParams: GenericObject = {}
+    if (type == "date") {
+        filterParams.comparator = function (
+            filterLocalDateAtMidnight: Date,
+            cellValue: string | null,
+        ) {
+            if (cellValue == null) return -1
+            const cellDate = dayjs(cellValue).startOf("day").toDate()
+            if (filterLocalDateAtMidnight.getTime() === cellDate.getTime()) {
+                return 0
+            }
+            if (cellDate < filterLocalDateAtMidnight) {
+                return -1
+            }
+            if (cellDate > filterLocalDateAtMidnight) {
+                return 1
+            }
+        }
+    }
+
+    return {
+        sortable: true,
+        floatingFilter: true,
+        filter:
+            type === "number"
+                ? "agNumberColumnFilter"
+                : type === "date"
+                  ? "agDateColumnFilter"
+                  : "agTextColumnFilter",
+        cellDataType: type,
+        filterParams,
+    }
+}
+
+export const calcEvalDuration = (evaluation: _Evaluation) => {
+    return dayjs(
+        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
+    ).diff(dayjs(evaluation.created_at), "milliseconds")
 }

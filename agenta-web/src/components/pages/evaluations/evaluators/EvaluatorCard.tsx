@@ -12,8 +12,11 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
+        display: "flex",
+        flexDirection: "column",
         "& .ant-card-body": {
             padding: "1.25rem 0.75rem 1rem 1rem",
+            flex: 1,
         },
     },
     body: {
