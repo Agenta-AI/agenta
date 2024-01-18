@@ -1,13 +1,14 @@
 import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useEffect, useState} from "react"
+import React, {useContext, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import {removeVariant} from "@/lib/services/api"
-import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
+import {promptVersioning, removeVariant} from "@/lib/services/api"
+import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {PromptVersioningContext} from "../PromptVersioningProvider"
 
 interface Props {
     variant: Variant
@@ -74,6 +75,9 @@ const ParametersView: React.FC<Props> = ({
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
 
+    const {setPromptRevisions, setIsDrawerOpen, setHistoryStatus} =
+        useContext(PromptVersioningContext)
+
     useEffect(() => {
         onStateChange(variant.persistent === false)
     }, [])
@@ -126,6 +130,18 @@ const ParametersView: React.FC<Props> = ({
         })
     }, [getHelpers, onSave, handleDelete])
 
+    const handleHistoryBtn = async () => {
+        setHistoryStatus({loading: true, error: false})
+        setIsDrawerOpen(true)
+        try {
+            const revisions = await promptVersioning(variant.variantId)
+            setPromptRevisions(revisions)
+            setHistoryStatus({loading: false, error: false})
+        } catch (error) {
+            setHistoryStatus({loading: false, error: true})
+        }
+    }
+
     const items: CollapseProps["items"] = [
         {
             key: "1",
@@ -151,6 +167,18 @@ const ParametersView: React.FC<Props> = ({
                                         </Button>
                                     </Tooltip>
                                 )}
+
+                                <Tooltip>
+                                    <Button
+                                        onClick={handleHistoryBtn}
+                                        data-cy="history-button"
+                                        type="link"
+                                        icon={compareMode && <HistoryOutlined />}
+                                        style={{backgroundColor: "#fa8c16", color: "#fff"}}
+                                    >
+                                        {compareMode ? null : "History"}
+                                    </Button>
+                                </Tooltip>
 
                                 <Tooltip
                                     placement="bottom"
