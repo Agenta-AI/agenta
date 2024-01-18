@@ -86,8 +86,13 @@ async def invoke_app(
         )
         response.raise_for_status()
 
-        lm_app_response = response.json()
-        return AppOutput(output=lm_app_response["message"], status="success")
+        llm_app_response = response.json()
+        app_output = (
+            llm_app_response["message"]
+            if isinstance(llm_app_response, dict)
+            else llm_app_response
+        )
+        return AppOutput(output=app_output, status="success")
 
 
 async def run_with_retry(

@@ -84,11 +84,14 @@ export async function callVariant(
     appId: string,
     baseId: string,
     chatMessages?: ChatMessage[],
+    signal?: AbortSignal,
+    ignoreAxiosError?: boolean,
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
+
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -120,9 +123,14 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
-        return res.data
-    })
+    return axios
+        .post(`${appContainerURI}/generate`, requestBody, {
+            signal,
+            _ignoreError: ignoreAxiosError,
+        } as any)
+        .then((res) => {
+            return res.data
+        })
 }
 
 /**
