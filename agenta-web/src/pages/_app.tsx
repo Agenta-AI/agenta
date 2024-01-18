@@ -12,6 +12,7 @@ import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
+import PromptVersioningProvider from "@/components/Playground/PromptVersioningProvider"
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {
@@ -43,9 +44,11 @@ export default function App({Component, pageProps}: AppProps) {
             <ThemeContextProvider>
                 <ProfileContextProvider>
                     <AppContextProvider>
-                        <Layout>
-                            <Component {...pageProps} />
-                        </Layout>
+                        <PromptVersioningProvider>
+                            <Layout>
+                                <Component {...pageProps} />
+                            </Layout>
+                        </PromptVersioningProvider>
                     </AppContextProvider>
                 </ProfileContextProvider>
             </ThemeContextProvider>
