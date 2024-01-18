@@ -2,29 +2,35 @@ import io
 import os
 import csv
 import json
+import logging
 import requests
+
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
 from pydantic import ValidationError
-
 from fastapi.responses import JSONResponse
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter
+from agenta_backend.models.db_models import TestSetDB
+from agenta_backend.models.db_models import Permission
+from agenta_backend.services.db_manager import get_user
 from fastapi import HTTPException, UploadFile, File, Form, Request
+from agenta_backend.models.converters import testset_db_to_pydantic
+from agenta_backend.utils.common import APIRouter, check_rbac_permission
+
 
 from agenta_backend.models.api.testset_model import (
-    TestSetSimpleResponse,
-    DeleteTestsets,
     NewTestset,
+    DeleteTestsets,
+    TestSetSimpleResponse,
     TestSetOutputResponse,
 )
-from agenta_backend.services import db_manager
-from agenta_backend.models.db_models import TestSetDB
-from agenta_backend.services.db_manager import get_user
-from agenta_backend.models.converters import testset_db_to_pydantic
-from agenta_backend.utils.common import APIRouter, check_access_to_app
-
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 upload_folder = "./path/to/upload/folder"
 
 
@@ -59,15 +65,21 @@ async def upload_file(
     """
 
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.CREATE_TESTSET,
     )
-    if not access_app:
-        error_msg = f"You do not have access to this app: {app_id}"
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
         return JSONResponse(
             {"detail": error_msg},
-            status_code=400,
+            status_code=403,
         )
+    
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
@@ -75,6 +87,7 @@ async def upload_file(
         "name": testset_name if testset_name else file.filename,
         "app": app,
         "organization": app.organization,
+        "workspace": app.workspace,
         "csvdata": [],
     }
 
@@ -136,15 +149,21 @@ async def import_testset(
         dict: The result of the import process.
     """
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.CREATE_TESTSET,
     )
-    if not access_app:
-        error_msg = f"You do not have access to this app: {app_id}"
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
         return JSONResponse(
             {"detail": error_msg},
-            status_code=400,
+            status_code=403,
         )
+    
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
@@ -161,6 +180,7 @@ async def import_testset(
             "name": testset_name,
             "app": app,
             "organization": app.organization,
+            "workspace": app.workspace,
             "csvdata": [],
         }
 
@@ -216,22 +236,29 @@ async def create_testset(
     """
 
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    user = await get_user(user_uid=user_org_data["uid"])
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.CREATE_TESTSET,
     )
-    if not access_app:
-        error_msg = f"You do not have access to this app: {app_id}"
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
         return JSONResponse(
             {"detail": error_msg},
-            status_code=400,
+            status_code=403,
         )
+    
+    user = await get_user(user_uid=user_org_data["uid"])
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
         "app": app,
         "organization": app.organization,
+        "workspace": app.workspace,
         "csvdata": csvdata.csvdata,
         "user": user,
     }
@@ -267,25 +294,33 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    workspace_org_data = await db_manager.get_object_workspace_org_id(testset_id, "testset")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.EDIT_TESTSET,
+    )
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=403,
+        )
+        
+    
     testset_update = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
+    
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
-    )
-    if not access_app:
-        error_msg = f"You do not have access to this app: {test_set.app.id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
+    
     try:
         await test_set.update({"$set": testset_update})
         if isinstance(test_set.id, ObjectId):
@@ -316,15 +351,21 @@ async def get_testsets(
     - `HTTPException` with status code 404 if no testsets are found.
     """
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.VIEW_TESTSET,
     )
-    if not access_app:
-        error_msg = f"You do not have access to this app: {app_id}"
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
         return JSONResponse(
             {"detail": error_msg},
-            status_code=400,
+            status_code=403,
         )
+    
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     if app is None:
@@ -356,18 +397,25 @@ async def get_single_testset(
         The requested testset if found, else an HTTPException.
     """
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    workspace_org_data = await db_manager.get_object_workspace_org_id(testset_id, "testset")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.VIEW_TESTSET,
+    )
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=403,
+        )
+    
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
-    access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
-    )
-    if not access_app:
-        error_msg = "You do not have access to this test set"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
+    
     return testset_db_to_pydantic(test_set)
 
 
@@ -386,24 +434,27 @@ async def delete_testsets(
     A list of the deleted testsets' IDs.
     """
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.DELETE_TESTSET,
+    )
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+        logger.error(error_msg)
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=403,
+        )
 
     deleted_ids = []
-
     for testset_id in delete_testsets.testset_ids:
         test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data,
-            app_id=str(test_set.app.id),
-            check_owner=False,
-        )
-        if not access_app:
-            error_msg = "You do not have access to this test set"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
+ 
         await test_set.delete()
         deleted_ids.append(testset_id)
 

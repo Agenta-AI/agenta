@@ -1,21 +1,22 @@
 import os
 import logging
-from typing import List, Optional, Union
 
+from typing import List, Optional, Union
 from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import WorkspaceRole, Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
 
 
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
+if FEATURE_FLAG in ["cloud"]:
     from agenta_backend.cloud.services import container_manager
-elif os.environ["FEATURE_FLAG"] in ["ee"]:
+elif FEATURE_FLAG in ["ee"]:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
@@ -26,14 +27,11 @@ from agenta_backend.models.api.api_models import (
     RestartAppContainer,
     Template,
 )
-from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 # TODO: We need to improve this to use the introduced abstraction to also use start and stop service
@@ -57,13 +55,23 @@ async def build_image(
     Returns:
         Image: The Docker image that was built.
     """
-    # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=app_id,
+            object_type="app",
+            permission=Permission.CREATE_APPLICATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
     # Check app access
-    app_db = await db_manager.fetch_app_and_check_access(
-        app_id=app_id, user_org_data=user_org_data
-    )
+    app_db = await db_manager.fetch_app_by_id(app_id)
 
     image_result = await container_manager.build_image(
         app_db=app_db,
@@ -84,12 +92,8 @@ async def restart_docker_container(
     Args:
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
-    logger.debug(f"Restarting container for variant {payload.variant_id}")
-    # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    app_variant_db = await db_manager.fetch_app_variant_and_check_access(
-        app_variant_id=payload.variant_id, user_org_data=user_org_data
-    )
+    logger.debug(f"Restarting container for variant {payload.variant_id}")    
+    app_variant_db = await db_manager.fetch_app_variant_by_id(payload.variant_id)
     try:
         deployment = await db_manager.get_deployment_by_objectid(
             app_variant_db.base.deployment
@@ -144,11 +148,26 @@ async def construct_app_container_url(
     Raises:
         HTTPException: If the base or variant cannot be found or the user does not have access.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    if base_id:
-        base_db = await db_manager.fetch_base_and_check_access(
-            base_id=base_id, user_org_data=user_org_data
+    # assert that one of base_id or variant_id is provided
+    assert base_id or variant_id, "Please provide either base_id or variant_id"
+        
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=base_id if base_id else variant_id,
+            object_type="base" if base_id else "app_variant",
+            role=WorkspaceRole.VIEWER,
         )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+    
+    if base_id:
+        base_db = await db_manager.fetch_base_by_id(base_id)
         # TODO: Add status check if base_db.status == "running"
         if base_db.deployment:
             deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
@@ -161,9 +180,7 @@ async def construct_app_container_url(
 
         return URI(uri=uri)
     elif variant_id:
-        variant_db = await db_manager.fetch_app_variant_and_check_access(
-            app_variant_id=variant_id, user_org_data=user_org_data
-        )
+        variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
         deployment = await db_manager.get_deployment_by_objectid(
             variant_db.base.deployment
         )

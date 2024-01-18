@@ -1,12 +1,15 @@
 import os
 import secrets
-from typing import Any, List
+import logging
 
+from typing import Any, List
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException, Request, status, Response
 
 from agenta_backend.utils.common import APIRouter
+from agenta_backend.tasks.evaluations import evaluate
+from agenta_backend.services import evaluation_service, db_manager
+
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -15,25 +18,19 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationWebhook,
 )
-from agenta_backend.services import db_manager
-from agenta_backend.tasks.evaluations import evaluate
-from agenta_backend.services import evaluation_service
-from agenta_backend.utils.common import check_access_to_app
 
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
-        get_user_and_org_id,
-    )
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
 
-
-# Initialize api router
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @router.post("/", response_model=List[Evaluation], operation_id="create_evaluation")
@@ -48,18 +45,21 @@ async def create_evaluation(
         _description_
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data,
-            app_id=payload.app_id,
-            check_owner=False,
-        )
-        if not access_app:
-            error_msg = f"You do not have access to this app: {payload.app_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=payload.app_id,
+                object_type="app",
+                permission=Permission.CREATE_EVALUATION,
             )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
@@ -112,11 +112,22 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
     """
 
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        evaluation = await evaluation_service.fetch_evaluation(
-            evaluation_id, **user_org_data
-        )
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        evaluation = await evaluation_service.fetch_evaluation(evaluation_id)
         return {"status": evaluation.status}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -135,11 +146,22 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     """
 
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        results = await evaluation_service.retrieve_evaluation_results(
-            evaluation_id, **user_org_data
-        )
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        results = await evaluation_service.retrieve_evaluation_results(evaluation_id)
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -166,12 +188,27 @@ async def fetch_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-        evaluation_id, **user_org_data
-    )
-
-    return eval_scenarios
+    try:
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(evaluation_id)
+        return eval_scenarios
+    
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -187,10 +224,25 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_list_evaluations(
-        app_id=app_id, **user_org_data
-    )
+    try:
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=app_id,
+                object_type="app",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        return await evaluation_service.fetch_list_evaluations(app_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get(
@@ -208,8 +260,25 @@ async def fetch_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
+    try:
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        
+        return await evaluation_service.fetch_evaluation(evaluation_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_evaluations")
@@ -227,12 +296,27 @@ async def delete_evaluations(
     A list of the deleted comparison tables' IDs.
     """
 
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    await evaluation_service.delete_evaluations(
-        delete_evaluations.evaluations_ids, **user_org_data
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    try:
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            for evaluation_id in delete_evaluations.evaluations_ids:
+                has_permission = await check_action_access(
+                    user_id=request.state.user_id,
+                    object_id=evaluation_id,
+                    object_type="evaluation",
+                    permission=Permission.VIEW_EVALUATION,
+                )
+                if not has_permission:
+                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                    logger.error(error_msg)
+                    return JSONResponse(
+                        {"detail": error_msg},
+                        status_code=403,
+                    )
+        
+        await evaluation_service.delete_evaluations(delete_evaluations.evaluations_ids)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post(
@@ -272,10 +356,27 @@ async def fetch_evaluation_scenarios(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluations_ids_list = evaluations_ids.split(",")
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
-        evaluations_ids_list, **user_org_data
-    )
+    try:
+        evaluations_ids_list = evaluations_ids.split(",")
 
-    return eval_scenarios
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            for evaluation_id in evaluations_ids_list:
+                has_permission = await check_action_access(
+                    user_id=request.state.user_id,
+                    object_id=evaluation_id,
+                    object_type="evaluation",
+                    permission=Permission.VIEW_EVALUATION,
+                )
+                if not has_permission:
+                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                    logger.error(error_msg)
+                    return JSONResponse(
+                        {"detail": error_msg},
+                        status_code=403,
+                    )
+        
+        eval_scenarios = await evaluation_service.compare_evaluations_scenarios(evaluations_ids_list)
+
+        return eval_scenarios
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

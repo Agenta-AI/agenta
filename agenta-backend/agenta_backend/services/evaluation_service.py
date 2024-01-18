@@ -1,8 +1,13 @@
+import os
 import logging
-from datetime import datetime
-from typing import Dict, List, Any
 
+from datetime import datetime
 from fastapi import HTTPException
+from typing import Dict, List, Any
+from beanie import PydanticObjectId as ObjectId
+
+from agenta_backend.models import converters
+from agenta_backend.services import db_manager
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -17,24 +22,34 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationStatusEnum,
     NewHumanEvaluation,
 )
-from agenta_backend.models import converters
-from agenta_backend.services import db_manager
-from agenta_backend.services.db_manager import get_user
-from agenta_backend.utils.common import check_access_to_app
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.utils.permissions import check_access_to_app
+    from agenta_backend.commons.models.db_models import (
+        AppDB_ as AppDB,
+        UserDB_ as UserDB,
+        AppVariantDB_ as AppVariantDB,
+        EvaluationDB_ as EvaluationDB,
+        HumanEvaluationDB_ as HumanEvaluationDB,
+        EvaluationScenarioDB_ as EvaluationScenarioDB,
+        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        AppDB,
+        UserDB,
+        AppVariantDB,
+        EvaluationDB,
+        HumanEvaluationDB,
+        EvaluationScenarioDB,
+        HumanEvaluationScenarioDB,
+    )
+
 from agenta_backend.models.db_models import (
-    AppVariantDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
-    UserDB,
-    AppDB,
 )
-
-from beanie import PydanticObjectId as ObjectId
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -44,31 +59,6 @@ class UpdateEvaluationScenarioError(Exception):
     """Custom exception for update evaluation scenario errors."""
 
     pass
-
-
-async def _fetch_evaluation_and_check_access(
-    evaluation_id: str, **user_org_data: dict
-) -> EvaluationDB:
-    # Fetch the evaluation by ID
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id=evaluation_id)
-
-    # Check if the evaluation exists
-    if evaluation is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Evaluation with id {evaluation_id} not found",
-        )
-
-    # Check for access rights
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=evaluation.app.id
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
-        )
-    return evaluation
 
 
 async def _fetch_human_evaluation_and_check_access(
@@ -214,9 +204,7 @@ async def create_evaluation_scenario(
     Raises:
         HTTPException: If evaluation not found or access denied.
     """
-    evaluation = await _fetch_evaluation_and_check_access(
-        evaluation_id=evaluation_id, **user_org_data
-    )
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
 
     scenario_inputs = [
         EvaluationScenarioInput(
@@ -272,14 +260,13 @@ async def update_human_evaluation_service(
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str, **user_org_data: dict
+    evaluation_id: str
 ) -> List[EvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If the evaluation is not found or access is denied.
@@ -287,10 +274,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluation = await _fetch_evaluation_and_check_access(
-        evaluation_id=evaluation_id,
-        **user_org_data,
-    )
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
     scenarios = await EvaluationScenarioDB.find(
         EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id), fetch_links=True
     ).to_list()
@@ -465,25 +449,17 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
 
 async def fetch_list_evaluations(
     app_id: str,
-    **user_org_data: dict,
 ) -> List[Evaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app_id (Optional[str]): An optional app ID to filter the evaluations.
-        user_org_data (dict): User and organization data.
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {app_id}",
-        )
-
+    
     evaluations_db = await EvaluationDB.find(
         EvaluationDB.app.id == ObjectId(app_id), fetch_links=True
     ).to_list()
@@ -493,20 +469,17 @@ async def fetch_list_evaluations(
     ]
 
 
-async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluation:
+async def fetch_evaluation(evaluation_id: str) -> Evaluation:
     """
     Fetches a single evaluation based on its ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        user_org_data (dict): User and organization data.
 
     Returns:
         Evaluation: The fetched evaluation.
     """
-    evaluation = await _fetch_evaluation_and_check_access(
-        evaluation_id=evaluation_id, **user_org_data
-    )
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
     return await converters.evaluation_db_to_pydantic(evaluation)
 
 
@@ -579,21 +552,18 @@ async def delete_human_evaluations(
         await evaluation.delete()
 
 
-async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
+async def delete_evaluations(evaluation_ids: List[str]) -> None:
     """
     Delete evaluations by their IDs.
 
     Args:
         evaluation_ids (List[str]): A list of evaluation IDs.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If evaluation not found or access denied.
     """
     for evaluation_id in evaluation_ids:
-        evaluation = await _fetch_evaluation_and_check_access(
-            evaluation_id=evaluation_id, **user_org_data
-        )
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         await evaluation.delete()
 
 
@@ -610,7 +580,7 @@ async def create_new_human_evaluation(
     Returns:
         HumanEvaluationDB
     """
-    user = await get_user(user_uid=user_org_data["uid"])
+    user = await db_manager.get_user(user_uid=user_org_data["uid"])
 
     # Initialize evaluation type settings
     evaluation_type_settings = {}
@@ -684,19 +654,19 @@ async def create_new_evaluation(
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
-        organization=app.organization,
-        workspace=app.workspace,
         user=app.user,
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variant=variant_id,
         evaluators_configs=evaluator_config_ids,
+        organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
+        workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
 
 async def retrieve_evaluation_results(
-    evaluation_id: str, **user_org_data: dict
+    evaluation_id: str
 ) -> List[dict]:
     """Retrieve the aggregated results for a given evaluation.
 
@@ -709,20 +679,11 @@ async def retrieve_evaluation_results(
 
     # Check for access rights
     evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=str(evaluation.app.id)
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
-        )
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
 
 
 async def compare_evaluations_scenarios(
     evaluations_ids: List[str],
-    **user_org_data: dict,
 ):
     evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
     testset = evaluation.testset
@@ -733,9 +694,7 @@ async def compare_evaluations_scenarios(
     all_scenarios = []
 
     for evaluation_id in evaluations_ids:
-        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
-            evaluation_id, **user_org_data
-        )
+        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(evaluation_id)
         all_scenarios.append(eval_scenarios)
 
     grouped_scenarios_by_inputs = find_scenarios_by_input(

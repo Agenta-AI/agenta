@@ -11,6 +11,8 @@ from docker.errors import DockerException
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+
 
 async def start_service(
     app_variant_db: AppVariantDB, env_vars: Dict[str, str]
@@ -51,13 +53,13 @@ async def start_service(
 
     deployment = await db_manager.create_deployment(
         app=app_variant_db.app,
-        organization=app_variant_db.organization,
-        workspace=app_variant_db.workspace,
         user=app_variant_db.user,
         container_name=container_name,
         container_id=container_id,
         uri=uri,
         status="running",
+        organization=app_variant_db.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
+        workspace=app_variant_db.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
     )
     return deployment
 

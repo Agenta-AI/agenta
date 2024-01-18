@@ -1,16 +1,16 @@
 import os
 import logging
+
+from typing import Any, Optional, Union
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
-from typing import Any, Optional, Union
 from fastapi import HTTPException, Request, Body
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.models.db_models import Permission
+from agenta_backend.utils.common import APIRouter, check_rbac_permission
+
 from agenta_backend.services import (
     app_manager,
     db_manager,
-)
-from agenta_backend.utils.common import (
-    check_access_to_variant,
 )
 from agenta_backend.models import converters
 
@@ -58,10 +58,25 @@ async def add_variant_from_base_and_config(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
+        
+        # Check user has permission to add variant
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        base_db = await db_manager.fetch_base_and_check_access(
-            payload.base_id, user_org_data
+        workspace_org_data = await db_manager.get_object_workspace_org_id(payload.base_id, "base")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=Permission.CREATE_APPLICATION,
         )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+        
+        base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
         # Find the previous variant in the database
         db_app_variant = await db_manager.add_variant_from_base_and_config(
@@ -100,25 +115,24 @@ async def remove_variant(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-        # Check app access
-        access_app = await check_access_to_variant(
-            user_org_data, variant_id=variant_id, check_owner=True
+        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=Permission.DELETE_APPLICATION_VARIANT,
         )
-
-        if not access_app:
-            error_msg = (
-                f"You do not have permission to delete app variant: {variant_id}"
-            )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
-        else:
-            await app_manager.terminate_and_remove_app_variant(
-                app_variant_id=variant_id, **user_org_data
-            )
+
+        await app_manager.terminate_and_remove_app_variant(
+            app_variant_id=variant_id, **user_org_data
+        )
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -149,25 +163,26 @@ async def update_variant_parameters(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_variant = await check_access_to_variant(
-            user_org_data=user_org_data, variant_id=variant_id
+        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=Permission.MODIFY_CONFIGURATIONS,
         )
-
-        if not access_variant:
-            error_msg = (
-                f"You do not have permission to update app variant: {variant_id}"
-            )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
-        else:
-            await app_manager.update_variant_parameters(
-                app_variant_id=variant_id,
-                parameters=payload.parameters,
-                **user_org_data,
-            )
+        
+        await app_manager.update_variant_parameters(
+            app_variant_id=variant_id,
+            parameters=payload.parameters,
+            **user_org_data,
+        )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -197,18 +212,21 @@ async def update_variant_image(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_variant = await check_access_to_variant(
-            user_org_data=user_org_data, variant_id=variant_id
+        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
+        has_permission = await check_rbac_permission(
+            user_org_data=user_org_data,
+            workspace_id=workspace_org_data["workspace_id"],
+            organization_id=workspace_org_data["organization_id"],
+            role=Permission.CREATE_APPLICATION,
         )
-        if not access_variant:
-            error_msg = (
-                f"You do not have permission to update app variant: {variant_id}"
-            )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
+        
         db_app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
@@ -264,16 +282,22 @@ async def start_variant(
     else:
         envvars = {} if env_vars is None else env_vars.env_vars
 
-    access = await check_access_to_variant(
-        user_org_data=user_org_data, variant_id=variant_id
+    # Check user has permission to start variant
+    workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
+    has_permission = await check_rbac_permission(
+        user_org_data=user_org_data,
+        workspace_id=workspace_org_data["workspace_id"],
+        organization_id=workspace_org_data["organization_id"],
+        role=Permission.CREATE_APPLICATION,
     )
-    if not access:
-        error_msg = f"You do not have access to this variant: {variant_id}"
+    if not has_permission:
+        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
         logger.error(error_msg)
         return JSONResponse(
             {"detail": error_msg},
-            status_code=400,
+            status_code=403,
         )
+    
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if action.action == VariantActionEnum.START:
         url: URI = await app_manager.start_variant(
