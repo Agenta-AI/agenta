@@ -323,7 +323,9 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
         HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
     ).to_list()
     eval_scenarios = [
-        converters.human_evaluation_scenario_db_to_pydantic(scenario)
+        converters.human_evaluation_scenario_db_to_pydantic(
+            scenario, str(evaluation.id)
+        )
         for scenario in scenarios
     ]
     return eval_scenarios
