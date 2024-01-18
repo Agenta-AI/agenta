@@ -491,22 +491,29 @@ const App: React.FC<TestViewProps> = ({
     const handleRestore = (id: number) => {
         const revision = promptRevisions?.revisions.find((rev) => rev.revision === id)
 
-        setOptParams((prevState) => {
+        setOptParams((prevState: Parameter[] | null) => {
             if (!prevState) {
                 return prevState
             }
 
-            prevState[0].default = revision?.config.parameters.temperature
-            prevState[1].default = revision?.config.parameters.model
-            prevState[2].default = revision?.config.parameters.max_tokens
-            prevState[3].default = revision?.config.parameters.prompt_system
-            prevState[4].default = revision?.config.parameters.prompt_user
-            prevState[5].default = revision?.config.parameters.top_p
-            prevState[6].default = revision?.config.parameters.frequence_penalty
-            prevState[7].default = revision?.config.parameters.presence_penalty
-            prevState[8].default = revision?.config.parameters.inputs
+            const parameterNames = [
+                "temperature",
+                "model",
+                "max_tokens",
+                "prompt_system",
+                "prompt_user",
+                "top_p",
+                "frequence_penalty",
+                "presence_penalty",
+                "inputs",
+            ]
 
-            return prevState
+            return prevState.map((param: Parameter) => {
+                if (parameterNames.includes(param.name)) {
+                    param.default = (revision?.config.parameters as Record<string, any>)[param.name]
+                }
+                return param
+            })
         })
 
         setIsDrawerOpen(false)

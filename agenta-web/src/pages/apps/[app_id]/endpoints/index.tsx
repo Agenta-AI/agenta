@@ -1,6 +1,7 @@
 import cURLCode from "@/code_snippets/endpoints/curl"
 import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
+import DeploymentHistory from "@/components/DeploymentHistory/DeploymentHistory"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import {useQueryParam} from "@/hooks/useQuery"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
@@ -194,7 +195,7 @@ export default function VariantEndpoint() {
                             key: "history",
                             label: "History",
                             icon: <HistoryOutlined />,
-                            children: <div>Hello</div>,
+                            children: <DeploymentHistory variant={variant} />,
                         },
                     ]}
                     onChange={setTab}
