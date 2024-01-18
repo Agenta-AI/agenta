@@ -104,16 +104,6 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                 className={vertical ? classes.btnsDividerVertical : classes.btnsDividerHorizontal}
                 style={{borderColor: token.colorBorder}}
             />
-            <Button
-                danger
-                type={value === badId ? "primary" : undefined}
-                key={badId}
-                onClick={getOnClick(badId)}
-                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
-            >
-                Both are bad
-            </Button>
-
             <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[2]}}}>
                 <Button
                     danger
@@ -125,6 +115,15 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                     Both are good
                 </Button>
             </ConfigProvider>
+            <Button
+                danger
+                type={value === badId ? "primary" : undefined}
+                key={badId}
+                onClick={getOnClick(badId)}
+                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
+            >
+                Both are bad
+            </Button>
         </div>
     )
 }
