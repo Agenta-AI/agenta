@@ -14,7 +14,7 @@ import {AgGridReact} from "ag-grid-react"
 import {Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {getFilterParams, getTypedValue} from "../evaluationResults/EvaluationResults"
+import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
 import {DownloadOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
@@ -208,8 +208,6 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     useEffect(() => {
         fetcher()
     }, [appId, evaluationIdsStr])
-
-    // useAgGridCustomHeaders(gridRef.current?.api)
 
     const handleDeleteVariant = (evalId: string) => {
         setEvaluationIdsStr(evaluationIds.filter((item) => item !== evalId).join(","))
