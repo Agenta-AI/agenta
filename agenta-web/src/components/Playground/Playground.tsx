@@ -15,6 +15,7 @@ import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-ki
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
+import PromptVersioningProvider from "./PromptVersioningProvider"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -239,18 +240,22 @@ const Playground: React.FC = () => {
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
-            <ViewNavigation
-                compareMode={compareMode}
-                variant={variant}
-                handlePersistVariant={handlePersistVariant}
-                environments={environments}
-                deleteVariant={deleteVariant}
-                onStateChange={(isDirty) =>
-                    setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
-                }
-                getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
-                tabID={tabID}
-            />
+            <PromptVersioningProvider>
+                <ViewNavigation
+                    compareMode={compareMode}
+                    variant={variant}
+                    handlePersistVariant={handlePersistVariant}
+                    environments={environments}
+                    deleteVariant={deleteVariant}
+                    onStateChange={(isDirty) =>
+                        setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
+                    }
+                    getHelpers={(helpers) =>
+                        (variantHelpers.current[variant.variantName] = helpers)
+                    }
+                    tabID={tabID}
+                />
+            </PromptVersioningProvider>
         ),
         closable: !variant.persistent,
     }))
