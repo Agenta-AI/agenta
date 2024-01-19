@@ -1,49 +1,28 @@
 import os
 import secrets
-from typing import List, Dict
+from typing import Any, List
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Body, Request, status, Response
-from agenta_backend.utils.common import APIRouter
+from fastapi.encoders import jsonable_encoder
+from fastapi import HTTPException, Request, status, Response
 
-from agenta_backend.services.helpers import format_inputs, format_outputs
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.models.api.evaluation_model import (
-    AICritiqueCreate,
-    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
-    CustomEvaluationOutput,
-    CustomEvaluationDetail,
-    EvaluationScenarioScoreUpdate,
-    EvaluationScenarioUpdate,
-    ExecuteCustomEvaluationCode,
+    LMProvidersEnum,
     NewEvaluation,
     DeleteEvaluation,
-    EvaluationType,
-    CreateCustomEvaluation,
-    EvaluationUpdate,
     EvaluationWebhook,
-    SimpleEvaluationOutput,
 )
-from agenta_backend.services.evaluation_service import (
-    UpdateEvaluationScenarioError,
-    evaluate_with_ai_critique,
-    fetch_custom_evaluation_names,
-    fetch_custom_evaluations,
-    fetch_custom_evaluation_detail,
-    get_evaluation_scenario_score_service,
-    update_evaluation_scenario_service,
-    update_evaluation_scenario_score_service,
-    update_evaluation_service,
-    create_custom_code_evaluation,
-    update_custom_code_evaluation,
-    execute_custom_code_evaluation,
-)
+from agenta_backend.services import db_manager
+from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
-from agenta_backend.services import db_manager
-from agenta_backend.models import converters
-from agenta_backend.services import results_service
+
+from agenta_backend.services.evaluator_manager import (
+    check_ai_critique_inputs,
+)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -52,12 +31,12 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
+
+# Initialize api router
 router = APIRouter()
 
 
-@router.post(
-    "/", response_model=SimpleEvaluationOutput, operation_id="create_evaluation"
-)
+@router.post("/", response_model=List[Evaluation], operation_id="create_evaluation")
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
@@ -82,14 +61,37 @@ async def create_evaluation(
                 status_code=400,
             )
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        new_evaluation_db = await evaluation_service.create_new_evaluation(
-            payload, **user_org_data
+        success, response = await check_ai_critique_inputs(
+            payload.evaluators_configs, payload.lm_providers_keys
         )
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        if not success:
+            return response
+
+        evaluations = []
+
+        for variant_id in payload.variant_ids:
+            evaluation = await evaluation_service.create_new_evaluation(
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluator_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+            )
+
+            evaluate.delay(
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluators_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+                evaluation_id=evaluation.id,
+                rate_limit_config=payload.rate_limit.dict(),
+                lm_providers_keys=payload.lm_providers_keys,
+            )
+            evaluations.append(evaluation)
+
+        return evaluations
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -97,31 +99,50 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}/", operation_id="update_evaluation")
-async def update_evaluation(
-    request: Request,
-    evaluation_id: str,
-    update_data: EvaluationUpdate = Body(...),
-):
-    """Updates an evaluation's status.
+@router.get("/{evaluation_id}/status/", operation_id="fetch_evaluation_status")
+async def fetch_evaluation_status(evaluation_id: str, request: Request):
+    """Fetches the status of the evaluation.
 
-    Raises:
-        HTTPException: If the columns in the test set do not match with the inputs in the variant.
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
 
     Returns:
-        None: A 204 No Content status code, indicating that the update was successful.
+        (str): the evaluation status
     """
+
     try:
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        await update_evaluation_service(evaluation_id, update_data, **user_org_data)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    except KeyError:
-        raise HTTPException(
-            status_code=400,
-            detail="columns in the test set should match the names of the inputs in the variant",
+        evaluation = await evaluation_service.fetch_evaluation(
+            evaluation_id, **user_org_data
         )
+        return {"status": evaluation.status}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/{evaluation_id}/results/", operation_id="fetch_evaluation_results")
+async def fetch_evaluation_results(evaluation_id: str, request: Request):
+    """Fetches the results of the evaluation
+
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        # Get user and organization id
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        results = await evaluation_service.retrieve_evaluation_results(
+            evaluation_id, **user_org_data
+        )
+        return {"results": results, "evaluation_id": evaluation_id}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get(
@@ -153,154 +174,7 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post(
-    "/{evaluation_id}/evaluation_scenario/", operation_id="create_evaluation_scenario"
-)
-async def create_evaluation_scenario(
-    evaluation_id: str,
-    evaluation_scenario: EvaluationScenario,
-    request: Request,
-):
-    """Create a new evaluation scenario for a given evaluation ID.
-
-    Raises:
-        HTTPException: If evaluation not found or access denied.
-
-    Returns:
-        None: 204 No Content status code upon success.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    await evaluation_service.create_evaluation_scenario(
-        evaluation_id, evaluation_scenario, **user_org_data
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.put(
-    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/",
-    operation_id="update_evaluation_scenario",
-)
-async def update_evaluation_scenario(
-    evaluation_id: str,
-    evaluation_scenario_id: str,
-    evaluation_type: EvaluationType,
-    evaluation_scenario: EvaluationScenarioUpdate,
-    request: Request,
-):
-    """Updates an evaluation scenario's vote or score based on its type.
-
-    Raises:
-        HTTPException: If update fails or unauthorized.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_evaluation_scenario_service(
-            evaluation_scenario_id,
-            evaluation_scenario,
-            evaluation_type,
-            **user_org_data,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateEvaluationScenarioError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.post(
-    "/evaluation_scenario/ai_critique/",
-    response_model=str,
-    operation_id="evaluate_ai_critique",
-)
-async def evaluate_ai_critique(
-    payload: AICritiqueCreate,
-    request: Request,
-) -> str:
-    """
-    Evaluate AI critique based on the given payload.
-
-    Args:
-        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-        stoken_session (SessionContainer): The session container verified by `verify_session`.
-
-    Returns:
-        str: The output of the AI critique evaluation.
-
-    Raises:
-        HTTPException: If any exception occurs during the evaluation.
-    """
-    try:
-        # Extract data from the payload
-        payload_dict = payload.dict()
-
-        # Run AI critique evaluation
-        output = evaluate_with_ai_critique(
-            llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
-            llm_app_inputs=payload_dict["inputs"],
-            correct_answer=payload_dict["correct_answer"],
-            app_variant_output=payload_dict["outputs"][0]["variant_output"],
-            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
-            open_ai_key=payload_dict["open_ai_key"],
-        )
-        return output
-
-    except Exception as e:
-        raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
-
-
-@router.get(
-    "/evaluation_scenario/{evaluation_scenario_id}/score/",
-    operation_id="get_evaluation_scenario_score",
-)
-async def get_evaluation_scenario_score(
-    evaluation_scenario_id: str,
-    request: Request,
-) -> Dict[str, str]:
-    """
-    Fetch the score of a specific evaluation scenario.
-
-    Args:
-        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
-        stoken_session: Session data, verified by `verify_session`.
-
-    Returns:
-        Dictionary containing the scenario ID and its score.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await get_evaluation_scenario_score_service(
-        evaluation_scenario_id, **user_org_data
-    )
-
-
-@router.put(
-    "/evaluation_scenario/{evaluation_scenario_id}/score/",
-    operation_id="update_evaluation_scenario_score",
-)
-async def update_evaluation_scenario_score(
-    evaluation_scenario_id: str,
-    payload: EvaluationScenarioScoreUpdate,
-    request: Request,
-):
-    """Updates the score of an evaluation scenario.
-
-    Raises:
-        HTTPException: Server error if the evaluation update fails.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_evaluation_scenario_score_service(
-            evaluation_scenario_id, payload.score, **user_org_data
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.get("/", response_model=List[Evaluation], operation_id="fetch_list_evaluations")
+@router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
     app_id: str,
     request: Request,
@@ -361,239 +235,6 @@ async def delete_evaluations(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{evaluation_id}/results/", operation_id="fetch_results")
-async def fetch_results(
-    evaluation_id: str,
-    request: Request,
-):
-    """Fetch all the results for one the comparison table
-
-    Arguments:
-        evaluation_id -- _description_
-
-    Returns:
-        _description_
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    evaluation = await evaluation_service._fetch_evaluation_and_check_access(
-        evaluation_id, **user_org_data
-    )
-    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"votes_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.single_model_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await results_service.fetch_average_score_for_custom_code_run(
-            evaluation_id
-        )
-        return {"avg_score": results}
-
-
-@router.post("/custom_evaluation/", operation_id="create_custom_evaluation")
-async def create_custom_evaluation(
-    custom_evaluation_payload: CreateCustomEvaluation,
-    request: Request,
-):
-    """Create evaluation with custom python code.
-
-    Args:
-        \n custom_evaluation_payload (CreateCustomEvaluation): the required payload
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # create custom evaluation in database
-    evaluation_id = await create_custom_code_evaluation(
-        custom_evaluation_payload, **user_org_data
-    )
-
-    return JSONResponse(
-        {
-            "status": "success",
-            "message": "Evaluation created successfully.",
-            "evaluation_id": evaluation_id,
-        },
-        status_code=200,
-    )
-
-
-@router.put("/custom_evaluation/{id}", operation_id="update_custom_evaluation")
-async def update_custom_evaluation(
-    id: str,
-    updated_data: CreateCustomEvaluation,
-    request: Request,
-):
-    """Update a custom code evaluation.
-    Args:
-        id (str): the ID of the custom evaluation to update
-        updated_data (CreateCustomEvaluation): the payload with updated data
-        stoken_session (SessionContainer): session container for authentication
-    """
-
-    # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Update the evaluation with the provided data
-    updated_evaluation_id = await update_custom_code_evaluation(
-        id, updated_data, **kwargs
-    )
-
-    return JSONResponse(
-        {
-            "status": "success",
-            "message": "Evaluation edited successfully.",
-            "evaluation_id": updated_evaluation_id,
-        },
-        status_code=200,
-    )
-
-
-@router.get(
-    "/custom_evaluation/list/{app_id}/",
-    response_model=List[CustomEvaluationOutput],
-    operation_id="list_custom_evaluations",
-)
-async def list_custom_evaluations(
-    app_id: str,
-    request: Request,
-):
-    """List the custom code evaluations for a given app.
-
-    Args:
-        app_id (str): the id of the app
-
-    Returns:
-        List[CustomEvaluationOutput]: a list of custom evaluation
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Fetch custom evaluations from database
-    evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
-    return evaluations
-
-
-@router.get(
-    "/custom_evaluation/{id}/",
-    response_model=CustomEvaluationDetail,
-    operation_id="get_custom_evaluation",
-)
-async def get_custom_evaluation(
-    id: str,
-    request: Request,
-):
-    """Get the custom code evaluation detail.
-
-    Args:
-        id (str): the id of the custom evaluation
-
-    Returns:
-        CustomEvaluationDetail: Detail of the custom evaluation
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Fetch custom evaluations from database
-    evaluation = await fetch_custom_evaluation_detail(id, **user_org_data)
-    return evaluation
-
-
-@router.get(
-    "/custom_evaluation/{app_name}/names/",
-    response_model=List[CustomEvaluationNames],
-    operation_id="get_custom_evaluation_names",
-)
-async def get_custom_evaluation_names(app_name: str, request: Request):
-    """Get the names of custom evaluation for a given app.
-
-    Args:
-        app_name (str): the name of the app the evaluation belongs to
-
-    Returns:
-        List[CustomEvaluationNames]: the list of name of custom evaluations
-    """
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
-    return custom_eval_names
-
-
-@router.post(
-    "/custom_evaluation/execute/{evaluation_id}/",
-    operation_id="execute_custom_evaluation",
-)
-async def execute_custom_evaluation(
-    evaluation_id: str,
-    payload: ExecuteCustomEvaluationCode,
-    request: Request,
-):
-    """Execute a custom evaluation code.
-
-    Args:
-        evaluation_id (str): the custom evaluation id
-        payload (ExecuteCustomEvaluationCode): the required payload
-
-    Returns:
-        float: the result of the evaluation custom code
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Execute custom code evaluation
-    formatted_inputs = format_inputs(payload.inputs)
-    formatted_outputs = format_outputs(payload.outputs)
-    output = list(formatted_outputs.values())[
-        0
-    ]  # for now we expect one output as a string
-    result = await execute_custom_code_evaluation(
-        evaluation_id,
-        payload.app_id,
-        output,
-        payload.correct_answer,
-        payload.variant_id,
-        formatted_inputs,
-        **user_org_data,
-    )
-    return result
-
-
 @router.post(
     "/webhook_example_fake/",
     response_model=EvaluationWebhook,
@@ -607,4 +248,34 @@ async def webhook_example_fake():
     """
 
     # return a random score b/w 0 and 1
-    return {"score": secrets.SystemRandom.random()}
+    random_generator = secrets.SystemRandom()
+    random_number = random_generator.random()
+    return {"score": random_number}
+
+
+@router.get(
+    "/evaluation_scenarios/comparison-results/",
+    response_model=Any,
+)
+async def fetch_evaluation_scenarios(
+    evaluations_ids: str,
+    request: Request,
+):
+    """Fetches evaluation scenarios for a given evaluation ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluations_ids_list = evaluations_ids.split(",")
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
+        evaluations_ids_list, **user_org_data
+    )
+
+    return eval_scenarios

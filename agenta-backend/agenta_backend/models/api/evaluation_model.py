@@ -2,35 +2,58 @@ from enum import Enum
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
+from agenta_backend.models.api.api_models import Result
 
 
-class EvaluationTypeSettings(BaseModel):
-    similarity_threshold: Optional[float]
-    regex_pattern: Optional[str]
-    regex_should_match: Optional[bool]
-    webhook_url: Optional[str]
-    custom_code_evaluation_id: Optional[str]
-    llm_app_prompt_template: Optional[str]
-    evaluation_prompt_template: Optional[str]
+class Evaluator(BaseModel):
+    name: str
+    key: str
+    direct_use: bool
+    settings_template: dict
+
+
+class EvaluatorConfig(BaseModel):
+    id: str
+    name: str
+    evaluator_key: str
+    settings_values: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
 
 
 class EvaluationType(str, Enum):
-    auto_exact_match = "auto_exact_match"
-    auto_similarity_match = "auto_similarity_match"
-    auto_regex_test = "auto_regex_test"
-    auto_webhook_test = "auto_webhook_test"
-    auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
-    human_scoring = "human_scoring"
-    custom_code_run = "custom_code_run"
     single_model_test = "single_model_test"
 
 
 class EvaluationStatusEnum(str, Enum):
     EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
     EVALUATION_STARTED = "EVALUATION_STARTED"
-    COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
+    EVALUATION_FAILED = "EVALUATION_FAILED"
+
+
+class EvaluationScenarioStatusEnum(str, Enum):
+    COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
+
+
+class AggregatedResult(BaseModel):
+    evaluator_config: EvaluatorConfig
+    result: Result
+
+
+class NewHumanEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluation_type: EvaluationType
+    inputs: List[str]
+    testset_id: str
+    status: str
+
+
+class AppOutput(BaseModel):
+    output: Any
+    status: str
 
 
 class Evaluation(BaseModel):
@@ -38,13 +61,12 @@ class Evaluation(BaseModel):
     app_id: str
     user_id: str
     user_username: str
-    evaluation_type: EvaluationType
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
     variant_ids: List[str]
     variant_names: List[str]
     testset_id: str
     testset_name: str
     status: str
+    aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
 
@@ -57,26 +79,56 @@ class SimpleEvaluationOutput(BaseModel):
     evaluation_type: EvaluationType
 
 
-class EvaluationUpdate(BaseModel):
+class HumanEvaluationUpdate(BaseModel):
     status: Optional[EvaluationStatusEnum]
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
+
+
+class EvaluationScenarioResult(BaseModel):
+    evaluator_config: str
+    result: Result
 
 
 class EvaluationScenarioInput(BaseModel):
+    name: str
+    type: str
+    value: Any
+
+
+class EvaluationScenarioOutput(BaseModel):
+    type: str
+    value: Any
+
+
+class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
 
 
-class EvaluationScenarioOutput(BaseModel):
+class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str
     variant_output: str
 
 
-class EvaluationScenario(BaseModel):
+class HumanEvaluation(BaseModel):
+    id: str
+    app_id: str
+    user_id: str
+    user_username: str
+    evaluation_type: str
+    variant_ids: List[str]
+    variant_names: List[str]
+    testset_id: str
+    testset_name: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class HumanEvaluationScenario(BaseModel):
     id: Optional[str]
     evaluation_id: str
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]
+    inputs: List[HumanEvaluationScenarioInput]
+    outputs: List[HumanEvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[Union[str, int]]
     evaluation: Optional[str]
@@ -85,18 +137,31 @@ class EvaluationScenario(BaseModel):
     note: Optional[str]
 
 
-class AICritiqueCreate(BaseModel):
-    correct_answer: str
-    llm_app_prompt_template: Optional[str]
+class HumanEvaluationScenarioUpdate(BaseModel):
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    outputs: Optional[List[HumanEvaluationScenarioOutput]]
+    inputs: Optional[List[HumanEvaluationScenarioInput]]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+
+
+class EvaluationScenario(BaseModel):
+    id: Optional[str]
+    evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
-    evaluation_prompt_template: Optional[str]
-    open_ai_key: Optional[str]
+    evaluation: Optional[str]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    results: List[EvaluationScenarioResult]
 
 
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
-    score: Optional[Union[str, int]]
+    score: Optional[Any]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: Optional[List[EvaluationScenarioOutput]]
     inputs: Optional[List[EvaluationScenarioInput]]
@@ -106,16 +171,6 @@ class EvaluationScenarioUpdate(BaseModel):
 
 class EvaluationScenarioScoreUpdate(BaseModel):
     score: float
-
-
-class NewEvaluation(BaseModel):
-    app_id: str
-    variant_ids: List[str]
-    evaluation_type: EvaluationType
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
-    inputs: List[str]
-    testset_id: str
-    status: str
 
 
 class DeleteEvaluation(BaseModel):
@@ -159,3 +214,36 @@ class ExecuteCustomEvaluationCode(BaseModel):
 
 class EvaluationWebhook(BaseModel):
     score: float
+
+
+class LLMRunRateLimit(BaseModel):
+    batch_size: int
+    max_retries: int
+    retry_delay: int
+    delay_between_batches: int
+
+
+class LMProvidersEnum(str, Enum):
+    openai = "openai"
+
+
+class NewEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluators_configs: List[str]
+    testset_id: str
+    rate_limit: LLMRunRateLimit
+    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+
+
+class NewEvaluatorConfig(BaseModel):
+    app_id: str
+    name: str
+    evaluator_key: str
+    settings_values: dict
+
+
+class UpdateEvaluatorConfig(BaseModel):
+    name: Optional[str]
+    evaluator_key: Optional[str]
+    settings_values: Optional[dict]

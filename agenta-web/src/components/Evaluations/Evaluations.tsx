@@ -8,21 +8,14 @@ import {
     RadioChangeEvent,
     Row,
     Typography,
-    Select,
     message,
     ModalProps,
-    Tooltip,
 } from "antd"
-import {DownOutlined, PlusOutlined, EditFilled} from "@ant-design/icons"
-import {
-    createNewEvaluation,
-    fetchVariants,
-    useLoadTestsetsList,
-    fetchCustomEvaluations,
-} from "@/lib/services/api"
-import {dynamicComponent, getAgentaApiUrl, getApikeys, isDemo} from "@/lib/helpers/utils"
+import {DownOutlined} from "@ant-design/icons"
+import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
+import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
+import {Variant, Parameter, GenericObject, JSSTheme} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
@@ -31,23 +24,17 @@ import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 import Image from "next/image"
 import abTesting from "@/media/testing.png"
 import singleModel from "@/media/score.png"
-import exactMatch from "@/media/target.png"
-import similarity from "@/media/transparency.png"
-import regexIcon from "@/media/programming.png"
-import webhookIcon from "@/media/link.png"
-import ai from "@/media/artificial-intelligence.png"
-import codeIcon from "@/media/browser.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {
         border: "1px solid lightgrey",
         padding: "20px",
@@ -78,7 +65,6 @@ const useStyles = createUseStyles({
     },
     dropdownBtn: {
         marginRight: 10,
-        marginTop: 40,
         width: "100%",
     },
     optionSelected: {
@@ -89,6 +75,17 @@ const useStyles = createUseStyles({
     },
     radioGroup: {
         width: "100%",
+        "& .ant-radio-button-wrapper": {
+            marginBottom: "0.5rem",
+            borderRadius: theme.borderRadius,
+            borderLeft: `1px solid ${theme.colorBorder}`,
+            "&::before": {
+                display: "none",
+            },
+        },
+        "& .ant-radio-button-wrapper-checked ": {
+            borderLeft: `1px solid ${theme.colorPrimary}`,
+        },
     },
     radioBtn: {
         display: "block",
@@ -132,7 +129,7 @@ const useStyles = createUseStyles({
         alignItems: "center",
         justifyContent: "space-between",
     },
-})
+}))
 const {Title} = Typography
 
 export default function Evaluations() {
@@ -142,7 +139,6 @@ export default function Evaluations() {
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const {Option} = Select
 
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -167,11 +163,6 @@ export default function Evaluations() {
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
     const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
-
-    const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
-
-    const [customCodeEvaluationList, setCustomCodeEvaluationList] =
-        useState<SingleCustomEvaluation[]>()
 
     const [shareModalOpen, setShareModalOpen] = useState(false)
 
@@ -349,24 +340,13 @@ export default function Evaluations() {
         }
 
         // 2. We create a new app evaluation
-        const evaluationTypeSettings: GenericObject = {}
-        //set default settings upon creation
-        if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
-            evaluationTypeSettings.similarity_threshold = 0.3
-        } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
-            evaluationTypeSettings.regex_pattern = ""
-            evaluationTypeSettings.regex_should_match = true
-        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
-            evaluationTypeSettings.webhook_url = `${getAgentaApiUrl()}/api/evaluations/webhook_example_fake`
-        }
-
         const evaluationTableId = await createNewEvaluation({
             variant_ids: selectedVariants.map((variant) => variant.variantId),
             appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
             evaluationType: EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
-            evaluationTypeSettings,
-            llmAppPromptTemplate,
+            evaluationTypeSettings: {},
+            llmAppPromptTemplate: "",
             selectedCustomEvaluationID,
             testsetId: selectedTestset._id!,
         }).catch((err) => {
@@ -384,24 +364,10 @@ export default function Evaluations() {
         // 3 We set the variants
         setVariants(selectedVariants)
 
-        if (selectedEvaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_exact_match`)
-        } else if (selectedEvaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/human_a_b_testing`)
-        } else if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/similarity_match`)
-        } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_regex_test`)
-        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_webhook_test`)
-        } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_ai_critique`)
-        } else if (selectedEvaluationType === EvaluationType.custom_code_run) {
-            router.push(
-                `/apps/${appId}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
-            )
+        if (selectedEvaluationType === EvaluationType.human_a_b_testing) {
+            router.push(`/apps/${appId}/annotations/${evaluationTableId}/human_a_b_testing`)
         } else if (selectedEvaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/single_model_test`)
+            router.push(`/apps/${appId}/annotations/${evaluationTableId}/single_model_test`)
         }
     }
 
@@ -424,27 +390,6 @@ export default function Evaluations() {
         )
     }
 
-    useEffect(() => {
-        if (appId)
-            fetchCustomEvaluations(appId).then((res) => {
-                if (res.status === 200) {
-                    setCustomCodeEvaluationList(res.data)
-                }
-            })
-    }, [appId])
-
-    const handleCustomEvaluationOptionChange = (id: string) => {
-        if (id === "new") {
-            router.push(`/apps/${appId}/evaluations/create_custom_evaluation`)
-        }
-        setSelectedCustomEvaluationID(id)
-        setSelectedEvaluationType(EvaluationType.custom_code_run)
-    }
-
-    const handleEditOption = (id: string) => {
-        router.push(`/apps/${appId}/evaluations/custom_evaluations/${id}`)
-    }
-
     return (
         <div>
             <div>
@@ -452,10 +397,19 @@ export default function Evaluations() {
                 {areAppVariantsLoading && <div>loading variants...</div>}
             </div>
             <div className={classes.evaluationContainer} data-cy="evaluations-container">
-                <Row justify="start" gutter={24}>
+                <Row gutter={24}>
                     <Col span={8}>
-                        <Title level={4}>1. Select an evaluation type</Title>
-                        <Title level={5}>Human evaluation</Title>
+                        <Title level={4}>1. Start a new evaluation</Title>
+                    </Col>
+                    <Col span={8}>
+                        <Title level={4}>2. Which variants would you like to evaluate</Title>
+                    </Col>
+                    <Col span={8}>
+                        <Title level={4}>3. Which testset you want to use?</Title>
+                    </Col>
+                </Row>
+                <Row align="top" gutter={24} style={{marginTop: "1rem"}}>
+                    <Col span={8}>
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
                             className={classes.radioGroup}
@@ -495,155 +449,15 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-
-                            <Title level={5}>Automatic evaluation</Title>
-
-                            <Radio.Button
-                                value={EvaluationType.auto_exact_match}
-                                className={classes.radioBtn}
-                            >
-                                <div
-                                    className={classes.evaluationType}
-                                    data-cy="exact-match-button"
-                                >
-                                    <Image
-                                        src={exactMatch}
-                                        alt="Exact match"
-                                        className={classes.evaluationImg}
-                                    />
-
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-                            <Radio.Button
-                                value={EvaluationType.auto_similarity_match}
-                                className={classes.radioBtn}
-                            >
-                                <div className={classes.evaluationType}>
-                                    <Image
-                                        src={similarity}
-                                        alt="Similarity"
-                                        className={classes.evaluationImg}
-                                    />
-
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-                            <Radio.Button
-                                value={EvaluationType.auto_regex_test}
-                                className={classes.radioBtn}
-                            >
-                                <div className={classes.evaluationType} data-cy="regex-button">
-                                    <Image
-                                        src={regexIcon}
-                                        alt="Regex"
-                                        className={classes.evaluationImg}
-                                    />
-
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.auto_regex_test]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-                            <Radio.Button
-                                value={EvaluationType.auto_webhook_test}
-                                className={classes.radioBtn}
-                            >
-                                <div className={classes.evaluationType}>
-                                    <Image
-                                        src={webhookIcon}
-                                        alt="Webhook"
-                                        className={classes.evaluationImg}
-                                    />
-
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.auto_webhook_test]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-                            <Radio.Button
-                                value={EvaluationType.auto_ai_critique}
-                                className={classes.radioBtn}
-                            >
-                                <div className={classes.evaluationType} data-cy="ai-critic-button">
-                                    <Image src={ai} alt="AI" className={classes.evaluationImg} />
-
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-
-                            <div className={classes.customCodeSelectContainer}>
-                                <Select
-                                    data-cy="code-evaluation-button"
-                                    className={`${classes.selectGroup} ${
-                                        selectedCustomEvaluationID ? classes.optionSelected : ""
-                                    }`}
-                                    value={selectedCustomEvaluationID || "Code Evaluation"}
-                                    onChange={handleCustomEvaluationOptionChange}
-                                    optionLabelProp="label"
-                                >
-                                    <Option
-                                        value="new"
-                                        label="New code evaluation"
-                                        data-cy="new-code-evaluation-button"
-                                    >
-                                        <div className={classes.newCodeEval}>
-                                            <PlusOutlined />
-                                            New code evaluation
-                                        </div>
-                                    </Option>
-                                    {...(customCodeEvaluationList || []).map(
-                                        (item: SingleCustomEvaluation) => (
-                                            <Option
-                                                key={item.id}
-                                                value={item.id}
-                                                label={item.evaluation_name}
-                                                data-cy="code-evaluation-option"
-                                            >
-                                                <div className={classes.newCodeEvalList}>
-                                                    <p>{item.evaluation_name}</p>
-                                                    <Tooltip placement="right" title="Edit">
-                                                        <Button
-                                                            type="text"
-                                                            onClick={() =>
-                                                                handleEditOption(item.id)
-                                                            }
-                                                        >
-                                                            <EditFilled />
-                                                        </Button>
-                                                    </Tooltip>
-                                                </div>
-                                            </Option>
-                                        ),
-                                    )}
-                                </Select>
-                                <Image
-                                    src={codeIcon}
-                                    alt="Picture of the author"
-                                    className={`${classes.evaluationImg} ${classes.customCodeIcon}`}
-                                />
-                            </div>
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
-                        <div className="evalaution-title">
-                            <Title level={4}>2. Which variants would you like to evaluate</Title>
-                        </div>
-
                         {Array.from({length: numberOfVariants}).map((_, index) => (
                             <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
                                 <Button
                                     className={classes.variantDropdown}
-                                    style={{
-                                        marginTop: index === 0 ? 40 : 10,
-                                    }}
                                     data-cy={`variants-dropdown-${index}`}
+                                    style={{marginTop: index === 1 ? 8 : 0}}
                                 >
                                     <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
@@ -654,25 +468,18 @@ export default function Evaluations() {
                         ))}
                     </Col>
                     <Col span={8}>
-                        <div className="evalaution-title">
-                            {" "}
-                            <Title level={4}>3. Which testset you want to use?</Title>
-                        </div>
-
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button className={classes.dropdownBtn} data-cy="selected-testset">
                                 <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
-
                                     <DownOutlined />
                                 </div>
                             </Button>
                         </Dropdown>
                     </Col>
-                    <Col span={6}></Col>
                 </Row>
 
-                <Row justify="end" gutter={8}>
+                <Row justify="end" gutter={8} style={{marginTop: "1rem"}}>
                     {selectedEvaluationType === EvaluationType.human_a_b_testing && isDemo() && (
                         <Col>
                             <Button
@@ -695,7 +502,7 @@ export default function Evaluations() {
                             type="primary"
                             data-cy="start-new-evaluation-button"
                         >
-                            Start a new evaluation
+                            Start a new annotation
                         </Button>
                     </Col>
                 </Row>
@@ -708,8 +515,8 @@ export default function Evaluations() {
                 btnText={error.btnText}
             />
             <div>
-                <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
+                <AutomaticEvaluationResult />
             </div>
 
             <ShareEvaluationModal
