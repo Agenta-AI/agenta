@@ -21,7 +21,7 @@ from agenta_backend.services import (
     evaluator_manager,
 )
 
-FEATURE_FLAG = s.environ["FEATURE_FLAG"]
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 
 if FEATURE_FLAG in ["cloud"]:
     from agenta_backend.cloud.services import (
@@ -45,8 +45,7 @@ logger.setLevel(logging.DEBUG)
 
 async def start_variant(
     db_app_variant: AppVariantDB,
-    env_vars: DockerEnvVars = None,
-    **kwargs: dict,
+    env_vars: DockerEnvVars = None
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -112,7 +111,7 @@ async def start_variant(
 
 
 async def update_variant_image(
-    app_variant_db: AppVariantDB, image: Image, **kwargs: dict
+    app_variant_db: AppVariantDB, image: Image
 ):
     """Updates the image for app variant in the database.
 
@@ -155,7 +154,7 @@ async def update_variant_image(
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
 
     # Start variant
-    await start_variant(app_variant_db, **kwargs)
+    await start_variant(app_variant_db)
 
 
 async def terminate_and_remove_app_variant(

@@ -4,33 +4,37 @@ import logging
 from typing import Any, Optional, Union
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
+from agenta_backend.models import converters
 from fastapi import HTTPException, Request, Body
-from agenta_backend.models.db_models import Permission
-from agenta_backend.utils.common import APIRouter, check_rbac_permission
+from agenta_backend.utils.common import APIRouter
 
 from agenta_backend.services import (
     app_manager,
     db_manager,
 )
-from agenta_backend.models import converters
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
+    from agenta_backend.models.api.api_models import (
+        Image_ as Image,
+        AppVariantOutput_ as AppVariantOutput,
+    )
+else:
+    from agenta_backend.models.api.api_models import (
+        Image,
+        AppVariantOutput,
+    )
 
 from agenta_backend.models.api.api_models import (
-    Image,
     URI,
     DockerEnvVars,
-    AddVariantFromBasePayload,
-    AppVariantOutput,
-    UpdateVariantParameterPayload,
     VariantAction,
     VariantActionEnum,
+    AddVariantFromBasePayload,
+    UpdateVariantParameterPayload,
 )
-
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -59,22 +63,22 @@ async def add_variant_from_base_and_config(
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
         
-        # Check user has permission to add variant
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = await db_manager.get_object_workspace_org_id(payload.base_id, "base")
-        has_permission = await check_rbac_permission(
-            user_org_data=user_org_data,
-            workspace_id=workspace_org_data["workspace_id"],
-            organization_id=workspace_org_data["organization_id"],
-            role=Permission.CREATE_APPLICATION,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+        # Check user has permission to add variant            
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=payload.base_id,
+                object_type="base",
+                permission=Permission.CREATE_APPLICATION,
             )
+            logger.debug(f"User has Permission to create variant from base and config: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
         
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
@@ -83,7 +87,7 @@ async def add_variant_from_base_and_config(
             base_db=base_db,
             new_config_name=payload.new_config_name,
             parameters=payload.parameters,
-            **user_org_data,
+            user_uid=request.state.user_id,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
         app_variant_db = await db_manager.get_app_variant_instance_by_id(
@@ -114,25 +118,23 @@ async def remove_variant(
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
-        has_permission = await check_rbac_permission(
-            user_org_data=user_org_data,
-            workspace_id=workspace_org_data["workspace_id"],
-            organization_id=workspace_org_data["organization_id"],
-            role=Permission.DELETE_APPLICATION_VARIANT,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=variant_id,
+                object_type="app_variant",
+                permission=Permission.DELETE_APPLICATION_VARIANT,
             )
+            logger.debug(f"User has Permission to delete app variant: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
-        await app_manager.terminate_and_remove_app_variant(
-            app_variant_id=variant_id, **user_org_data
-        )
+        await app_manager.terminate_and_remove_app_variant(app_variant_id=variant_id)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -162,26 +164,25 @@ async def update_variant_parameters(
         JSONResponse: A JSON response containing the updated app variant parameters.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
-        has_permission = await check_rbac_permission(
-            user_org_data=user_org_data,
-            workspace_id=workspace_org_data["workspace_id"],
-            organization_id=workspace_org_data["organization_id"],
-            role=Permission.MODIFY_CONFIGURATIONS,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=variant_id,
+                object_type="app_variant",
+                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
+            logger.debug(f"User has Permission to update variant parameters: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
         
         await app_manager.update_variant_parameters(
             app_variant_id=variant_id,
             parameters=payload.parameters,
-            **user_org_data,
         )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -211,27 +212,27 @@ async def update_variant_image(
         JSONResponse: A JSON response indicating whether the update was successful or not.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
-        has_permission = await check_rbac_permission(
-            user_org_data=user_org_data,
-            workspace_id=workspace_org_data["workspace_id"],
-            organization_id=workspace_org_data["organization_id"],
-            role=Permission.CREATE_APPLICATION,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=variant_id,
+                object_type="app_variant",
+                permission=Permission.CREATE_APPLICATION,
             )
+            logger.debug(f"User has Permission to update variant image: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
         
         db_app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
 
-        await app_manager.update_variant_image(db_app_variant, image, **user_org_data)
+        await app_manager.update_variant_image(db_app_variant, image)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -266,8 +267,24 @@ async def start_variant(
         HTTPException: If the app container cannot be started.
     """
 
+    # Check user has permission to start variant
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=variant_id,
+            object_type="app_variant",
+            permission=Permission.CREATE_APPLICATION,
+        )
+        logger.debug(f"User has Permission to start variant: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
     logger.debug("Starting variant %s", variant_id)
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -281,26 +298,8 @@ async def start_variant(
         }
     else:
         envvars = {} if env_vars is None else env_vars.env_vars
-
-    # Check user has permission to start variant
-    workspace_org_data = await db_manager.get_object_workspace_org_id(variant_id, "app_variant")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.CREATE_APPLICATION,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
-        )
     
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if action.action == VariantActionEnum.START:
-        url: URI = await app_manager.start_variant(
-            app_variant_db, envvars, **user_org_data
-        )
+        url: URI = await app_manager.start_variant(app_variant_db, envvars)
     return url

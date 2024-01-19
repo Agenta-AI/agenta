@@ -52,6 +52,7 @@ async def create_evaluation(
                 object_type="app",
                 permission=Permission.CREATE_EVALUATION,
             )
+            logger.debug(f"User has permission to create evaluation: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -119,6 +120,7 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
+            logger.debug(f"User has permission to fetch evaluation status: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -153,6 +155,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
+            logger.debug(f"User has permission to get evaluation results: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -196,6 +199,7 @@ async def fetch_evaluation_scenarios(
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
+            logger.debug(f"User has permission to get evaluation scenarios: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -232,6 +236,7 @@ async def fetch_list_evaluations(
                 object_type="app",
                 permission=Permission.VIEW_EVALUATION,
             )
+            logger.debug(f"User has permission to get list of evaluations: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -268,6 +273,7 @@ async def fetch_evaluation(
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
+            logger.debug(f"User has permission to get single evaluation: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -305,6 +311,7 @@ async def delete_evaluations(
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,
                 )
+                logger.debug(f"User has permission to delete evaluation: {has_permission}")
                 if not has_permission:
                     error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                     logger.error(error_msg)
@@ -367,6 +374,7 @@ async def fetch_evaluation_scenarios(
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,
                 )
+                logger.debug(f"User has permission to get evaluation scenarios: {has_permission}")
                 if not has_permission:
                     error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                     logger.error(error_msg)

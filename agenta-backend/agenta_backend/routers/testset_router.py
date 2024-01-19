@@ -12,12 +12,9 @@ from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import APIRouter
-from agenta_backend.models.db_models import TestSetDB
-from agenta_backend.models.db_models import Permission
 from agenta_backend.services.db_manager import get_user
 from fastapi import HTTPException, UploadFile, File, Form, Request
 from agenta_backend.models.converters import testset_db_to_pydantic
-from agenta_backend.utils.common import APIRouter, check_rbac_permission
 
 
 from agenta_backend.models.api.testset_model import (
@@ -27,19 +24,23 @@ from agenta_backend.models.api.testset_model import (
     TestSetOutputResponse,
 )
 
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import (
+        TestSetDB_ as TestSetDB
+    ) # noqa pylint: disable-all
+else:
+    from agenta_backend.models.db_models import (
+         TestSetDB
+    )
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 upload_folder = "./path/to/upload/folder"
-
-
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
 
 
 @router.post(
@@ -64,21 +65,21 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.CREATE_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=app_id,
+            object_type="app",
+            permission=Permission.CREATE_TESTSET,
         )
+        logger.debug(f"User has Permission to upload Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
@@ -114,7 +115,7 @@ async def upload_file(
         for row in csv_reader:
             document["csvdata"].append(row)
 
-    user = await get_user(user_uid=user_org_data["uid"])
+    user = await get_user(request.state.user_id)
     try:
         testset_instance = TestSetDB(**document, user=user)
     except ValidationError as e:
@@ -148,21 +149,21 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.CREATE_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=app_id,
+            object_type="app",
+            permission=Permission.CREATE_TESTSET,
         )
+        logger.debug(f"User has Permission to import Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
@@ -189,7 +190,7 @@ async def import_testset(
         for row in json_response:
             document["csvdata"].append(row)
 
-        user = await get_user(user_uid=user_org_data["uid"])
+        user = await get_user(request.state.user_id)
         testset_instance = TestSetDB(**document, user=user)
         result = await testset_instance.create()
 
@@ -235,23 +236,23 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.CREATE_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=app_id,
+            object_type="app",
+            permission=Permission.CREATE_TESTSET,
         )
+        logger.debug(f"User has Permission to create Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
-    user = await get_user(user_uid=user_org_data["uid"])
+    user = await get_user(request.state.user_id)
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
         "created_at": datetime.now().isoformat(),
@@ -294,22 +295,21 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(testset_id, "testset")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.EDIT_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=testset_id,
+            object_type="testset",
+            permission=Permission.EDIT_TESTSET,
         )
-        
+        logger.debug(f"User has Permission to update Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
     testset_update = {
         "name": csvdata.name,
@@ -350,21 +350,21 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.VIEW_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=app_id,
+            object_type="app",
+            permission=Permission.VIEW_TESTSET,
         )
+        logger.debug(f"User has Permission to view Testsets: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
@@ -396,21 +396,21 @@ async def get_single_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(testset_id, "testset")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.VIEW_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        has_permission = await check_action_access(
+            user_id=request.state.user_id,
+            object_id=testset_id,
+            object_type="testset",
+            permission=Permission.VIEW_TESTSET,
         )
+        logger.debug(f"User has Permission to view Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
     
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
@@ -433,21 +433,22 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    workspace_org_data = await db_manager.get_object_workspace_org_id(app_id, "app")
-    has_permission = await check_rbac_permission(
-        user_org_data=user_org_data,
-        workspace_id=workspace_org_data["workspace_id"],
-        organization_id=workspace_org_data["organization_id"],
-        role=Permission.DELETE_TESTSET,
-    )
-    if not has_permission:
-        error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-        logger.error(error_msg)
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=403,
-        )
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        for testset_id in delete_testsets.testset_ids:
+            has_permission = await check_action_access(
+                user_id=request.state.user_id,
+                object_id=testset_id,
+                object_type="testset",
+                permission=Permission.VIEW_TESTSET,
+            )
+            logger.debug(f"User has Permission to delete Testset: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
     deleted_ids = []
     for testset_id in delete_testsets.testset_ids:
