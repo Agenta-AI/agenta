@@ -12,6 +12,9 @@ FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import WorkspaceRole, Permission
     from agenta_backend.commons.utils.permissions import check_action_access
+    from agenta_backend.models.api.api_models import Image_ as Image
+else:
+    from agenta_backend.models.api.api_models import Image_ as Image
 
 
 if FEATURE_FLAG in ["cloud"]:
@@ -23,7 +26,6 @@ else:
 
 from agenta_backend.models.api.api_models import (
     URI,
-    Image,
     RestartAppContainer,
     Template,
 )

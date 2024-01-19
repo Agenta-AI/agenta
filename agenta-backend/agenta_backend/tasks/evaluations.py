@@ -7,14 +7,6 @@ from typing import Any, Dict, List
 
 from agenta_backend.models.api.evaluation_model import AppOutput, NewEvaluation
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.models.db_models import (
-    AggregatedResult,
-    AppDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-    EvaluationScenarioResult,
-    Result,
-)
 from agenta_backend.services import evaluators_service, llm_apps_service
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -31,6 +23,23 @@ from agenta_backend.services.db_manager import (
 from celery import shared_task, states
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import (
+        AppDB_ as AppDB,
+        EvaluationScenarioOutputDB_ as EvaluationScenarioOutputDB,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        AppDB,
+        EvaluationScenarioOutputDB,
+    )
+    
+    from agenta_backend.models.db_models import (
+        AggregatedResult,
+        EvaluationScenarioInputDB,
+        EvaluationScenarioResult,
+        Result,
+    )
 
 # Set logger
 logger = logging.getLogger(__name__)
