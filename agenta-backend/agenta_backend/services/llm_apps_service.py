@@ -1,10 +1,10 @@
-import asyncio
 import json
-import logging
-from typing import Any, Dict, List
-import traceback
-
 import httpx
+import logging
+import asyncio
+import traceback
+from typing import Any, Dict, List
+
 
 from agenta_backend.models.api.evaluation_model import AppOutput
 

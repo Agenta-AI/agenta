@@ -1,8 +1,18 @@
-from agenta_backend.models.db_models import (
-    HumanEvaluationDB,
-    EvaluationScenarioDB,
-    HumanEvaluationScenarioDB,
-)
+import os
+
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.models.db_models import (
+        HumanEvaluationDB_ as HumanEvaluationDB,
+        EvaluationScenarioDB_ as EvaluationScenarioDB,
+        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        HumanEvaluationDB,
+        EvaluationScenarioDB,
+        HumanEvaluationScenarioDB,
+    )
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
 

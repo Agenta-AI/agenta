@@ -61,14 +61,14 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def _fetch_human_evaluation_and_check_access(
-    evaluation_id: str, **user_org_data: dict
+async def _fetch_human_evaluation(
+    evaluation_id: str
 ) -> HumanEvaluationDB:
     # Fetch the evaluation by ID
     evaluation = await db_manager.fetch_human_evaluation_by_id(
         evaluation_id=evaluation_id
     )
-
+    
     # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
@@ -76,20 +76,11 @@ async def _fetch_human_evaluation_and_check_access(
             detail=f"Evaluation with id {evaluation_id} not found",
         )
 
-    # Check for access rights
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=evaluation.app.id
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
-        )
     return evaluation
 
 
-async def _fetch_human_evaluation_scenario_and_check_access(
-    evaluation_scenario_id: str, **user_org_data: dict
+async def _fetch_human_evaluation_scenario(
+    evaluation_scenario_id: str
 ) -> HumanEvaluationDB:
     # Fetch the evaluation by ID
     evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
@@ -109,15 +100,6 @@ async def _fetch_human_evaluation_scenario_and_check_access(
             detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
         )
 
-    # Check for access rights
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=evaluation.app.id
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
-        )
     return evaluation_scenario
 
 
@@ -191,7 +173,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
 
 async def create_evaluation_scenario(
-    evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
+    evaluation_id: str, payload: EvaluationScenario
 ) -> None:
     """
     Create a new evaluation scenario.
@@ -199,7 +181,6 @@ async def create_evaluation_scenario(
     Args:
         evaluation_id (str): The ID of the evaluation.
         payload (EvaluationScenario): Evaluation scenario data.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If evaluation not found or access denied.
@@ -232,7 +213,7 @@ async def create_evaluation_scenario(
 
 
 async def update_human_evaluation_service(
-    evaluation_id: str, update_payload: HumanEvaluationUpdate, **user_org_data: dict
+    evaluation_id: str, update_payload: HumanEvaluationUpdate
 ) -> None:
     """
     Update an existing evaluation based on the provided payload.
@@ -245,10 +226,7 @@ async def update_human_evaluation_service(
         HTTPException: If the evaluation is not found or access is denied.
     """
     # Fetch the evaluation by ID
-    evaluation = await _fetch_human_evaluation_and_check_access(
-        evaluation_id=evaluation_id,
-        **user_org_data,
-    )
+    evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
 
     # Prepare updates
     updates = {}
@@ -286,14 +264,13 @@ async def fetch_evaluation_scenarios_for_evaluation(
 
 
 async def fetch_human_evaluation_scenarios_for_evaluation(
-    evaluation_id: str, **user_org_data: dict
+    evaluation_id: str,
 ) -> List[HumanEvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If the evaluation is not found or access is denied.
@@ -301,9 +278,8 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluation = await _fetch_human_evaluation_and_check_access(
+    evaluation = await _fetch_human_evaluation(
         evaluation_id=evaluation_id,
-        **user_org_data,
     )
     scenarios = await HumanEvaluationScenarioDB.find(
         HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
@@ -319,8 +295,7 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
 async def update_human_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
-    evaluation_type: EvaluationType,
-    **user_org_data,
+    evaluation_type: EvaluationType
 ) -> None:
     """
     Updates an evaluation scenario.
@@ -329,15 +304,11 @@ async def update_human_evaluation_scenario(
         evaluation_scenario_id (str): The ID of the evaluation scenario.
         evaluation_scenario_data (EvaluationScenarioUpdate): New data for the scenario.
         evaluation_type (EvaluationType): Type of the evaluation.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If evaluation scenario not found or access denied.
     """
-    eval_scenario = await _fetch_human_evaluation_scenario_and_check_access(
-        evaluation_scenario_id=evaluation_scenario_id,
-        **user_org_data,
-    )
+    eval_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
 
     updated_data = evaluation_scenario_data.dict()
     updated_data["updated_at"] = datetime.utcnow()
@@ -386,7 +357,7 @@ async def update_human_evaluation_scenario(
 
 
 async def update_evaluation_scenario_score_service(
-    evaluation_scenario_id: str, score: float, **user_org_data: dict
+    evaluation_scenario_id: str, score: float
 ) -> None:
     """
     Updates the score of an evaluation scenario.
@@ -394,14 +365,11 @@ async def update_evaluation_scenario_score_service(
     Args:
         evaluation_scenario_id (str): The ID of the evaluation scenario.
         score (float): The new score to set.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If evaluation scenario not found or access denied.
     """
-    eval_scenario = await _fetch_human_evaluation_scenario_and_check_access(
-        evaluation_scenario_id, **user_org_data
-    )
+    eval_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
     eval_scenario.score = score
 
     # Save the updated evaluation scenario
@@ -409,21 +377,18 @@ async def update_evaluation_scenario_score_service(
 
 
 async def get_evaluation_scenario_score_service(
-    evaluation_scenario_id: str, **user_org_data: dict
+    evaluation_scenario_id: str
 ) -> Dict[str, str]:
     """
     Retrieve the score of a given evaluation scenario.
 
     Args:
         evaluation_scenario_id: The ID of the evaluation scenario.
-        user_org_data: Additional user and organization data.
 
     Returns:
         Dictionary with 'scenario_id' and 'score' keys.
     """
-    evaluation_scenario = await _fetch_human_evaluation_scenario_and_check_access(
-        evaluation_scenario_id, **user_org_data
-    )
+    evaluation_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
     return {
         "scenario_id": str(evaluation_scenario.id),
         "score": evaluation_scenario.score,
@@ -485,25 +450,16 @@ async def fetch_evaluation(evaluation_id: str) -> Evaluation:
 
 async def fetch_list_human_evaluations(
     app_id: str,
-    **user_org_data: dict,
 ) -> List[HumanEvaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app_id (Optional[str]): An optional app ID to filter the evaluations.
-        user_org_data (dict): User and organization data.
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {app_id}",
-        )
-
     evaluations_db = await HumanEvaluationDB.find(
         HumanEvaluationDB.app.id == ObjectId(app_id), fetch_links=True
     ).to_list()
@@ -514,40 +470,38 @@ async def fetch_list_human_evaluations(
 
 
 async def fetch_human_evaluation(
-    evaluation_id: str, **user_org_data: dict
+    evaluation_id: str
 ) -> HumanEvaluation:
     """
     Fetches a single evaluation based on its ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        user_org_data (dict): User and organization data.
 
     Returns:
         Evaluation: The fetched evaluation.
     """
-    evaluation = await _fetch_human_evaluation_and_check_access(
-        evaluation_id=evaluation_id, **user_org_data
+    evaluation = await _fetch_human_evaluation(
+        evaluation_id=evaluation_id
     )
     return await converters.human_evaluation_db_to_pydantic(evaluation)
 
 
 async def delete_human_evaluations(
-    evaluation_ids: List[str], **user_org_data: dict
+    evaluation_ids: List[str]
 ) -> None:
     """
     Delete evaluations by their IDs.
 
     Args:
         evaluation_ids (List[str]): A list of evaluation IDs.
-        user_org_data (dict): User and organization data.
 
     Raises:
         HTTPException: If evaluation not found or access denied.
     """
     for evaluation_id in evaluation_ids:
-        evaluation = await _fetch_human_evaluation_and_check_access(
-            evaluation_id=evaluation_id, **user_org_data
+        evaluation = await _fetch_human_evaluation(
+            evaluation_id=evaluation_id
         )
         await evaluation.delete()
 
@@ -568,19 +522,19 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
 
 
 async def create_new_human_evaluation(
-    payload: NewHumanEvaluation, **user_org_data: dict
+    payload: NewHumanEvaluation, user_uid: str
 ) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
 
     Args:
         payload (NewEvaluation): The evaluation payload.
-        **user_org_data (dict): Additional keyword arguments, e.g., user id.
+        user_uid (str): The user_uid of the user
 
     Returns:
         HumanEvaluationDB
     """
-    user = await db_manager.get_user(user_uid=user_org_data["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Initialize evaluation type settings
     evaluation_type_settings = {}

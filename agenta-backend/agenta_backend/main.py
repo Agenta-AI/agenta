@@ -12,7 +12,6 @@ from agenta_backend.routers import (
     human_evaluation_router,
     evaluators_router,
     observability_router,
-    organization_router,
     testset_router,
     user_profile,
     variants_router,
@@ -91,7 +90,6 @@ app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
-app.include_router(organization_router.router, prefix="/organizations")
 app.include_router(bases_router.router, prefix="/bases")
 app.include_router(configs_router.router, prefix="/configs")
 
