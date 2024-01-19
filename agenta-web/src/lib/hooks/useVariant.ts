@@ -99,7 +99,7 @@ export function useVariant(appId: string, variant: Variant) {
         saveOptParams,
         refetch: fetchParameters,
         isChatVariant,
-        setOptParams
+        setOptParams,
     }
 }
 

@@ -670,10 +670,7 @@ export const publishVariant = async (variantId: string, environmentName: string)
     })
 }
 
-export const promptVersioning = async (
-    variantId: string,
-    ignoreAxiosError: boolean = false,
-) => {
+export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
     const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
