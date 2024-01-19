@@ -17,11 +17,7 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 
-from agenta_backend.models.converters import (
-    app_db_to_pydantic,
-    image_db_to_pydantic,
-    templates_db_to_pydantic,
-)
+from agenta_backend.models import converters
 
 from agenta_backend.models.db_models import (
     Result,
@@ -78,20 +74,6 @@ else:
         HumanEvaluationDB,
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
-    )
-    
-if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.services import db_manager_ee
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-    from agenta_backend.commons.utils.permissions import (
-        check_action_access, 
-        check_rbac_permission
-    )
-    from agenta_backend.commons.models.db_models import (
-        Permission, 
-        WorkspaceRole
     )
 
 from beanie.operators import In
@@ -190,7 +172,7 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
     db_app_variant = await AppVariantDB.find_one(query_expression)
     if db_app_variant:
         image_db = await ImageDB.find_one(ImageDB.id == db_app_variant.image.id)
-        return image_db_to_pydantic(image_db)
+        return converters.image_db_to_pydantic(image_db)
     else:
         raise Exception("App variant not found")
 
@@ -865,7 +847,7 @@ async def list_apps(
         app_db = await fetch_app_by_name_and_parameters(
             app_name=app_name, user_uid=user_uid, organization_id=org_id, workspace_id=workspace_id
         )
-        return [app_db_to_pydantic(app_db)]
+        return [converters.app_db_to_pydantic(app_db)]
     
 
     # elif (org_id is not None) or (workspace_id is not None): # TODO: Remember to enable this when workspace_id is provided after the RBAC is implemented
@@ -899,11 +881,11 @@ async def list_apps(
     #         AppDB.organization.id == ObjectId(org_id),
     #         AppDB.workspace.id == ObjectId(workspace_id),
     #     ).to_list()
-    #     return [app_db_to_pydantic(app) for app in apps]
+    #     return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         apps = await AppDB.find(AppDB.user.id == user.id).to_list()
-        return [app_db_to_pydantic(app) for app in apps]
+        return [converters.app_db_to_pydantic(app) for app in apps]
 
 
 async def list_app_variants(app_id: str) -> List[AppVariantDB]:
@@ -1534,7 +1516,7 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
 
 async def get_templates() -> List[Template]:
     templates = await TemplateDB.find().to_list()
-    return templates_db_to_pydantic(templates)
+    return converters.templates_db_to_pydantic(templates)
 
 
 async def update_base(

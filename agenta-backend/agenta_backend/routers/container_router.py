@@ -14,7 +14,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.models.api.api_models import Image_ as Image
 else:
-    from agenta_backend.models.api.api_models import Image_ as Image
+    from agenta_backend.models.api.api_models import Image
 
 
 if FEATURE_FLAG in ["cloud"]:
