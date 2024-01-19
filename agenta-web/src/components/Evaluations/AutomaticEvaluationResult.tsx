@@ -5,11 +5,11 @@ import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
 import {Evaluation, GenericObject} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
-import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
+import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
 
 interface EvaluationListTableDataType {
     key: string
@@ -86,21 +86,13 @@ export default function AutomaticEvaluationResult() {
 
         const fetchEvaluations = async () => {
             try {
-                const evals: Evaluation[] = await loadEvaluations(app_id)
+                const evals: Evaluation[] = (await loadEvaluations(app_id)).map(
+                    fromEvaluationResponseToEvaluation,
+                )
                 const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
                 const newEvals = results.map((result, ix) => {
                     const item = evals[ix]
-                    if (
-                        [
-                            EvaluationType.auto_exact_match,
-                            EvaluationType.auto_similarity_match,
-                            EvaluationType.auto_regex_test,
-                            EvaluationType.auto_ai_critique,
-                            EvaluationType.custom_code_run,
-                            EvaluationType.auto_webhook_test,
-                            EvaluationType.single_model_test,
-                        ].includes(item.evaluationType)
-                    ) {
+                    if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
                         return {
                             key: item.id,
                             createdAt: item.createdAt,
@@ -139,22 +131,8 @@ export default function AutomaticEvaluationResult() {
         const evaluationType =
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
-        if (evaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_exact_match`)
-        } else if (evaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_similarity_match`)
-        } else if (evaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_regex_test`)
-        } else if (evaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_webhook_test`)
-        } else if (evaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/single_model_test`)
-        } else if (evaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_ai_critique`)
-        } else if (evaluationType === EvaluationType.custom_code_run) {
-            router.push(
-                `/apps/${app_id}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
-            )
+        if (evaluationType === EvaluationType.single_model_test) {
+            router.push(`/apps/${app_id}/annotations/${evaluation.key}/single_model_test`)
         }
     }
 
@@ -177,17 +155,6 @@ export default function AutomaticEvaluationResult() {
             key: "testsetName",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return <span>{record.testset.name}</span>
-            },
-        },
-        {
-            title: "Evaluation type",
-            dataIndex: "evaluationType",
-            key: "evaluationType",
-            width: "300",
-            render: (value: string) => {
-                const evaluationType = EvaluationType[value as keyof typeof EvaluationType]
-                const label = EvaluationTypeLabels[evaluationType]
-                return <span>{label}</span>
             },
         },
         {
@@ -282,7 +249,7 @@ export default function AutomaticEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Evaluation Results</Title>
+                    <Title level={3}>Single Model Test Results</Title>
                 </div>
             ),
             children: (

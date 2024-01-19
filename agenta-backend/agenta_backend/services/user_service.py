@@ -1,4 +1,3 @@
-from agenta_backend.utils.common import engine
 from agenta_backend.models.db_models import UserDB
 from agenta_backend.models.api.user_models import User, UserUpdate
 
@@ -9,17 +8,16 @@ async def create_new_user(payload: User) -> UserDB:
         username=payload.username,
         email=payload.email,
     )
-    user = await engine.save(user_instance)
+    user = await user_instance.create()
     return user
 
 
 async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    user = await UserDB.find_one(UserDB.uid == user_uid, fetch_links=True)
 
     if user is not None:
         values_to_update = {key: value for key, value in payload.dict()}
-        updated_user = user.update(values_to_update)
-        await engine.save(updated_user)
+        await user.update({"$set": values_to_update})
         return user
     raise NotFound("Credentials not found. Please try again!")
 

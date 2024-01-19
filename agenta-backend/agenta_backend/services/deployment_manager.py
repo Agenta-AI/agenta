@@ -43,6 +43,7 @@ async def start_service(
         container_name=container_name,
         env_vars=env_vars,
     )
+
     uri = results["uri"]
     container_id = results["container_id"]
     container_name = results["container_name"]
