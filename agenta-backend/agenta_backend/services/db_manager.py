@@ -36,8 +36,10 @@ from agenta_backend.utils.common import (
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from beanie.operators import In
-from beanie import PydanticObjectId as ObjectId
+from beanie import (
+    In,
+    PydanticObjectId as ObjectId
+)
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
@@ -560,23 +562,6 @@ async def get_deployment_by_objectid(
     )
     logger.debug(f"deployment: {deployment}")
     return deployment
-
-
-async def get_organizations_by_list_ids(organization_ids: List) -> List:
-    """
-    Retrieve organizations from the database by their IDs.
-
-    Args:
-        organization_ids (List): A list of organization IDs to retrieve.
-
-    Returns:
-        List: A list of dictionaries representing the retrieved organizations.
-    """
-
-    organizations_db = await OrganizationDB.find(
-        In(OrganizationDB.id, organization_ids)
-    ).to_list()
-    return organizations_db
 
 
 async def list_app_variants_for_app_id(
@@ -1418,6 +1403,23 @@ async def fetch_human_evaluation_scenario_by_id(
     return evaluation_scenario
 
 
+async def fetch_human_evaluation_scenario_by_evaluation_id(
+    evaluation_id: str,
+) -> Optional[HumanEvaluationScenarioDB]:
+    """Fetches and evaluation scenario by its ID.
+    Args:
+        evaluation_id (str): The ID of the evaluation object to use in fetching the human evaluation.
+    Returns:
+        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
+    """
+    evaluation = await fetch_human_evaluation_by_id(evaluation_id)
+    human_eval_scenario = await HumanEvaluationScenarioDB.find_one(
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        fetch_links=True,
+    )
+    return human_eval_scenario
+
+
 async def find_previous_variant_from_base_id(
     base_id: str,
 ) -> Optional[AppVariantDB]:
@@ -1898,75 +1900,3 @@ async def update_evaluation(
             setattr(evaluation, key, value)
     await evaluation.save()
     return evaluation
-
-
-async def get_object_workspace_org_id(object_id: str, type: str) -> dict:
-    """
-    Get the organization and workspace id of the object.
-
-    Args:
-        object_id (str): The ID of the object.
-        type (str): The type of the object.
-
-    Returns:
-        dict: The organization and workspace id of the object.
-    """
-    try:
-        if type == "app":
-            app = await fetch_app_by_id(object_id)
-            organization_id = app.organization.id
-            workspace_id = app.workspace.id
-
-        elif type == "app_variant":
-            app_variant = await fetch_app_variant_by_id(object_id)
-            organization_id = app_variant.organization.id
-            workspace_id = app_variant.workspace.id
-
-        elif type == "base":
-            base = await fetch_base_by_id(object_id)
-            organization_id = base.organization.id
-            workspace_id = base.workspace.id
-
-        elif type == "deployment":
-            deployment = await get_deployment_by_objectid(object_id)
-            organization_id = deployment.organization.id
-            workspace_id = deployment.workspace.id
-
-        elif type == "testset":
-            testset = await fetch_testset_by_id(object_id)
-            organization_id = testset.organization.id
-            workspace_id = testset.workspace.id
-
-        elif type == "evaluation":
-            evaluation = await fetch_evaluation_by_id(object_id)
-            organization_id = evaluation.organization.id
-            workspace_id = evaluation.workspace.id
-
-        elif type == "evaluation_scenario":
-            evaluation_scenario = await fetch_evaluation_scenario_by_id(object_id)
-            organization_id = evaluation_scenario.organization.id
-            workspace_id = evaluation_scenario.workspace.id
-
-        elif type == "evaluator_config":
-            evaluator_config = await fetch_evaluator_config(object_id)
-            organization_id = evaluator_config.organization.id
-            workspace_id = evaluator_config.workspace.id
-
-        elif type == "human_evaluation":
-            human_evaluation = await fetch_human_evaluation_by_id(object_id)
-            organization_id = human_evaluation.human_evaluation.id
-            workspace_id = human_evaluation.human_evaluation.id
-
-        elif type == "human_evaluation_scenario":
-            human_evaluation_scenario = await fetch_human_evaluation_scenario_by_id(
-                object_id
-            )
-            organization_id = human_evaluation_scenario.organization.id
-            workspace_id = human_evaluation_scenario.workspace.id
-
-        else:
-            raise ValueError(f"Unknown object type: {type}")
-
-        return {"organization_id": organization_id, "workspace_id": workspace_id}
-    except Exception as e:
-        raise e

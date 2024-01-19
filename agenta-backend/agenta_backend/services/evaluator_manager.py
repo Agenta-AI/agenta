@@ -1,5 +1,5 @@
-import json
 import os
+import json
 from typing import Any, Dict, Optional, List, Tuple
 
 from fastapi.responses import JSONResponse
@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.db_models import (
         AppDB_ as AppDB,
@@ -15,8 +14,8 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     )
 else:    
     from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
-from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
+from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 
 
 def get_evaluators() -> Optional[List[Evaluator]]:
