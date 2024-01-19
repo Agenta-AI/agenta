@@ -1,6 +1,18 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
-import {Button, Card, Col, Radio, Row, Space, Statistic, Table, Typography, message} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Radio,
+    Row,
+    Space,
+    Statistic,
+    Table,
+    Typography,
+    message,
+} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -22,6 +34,7 @@ import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVot
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
 import {PassThrough} from "stream"
+import {debounce} from "lodash"
 
 const {Title} = Typography
 
@@ -95,6 +108,22 @@ const useStyles = createUseStyles({
         top: 36,
         zIndex: 1,
     },
+    sideBar: {
+        marginTop: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+        border: "1px solid #d9d9d9",
+        borderRadius: 6,
+        padding: "1rem",
+        alignSelf: "flex-start",
+        "&>h4.ant-typography": {
+            margin: 0,
+        },
+        flex: 0.35,
+        minWidth: 240,
+        maxWidth: 500,
+    },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -122,6 +151,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     let appVariant2 =
         evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
             ?.number_of_votes || 0
+
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>, scenarioId) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
+        [evaluationScenarios],
+    )
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -303,7 +339,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 ),
                 dataIndex: columnKey,
                 key: columnKey,
-                width: "25%",
+                width: "20%",
                 render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
@@ -351,29 +387,74 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             },
         },
         {
-            key: "correctAnswer",
             title: "Expected Output",
-            dataIndex: "correctAnswer",
+            dataIndex: "expectedOutput",
+            key: "expectedOutput",
             width: "25%",
+            render: (text: any, record: any, rowIndex: number) => {
+                let correctAnswer =
+                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
+
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={correctAnswer}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario(
+                                    {
+                                        correctAnswer: e.target.value,
+                                    },
+                                    record.id,
+                                )
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
         },
         ...dynamicColumns,
         {
-            title: "Evaluate",
-            dataIndex: "evaluate",
-            key: "evaluate",
-            width: 200,
-            // fixed: 'right',
-            render: (text: any, record: any, rowIndex: number) => (
-                <EvaluationVotePanel
-                    type="comparison"
-                    value={record.vote || ""}
-                    variants={variants}
-                    onChange={(vote) => handleVoteClick(record.id, vote)}
-                    loading={record.vote === "loading"}
-                    vertical
-                    key={record.id}
-                />
-            ),
+            title: "Score",
+            dataIndex: "score",
+            key: "score",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        {
+                            <EvaluationVotePanel
+                                type="comparison"
+                                value={record.vote || ""}
+                                variants={variants}
+                                onChange={(vote) => handleVoteClick(record.id, vote)}
+                                loading={record.vote === "loading"}
+                                vertical
+                                key={record.id}
+                            />
+                        }
+                    </>
+                )
+            },
+        },
+        {
+            title: "Additional Note",
+            dataIndex: "additionalNote",
+            key: "additionalNote",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={record?.note || ""}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario({note: e.target.value}, record.id)
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
         },
     ]
 
