@@ -37,7 +37,7 @@ async def save_config(
                 user_id=request.state.user_id,
                 object_id=payload.base_id,
                 object_type="base",
-                permission=Permission.MODIFY_CONFIGURATIONS,
+                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -98,7 +98,7 @@ async def get_config(
                 user_id=request.state.user_id,
                 object_id=base_id,
                 object_type="base",
-                permission=Permission.MODIFY_CONFIGURATIONS,
+                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

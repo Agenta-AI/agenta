@@ -4,6 +4,8 @@ from typing import Any, Callable
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
 
+from agenta_backend.services import db_manager  # To fix circular import
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 

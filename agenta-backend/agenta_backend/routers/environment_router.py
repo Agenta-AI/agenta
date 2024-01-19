@@ -41,6 +41,7 @@ async def deploy_to_environment(
                 object_type="app_variant",
                 permission=Permission.DEPLOY_APPLICATION,
             )
+            logger.debug(f"User has permission deploy to environment: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)

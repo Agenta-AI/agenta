@@ -1,44 +1,31 @@
 import os
 import logging
+
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+
+from agenta_backend.services.json_importer_helper import get_json
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
+
 from agenta_backend.models.api.api_models import (
     App,
     Template,
 )
-from agenta_backend.models.converters import (
-    app_db_to_pydantic,
-    image_db_to_pydantic,
-    templates_db_to_pydantic,
-)
-from agenta_backend.services.json_importer_helper import get_json
+
 from agenta_backend.models.db_models import (
+    Result,
     AggregatedResult,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
     ConfigDB,
     ConfigVersionDB,
-    OrganizationDB,
-    DeploymentDB,
     TemplateDB,
-    WorkspaceDB,
-)
-from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-from agenta_backend.utils.common import (
-    check_user_org_access,
-    check_user_org_workspace_access,
-)
-
-from fastapi import HTTPException
-from fastapi.responses import JSONResponse
-
-from beanie import (
-    In,
-    PydanticObjectId as ObjectId
 )
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
@@ -57,6 +44,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
+        DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -77,6 +65,7 @@ else:
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
+        DeploymentDB,
         VariantBaseDB,
         AppEnvironmentDB,
         EvaluatorConfigDB,
@@ -98,6 +87,10 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         Permission, 
         WorkspaceRole
     )
+
+from beanie.operators import In
+from beanie import PydanticObjectId as ObjectId
+
 # Define logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -285,8 +278,8 @@ async def create_new_variant_base(
     user: UserDB,
     base_name: str,
     image: ImageDB,
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
@@ -355,8 +348,8 @@ async def create_new_app_variant(
     base_name: str,
     config_name: str,
     parameters: Dict,
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
 ) -> AppVariantDB:
     """Create a new variant.
     Args:
@@ -396,8 +389,8 @@ async def create_image(
     image_type: str,
     user: UserDB,
     deletable: bool,
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
     template_uri: str = None,
     docker_id: str = None,
     tags: str = None,
@@ -461,8 +454,8 @@ async def create_deployment(
     container_id: str,
     uri: str,
     status: str,
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
 ) -> DeploymentDB:
     """Create a new deployment.
     Args:
@@ -625,17 +618,10 @@ async def get_user(user_uid: str) -> UserDB:
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+            
             # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
-
-            # create default organization for user
-            org_db = OrganizationDB(type="default", owner=str(user.id))
-            org = await org_db.create()
-
-            # update user with organization
-            user_db.organizations.append(org.id)
-            await user_db.update({"$set": user_db.dict(exclude_unset=True)})
 
             return user
         raise Exception("Please login or signup")
@@ -1628,8 +1614,8 @@ async def create_new_evaluation(
     status: str,
     variant: AppVariantDB,
     evaluators_configs: List[str],
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1671,8 +1657,8 @@ async def create_new_evaluation_scenario(
     note: Optional[str],
     evaluators_configs: List[EvaluatorConfigDB],
     results: List[EvaluationScenarioResult],
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1809,8 +1795,8 @@ async def create_evaluator_config(
     user: UserDB,
     name: str,
     evaluator_key: str,
-    organization: OrganizationDB = None,
-    workspace: WorkspaceDB = None,
+    organization = None,
+    workspace = None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
