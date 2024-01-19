@@ -51,6 +51,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         margin: "1rem -1.5rem",
         width: "unset",
     },
+    editor: {
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        overflow: "hidden",
+    },
 }))
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
@@ -95,13 +100,28 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
             {type === "string" || type === "regex" ? (
                 <Input />
             ) : type === "number" ? (
-                <InputNumber />
-            ) : type === "boolean" ? (
+                <InputNumber min={0} max={1} step={0.1} />
+            ) : type === "boolean" || type === "bool" ? (
                 <Switch />
             ) : type === "text" ? (
                 <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
             ) : type === "code" ? (
-                <Editor height={220} width="100%" language="python" theme={`vs-${appTheme}`} />
+                <Editor
+                    className={classes.editor}
+                    height={400}
+                    width="100%"
+                    language="python"
+                    theme={`vs-${appTheme}`}
+                />
+            ) : type === "object" ? (
+                <Editor
+                    className={classes.editor}
+                    height={120}
+                    width="100%"
+                    language="json"
+                    options={{lineNumbers: "off"}}
+                    theme={`vs-${appTheme}`}
+                />
             ) : null}
         </Form.Item>
     )
@@ -166,7 +186,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 icon: editMode ? <EditOutlined /> : <PlusOutlined />,
                 loading: submitLoading,
             }}
-            width={540}
+            width={650}
             {...props}
         >
             <Divider className={classes.divider} />

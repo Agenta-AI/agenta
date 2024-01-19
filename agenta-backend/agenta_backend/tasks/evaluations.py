@@ -88,7 +88,7 @@ def evaluate(
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
-            evaluator_config_db.id: {
+            str(evaluator_config_db.id): {
                 "evaluator_key": evaluator_config.evaluator_key,
                 "results": [],
             }
@@ -117,7 +117,7 @@ def evaluate(
             self.update_state(state=states.FAILURE)
 
             raise ValueError("Length of csv data and app_outputs are not the same")
-            return
+
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
             # 2. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
@@ -150,6 +150,12 @@ def evaluate(
                     inputs=data_point,
                     lm_providers_keys=lm_providers_keys,
                 )
+
+                # Update evaluators aggregated data
+                evaluator_results: List[Result] = evaluators_aggregated_data[
+                    str(evaluator_config_db.id)
+                ]["results"]
+                evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
                     evaluator_config=evaluator_config_db.id,
@@ -264,9 +270,16 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":
-            for input_name in app_variant_parameters[param["name"]]:
-                list_inputs.append({"name": input_name["name"], "type": "dict_input"})
+        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+            # let's get the list of the dynamic inputs
+            if (
+                param["name"] in app_variant_parameters
+            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
+                input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
+            else:  # otherwise we use the default from the openapi
+                input_names = param["default"]
+            for input_name in input_names:
+                list_inputs.append({"name": input_name, "type": "dict_input"})
         elif param["type"] == "messages":
             list_inputs.append({"name": param["name"], "type": "messages"})
         elif param["type"] == "file_url":

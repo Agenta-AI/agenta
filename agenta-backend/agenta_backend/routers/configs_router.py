@@ -63,7 +63,7 @@ async def save_config(
                 )
             else:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=200,
                     detail="Config name already exists. Please use a different name or set overwrite to True.",
                 )
         else:

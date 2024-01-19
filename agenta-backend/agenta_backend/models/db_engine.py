@@ -98,7 +98,6 @@ class DBEngine:
 
         client = await self.initialize_client()
         db_name = self._get_database_name(self.mode)
-
         await init_beanie(database=client[db_name], document_models=document_models)
         logger.info(f"Using {db_name} database...")
 
