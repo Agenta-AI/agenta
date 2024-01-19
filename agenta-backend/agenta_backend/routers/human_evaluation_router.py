@@ -4,7 +4,8 @@ from typing import List, Dict
 
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from fastapi import HTTPException, APIRouter, Body, Request, status, Response
+from agenta_backend.utils.common import APIRouter
+from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager

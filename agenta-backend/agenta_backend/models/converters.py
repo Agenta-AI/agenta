@@ -1,57 +1,86 @@
 """Converts db models to pydantic models
 """
+import os
 import json
+import logging
 from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
-from agenta_backend.models.db_models import (
-    AppVariantDB,
-    EvaluationScenarioResult,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    ImageDB,
-    TemplateDB,
-    AppDB,
-    AppEnvironmentDB,
-    TestSetDB,
-    SpanDB,
-    TraceDB,
-    Feedback as FeedbackDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    VariantBaseDB,
-    UserDB,
-    AggregatedResult,
-)
-from agenta_backend.models.api.api_models import (
-    AppVariant,
-    ImageExtended,
-    Template,
-    TemplateImageInfo,
-    AppVariantOutput,
-    App,
-    EnvironmentOutput,
-    TestSetOutput,
-    BaseOutput,
-)
+
 from agenta_backend.models.api.observability_models import (
     Span,
     Trace,
     Feedback as FeedbackOutput,
 )
 from agenta_backend.models.api.evaluation_model import (
-    HumanEvaluation,
-    HumanEvaluationScenario,
-    SimpleEvaluationOutput,
-    EvaluationScenario,
     Evaluation,
+    HumanEvaluation,
     EvaluatorConfig,
+    EvaluationScenario,
+    SimpleEvaluationOutput,
     EvaluationScenarioInput,
+    HumanEvaluationScenario,
     EvaluationScenarioOutput,
 )
 
-import logging
+FEATURE_FLAG = os.environ["FEATURE_FLAG"]
+if FEATURE_FLAG in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import (
+        AppDB_ as AppDB,
+        UserDB_ as UserDB,
+        ImageDB_ as ImageDB,
+        TestSetDB_ as TestSetDB,
+        EvaluationDB_ as EvaluationDB,
+        AppVariantDB_ as AppVariantDB_,
+        VariantBaseDB_ as VariantBaseDB,
+        AppEnvironmentDB_ as AppEnvironmentDB,
+        EvaluatorConfigDB_ as EvaluatorConfigDB,
+        HumanEvaluationDB_ as HumanEvaluationDB,
+        EvaluationScenarioDB_ as EvaluationScenarioDB,
+        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+    from agenta_backend.commons.models.api.api_models import (
+        AppVariant_ as AppVariant,
+        ImageExtended_ as ImageExtended,
+        AppVariantOutput_ as AppVariantOutput,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        AppDB,
+        UserDB,
+        ImageDB,
+        TestSetDB,
+        EvaluationDB,
+        AppVariantDB,
+        VariantBaseDB,
+        AppEnvironmentDB,
+        EvaluatorConfigDB,
+        HumanEvaluationDB,
+        EvaluationScenarioDB,
+        HumanEvaluationScenarioDB,
+    )
+    from agenta_backend.models.api.api_models import (
+        AppVariant,
+        ImageExtended,
+        AppVariantOutput,
+    )
+
+from agenta_backend.models.db_models import (
+    SpanDB,
+    TraceDB,
+    TemplateDB,
+    AggregatedResult,
+    Feedback as FeedbackDB,
+    EvaluationScenarioResult,
+)
+from agenta_backend.models.api.api_models import (
+    App,
+    Template,
+    BaseOutput,
+    TestSetOutput,
+    TemplateImageInfo,
+    EnvironmentOutput,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
