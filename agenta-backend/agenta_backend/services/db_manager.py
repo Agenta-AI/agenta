@@ -17,6 +17,12 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 
+from agenta_backend.models.converters import (
+    app_db_to_pydantic,
+    image_db_to_pydantic,
+    templates_db_to_pydantic,
+)
+
 from agenta_backend.models.db_models import (
     Result,
     AggregatedResult,
@@ -787,7 +793,7 @@ async def add_variant_from_base_and_config(
         base_db (VariantBaseDB): The existing base to use as a template for the new variant.
         new_config_name (str): The name of the new configuration to use for the new variant.
         parameters (Dict[str, Any]): The parameters to use for the new configuration.
-        **user_org_data (dict): Additional user and organization data.
+        user_uid (str): The UID of the user
 
     Returns:
         AppVariantDB: The newly created app variant.
