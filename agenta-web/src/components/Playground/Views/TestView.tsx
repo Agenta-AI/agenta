@@ -46,6 +46,11 @@ import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {PromptVersioningContext} from "../PromptVersioningProvider"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
+import duration from "dayjs/plugin/duration"
+dayjs.extend(relativeTime)
+dayjs.extend(duration)
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -617,7 +622,7 @@ const App: React.FC<TestViewProps> = ({
                                                             Saved
                                                         </Tag>
                                                         <Text className={classes.tagText}>
-                                                            {"2 hours ago"}
+                                                            {dayjs(item.created_at).fromNow()}
                                                         </Text>
                                                     </div>
                                                     <div>

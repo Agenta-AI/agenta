@@ -1,10 +1,15 @@
-import {Button, Card, Result, Space, Typography} from "antd"
+import {Button, Card, Divider, Result, Space, Typography} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {UndoOutlined} from "@ant-design/icons"
+import {LoadingOutlined} from "@ant-design/icons"
 import {promptVersioning} from "@/lib/services/api"
 import {IPromptRevisions, IPromptVersioning, Variant} from "@/lib/Types"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
+import duration from "dayjs/plugin/duration"
+dayjs.extend(relativeTime)
+dayjs.extend(duration)
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -13,6 +18,8 @@ type StyleProps = {
 type DeploymentHistoryProps = {
     variant: Variant
 }
+
+const {Text} = Typography
 
 const useStyles = createUseStyles({
     container: {
@@ -30,9 +37,8 @@ const useStyles = createUseStyles({
     }),
     historyItems: {
         display: "flex",
-        justifyContent: "space-between",
-        alignItems: "end",
-        padding: "20px",
+        flexDirection: "column",
+        padding: "10px 20px",
         margin: "20px 0",
         borderRadius: 10,
         cursor: "pointer",
@@ -62,6 +68,15 @@ const useStyles = createUseStyles({
         fontSize: 20,
         fontWeight: "bold",
     },
+    divider: {
+        margin: "10px 0",
+    },
+    historyItemsTitle: ({themeMode}: StyleProps) => ({
+        fontSize: 14,
+        "& span": {
+            color: themeMode === "dark" ? "#f1f5f8" : "#656d76",
+        },
+    }),
 })
 
 const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
@@ -116,7 +131,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
     return (
         <>
             {isLoading ? (
-                <Result />
+                <Result icon={<LoadingOutlined />} subTitle="Loading..." />
             ) : !!filtered?.length ? (
                 <div className={classes.container}>
                     <div className={classes.historyItemsContainer}>
@@ -140,40 +155,46 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
                                 className={classes.historyItems}
                                 onClick={() => handleShowDeployments(item.revision, index)}
                             >
-                                <Space
-                                    direction="vertical"
-                                    style={{
-                                        height: "100%",
-                                        justifyContent: "space-between",
-                                    }}
-                                >
-                                    <div>{item.config.config_name}</div>
-                                    <div>{item.modified_by}</div>
+                                <Space style={{justifyContent: "space-between"}}>
+                                    <Text className={classes.historyItemsTitle}>
+                                        <b>Revision</b> <span>#{item.revision}</span>
+                                    </Text>
+                                    <Text className={classes.historyItemsTitle}>
+                                        <span style={{fontSize: 12}}>
+                                            {dayjs(item.created_at).fromNow()}
+                                        </span>
+                                    </Text>
                                 </Space>
-                                <Space
-                                    direction="vertical"
-                                    style={{
-                                        alignItems: "flex-end",
-                                    }}
-                                >
-                                    <div>Saved: {"item.created_at"}</div>
+
+                                <Divider className={classes.divider} />
+
+                                <Space direction="vertical">
+                                    <div>
+                                        <Text strong>Config Name: </Text>
+                                        <Text>{item.config.config_name}</Text>
+                                    </div>
+                                    <div>
+                                        <Text strong>Modified By: </Text>
+                                        <Text>{item.modified_by}</Text>
+                                    </div>
                                 </Space>
                             </div>
                         ))}
                     </div>
+
                     <div className={classes.promptHistoryInfo}>
                         <div className={classes.promptHistoryInfoHeader}>
                             <h1>Information</h1>
 
                             <Button
-                                icon={<UndoOutlined />}
+                                type="primary"
                                 onClick={() => handleRevert(showDeployments?.revision!)}
                             >
                                 Revert
                             </Button>
                         </div>
 
-                        <div>{showDeployments?.created_at}</div>
+                        <div>{dayjs(showDeployments?.created_at).format("DD-MM-YYYY mm:ss")}</div>
 
                         <Card title="Prompt System" className={classes.promptHistoryCard}>
                             <div>{showDeployments?.config.parameters?.prompt_system}</div>
