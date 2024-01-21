@@ -156,6 +156,7 @@ interface TestViewProps {
     isChatVariant?: boolean
     compareMode: boolean
     setOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
+    onStateChange: (isDirty: boolean) => void
 }
 
 interface BoxComponentProps {
@@ -319,6 +320,7 @@ const App: React.FC<TestViewProps> = ({
     isChatVariant,
     compareMode,
     setOptParams,
+    onStateChange,
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
@@ -493,8 +495,8 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
-    const handleRestore = (id: number) => {
-        const revision = promptRevisions?.revisions.find((rev) => rev.revision === id)
+    const handleRestore = (revisionId: number) => {
+        const revision = promptRevisions?.revisions.find((rev) => rev.revision === revisionId)
 
         setOptParams((prevState: Parameter[] | null) => {
             if (!prevState) {
@@ -522,6 +524,7 @@ const App: React.FC<TestViewProps> = ({
         })
 
         setIsDrawerOpen(false)
+        onStateChange(true)
     }
 
     return (

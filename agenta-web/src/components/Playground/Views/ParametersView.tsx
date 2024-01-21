@@ -153,6 +153,17 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col>
                             <Space>
+                                <Tooltip>
+                                    <Button
+                                        onClick={handleHistoryBtn}
+                                        data-cy="history-button"
+                                        type="link"
+                                        icon={compareMode && <HistoryOutlined />}
+                                    >
+                                        {compareMode ? null : "History"}
+                                    </Button>
+                                </Tooltip>
+
                                 {isVariantExisting && (
                                     <Tooltip
                                         placement="bottom"
@@ -167,18 +178,6 @@ const ParametersView: React.FC<Props> = ({
                                         </Button>
                                     </Tooltip>
                                 )}
-
-                                <Tooltip>
-                                    <Button
-                                        onClick={handleHistoryBtn}
-                                        data-cy="history-button"
-                                        type="link"
-                                        icon={compareMode && <HistoryOutlined />}
-                                        style={{backgroundColor: "#fa8c16", color: "#fff"}}
-                                    >
-                                        {compareMode ? null : "History"}
-                                    </Button>
-                                </Tooltip>
 
                                 <Tooltip
                                     placement="bottom"
