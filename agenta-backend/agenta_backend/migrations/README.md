@@ -30,17 +30,23 @@ To access the backend Docker container:
     docker exec -it CONTAINER_ID bash
     ```
 
-4. **Install Required Beanie Version (This is only temporary)**: Run the following command:
-
-    ```bash
-    sh install_forked_beanie.sh
-    ```
-
 ### Performing the Migration
 
 To perform the database migration:
 
 1. **Navigate to Migration Directory**: Change the directory to the migration folder:
+
+    ```sh
+    cd agenta_backend/migrations/
+    ```
+
+    Run the following command:
+
+    ```bash
+    sh install_forked_beanie.sh
+    ```
+
+    After the installation is complete, change directory to the first migration folder:
 
     ```sh
     cd agenta_backend/migrations/{migration_name}
