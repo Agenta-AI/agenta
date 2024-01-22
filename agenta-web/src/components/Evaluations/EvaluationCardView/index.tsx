@@ -442,6 +442,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.vote === "loading"}
                                             vertical
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     ) : (
                                         <EvaluationVotePanel
@@ -457,6 +458,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.score === "loading"}
                                             showVariantName={false}
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     )}
                                 </Space>
