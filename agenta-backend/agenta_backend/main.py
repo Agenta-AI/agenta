@@ -21,6 +21,7 @@ from agenta_backend.routers import (
     health_router,
 )
 from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.open_api import open_api_tags_metadata
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services import templates_manager
@@ -58,7 +59,7 @@ async def lifespan(application: FastAPI, cache=True):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
 
 allow_headers = ["Content-Type"]
 
@@ -82,18 +83,30 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
 
 app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
-app.include_router(app_router.router, prefix="/apps")
-app.include_router(variants_router.router, prefix="/variants")
-app.include_router(evaluation_router.router, prefix="/evaluations")
-app.include_router(human_evaluation_router.router, prefix="/human-evaluations")
-app.include_router(evaluators_router.router, prefix="/evaluators")
-app.include_router(testset_router.router, prefix="/testsets")
-app.include_router(container_router.router, prefix="/containers")
-app.include_router(environment_router.router, prefix="/environments")
-app.include_router(observability_router.router, prefix="/observability")
-app.include_router(organization_router.router, prefix="/organizations")
-app.include_router(bases_router.router, prefix="/bases")
-app.include_router(configs_router.router, prefix="/configs")
+app.include_router(app_router.router, prefix="/apps", tags=["Apps"])
+app.include_router(variants_router.router, prefix="/variants", tags=["Variants"])
+app.include_router(
+    evaluation_router.router, prefix="/evaluations", tags=["Evaluations"]
+)
+app.include_router(
+    human_evaluation_router.router,
+    prefix="/human-evaluations",
+    tags=["Human-Evaluations"],
+)
+app.include_router(evaluators_router.router, prefix="/evaluators", tags=["Evaluators"])
+app.include_router(testset_router.router, prefix="/testsets", tags=["Testsets"])
+app.include_router(container_router.router, prefix="/containers", tags=["Containers"])
+app.include_router(
+    environment_router.router, prefix="/environments", tags=["Environments"]
+)
+app.include_router(
+    observability_router.router, prefix="/observability", tags=["Observability"]
+)
+app.include_router(
+    organization_router.router, prefix="/organizations", tags=["Organizations"]
+)
+app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
+app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     import agenta_backend.cloud.main as cloud
