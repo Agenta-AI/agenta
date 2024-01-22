@@ -167,11 +167,11 @@ def evaluation_scenarios_results_to_pydantic(
 
 
 def evaluation_scenario_db_to_pydantic(
-    evaluation_scenario_db: EvaluationScenarioDB,
+    evaluation_scenario_db: EvaluationScenarioDB, evaluation_id: str
 ) -> EvaluationScenario:
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
-        evaluation_id=str(evaluation_scenario_db.evaluation.id),
+        evaluation_id=evaluation_id,
         inputs=[
             EvaluationScenarioInput(**scenario_input.dict())
             for scenario_input in evaluation_scenario_db.inputs
