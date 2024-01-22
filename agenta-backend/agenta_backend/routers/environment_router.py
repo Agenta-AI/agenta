@@ -36,7 +36,7 @@ async def deploy_to_environment(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=payload.variant_id,
                 object_type="app_variant",
                 permission=Permission.DEPLOY_APPLICATION,

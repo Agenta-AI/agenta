@@ -47,7 +47,7 @@ async def create_evaluation(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=payload.app_id,
                 object_type="app",
                 permission=Permission.CREATE_EVALUATION,
@@ -115,7 +115,7 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
@@ -150,7 +150,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
@@ -194,7 +194,7 @@ async def fetch_evaluation_scenarios(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
@@ -231,7 +231,7 @@ async def fetch_list_evaluations(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
                 permission=Permission.VIEW_EVALUATION,
@@ -268,7 +268,7 @@ async def fetch_evaluation(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
@@ -306,7 +306,7 @@ async def delete_evaluations(
         if FEATURE_FLAG in ["cloud", "ee"]:
             for evaluation_id in delete_evaluations.evaluations_ids:
                 has_permission = await check_action_access(
-                    user_id=request.state.user_id,
+                    user_uid=request.state.user_id,
                     object_id=evaluation_id,
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,
@@ -369,7 +369,7 @@ async def fetch_evaluation_scenarios(
         if FEATURE_FLAG in ["cloud", "ee"]:
             for evaluation_id in evaluations_ids_list:
                 has_permission = await check_action_access(
-                    user_id=request.state.user_id,
+                    user_uid=request.state.user_id,
                     object_id=evaluation_id,
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,

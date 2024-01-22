@@ -67,7 +67,7 @@ async def upload_file(
 
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=app_id,
             object_type="app",
             permission=Permission.CREATE_TESTSET,
@@ -151,7 +151,7 @@ async def import_testset(
     """
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=app_id,
             object_type="app",
             permission=Permission.CREATE_TESTSET,
@@ -238,7 +238,7 @@ async def create_testset(
 
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=app_id,
             object_type="app",
             permission=Permission.CREATE_TESTSET,
@@ -297,7 +297,7 @@ async def update_testset(
     """
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=testset_id,
             object_type="testset",
             permission=Permission.EDIT_TESTSET,
@@ -352,7 +352,7 @@ async def get_testsets(
     """
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=app_id,
             object_type="app",
             permission=Permission.VIEW_TESTSET,
@@ -398,7 +398,7 @@ async def get_single_testset(
     """
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=testset_id,
             object_type="testset",
             permission=Permission.VIEW_TESTSET,
@@ -436,7 +436,7 @@ async def delete_testsets(
     if FEATURE_FLAG in ["cloud", "ee"]:
         for testset_id in delete_testsets.testset_ids:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=testset_id,
                 object_type="testset",
                 permission=Permission.VIEW_TESTSET,

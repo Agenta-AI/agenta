@@ -79,7 +79,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=evaluator_config_id,
                 object_type="evaluator_config",
                 permission=Permission.VIEW_EVALUATION,
