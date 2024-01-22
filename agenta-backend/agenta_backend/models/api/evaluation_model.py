@@ -114,7 +114,7 @@ class HumanEvaluation(BaseModel):
     app_id: str
     user_id: str
     user_username: str
-    evaluation_type: EvaluationType
+    evaluation_type: str
     variant_ids: List[str]
     variant_names: List[str]
     testset_id: str

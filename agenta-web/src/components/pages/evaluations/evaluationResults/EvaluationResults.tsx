@@ -5,19 +5,19 @@ import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
 import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, GenericObject, JSSTheme, TypedValue, _Evaluation} from "@/lib/Types"
-import {capitalize, round, uniqBy} from "lodash"
+import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
+import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
 import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
-import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
-import {redirectIfNoLLMKeys, shortPoll} from "@/lib/helpers/utils"
+import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {
+    DateFromNowRenderer,
     LinkCellRenderer,
     StatusRenderer,
     runningStatuses,
@@ -26,6 +26,9 @@ import {
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
+import {useRouter} from "next/router"
+import EmptyEvaluations from "./EmptyEvaluations"
+import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -44,69 +47,19 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-export function getTypedValue(res?: TypedValue) {
-    const {value, type} = res || {}
-    return type === "number"
-        ? round(Number(value), 2)
-        : ["boolean", "bool"].includes(type as string)
-          ? capitalize(value?.toString())
-          : value?.toString()
-}
-
-export function getFilterParams(type: "number" | "text" | "date") {
-    const filterParams: GenericObject = {}
-    if (type == "date") {
-        filterParams.comparator = function (
-            filterLocalDateAtMidnight: Date,
-            cellValue: string | null,
-        ) {
-            if (cellValue == null) return -1
-            const cellDate = dayjs(cellValue).startOf("day").toDate()
-            if (filterLocalDateAtMidnight.getTime() === cellDate.getTime()) {
-                return 0
-            }
-            if (cellDate < filterLocalDateAtMidnight) {
-                return -1
-            }
-            if (cellDate > filterLocalDateAtMidnight) {
-                return 1
-            }
-        }
-    }
-
-    return {
-        sortable: true,
-        floatingFilter: true,
-        filter:
-            type === "number"
-                ? "agNumberColumnFilter"
-                : type === "date"
-                  ? "agDateColumnFilter"
-                  : "agTextColumnFilter",
-        cellDataType: type,
-        filterParams,
-    }
-}
-
-export const calcEvalDuration = (evaluation: _Evaluation) => {
-    return dayjs(
-        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
-    ).diff(dayjs(evaluation.created_at), "milliseconds")
-}
-
 interface Props {}
 
 const EvaluationResults: React.FC<Props> = () => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const appId = useAppId()
-    const router = useRouter()
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
     const [evaluators] = useAtom(evaluatorsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [fetching, setFetching] = useState(false)
     const [selected, setSelected] = useState<_Evaluation[]>([])
     const stoppers = useRef<Function>()
+    const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
 
@@ -190,6 +143,17 @@ const EvaluationResults: React.FC<Props> = () => {
                 "id",
             ),
         [evaluations],
+    )
+
+    const compareDisabled = useMemo(
+        () =>
+            selected.length < 2 ||
+            selected.some(
+                (item) =>
+                    item.status !== EvaluationStatus.FINISHED ||
+                    item.testset.id !== selected[0].testset.id,
+            ),
+        [selected],
     )
 
     const colDefs = useMemo(() => {
@@ -278,22 +242,12 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerName: "Created",
                 minWidth: 160,
                 ...getFilterParams("date"),
-                valueFormatter: (params) => dayjs(params.value).fromNow(),
+                cellRenderer: DateFromNowRenderer,
+                sort: "desc",
             },
         ]
         return colDefs
     }, [evaluatorConfigs])
-
-    const compareDisabled = useMemo(
-        () =>
-            selected.length < 2 ||
-            selected.some(
-                (item) =>
-                    item.status !== EvaluationStatus.FINISHED ||
-                    item.testset.id !== selected[0].testset.id,
-            ),
-        [selected],
-    )
 
     const compareBtnNode = (
         <Button
@@ -314,58 +268,79 @@ const EvaluationResults: React.FC<Props> = () => {
     )
 
     return (
-        <div className={classes.root}>
-            <Space className={classes.buttonsGroup}>
-                <Button
-                    disabled={selected.length === 0}
-                    icon={<DeleteOutlined />}
-                    type="primary"
-                    danger
-                    onClick={onDelete}
-                >
-                    Delete
-                </Button>
-                {compareDisabled ? (
-                    <Tooltip title="Select 2 or more evaluations from the same testset to compare">
-                        {compareBtnNode}
-                    </Tooltip>
-                ) : (
-                    compareBtnNode
-                )}
-                <Button
-                    icon={<PlusCircleOutlined />}
-                    type="primary"
-                    onClick={() => {
+        <>
+            {!fetching && !evaluations.length ? (
+                <EmptyEvaluations
+                    onConfigureEvaluators={() =>
+                        router.push(`/apps/${appId}/evaluations?tab=evaluators`)
+                    }
+                    onBeginEvaluation={() => {
                         setNewEvalModalOpen(true)
                     }}
-                    data-cy="new-evaluation-button"
-                >
-                    New Evaluation
-                </Button>
-            </Space>
-            <Spin spinning={fetching}>
-                <div
-                    className={`${
-                        appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
-                    } ${classes.table}`}
-                >
-                    <AgGridReact<_Evaluation>
-                        ref={gridRef as any}
-                        rowData={evaluations}
-                        columnDefs={colDefs}
-                        getRowId={(params) => params.data.id}
-                        onRowDoubleClicked={(params) =>
-                            EvaluationStatus.FINISHED === params.data?.status &&
-                            router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
-                        }
-                        rowSelection="multiple"
-                        suppressRowClickSelection
-                        onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
-                        tooltipShowDelay={0}
-                    />
+                />
+            ) : (
+                <div className={classes.root}>
+                    <Space className={classes.buttonsGroup}>
+                        <Button
+                            disabled={selected.length === 0}
+                            icon={<DeleteOutlined />}
+                            type="primary"
+                            danger
+                            onClick={onDelete}
+                        >
+                            Delete
+                        </Button>
+                        {compareDisabled ? (
+                            <Tooltip title="Select 2 or more evaluations from the same testset to compare">
+                                {compareBtnNode}
+                            </Tooltip>
+                        ) : (
+                            compareBtnNode
+                        )}
+                        <Button
+                            icon={<PlusCircleOutlined />}
+                            type="primary"
+                            onClick={() => {
+                                setNewEvalModalOpen(true)
+                            }}
+                            data-cy="new-evaluation-button"
+                        >
+                            New Evaluation
+                        </Button>
+                    </Space>
+                    <Spin spinning={fetching}>
+                        <div
+                            className={`${
+                                appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
+                            } ${classes.table}`}
+                        >
+                            <AgGridReact<_Evaluation>
+                                ref={gridRef as any}
+                                rowData={evaluations}
+                                columnDefs={colDefs}
+                                getRowId={(params) => params.data.id}
+                                onRowClicked={(params) => {
+                                    // ignore clicks on the checkbox col
+                                    if (
+                                        params.eventPath?.find(
+                                            (item: any) => item.ariaColIndex === "1",
+                                        )
+                                    )
+                                        return
+                                    EvaluationStatus.FINISHED === params.data?.status &&
+                                        router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
+                                }}
+                                rowSelection="multiple"
+                                suppressRowClickSelection
+                                onSelectionChanged={(event) =>
+                                    setSelected(event.api.getSelectedRows())
+                                }
+                                tooltipShowDelay={0}
+                            />
+                        </div>
+                    </Spin>
                 </div>
-            </Spin>
-
+            )}
             <NewEvaluationModal
                 open={newEvalModalOpen}
                 onCancel={() => setNewEvalModalOpen(false)}
@@ -374,7 +349,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     fetcher()
                 }}
             />
-        </div>
+        </>
     )
 }
 

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import traceback
 from collections import defaultdict
 from typing import Any, Dict, List
@@ -86,7 +87,7 @@ def evaluate(
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
-            evaluator_config_db.id: {
+            str(evaluator_config_db.id): {
                 "evaluator_key": evaluator_config.evaluator_key,
                 "results": [],
             }
@@ -115,7 +116,7 @@ def evaluate(
             self.update_state(state=states.FAILURE)
 
             raise ValueError("Length of csv data and app_outputs are not the same")
-            return
+
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
             # 2. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
@@ -148,6 +149,12 @@ def evaluate(
                     inputs=data_point,
                     lm_providers_keys=lm_providers_keys,
                 )
+
+                # Update evaluators aggregated data
+                evaluator_results: List[Result] = evaluators_aggregated_data[
+                    str(evaluator_config_db.id)
+                ]["results"]
+                evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
                     evaluator_config=evaluator_config_db.id,
@@ -202,28 +209,34 @@ async def aggregate_evaluator_results(
     for config_id, val in evaluators_aggregated_data.items():
         evaluator_key = val["evaluator_key"] or ""
         results = val["results"] or []
-        if evaluator_key != "auto_ai_critique":
+
+        if not results:
+            average_value = 0
+        if evaluator_key == "auto_ai_critique":
+            numeric_scores = []
+            for result in results:
+                # Extract the first number found in the result value
+                match = re.search(r"\d+", result.value)
+                if match:
+                    try:
+                        score = int(match.group())
+                        numeric_scores.append(score)
+                    except ValueError:
+                        # Ignore if the extracted value is not an integer
+                        continue
+
+            # Calculate the average of numeric scores if any are present
             average_value = (
-                sum([result.value for result in results]) / len(results)
-                if results
-                else 0
+                sum(numeric_scores) / len(numeric_scores) if numeric_scores else None
             )
-        elif evaluator_key == "auto_ai_critique":
-            try:
-                average_value = (
-                    sum(
-                        [
-                            int(result.value)
-                            for result in results
-                            if isinstance(int(result.value), int)
-                        ]
-                    )
-                    / len(results)
-                    if results
-                    else 0
-                )
-            except TypeError:
+        else:
+            # Handle boolean values for auto_regex_test and other evaluators
+            if all(isinstance(result.value, bool) for result in results):
+                average_value = sum(result.value for result in results) / len(results)
+            else:
+                # Handle other data types or mixed results
                 average_value = None
+
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
@@ -261,9 +274,16 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":
-            for input_name in app_variant_parameters[param["name"]]:
-                list_inputs.append({"name": input_name["name"], "type": "dict_input"})
+        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+            # let's get the list of the dynamic inputs
+            if (
+                param["name"] in app_variant_parameters
+            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
+                input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
+            else:  # otherwise we use the default from the openapi
+                input_names = param["default"]
+            for input_name in input_names:
+                list_inputs.append({"name": input_name, "type": "dict_input"})
         elif param["type"] == "messages":
             list_inputs.append({"name": param["name"], "type": "messages"})
         elif param["type"] == "file_url":

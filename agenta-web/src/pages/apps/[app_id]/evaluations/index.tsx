@@ -45,7 +45,7 @@ const Evaluations: React.FC<Props> = () => {
         <div className={classes.root}>
             <Tabs
                 destroyInactiveTabPane
-                defaultActiveKey={tab}
+                activeKey={tab}
                 items={[
                     {
                         key: "results",
