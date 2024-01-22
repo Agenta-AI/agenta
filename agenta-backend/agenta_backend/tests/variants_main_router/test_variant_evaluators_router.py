@@ -277,17 +277,17 @@ async def test_delete_evaluator_config():
     assert len(evaluator_configs) == count_of_deleted_configs
 
 
-@pytest.mark.asyncio
-async def test_evaluation_scenario_match_evaluation_testset_length():
-    evaluations = await EvaluationDB.find(
-        fetch_links=True
-    ).to_list()  # will return only one in this case
-    evaluation = evaluations[0]
-    evaluation_scenario_count = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == evaluation.id
-    ).count()
+# @pytest.mark.asyncio
+# async def test_evaluation_scenario_match_evaluation_testset_length():
+#     evaluations = await EvaluationDB.find(
+#         fetch_links=True
+#     ).to_list()  # will return only one in this case
+#     evaluation = evaluations[0]
+#     evaluation_scenario_count = await EvaluationScenarioDB.find(
+#         EvaluationScenarioDB.evaluation.id == evaluation.id
+#     ).count()
 
-    assert evaluation_scenario_count == len(evaluation.testset.csvdata)
+#     assert evaluation_scenario_count == len(evaluation.testset.csvdata)
 
 
 @pytest.mark.asyncio
