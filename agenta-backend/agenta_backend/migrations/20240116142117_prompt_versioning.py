@@ -121,7 +121,7 @@ class ConfigVersionDB(BaseModel):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
 
-class ConfigDB(Document):
+class OldConfigDB(Document):
     config_name: str
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
@@ -144,7 +144,7 @@ class AppVariantDB(Document):
     base_name: Optional[str]
     base: Link[VariantBaseDB]
     config_name: Optional[str]
-    config: Link[ConfigDB]
+    config: Link[OldConfigDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -367,6 +367,61 @@ class TraceDB(Document):
 
 
 # New models
+class ConfigDB(BaseModel):
+    config_name: str
+    parameters: Dict[str, Any] = Field(default=dict)
+
+
+class NewAppVariantDB(Document):
+    app: Link[AppDB]
+    variant_name: str
+    revision: int
+    image: Link[ImageDB]
+    user: Link[UserDB]
+    modified_by: Link[UserDB]
+    organization: Link[OrganizationDB]
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
+    base_name: Optional[str]
+    base: Link[VariantBaseDB]
+    config_name: Optional[str]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    is_deleted: bool = Field(  # TODO: deprecated. remove
+        default=False
+    )  # soft deletion for using the template variants
+
+    class Settings:
+        name = "app_variants"
+
+
+class NewAppVariantRevisionsDB(Document):
+    variant: Link[AppVariantDB]
+    revision: int
+    modified_by: Link[UserDB]
+    base: Link[VariantBaseDB]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_variant_revisions"
+
+
+class NewAppEnvironmentDB(Document):
+    app: Link[AppDB]
+    name: str
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
+    deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[NewAppVariantRevisionsDB]]
+    deployment: Optional[PydanticObjectId]  # reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_environment_db"
 
 
 class Forward:
