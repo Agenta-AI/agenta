@@ -478,6 +478,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 loading={record.score === "loading"}
                                 showVariantName={false}
                                 key={record.id}
+                                outputs={record.outputs}
                             />
                         }
                     </>

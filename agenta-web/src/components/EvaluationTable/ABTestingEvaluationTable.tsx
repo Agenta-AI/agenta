@@ -431,6 +431,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 loading={record.vote === "loading"}
                                 vertical
                                 key={record.id}
+                                outputs={record.outputs}
                             />
                         }
                     </>
