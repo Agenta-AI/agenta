@@ -1,12 +1,10 @@
 import asyncio
 import logging
-import os
 import re
 import traceback
-from collections import defaultdict
 from typing import Any, Dict, List
 
-from agenta_backend.models.api.evaluation_model import AppOutput, NewEvaluation
+from agenta_backend.models.api.evaluation_model import AppOutput
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AggregatedResult,
@@ -16,14 +14,13 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioResult,
     Result,
 )
-from agenta_backend.services import evaluators_service, llm_apps_service
+from agenta_backend.services import evaluators_service, llm_apps_service, deployment_manager
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     fetch_app_by_id,
     fetch_app_variant_by_id,
     fetch_evaluation_by_id,
     fetch_evaluator_config,
-    fetch_evaluator_config_by_appId,
     fetch_testset_by_id,
     get_deployment_by_objectid,
     update_evaluation,
@@ -83,7 +80,7 @@ def evaluate(
         deployment_db = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
-        uri = _get_deployment_uri(deployment_db)
+        uri = deployment_manager.get_deployment_uri(deployment_db)
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
@@ -244,19 +241,6 @@ async def aggregate_evaluator_results(
         )
         aggregated_results.append(aggregated_result)
     return aggregated_results
-
-
-def _get_deployment_uri(deployment_db) -> str:
-    #!NOTE: do not remove! this will be used in github workflow!
-    backend_environment = os.environ.get(
-        "ENVIRONMENT"
-    )  # TODO @abram rename the environment variable to something other than environment!!!
-    if backend_environment is not None and backend_environment == "github":
-        return f"http://{deployment_db.container_name}"  # TODO: @abram Remove this from here. Move it to the deployment manager
-    else:
-        return deployment_db.uri.replace(
-            "http://localhost", "http://host.docker.internal"
-        )
 
 
 def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str, str]]:
