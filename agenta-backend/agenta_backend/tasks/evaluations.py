@@ -14,7 +14,11 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioResult,
     Result,
 )
-from agenta_backend.services import evaluators_service, llm_apps_service, deployment_manager
+from agenta_backend.services import (
+    evaluators_service,
+    llm_apps_service,
+    deployment_manager,
+)
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     fetch_app_by_id,

@@ -143,12 +143,8 @@ async def validate_image(image: Image) -> bool:
 
 def get_deployment_uri(deployment: DeploymentDB) -> str:
     #!NOTE: do not remove! this will be used in github workflow!
-    backend_environment = os.environ.get(
-        "ENVIRONMENT"
-    )
+    backend_environment = os.environ.get("ENVIRONMENT")
     if backend_environment is not None and backend_environment == "github":
         return f"http://{deployment.container_name}"
     else:
-        return deployment.uri.replace(
-            "http://localhost", "http://host.docker.internal"
-        )
+        return deployment.uri.replace("http://localhost", "http://host.docker.internal")
