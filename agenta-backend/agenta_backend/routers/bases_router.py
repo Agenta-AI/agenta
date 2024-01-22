@@ -12,8 +12,8 @@ from agenta_backend.models.api.api_models import BaseOutput
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.models.db_models import WorkspaceRole
-    from agenta_backend.cmmons.utils.permissions import check_action_access
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
 
 
 router = APIRouter()
@@ -44,10 +44,10 @@ async def list_bases(
     try:
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"] and app_id is not None:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                role=WorkspaceRole.VIEWER,
+                permission=Permission.VIEW_APPLICATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

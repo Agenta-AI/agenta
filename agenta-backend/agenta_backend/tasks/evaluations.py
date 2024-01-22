@@ -22,24 +22,18 @@ from agenta_backend.services.db_manager import (
 )
 from celery import shared_task, states
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.models.db_models import (
-        AppDB_ as AppDB,
-        EvaluationScenarioOutputDB_ as EvaluationScenarioOutputDB,
-    )
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
-    from agenta_backend.models.db_models import (
-        AppDB,
-        EvaluationScenarioOutputDB,
-    )
+    from agenta_backend.models.db_models import AppDB
     
-    from agenta_backend.models.db_models import (
-        AggregatedResult,
-        EvaluationScenarioInputDB,
-        EvaluationScenarioResult,
-        Result,
-    )
+from agenta_backend.models.db_models import (
+    Result,
+    AggregatedResult,
+    EvaluationScenarioResult,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
+)
 
 # Set logger
 logger = logging.getLogger(__name__)

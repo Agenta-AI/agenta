@@ -24,7 +24,7 @@ from agenta_backend.models.api.api_models import (
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.api.api_models import (
-        ImageDB_ as Image,
+        Image_ as Image,
         CreateApp_ as CreateApp,
         AppVariantOutput_ as AppVariantOutput,
         CreateAppVariant_ as CreateAppVariant,
@@ -91,10 +91,10 @@ async def list_app_variants(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                role=WorkspaceRole.VIEWER,
+                permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list app variants: {has_permission}")
             if not has_permission:
@@ -141,10 +141,10 @@ async def get_variant_by_env(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                role=WorkspaceRole.VIEWER,
+                permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"user has Permission to get variant by environment: {has_permission}")
             if not has_permission:
@@ -275,9 +275,12 @@ async def list_apps(
     Raises:
         HTTPException: If there was an error retrieving the list of apps.
     """
-    try:            
+    try:
         apps = await db_manager.list_apps(
-            app_name, org_id, workspace_id, request.state.user_id
+            app_name=app_name,
+            user_uid=request.state.user_id,
+            org_id=org_id,
+            workspace_id=workspace_id
         )
         return apps
     except Exception as e:
@@ -324,10 +327,10 @@ async def add_variant_from_image(
         
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                role=WorkspaceRole.VIEWER,
+                permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(f"User has Permission to create app from image: {has_permission}")
             if not has_permission:
@@ -370,7 +373,7 @@ async def remove_app(app_id: str, request: Request):
             
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
                 permission=Permission.DELETE_APPLICATION,
@@ -421,11 +424,11 @@ async def create_app_and_variant_from_template(
 
             # Get user and org id
             logger.debug("Step 1: Getting user and organization ID")
-            user_org_data: dict = await get_user_org_and_workspace_id(request.state.user_id)
+            user_org_workspace_data: dict = await get_user_org_and_workspace_id(request.state.user_id)
 
             logger.debug("Step 2: Setting organization ID")
             if payload.organization_id is None:
-                organization = await get_user_own_org(user_org_data["uid"])
+                organization = await get_user_own_org(user_org_workspace_data["uid"])
                 organization_id = str(organization.id)
             else:
                 organization_id = payload.organization_id
@@ -440,9 +443,9 @@ async def create_app_and_variant_from_template(
 
             logger.debug("Step 4: Checking user has permission to create app")
             has_permission = await check_rbac_permission(
-                user_org_data=user_org_data,
-                workspace_id=ObjectId(workspace_id),
-                organization_id=ObjectId(organization_id),
+                user_org_workspace_data=user_org_workspace_data,
+                workspace=workspace,
+                organization=organization,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(f"User has Permission to create app from template: {has_permission}")
@@ -454,7 +457,7 @@ async def create_app_and_variant_from_template(
                     status_code=403,
                 )
 
-        logger.debug(f"Step 5: Checking if app {payload.app_name} already exists" if FEATURE_FLAG in ["cloud", "ee"] else f"Step 1: Checking if app {payload.app_name} already exists")
+        print(f"Step 5: Checking if app {payload.app_name} already exists" if FEATURE_FLAG in ["cloud", "ee"] else f"Step 1: Checking if app {payload.app_name} already exists")
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_parameters(
             app_name,
@@ -467,8 +470,9 @@ async def create_app_and_variant_from_template(
                 f"App with name {app_name} already exists",
             )
 
-        logger.debug("Step 6: Creating new app and initializing environments" if FEATURE_FLAG in ["cloud", "ee"] else "Step 2: Creating new app and initializing environments")
+        print("Step 6: Creating new app and initializing environments" if FEATURE_FLAG in ["cloud", "ee"] else "Step 2: Creating new app and initializing environments")
         if app is None:
+            print("Here next step")
             app = await db_manager.create_app_and_envs(
                 app_name,
                 request.state.user_id,
@@ -476,12 +480,12 @@ async def create_app_and_variant_from_template(
                 workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
             )
 
-        logger.debug("Step 7: Retrieve template from db" if FEATURE_FLAG in ["cloud", "ee"] else "Step 3: Retrieve template from db")
+        print("Step 7: Retrieve template from db" if FEATURE_FLAG in ["cloud", "ee"] else "Step 3: Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
-        logger.debug(
+        print(
             "Step 8: Creating image instance and adding variant based on image" if FEATURE_FLAG in ["cloud", "ee"] else "Step 4: Creating image instance and adding variant based on image"
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
@@ -496,9 +500,10 @@ async def create_app_and_variant_from_template(
             base_name="app",
             config_name="default",
             is_template_image=True,
+            user_uid=request.state.user_id
         )
 
-        logger.debug("Step 9: Creating testset for app variant" if FEATURE_FLAG in ["cloud", "ee"] else "Step 5: Creating testset for app variant")
+        print("Step 9: Creating testset for app variant" if FEATURE_FLAG in ["cloud", "ee"] else "Step 5: Creating testset for app variant")
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
             org_id=organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
@@ -508,10 +513,10 @@ async def create_app_and_variant_from_template(
             user_uid=request.state.user_id,
         )
 
-        logger.debug("Step 10: We create ready-to use evaluators" if FEATURE_FLAG in ["cloud", "ee"] else "Step 6: We create ready-to use evaluators")
+        print("Step 10: We create ready-to use evaluators" if FEATURE_FLAG in ["cloud", "ee"] else "Step 6: We create ready-to use evaluators")
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
-        logger.debug("Step 11: Starting variant and injecting environment variables" if FEATURE_FLAG in ["cloud", "ee"] else "Step 7: Starting variant and injecting environment variables")
+        print("Step 11: Starting variant and injecting environment variables" if FEATURE_FLAG in ["cloud", "ee"] else "Step 7: Starting variant and injecting environment variables")
         if FEATURE_FLAG in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
                 raise Exception(
@@ -526,7 +531,7 @@ async def create_app_and_variant_from_template(
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
 
-        await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+        await app_manager.start_variant(app_variant_db, envvars)
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -560,9 +565,9 @@ async def list_environments(
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
                 user_id=request.state.user_id,
-                object_id=app_id,
+                object_uid=app_id,
                 object_type="app",
-                role=WorkspaceRole.VIEWER,
+                permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list environments: {has_permission}")
             if not has_permission:

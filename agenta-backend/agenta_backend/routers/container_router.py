@@ -12,7 +12,7 @@ FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import WorkspaceRole, Permission
     from agenta_backend.commons.utils.permissions import check_action_access
-    from agenta_backend.models.api.api_models import Image_ as Image
+    from agenta_backend.commons.models.api.api_models import Image_ as Image
 else:
     from agenta_backend.models.api.api_models import Image
 
@@ -59,7 +59,7 @@ async def build_image(
     """
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=app_id,
             object_type="app",
             permission=Permission.CREATE_APPLICATION,
@@ -155,10 +155,10 @@ async def construct_app_container_url(
         
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=base_id if base_id else variant_id,
             object_type="base" if base_id else "app_variant",
-            role=WorkspaceRole.VIEWER,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

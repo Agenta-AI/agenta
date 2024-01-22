@@ -8,7 +8,7 @@ from agenta_backend.services import db_manager
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.db_models import (
+    from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB
     )

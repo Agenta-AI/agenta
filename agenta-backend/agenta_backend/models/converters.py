@@ -31,7 +31,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         ImageDB_ as ImageDB,
         TestSetDB_ as TestSetDB,
         EvaluationDB_ as EvaluationDB,
-        AppVariantDB_ as AppVariantDB_,
+        AppVariantDB_ as AppVariantDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,

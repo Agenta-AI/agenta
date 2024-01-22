@@ -25,7 +25,6 @@ from agenta_backend.models.api.evaluation_model import (
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.utils.permissions import check_access_to_app
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,

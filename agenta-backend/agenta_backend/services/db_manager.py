@@ -21,13 +21,14 @@ from agenta_backend.models import converters
 
 from agenta_backend.models.db_models import (
     Result,
+    ConfigDB,
+    TemplateDB,
+    DeploymentDB,
+    ConfigVersionDB,
     AggregatedResult,
+    EvaluationScenarioResult,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
-    EvaluationScenarioResult,
-    ConfigDB,
-    ConfigVersionDB,
-    TemplateDB,
 )
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
@@ -46,7 +47,6 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
-        DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -67,7 +67,6 @@ else:
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
-        DeploymentDB,
         VariantBaseDB,
         AppEnvironmentDB,
         EvaluatorConfigDB,
@@ -145,36 +144,6 @@ async def add_testset_to_app_variant(
 
     except Exception as e:
         print(f"An error occurred in adding the default testset: {e}")
-
-
-async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
-    """Returns the image associated with the app variant
-
-    Arguments:
-        app_variant -- AppVariant to fetch the image for
-
-    Returns:
-        Image -- The Image associated with the app variant
-    """
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        AppVariantDB.app.id == app_variant.app_id,
-        AppVariantDB.variant_name == app_variant.variant_name,
-    )
-        
-    if FEATURE_FLAG in ["cloud", "ee"]:
-        query_expression += (
-            AppVariantDB.organization.id == app_variant.organization,
-            AppVariantDB.workspace.id == app_variant.workspace,
-        )
-        
-    db_app_variant = await AppVariantDB.find_one(query_expression)
-    if db_app_variant:
-        image_db = await ImageDB.find_one(ImageDB.id == db_app_variant.image.id)
-        return converters.image_db_to_pydantic(image_db)
-    else:
-        raise Exception("App variant not found")
 
 
 async def get_image_by_id(image_id: str) -> ImageDB:
@@ -693,9 +662,7 @@ async def get_orga_image_instance_by_docker_id(
         ImageDB: instance of image object
     """
     
-    query_expression = (
-        ImageDB.docker_id == docker_id,       
-    )
+    query_expression = {'docker_id': docker_id}
     
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -703,10 +670,10 @@ async def get_orga_image_instance_by_docker_id(
             organization_id is not None and workspace_id is not None
         ), "organization and workspace must be provided together"
         
-        query_expression += (
-            ImageDB.organization.id == ObjectId(organization_id),
-            ImageDB.workspace.id == ObjectId(workspace_id),
-        )
+        query_expression.update({
+            'organization.id': ObjectId(organization_id),
+            'workspace.id': ObjectId(workspace_id),
+        })
 
     image = await ImageDB.find_one(query_expression)
     return image
@@ -729,9 +696,7 @@ async def get_orga_image_instance_by_uri(
     if not parsed_url.scheme and not parsed_url.netloc:
         raise ValueError(f"Invalid URL: {template_uri}")
     
-    query_expression = (
-        ImageDB.template_uri == template_uri,       
-    )
+    query_expression = {'template_uri': template_uri}
     
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -739,10 +704,10 @@ async def get_orga_image_instance_by_uri(
             organization_id is not None and workspace_id is not None
         ), "organization and workspace must be provided together"
         
-        query_expression += (
-            ImageDB.organization.id == ObjectId(organization_id),
-            ImageDB.workspace.id == ObjectId(workspace_id),
-        )
+        query_expression.update({
+            'organization.id': ObjectId(organization_id),
+            'workspace.id': ObjectId(workspace_id),
+        })
 
     image = await ImageDB.find_one(query_expression)
     return image
@@ -862,12 +827,12 @@ async def list_apps(
     #         org_id is not None and workspace_id is not None
     #     ), "org_id and workspace_id must be provided together"
         
-    #     user_org_data = await get_user_and_org_id(user_uid)
+    #     user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)
     #     has_permission = await check_rbac_permission(
-    #         user_org_data=user_org_data,
+    #         user_org_workspace_data=user_org_workspace_data,
     #         workspace_id=ObjectId(workspace_id),
     #         organization_id=ObjectId(org_id),
-    #         permission=Permission.CREATE_APPLICATION,
+    #         permission=Permission.VIEW_APPLICATION,
     #     )
     #     logger.debug(f"User has Permission to list apps: {has_permission}")
     #     if not has_permission:
@@ -1560,7 +1525,7 @@ async def fetch_app_by_name_and_parameters(
     organization_id: str = None, 
     workspace_id: str = None,
 ):
-    """Fetch an app by it's name, organization id and workspace id.
+    """Fetch an app by its name, organization id, and workspace id.
 
     Args:
         app_name (str): The name of the app
@@ -1571,9 +1536,7 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    query_expression = (
-        AppDB.app_name == app_name,
-    )
+    query_expression = {'app_name': app_name}
     
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -1581,14 +1544,14 @@ async def fetch_app_by_name_and_parameters(
             organization_id is not None and workspace_id is not None
         ), "organization_id and workspace_id must be provided together"
         
-        query_expression += (
-            AppDB.organization.id == ObjectId(organization_id),
-            AppDB.workspace.id == ObjectId(workspace_id),
-        )
+        query_expression.update({
+            'organization.id': ObjectId(organization_id),
+            'workspace.id': ObjectId(workspace_id),
+        })
     else:
-        query_expression += (
-            AppDB.user.id == ObjectId(user_uid),
-        )
+        query_expression.update({
+            'user.id': ObjectId(user_uid),
+        })
         
     app_db = await AppDB.find_one(query_expression, fetch_links=True)
     

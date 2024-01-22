@@ -114,7 +114,7 @@ async def fetch_list_human_evaluations(
                 user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                permissin=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -147,7 +147,7 @@ async def fetch_human_evaluation(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="human_evaluation",
-                permissin=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -188,7 +188,7 @@ async def fetch_evaluation_scenarios(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="human_evaluation_scenario_by_evaluation_id",
-                permissin=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."

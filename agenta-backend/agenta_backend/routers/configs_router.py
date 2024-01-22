@@ -18,7 +18,7 @@ from agenta_backend.services import (
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import Permission
-    from agenta_backend.cmmons.utils.permissions import check_action_access
+    from agenta_backend.commons.utils.permissions import check_action_access
 
 
 router = APIRouter()
@@ -34,7 +34,7 @@ async def save_config(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=payload.base_id,
                 object_type="base",
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
@@ -95,7 +95,7 @@ async def get_config(
         # detemine whether the user has access to the base
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=base_id,
                 object_type="base",
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,

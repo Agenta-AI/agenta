@@ -2,7 +2,7 @@ import os
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.models.db_models import (
+    from agenta_backend.commons.models.db_models import (
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,

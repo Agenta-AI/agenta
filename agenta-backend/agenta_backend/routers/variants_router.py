@@ -17,7 +17,7 @@ FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
-    from agenta_backend.models.api.api_models import (
+    from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         AppVariantOutput_ as AppVariantOutput,
     )
@@ -66,7 +66,7 @@ async def add_variant_from_base_and_config(
         # Check user has permission to add variant            
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=payload.base_id,
                 object_type="base",
                 permission=Permission.CREATE_APPLICATION,
@@ -120,7 +120,7 @@ async def remove_variant(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=variant_id,
                 object_type="app_variant",
                 permission=Permission.DELETE_APPLICATION_VARIANT,
@@ -166,7 +166,7 @@ async def update_variant_parameters(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=variant_id,
                 object_type="app_variant",
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
@@ -214,7 +214,7 @@ async def update_variant_image(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
+                user_uid=request.state.user_id,
                 object_id=variant_id,
                 object_type="app_variant",
                 permission=Permission.CREATE_APPLICATION,
@@ -270,7 +270,7 @@ async def start_variant(
     # Check user has permission to start variant
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
-            user_id=request.state.user_id,
+            user_uid=request.state.user_id,
             object_id=variant_id,
             object_type="app_variant",
             permission=Permission.CREATE_APPLICATION,
