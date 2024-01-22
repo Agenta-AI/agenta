@@ -176,20 +176,6 @@ test = ["anyio[trio]", "coverage[toml] (>=4.5)", "hypothesis (>=4.0)", "mock (>=
 trio = ["trio (<0.22)"]
 
 [[package]]
-name = "asgi-lifespan"
-version = "2.1.0"
-description = "Programmatic startup/shutdown of ASGI apps."
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "asgi-lifespan-2.1.0.tar.gz", hash = "sha256:5e2effaf0bfe39829cf2d64e7ecc47c7d86d676a6599f7afba378c31f5e3a308"},
-    {file = "asgi_lifespan-2.1.0-py3-none-any.whl", hash = "sha256:ed840706680e28428c01e14afb3875d7d76d3206f3d5b2f2294e059b5c23804f"},
-]
-
-[package.dependencies]
-sniffio = "*"
-
-[[package]]
 name = "asgiref"
 version = "3.7.2"
 description = "ASGI specs, helper code, and adapters"
@@ -2785,4 +2771,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "acd758183346fa3f7daa8cf4e207f5c0ee5cbabe0f34c4ec8bc0894b055b8d07"
+content-hash = "007f83104a7bff7addf4a6e982d210a74152ae446065a179e85000842c4a471e"
