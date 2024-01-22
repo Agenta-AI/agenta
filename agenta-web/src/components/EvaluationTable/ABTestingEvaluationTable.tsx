@@ -180,6 +180,66 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         setRows(newRows)
     }
 
+    const setRowValue = useCallback(
+        (rowIndex: number, columnKey: keyof ABTestingEvaluationTableRow, value: any) => {
+            const newRows = [...rows]
+            newRows[rowIndex][columnKey] = value as never
+            setRows(newRows)
+        },
+        [rows],
+    )
+
+    const updateEvaluationScenarioData = useCallback(
+        async (id: string, data: Partial<EvaluationScenario>, showNotification: boolean = true) => {
+            await updateEvaluationScenario(
+                evaluation.id,
+                id,
+                Object.keys(data).reduce(
+                    (acc, key) => ({
+                        ...acc,
+                        [camelToSnake(key)]: data[key as keyof EvaluationScenario],
+                    }),
+                    {},
+                ),
+                evaluation.evaluationType,
+            )
+                .then(() => {
+                    Object.keys(data).forEach((key) => {
+                        setRowValue(
+                            evaluationScenarios.findIndex((item) => item.id === id),
+                            key,
+                            data[key as keyof EvaluationScenario],
+                        )
+                    })
+                    if (showNotification) message.success("Evaluation Updated!")
+                })
+                .catch(console.error)
+        },
+        [evaluation.evaluationType, evaluation.id, evaluationScenarios, setRowValue],
+    )
+
+    const handleVoteClick = useCallback(
+        (id: string, vote: string) => {
+            const rowIndex = rows.findIndex((row) => row.id === id)
+            const evaluation_scenario_id = rows[rowIndex].id
+
+            if (evaluation_scenario_id) {
+                setRowValue(rowIndex, "vote", "loading")
+                const data = {
+                    vote: vote,
+                    outputs: variants.map((v: Variant) => ({
+                        variant_id: v.variantId,
+                        variant_output: rows[rowIndex][v.variantId],
+                    })),
+                    inputs: rows[rowIndex].inputs,
+                }
+
+                updateEvaluationScenarioData(evaluation_scenario_id, data)
+            }
+        },
+        [rows, setRowValue, updateEvaluationScenarioData, variants],
+    )
+
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
             fetchEvaluationResults(evaluation.id)
@@ -190,56 +250,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
-    }, [evaluationStatus, evaluation.id])
-
-    const handleVoteClick = (id: string, vote: string) => {
-        const rowIndex = rows.findIndex((row) => row.id === id)
-        const evaluation_scenario_id = rows[rowIndex].id
-
-        if (evaluation_scenario_id) {
-            setRowValue(rowIndex, "vote", "loading")
-            const data = {
-                vote: vote,
-                outputs: variants.map((v: Variant) => ({
-                    variant_id: v.variantId,
-                    variant_output: rows[rowIndex][v.variantId],
-                })),
-                inputs: rows[rowIndex].inputs,
-            }
-
-            updateEvaluationScenarioData(evaluation_scenario_id, data)
-        }
-    }
-
-    const updateEvaluationScenarioData = async (
-        id: string,
-        data: Partial<EvaluationScenario>,
-        showNotification: boolean = true,
-    ) => {
-        await updateEvaluationScenario(
-            evaluation.id,
-            id,
-            Object.keys(data).reduce(
-                (acc, key) => ({
-                    ...acc,
-                    [camelToSnake(key)]: data[key as keyof EvaluationScenario],
-                }),
-                {},
-            ),
-            evaluation.evaluationType,
-        )
-            .then(() => {
-                Object.keys(data).forEach((key) => {
-                    setRowValue(
-                        evaluationScenarios.findIndex((item) => item.id === id),
-                        key,
-                        data[key as keyof EvaluationScenario],
-                    )
-                })
-                if (showNotification) message.success("Evaluation Updated!")
-            })
-            .catch(console.error)
-    }
+    }, [evaluationStatus, evaluation.id, handleVoteClick])
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
@@ -311,16 +322,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             },
             showNotification,
         )
-    }
-
-    const setRowValue = (
-        rowIndex: number,
-        columnKey: keyof ABTestingEvaluationTableRow,
-        value: any,
-    ) => {
-        const newRows = [...rows]
-        newRows[rowIndex][columnKey] = value as never
-        setRows(newRows)
     }
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = variants.map(
