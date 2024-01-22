@@ -881,7 +881,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     )
     for environment in environments:
         environment.deployed_app_variant = None
-        await environment.create()
+        await environment.save()
     # removing the config
     config = app_variant_db.config
     await config.delete()
@@ -1009,7 +1009,7 @@ async def list_environments_by_variant(
     """
 
     environments_db = await AppEnvironmentDB.find(
-        AppEnvironmentDB.app == app_variant.app.id, fetch_links=True
+        AppEnvironmentDB.app.id == app_variant.app.id, fetch_links=True
     ).to_list()
     return environments_db
 
@@ -1474,7 +1474,7 @@ async def update_app_variant(
         if hasattr(app_variant, key):
             setattr(app_variant, key, value)
 
-    await app_variant.update()
+    await app_variant.save()
     return app_variant
 
 

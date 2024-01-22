@@ -100,6 +100,7 @@
       "group": "Self-host agenta",
       "pages": [
         "self-host/host-locally",
+        "self-host/migration",
         {
           "group": "Deploy Remotely",
           "pages": [
