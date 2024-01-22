@@ -100,7 +100,7 @@ async def add_testset_to_app_variant(
         org_id (str): The id of the organization
         template_name (str): The name of the app template image
         app_name (str): The name of the app
-        **kwargs (dict): Additional keyword arguments
+        user_uid (str): The uid of the user
     """
 
     try:
