@@ -88,7 +88,7 @@ def evaluate(
         # 2. Initialize vars
         evaluators_aggregated_data = {
             str(evaluator_config_db.id): {
-                "evaluator_key": evaluator_config.evaluator_key,
+                "evaluator_key": evaluator_config_db.evaluator_key,
                 "results": [],
             }
             for evaluator_config_db in evaluator_config_dbs
