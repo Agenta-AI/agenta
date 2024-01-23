@@ -15,8 +15,12 @@ from agenta_backend.services import (
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
-    from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import (
+        check_action_access,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import (
+        Permission,
+    )  # noqa pylint: disable-all
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         AppVariantResponse_ as AppVariantResponse,
@@ -62,8 +66,8 @@ async def add_variant_from_base_and_config(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
-        
-        # Check user has permission to add variant            
+
+        # Check user has permission to add variant
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -71,7 +75,9 @@ async def add_variant_from_base_and_config(
                 object_type="base",
                 permission=Permission.CREATE_APPLICATION,
             )
-            logger.debug(f"User has Permission to create variant from base and config: {has_permission}")
+            logger.debug(
+                f"User has Permission to create variant from base and config: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -79,7 +85,7 @@ async def add_variant_from_base_and_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
         # Find the previous variant in the database
@@ -171,7 +177,9 @@ async def update_variant_parameters(
                 object_type="app_variant",
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
-            logger.debug(f"User has Permission to update variant parameters: {has_permission}")
+            logger.debug(
+                f"User has Permission to update variant parameters: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -179,7 +187,7 @@ async def update_variant_parameters(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         await app_manager.update_variant_parameters(
             app_variant_id=variant_id,
             parameters=payload.parameters,
@@ -219,7 +227,9 @@ async def update_variant_image(
                 object_type="app_variant",
                 permission=Permission.CREATE_APPLICATION,
             )
-            logger.debug(f"User has Permission to update variant image: {has_permission}")
+            logger.debug(
+                f"User has Permission to update variant image: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -227,7 +237,7 @@ async def update_variant_image(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         db_app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
@@ -298,7 +308,7 @@ async def start_variant(
         }
     else:
         envvars = {} if env_vars is None else env_vars.env_vars
-    
+
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if action.action == VariantActionEnum.START:
         url: URI = await app_manager.start_variant(app_variant_db, envvars)

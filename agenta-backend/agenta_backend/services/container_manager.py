@@ -120,9 +120,9 @@ def build_image_job(
             docker_id=image.id,
             tags=image.tags[0],
         )
-            
+
         return pydantic_image
-        
+
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"

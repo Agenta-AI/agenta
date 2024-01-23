@@ -60,14 +60,12 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def _fetch_human_evaluation(
-    evaluation_id: str
-) -> HumanEvaluationDB:
+async def _fetch_human_evaluation(evaluation_id: str) -> HumanEvaluationDB:
     # Fetch the evaluation by ID
     evaluation = await db_manager.fetch_human_evaluation_by_id(
         evaluation_id=evaluation_id
     )
-    
+
     # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
@@ -79,7 +77,7 @@ async def _fetch_human_evaluation(
 
 
 async def _fetch_human_evaluation_scenario(
-    evaluation_scenario_id: str
+    evaluation_scenario_id: str,
 ) -> HumanEvaluationDB:
     # Fetch the evaluation by ID
     evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
@@ -237,7 +235,7 @@ async def update_human_evaluation_service(
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str
+    evaluation_id: str,
 ) -> List[EvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
@@ -294,7 +292,7 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
 async def update_human_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
-    evaluation_type: EvaluationType
+    evaluation_type: EvaluationType,
 ) -> None:
     """
     Updates an evaluation scenario.
@@ -376,7 +374,7 @@ async def update_evaluation_scenario_score_service(
 
 
 async def get_evaluation_scenario_score_service(
-    evaluation_scenario_id: str
+    evaluation_scenario_id: str,
 ) -> Dict[str, str]:
     """
     Retrieve the score of a given evaluation scenario.
@@ -423,7 +421,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    
+
     evaluations_db = await EvaluationDB.find(
         EvaluationDB.app.id == ObjectId(app_id), fetch_links=True
     ).to_list()
@@ -468,9 +466,7 @@ async def fetch_list_human_evaluations(
     ]
 
 
-async def fetch_human_evaluation(
-    evaluation_id: str
-) -> HumanEvaluation:
+async def fetch_human_evaluation(evaluation_id: str) -> HumanEvaluation:
     """
     Fetches a single evaluation based on its ID.
 
@@ -480,15 +476,11 @@ async def fetch_human_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    evaluation = await _fetch_human_evaluation(
-        evaluation_id=evaluation_id
-    )
+    evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
     return await converters.human_evaluation_db_to_pydantic(evaluation)
 
 
-async def delete_human_evaluations(
-    evaluation_ids: List[str]
-) -> None:
+async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
     """
     Delete evaluations by their IDs.
 
@@ -499,9 +491,7 @@ async def delete_human_evaluations(
         HTTPException: If evaluation not found or access denied.
     """
     for evaluation_id in evaluation_ids:
-        evaluation = await _fetch_human_evaluation(
-            evaluation_id=evaluation_id
-        )
+        evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
         await evaluation.delete()
 
 
@@ -614,9 +604,7 @@ async def create_new_evaluation(
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
 
-async def retrieve_evaluation_results(
-    evaluation_id: str
-) -> List[dict]:
+async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
     """Retrieve the aggregated results for a given evaluation.
 
     Args:

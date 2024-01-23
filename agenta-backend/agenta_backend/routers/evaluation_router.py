@@ -60,7 +60,7 @@ async def create_evaluation(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
@@ -120,7 +120,9 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
-            logger.debug(f"User has permission to fetch evaluation status: {has_permission}")
+            logger.debug(
+                f"User has permission to fetch evaluation status: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -128,7 +130,7 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluation = await evaluation_service.fetch_evaluation(evaluation_id)
         return {"status": evaluation.status}
     except Exception as exc:
@@ -155,7 +157,9 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
-            logger.debug(f"User has permission to get evaluation results: {has_permission}")
+            logger.debug(
+                f"User has permission to get evaluation results: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -163,7 +167,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         results = await evaluation_service.retrieve_evaluation_results(evaluation_id)
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
@@ -199,7 +203,9 @@ async def fetch_evaluation_scenarios(
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
-            logger.debug(f"User has permission to get evaluation scenarios: {has_permission}")
+            logger.debug(
+                f"User has permission to get evaluation scenarios: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -207,10 +213,14 @@ async def fetch_evaluation_scenarios(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
-        eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(evaluation_id)
+
+        eval_scenarios = (
+            await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
+                evaluation_id
+            )
+        )
         return eval_scenarios
-    
+
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -236,7 +246,9 @@ async def fetch_list_evaluations(
                 object_type="app",
                 permission=Permission.VIEW_EVALUATION,
             )
-            logger.debug(f"User has permission to get list of evaluations: {has_permission}")
+            logger.debug(
+                f"User has permission to get list of evaluations: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -244,7 +256,7 @@ async def fetch_list_evaluations(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         return await evaluation_service.fetch_list_evaluations(app_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -273,7 +285,9 @@ async def fetch_evaluation(
                 object_type="evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
-            logger.debug(f"User has permission to get single evaluation: {has_permission}")
+            logger.debug(
+                f"User has permission to get single evaluation: {has_permission}"
+            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
@@ -281,7 +295,7 @@ async def fetch_evaluation(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         return await evaluation_service.fetch_evaluation(evaluation_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -311,7 +325,9 @@ async def delete_evaluations(
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,
                 )
-                logger.debug(f"User has permission to delete evaluation: {has_permission}")
+                logger.debug(
+                    f"User has permission to delete evaluation: {has_permission}"
+                )
                 if not has_permission:
                     error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                     logger.error(error_msg)
@@ -319,7 +335,7 @@ async def delete_evaluations(
                         {"detail": error_msg},
                         status_code=403,
                     )
-        
+
         await evaluation_service.delete_evaluations(delete_evaluations.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
@@ -374,7 +390,9 @@ async def fetch_evaluation_scenarios(
                     object_type="evaluation",
                     permission=Permission.VIEW_EVALUATION,
                 )
-                logger.debug(f"User has permission to get evaluation scenarios: {has_permission}")
+                logger.debug(
+                    f"User has permission to get evaluation scenarios: {has_permission}"
+                )
                 if not has_permission:
                     error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                     logger.error(error_msg)
@@ -382,8 +400,10 @@ async def fetch_evaluation_scenarios(
                         {"detail": error_msg},
                         status_code=403,
                     )
-        
-        eval_scenarios = await evaluation_service.compare_evaluations_scenarios(evaluations_ids_list)
+
+        eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
+            evaluations_ids_list
+        )
 
         return eval_scenarios
     except Exception as exc:

@@ -26,15 +26,17 @@ from agenta_backend.models.api.testset_model import (
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
-    from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import (
+        check_action_access,
+    )  # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
-        TestSetDB_ as TestSetDB
-    ) # noqa pylint: disable-all
+        Permission,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import (
+        TestSetDB_ as TestSetDB,
+    )  # noqa pylint: disable-all
 else:
-    from agenta_backend.models.db_models import (
-         TestSetDB
-    )
+    from agenta_backend.models.db_models import TestSetDB
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -80,7 +82,7 @@ async def upload_file(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
@@ -164,7 +166,7 @@ async def import_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
@@ -251,7 +253,7 @@ async def create_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     user = await get_user(request.state.user_id)
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
@@ -310,17 +312,17 @@ async def update_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     testset_update = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    
+
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
-    
+
     try:
         await test_set.update({"$set": testset_update})
         if isinstance(test_set.id, ObjectId):
@@ -365,7 +367,7 @@ async def get_testsets(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     if app is None:
@@ -411,11 +413,11 @@ async def get_single_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
-    
+
     return testset_db_to_pydantic(test_set)
 
 
@@ -455,7 +457,7 @@ async def delete_testsets(
         test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")
- 
+
         await test_set.delete()
         deleted_ids.append(testset_id)
 

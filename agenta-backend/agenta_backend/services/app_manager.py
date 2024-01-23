@@ -44,8 +44,7 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
-    db_app_variant: AppVariantDB,
-    env_vars: DockerEnvVars = None
+    db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -110,9 +109,7 @@ async def start_variant(
     return URI(uri=deployment.uri)
 
 
-async def update_variant_image(
-    app_variant_db: AppVariantDB, image: Image
-):
+async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -141,8 +138,12 @@ async def update_variant_image(
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=app_variant_db.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
-        workspace=app_variant_db.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+        organization=app_variant_db.organization
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,  # noqa
+        workspace=app_variant_db.workspace
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,  # noqa
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
@@ -270,7 +271,9 @@ async def remove_app_related_resources(app_id: str):
     """
     try:
         # Delete associated environments
-        environments: List[AppEnvironmentDB] = await db_manager.list_environments(app_id)
+        environments: List[AppEnvironmentDB] = await db_manager.list_environments(
+            app_id
+        )
         for environment_db in environments:
             await db_manager.remove_environment(environment_db)
             logger.info(f"Successfully deleted environment {environment_db.name}.")
@@ -320,9 +323,7 @@ async def remove_app(app_id: str):
         raise e from None
 
 
-async def update_variant_parameters(
-    app_variant_id: str, parameters: Dict[str, Any]
-):
+async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any]):
     """Updates the parameters for app variant in the database.
 
     Arguments:
@@ -336,7 +337,9 @@ async def update_variant_parameters(
         logger.error(error_msg)
         raise ValueError(error_msg)
     try:
-        await db_manager.update_variant_parameters(app_variant_db=app_variant_db, parameters=parameters)
+        await db_manager.update_variant_parameters(
+            app_variant_db=app_variant_db, parameters=parameters
+        )
     except Exception as e:
         logger.error(
             f"Error updating app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}"
@@ -395,9 +398,7 @@ async def add_variant_based_on_image(
 
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
-    variants = await db_manager.list_app_variants_for_app_id(
-        app_id=str(app.id)
-    )
+    variants = await db_manager.list_app_variants_for_app_id(app_id=str(app.id))
     already_exists = any(av for av in variants if av.variant_name == variant_name)
     if already_exists:
         logger.error("App variant with the same name already exists")
@@ -409,14 +410,22 @@ async def add_variant_based_on_image(
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
             template_uri=docker_id_or_template_uri,
-            organization_id=str(app.organization.id) if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
-            workspace_id=str(app.workspace.id) if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+            organization_id=str(app.organization.id)
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa
+            workspace_id=str(app.workspace.id)
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
             docker_id=docker_id_or_template_uri,
-            organization_id=str(app.organization.id) if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
-            workspace_id=str(app.workspace.id) if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+            organization_id=str(app.organization.id)
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa
+            workspace_id=str(app.workspace.id)
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa
         )
 
     # Create new image if not exists
@@ -428,8 +437,12 @@ async def add_variant_based_on_image(
                 template_uri=docker_id_or_template_uri,
                 deletable=not (is_template_image),
                 user=user_instance,
-                organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
-                workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+                organization=app.organization
+                if FEATURE_FLAG in ["cloud", "ee"]
+                else None,  # noqa
+                workspace=app.workspace
+                if FEATURE_FLAG in ["cloud", "ee"]
+                else None,  # noqa
             )
         else:
             docker_id = docker_id_or_template_uri
@@ -439,8 +452,12 @@ async def add_variant_based_on_image(
                 tags=tags,
                 deletable=not (is_template_image),
                 user=user_instance,
-                organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
-                workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+                organization=app.organization
+                if FEATURE_FLAG in ["cloud", "ee"]
+                else None,  # noqa
+                workspace=app.workspace
+                if FEATURE_FLAG in ["cloud", "ee"]
+                else None,  # noqa
             )
 
     # Create config
@@ -457,7 +474,9 @@ async def add_variant_based_on_image(
         ]  # TODO: Change this in SDK2 to directly use base_name
     db_base = await db_manager.create_new_variant_base(
         app=app,
-        organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+        organization=app.organization
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,  # noqa
         workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
         user=user_instance,
         base_name=base_name,  # the first variant always has default base
@@ -471,7 +490,9 @@ async def add_variant_based_on_image(
         variant_name=variant_name,
         image=db_image,
         user=user_instance,
-        organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
+        organization=app.organization
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,  # noqa
         workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa
         parameters={},
         base_name=base_name,

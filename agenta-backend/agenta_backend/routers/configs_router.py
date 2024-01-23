@@ -46,7 +46,7 @@ async def save_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-            
+
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
         variants_db = await db_manager.list_variants_for_base(base_db)
         variant_to_overwrite = None
@@ -107,7 +107,7 @@ async def get_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         base_db = await db_manager.fetch_base_by_id(base_id)
         # in case environment_name is provided, find the variant deployed
         if environment_name:

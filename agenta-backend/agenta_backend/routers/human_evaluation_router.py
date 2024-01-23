@@ -38,12 +38,12 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         get_user_org_and_workspace_id,
     )
     from agenta_backend.commons.utils.permissions import (  # noqa pylint: disable-all
-        check_action_access, 
-        check_rbac_permission
+        check_action_access,
+        check_rbac_permission,
     )
     from agenta_backend.commons.models.db_models import (  # noqa pylint: disable-all
-        Permission, 
-        WorkspaceRole
+        Permission,
+        WorkspaceRole,
     )
 
 router = APIRouter()
@@ -68,7 +68,7 @@ async def create_evaluation(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
                 object_type="app",
-                permission=Permission.CREATE_EVALUATION
+                permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -76,7 +76,7 @@ async def create_evaluation(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
 
         if app is None:
@@ -114,7 +114,7 @@ async def fetch_list_human_evaluations(
                 user_uid=request.state.user_id,
                 object_id=app_id,
                 object_type="app",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -122,7 +122,7 @@ async def fetch_list_human_evaluations(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         return await evaluation_service.fetch_list_human_evaluations(app_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -147,7 +147,7 @@ async def fetch_human_evaluation(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="human_evaluation",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -155,7 +155,7 @@ async def fetch_human_evaluation(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         return await evaluation_service.fetch_human_evaluation(evaluation_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -188,7 +188,7 @@ async def fetch_evaluation_scenarios(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="human_evaluation_scenario_by_evaluation_id",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -196,9 +196,11 @@ async def fetch_evaluation_scenarios(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         eval_scenarios = (
-            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(evaluation_id)
+            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
+                evaluation_id
+            )
         )
 
         return eval_scenarios
@@ -226,7 +228,7 @@ async def update_human_evaluation(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="human_evaluation",
-                permission=Permission.EDIT_EVALUATION
+                permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -234,10 +236,8 @@ async def update_human_evaluation(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
-        await update_human_evaluation_service(
-            evaluation_id, update_data
-        )
+
+        await update_human_evaluation_service(evaluation_id, update_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except KeyError:
@@ -264,14 +264,14 @@ async def update_evaluation_scenario_router(
 
     Returns:
         None: 204 No Content status code upon successful update.
-    """ 
+    """
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
                 object_type="human_evaluation_scenario",
-                permission=Permission.EDIT_EVALUATION
+                permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -279,7 +279,7 @@ async def update_evaluation_scenario_router(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         await update_human_evaluation_scenario(
             evaluation_scenario_id,
             evaluation_scenario,
@@ -311,7 +311,7 @@ async def get_evaluation_scenario_score_router(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
                 object_type="human_evaluation_scenario",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -319,7 +319,7 @@ async def get_evaluation_scenario_score_router(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         return await get_evaluation_scenario_score_service(evaluation_scenario_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -345,7 +345,7 @@ async def update_evaluation_scenario_score_router(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
                 object_type="human_evaluation_scenario",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -353,7 +353,7 @@ async def update_evaluation_scenario_score_router(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         await update_evaluation_scenario_score_service(
             evaluation_scenario_id, payload.score
         )
@@ -382,7 +382,7 @@ async def fetch_results(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
                 object_type="evaluation",
-                permission=Permission.VIEW_EVALUATION
+                permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -390,7 +390,7 @@ async def fetch_results(
                     {"detail": error_msg},
                     status_code=400,
                 )
-        
+
         evaluation = await evaluation_service._fetch_human_evaluation(evaluation_id)
         if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
             results = await results_service.fetch_results_for_evaluation(evaluation)
@@ -427,7 +427,7 @@ async def delete_evaluations(
                     user_uid=request.state.user_id,
                     object_id=evaluation_id,
                     object_type="evaluation",
-                    permission=Permission.DELETE_EVALUATION
+                    permission=Permission.DELETE_EVALUATION,
                 )
                 if not has_permission:
                     error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
@@ -435,8 +435,10 @@ async def delete_evaluations(
                         {"detail": error_msg},
                         status_code=400,
                     )
-        
-        await evaluation_service.delete_human_evaluations(delete_evaluations.evaluations_ids)
+
+        await evaluation_service.delete_human_evaluations(
+            delete_evaluations.evaluations_ids
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
