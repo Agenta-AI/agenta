@@ -89,8 +89,8 @@ app.include_router(human_evaluation_router.router, prefix="/human-evaluations", 
 app.include_router(evaluators_router.router, prefix="/evaluators", tags=["Evaluators"])
 app.include_router(testset_router.router, prefix="/testsets", tags=["Testsets"])
 app.include_router(container_router.router, prefix="/containers", tags=["Containers"])
-app.include_router(environment_router.router, prefix="/environments", tags=["Environments")
-app.include_router(observability_router.router, prefix="/observability", tags=["Observability")
+app.include_router(environment_router.router, prefix="/environments", tags=["Environments"])
+app.include_router(observability_router.router, prefix="/observability", tags=["Observability"])
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
