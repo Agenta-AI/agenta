@@ -3,6 +3,10 @@ FROM python:3.9-slim-buster
 
 WORKDIR /app
 
+# Install git and clone the necessary repository
+RUN apt-get update -y \
+    && apt-get install -y git
+
 # Ensure pip and poetry are up to date
 RUN pip install --upgrade pip \
     && pip install poetry
@@ -17,12 +21,6 @@ RUN touch /app/agenta_backend/__init__.py
 # Project initialization:
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
-
-# Install git and clone the necessary repository
-RUN apt-get update -y \
-    && apt-get install -y git \
-    && git clone https://github.com/mmabrouk/beanie \
-    && cd beanie && pip install .
 
 # remove dummy module
 RUN rm -r /app/agenta_backend
