@@ -163,7 +163,7 @@ class AppEnvironmentDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class TestSetDB(Document):
