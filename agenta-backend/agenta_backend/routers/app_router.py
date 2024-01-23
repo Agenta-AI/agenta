@@ -26,14 +26,14 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         CreateApp_ as CreateApp,
-        AppVariantOutput_ as AppVariantOutput,
+        AppVariantResponse_ as AppVariantResponse,
         CreateAppVariant_ as CreateAppVariant,
     )
 else:
     from agenta_backend.models.api.api_models import (
         Image,
         CreateApp,
-        AppVariantOutput,
+        AppVariantResponse,
         CreateAppVariant,
     )
 if FEATURE_FLAG in ["cloud", "ee"]:
@@ -71,7 +71,7 @@ logger.setLevel(logging.DEBUG)
 
 @router.get(
     "/{app_id}/variants/",
-    response_model=List[AppVariantOutput],
+    response_model=List[AppVariantResponse],
     operation_id="list_app_variants",
 )
 async def list_app_variants(
@@ -86,7 +86,7 @@ async def list_app_variants(
         stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
     Returns:
-        List[AppVariantOutput]: A list of app variants for the given app ID.
+        List[AppVariantResponse]: A list of app variants for the given app ID.
     """
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
@@ -116,7 +116,7 @@ async def list_app_variants(
 
 @router.get(
     "/get_variant_by_env/",
-    response_model=AppVariantOutput,
+    response_model=AppVariantResponse,
     operation_id="get_variant_by_env",
 )
 async def get_variant_by_env(
@@ -136,7 +136,7 @@ async def get_variant_by_env(
         HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
 
     Returns:
-        AppVariantOutput: The retrieved app variant.
+        AppVariantResponse: The retrieved app variant.
     """
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
@@ -403,7 +403,7 @@ async def remove_app(app_id: str, request: Request):
 async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
     request: Request,
-) -> AppVariantOutput:
+) -> AppVariantResponse:
     """
     Create an app and variant from a template.
 
@@ -415,7 +415,7 @@ async def create_app_and_variant_from_template(
         HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
     Returns:
-        AppVariantOutput: The output of the created app variant.
+        AppVariantResponse: The output of the created app variant.
     """
     try:
         logger.debug("Start: Creating app and variant from template")

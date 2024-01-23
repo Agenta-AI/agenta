@@ -19,12 +19,12 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import Permission # noqa pylint: disable-all
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
-        AppVariantOutput_ as AppVariantOutput,
+        AppVariantResponse_ as AppVariantResponse,
     )
 else:
     from agenta_backend.models.api.api_models import (
         Image,
-        AppVariantOutput,
+        AppVariantResponse,
     )
 
 from agenta_backend.models.api.api_models import (
@@ -45,7 +45,7 @@ logger.setLevel(logging.DEBUG)
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
     request: Request,
-) -> Union[AppVariantOutput, Any]:
+) -> Union[AppVariantResponse, Any]:
     """Add a new variant based on an existing one.
     Same as POST /config
 
@@ -57,7 +57,7 @@ async def add_variant_from_base_and_config(
         HTTPException: Raised if the variant could not be added or accessed.
 
     Returns:
-        Union[AppVariantOutput, Any]: New variant details or exception.
+        Union[AppVariantResponse, Any]: New variant details or exception.
     """
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
