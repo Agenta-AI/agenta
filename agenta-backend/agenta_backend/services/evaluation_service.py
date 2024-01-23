@@ -622,14 +622,18 @@ async def create_new_human_evaluation(
         )
 
     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+    variant_dbs = [
+        await db_manager.fetch_app_variant_by_id(variant_id)
+        for variant_id in payload.variant_ids
+    ]
 
     testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
     variant_revisions = [
         await db_manager.fetch_app_variant_revision_by_variant(
-            str(variant.id), int(variant.revision)
+            str(variant_db.id), int(variant_db.revision)
         )
-        for variant in variants
+        for variant_db in variant_dbs
     ]
     eval_instance = HumanEvaluationDB(
         app=app,
@@ -638,7 +642,9 @@ async def create_new_human_evaluation(
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         variants=variants,
-        variant_revisions=variant_revisions,
+        variant_revisions=[
+            ObjectId(str(variant_revision.id)) for variant_revision in variant_revisions
+        ],
         testset=testset,
         created_at=current_time,
         updated_at=current_time,

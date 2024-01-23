@@ -1225,7 +1225,7 @@ async def update_variant_parameters(
         raise ValueError("Issue updating variant parameters")
 
 
-async def get_app_variant_instance_by_id(variant_id: str):
+async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     """Get the app variant object from the database with the provided id.
 
     Arguments:
@@ -1239,6 +1239,25 @@ async def get_app_variant_instance_by_id(variant_id: str):
         AppVariantDB.id == ObjectId(variant_id), fetch_links=True
     )
     return app_variant_db
+
+
+async def get_app_variant_revision_by_id(
+    variant_revision_id: str, fetch_links=False
+) -> AppVariantRevisionsDB:
+    """Get the app variant revision object from the database with the provided id.
+
+    Arguments:
+        variant_revision_id (str): The app variant revision unique identifier
+
+    Returns:
+        AppVariantDB: instance of app variant object
+    """
+
+    variant_revision_db = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(variant_revision_id),
+        fetch_links=fetch_links,
+    )
+    return variant_revision_db
 
 
 async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
