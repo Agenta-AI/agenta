@@ -42,7 +42,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.api.api_models import (
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
-        AppVariantOutput_ as AppVariantOutput,
+        AppVariantResponse_ as AppVariantResponse,
     )
 else:
     from agenta_backend.models.db_models import (
@@ -62,7 +62,7 @@ else:
     from agenta_backend.models.api.api_models import (
         AppVariant,
         ImageExtended,
-        AppVariantOutput,
+        AppVariantResponse,
     )
 
 from agenta_backend.models.db_models import (
@@ -234,7 +234,7 @@ def app_variant_db_to_pydantic(
     )
 
 
-async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
+async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
     if app_variant_db.base.deployment:
         deployment = await db_manager.get_deployment_by_objectid(
             app_variant_db.base.deployment
@@ -244,7 +244,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         deployment = None
         uri = None
     logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
-    return AppVariantOutput(
+    return AppVariantResponse(
         app_id=str(app_variant_db.app.id),
         app_name=str(app_variant_db.app.app_name),
         variant_name=app_variant_db.variant_name,

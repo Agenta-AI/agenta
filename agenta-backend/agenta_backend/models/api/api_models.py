@@ -64,7 +64,7 @@ class AppVariantFromImagePayload(BaseModel):
     variant_name: str
 
 
-class AppVariantOutput(BaseModel):
+class AppVariantResponse(BaseModel):
     app_id: str
     app_name: str
     variant_id: str
