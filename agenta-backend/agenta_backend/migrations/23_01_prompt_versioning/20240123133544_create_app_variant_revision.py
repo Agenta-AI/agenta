@@ -396,7 +396,7 @@ class NewAppVariantDB(Document):
 
 
 class NewAppVariantRevisionsDB(Document):
-    variant: Link[AppVariantDB]
+    variant: Link[NewAppVariantDB]
     revision: int
     modified_by: Link[UserDB]
     base: Link[VariantBaseDB]

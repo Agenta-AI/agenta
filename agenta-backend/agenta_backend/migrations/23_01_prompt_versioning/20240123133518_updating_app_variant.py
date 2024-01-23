@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId, free_fall_migration
+from beanie import Document, Link, PydanticObjectId, iterative_migration
 
 # Old models
 
@@ -212,7 +212,7 @@ class NewAppVariantDB(Document):
 
 
 class Forward:
-    @free_fall_migration(
+    @iterative_migration(
         document_models=[
             AppDB,
             UserDB,
@@ -224,35 +224,24 @@ class Forward:
             NewAppVariantDB,
         ]
     )
-    async def migrate_old_app_variants_to_new_format(self, session):
-        old_app_variants = await AppVariantDB.find(fetch_links=True).to_list()
-        for old_app_variant in old_app_variants:
-            # Create variables for configuration data
-            old_config_name = old_app_variant.config.config_name
-            old_config_parameters = old_app_variant.config.parameters
+    async def migrate_old_app_variants_to_new_format(self, input_document: AppVariantDB, output_document: NewAppVariantDB):
+        # Retrieve config linkedin document only
+        await input_document.fetch_link(AppVariantDB.config)
 
-            # Construct the new configuration object
-            new_config = ConfigDB(
-                config_name=old_config_name,
-                parameters=old_config_parameters,
-            )
+        # Create variables for configuration data
+        old_config_name = input_document.config.config_name
+        old_config_parameters = input_document.config.parameters
 
-            # Create the new app variant object, reusing values
-            new_app_variant = NewAppVariantDB(
-                id=old_app_variant.id,
-                variant_name=old_app_variant.variant_name,
-                app=old_app_variant.app,
-                revision=1,
-                image=old_app_variant.image,
-                user=old_app_variant.user,
-                modified_by=old_app_variant.user,
-                organization=old_app_variant.organization,
-                base_name=old_app_variant.base_name,
-                base=old_app_variant.base,
-                config_name=old_config_name,
-                config=new_config,
-            )
-            await new_app_variant.replace(session=session)
+        # Construct the new configuration object
+        new_config = ConfigDB(
+            config_name=old_config_name,
+            parameters=old_config_parameters,
+        )
+
+        # Update document with the above changes
+        output_document.modified_by = input_document.user
+        output_document.config = new_config
+        output_document.revision = 1
 
 
 class Backward:
