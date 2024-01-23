@@ -193,7 +193,7 @@ async def fetch_app_variant_by_id(
 
 
 async def fetch_app_variant_revision_by_variant(
-    app_variant_id: str, revision: int = None
+    app_variant_id: str, revision: int
 ) -> AppVariantRevisionsDB:
     """Fetches app variant revision by variant id and revision
 
@@ -205,16 +205,12 @@ async def fetch_app_variant_revision_by_variant(
         AppVariantRevisionDB
     """
     assert app_variant_id is not None, "app_variant_id cannot be None"
-    if revision:
-        app_variant_revision = await AppVariantRevisionsDB.find_one(
-            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
-            AppVariantRevisionsDB.revision == revision,
-        )
-    else:
-        app_variant_revision = await AppVariantRevisionsDB.find(
-            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
-            fetch_links=True,
-        ).to_list()
+    assert revision is not None, "revision cannot be None"
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+        AppVariantRevisionsDB.revision == revision,
+    )
+
     if app_variant_revision is None:
         raise Exception(
             f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
@@ -1229,7 +1225,7 @@ async def update_variant_parameters(
         raise ValueError("Issue updating variant parameters")
 
 
-async def get_app_variant_instance_by_id(variant_id: str):
+async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     """Get the app variant object from the database with the provided id.
 
     Arguments:
@@ -1243,6 +1239,25 @@ async def get_app_variant_instance_by_id(variant_id: str):
         AppVariantDB.id == ObjectId(variant_id), fetch_links=True
     )
     return app_variant_db
+
+
+async def get_app_variant_revision_by_id(
+    variant_revision_id: str, fetch_links=False
+) -> AppVariantRevisionsDB:
+    """Get the app variant revision object from the database with the provided id.
+
+    Arguments:
+        variant_revision_id (str): The app variant revision unique identifier
+
+    Returns:
+        AppVariantDB: instance of app variant object
+    """
+
+    variant_revision_db = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(variant_revision_id),
+        fetch_links=fetch_links,
+    )
+    return variant_revision_db
 
 
 async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
@@ -1638,7 +1653,8 @@ async def create_new_evaluation(
     user: UserDB,
     testset: TestSetDB,
     status: str,
-    variant: AppVariantDB,
+    variant: str,
+    variant_revision: str,
     evaluators_configs: List[str],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
@@ -1652,6 +1668,7 @@ async def create_new_evaluation(
         testset=testset,
         status=status,
         variant=variant,
+        variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
         created_at=datetime.now().isoformat(),
