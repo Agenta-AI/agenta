@@ -193,7 +193,7 @@ async def fetch_app_variant_by_id(
 
 
 async def fetch_app_variant_revision_by_variant(
-    app_variant_id: str, revision: int = None
+    app_variant_id: str, revision: int
 ) -> AppVariantRevisionsDB:
     """Fetches app variant revision by variant id and revision
 
@@ -205,16 +205,12 @@ async def fetch_app_variant_revision_by_variant(
         AppVariantRevisionDB
     """
     assert app_variant_id is not None, "app_variant_id cannot be None"
-    if revision:
-        app_variant_revision = await AppVariantRevisionsDB.find_one(
-            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
-            AppVariantRevisionsDB.revision == revision,
-        )
-    else:
-        app_variant_revision = await AppVariantRevisionsDB.find(
-            AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
-            fetch_links=True,
-        ).to_list()
+    assert revision is not None, "revision cannot be None"
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+        AppVariantRevisionsDB.revision == revision,
+    )
+
     if app_variant_revision is None:
         raise Exception(
             f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
