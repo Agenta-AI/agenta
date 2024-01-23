@@ -261,7 +261,14 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         name="batch_size"
                                         style={{marginBottom: "0"}}
                                         rules={[
-                                            {required: true, message: "This field is required"},
+                                            {
+                                                validator: (_, value) => {
+                                                    if (value !== null) {
+                                                        return Promise.resolve()
+                                                    }
+                                                    return Promise.reject("This field is required")
+                                                },
+                                            },
                                         ]}
                                     >
                                         <InputNumber
@@ -286,7 +293,14 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         }
                                         name="max_retries"
                                         rules={[
-                                            {required: true, message: "This field is required"},
+                                            {
+                                                validator: (_, value) => {
+                                                    if (value !== null) {
+                                                        return Promise.resolve()
+                                                    }
+                                                    return Promise.reject("This field is required")
+                                                },
+                                            },
                                         ]}
                                     >
                                         <InputNumber
@@ -312,7 +326,14 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         style={{marginBottom: "0"}}
                                         name="retry_delay"
                                         rules={[
-                                            {required: true, message: "This field is required"},
+                                            {
+                                                validator: (_, value) => {
+                                                    if (value !== null) {
+                                                        return Promise.resolve()
+                                                    }
+                                                    return Promise.reject("This field is required")
+                                                },
+                                            },
                                         ]}
                                     >
                                         <InputNumber
@@ -338,7 +359,14 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         name="delay_between_batches"
                                         style={{marginBottom: "0"}}
                                         rules={[
-                                            {required: true, message: "This field is required"},
+                                            {
+                                                validator: (_, value) => {
+                                                    if (value !== null) {
+                                                        return Promise.resolve()
+                                                    }
+                                                    return Promise.reject("This field is required")
+                                                },
+                                            },
                                         ]}
                                     >
                                         <InputNumber
