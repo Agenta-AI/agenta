@@ -92,7 +92,7 @@ def evaluate(
         # 2. Initialize vars
         evaluators_aggregated_data = {
             str(evaluator_config_db.id): {
-                "evaluator_key": evaluator_config.evaluator_key,
+                "evaluator_key": evaluator_config_db.evaluator_key,
                 "results": [],
             }
             for evaluator_config_db in evaluator_config_dbs
@@ -218,28 +218,34 @@ async def aggregate_evaluator_results(
     for config_id, val in evaluators_aggregated_data.items():
         evaluator_key = val["evaluator_key"] or ""
         results = val["results"] or []
-        if evaluator_key != "auto_ai_critique":
+
+        if not results:
+            average_value = 0
+        if evaluator_key == "auto_ai_critique":
+            numeric_scores = []
+            for result in results:
+                # Extract the first number found in the result value
+                match = re.search(r"\d+", result.value)
+                if match:
+                    try:
+                        score = int(match.group())
+                        numeric_scores.append(score)
+                    except ValueError:
+                        # Ignore if the extracted value is not an integer
+                        continue
+
+            # Calculate the average of numeric scores if any are present
             average_value = (
-                sum([result.value for result in results]) / len(results)
-                if results
-                else 0
+                sum(numeric_scores) / len(numeric_scores) if numeric_scores else None
             )
-        elif evaluator_key == "auto_ai_critique":
-            try:
-                average_value = (
-                    sum(
-                        [
-                            int(result.value)
-                            for result in results
-                            if isinstance(int(result.value), int)
-                        ]
-                    )
-                    / len(results)
-                    if results
-                    else 0
-                )
-            except TypeError:
+        else:
+            # Handle boolean values for auto_regex_test and other evaluators
+            if all(isinstance(result.value, bool) for result in results):
+                average_value = sum(result.value for result in results) / len(results)
+            else:
+                # Handle other data types or mixed results
                 average_value = None
+
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
