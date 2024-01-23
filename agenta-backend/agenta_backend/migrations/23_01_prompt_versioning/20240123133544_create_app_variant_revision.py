@@ -446,3 +446,7 @@ class Forward:
                 config=app_variant.config,
             )
             await variant_revision.create(session=session)
+
+
+class Backward:
+    pass

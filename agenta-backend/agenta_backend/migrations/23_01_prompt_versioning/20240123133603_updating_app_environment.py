@@ -438,8 +438,7 @@ class Forward:
         ]
     )
     async def updating_app_environment(self, session):
-        old_environments_base_queries = AppEnvironmentDB.find(fetch_links=True)
-        old_environments = await old_environments_base_queries.to_list()
+        old_environments = await AppEnvironmentDB.find(fetch_links=True).to_list()
         for old_environment in old_environments:
             app_variant = await NewAppVariantDB.find_one(
                 NewAppVariantDB.id == old_environment.deployed_app_variant,
@@ -449,6 +448,7 @@ class Forward:
                 NewAppVariantRevisionsDB.variant.id == app_variant.id
             )
             new_environment = NewAppEnvironmentDB(
+                id=old_environment.id,
                 app=app_variant.app,
                 name=old_environment.name,
                 user=app_variant.user,
@@ -457,8 +457,7 @@ class Forward:
                 deployed_app_variant_revision=app_variant_revision,
                 deployment=old_environment.deployment,
             )
-            await new_environment.create(session=session)
-        await old_environments_base_queries.delete()
+            await new_environment.replace(session=session)
 
 
 class Backward:
