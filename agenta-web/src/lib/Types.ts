@@ -302,7 +302,15 @@ export type ChatMessage = {
 }
 
 type ValueType = number | string | boolean | GenericObject | null
-type ValueTypeOptions = "text" | "number" | "boolean" | "bool" | "string" | "code" | "regex"
+type ValueTypeOptions =
+    | "text"
+    | "number"
+    | "boolean"
+    | "bool"
+    | "string"
+    | "code"
+    | "regex"
+    | "object"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {

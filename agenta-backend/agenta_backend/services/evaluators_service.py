@@ -150,10 +150,8 @@ def auto_ai_critique(
         "correct_answer": correct_answer,
     }
 
-    for input_item in app_params.get("inputs", []):
-        input_name = input_item.get("name")
-        if input_name and input_name in inputs:
-            chain_run_args[input_name] = inputs[input_name]
+    for key, value in inputs.items():
+        chain_run_args[key] = value
 
     prompt = PromptTemplate(
         input_variables=list(chain_run_args.keys()),  # Use the keys from chain_run_args
