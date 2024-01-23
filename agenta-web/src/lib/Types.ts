@@ -216,6 +216,8 @@ export interface EvaluationResponseType {
     app_id: string
     status: string
     evaluation_type: string
+    variant_revision_ids: string[]
+    revisions: string[] // The revision number
     evaluation_type_settings: {
         similarity_threshold: number
         regex_pattern: string
@@ -341,7 +343,15 @@ export type ChatMessage = {
 }
 
 type ValueType = number | string | boolean | GenericObject | null
-type ValueTypeOptions = "text" | "number" | "boolean" | "bool" | "string" | "code" | "regex"
+type ValueTypeOptions =
+    | "text"
+    | "number"
+    | "boolean"
+    | "bool"
+    | "string"
+    | "code"
+    | "regex"
+    | "object"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {

@@ -290,10 +290,10 @@ async def fetch_evaluation_scenarios_for_evaluation(
         **user_org_data,
     )
     scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id), fetch_links=True
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
     ).to_list()
     eval_scenarios = [
-        converters.evaluation_scenario_db_to_pydantic(scenario)
+        converters.evaluation_scenario_db_to_pydantic(scenario, str(evaluation.id))
         for scenario in scenarios
     ]
     return eval_scenarios
@@ -321,10 +321,11 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
     )
     scenarios = await HumanEvaluationScenarioDB.find(
         HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
-        fetch_links=True,
     ).to_list()
     eval_scenarios = [
-        converters.human_evaluation_scenario_db_to_pydantic(scenario)
+        converters.human_evaluation_scenario_db_to_pydantic(
+            scenario, str(evaluation.id)
+        )
         for scenario in scenarios
     ]
     return eval_scenarios
@@ -621,9 +622,19 @@ async def create_new_human_evaluation(
         )
 
     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+    variant_dbs = [
+        await db_manager.fetch_app_variant_by_id(variant_id)
+        for variant_id in payload.variant_ids
+    ]
 
     testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
+    variant_revisions = [
+        await db_manager.fetch_app_variant_revision_by_variant(
+            str(variant_db.id), int(variant_db.revision)
+        )
+        for variant_db in variant_dbs
+    ]
     eval_instance = HumanEvaluationDB(
         app=app,
         organization=app.organization,  # Assuming user has an organization_id attribute
@@ -631,6 +642,9 @@ async def create_new_human_evaluation(
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         variants=variants,
+        variant_revisions=[
+            ObjectId(str(variant_revision.id)) for variant_revision in variant_revisions
+        ],
         testset=testset,
         created_at=current_time,
         updated_at=current_time,
@@ -674,6 +688,10 @@ async def create_new_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     testset = await db_manager.fetch_testset_by_id(testset_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id)
+    variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
+        variant_id, variant_db.revision
+    )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -682,6 +700,7 @@ async def create_new_evaluation(
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variant=variant_id,
+        variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)

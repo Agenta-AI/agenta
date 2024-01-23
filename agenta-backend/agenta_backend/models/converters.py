@@ -79,7 +79,10 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant)
     )
     variant_name = variant.variant_name if variant else str(evaluation_db.variant)
-
+    variant_revision = await db_manager.get_app_variant_revision_by_id(
+        str(evaluation_db.variant_revision)
+    )
+    revision = str(variant_revision.revision)
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -87,6 +90,8 @@ async def evaluation_db_to_pydantic(
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
         variant_ids=[str(evaluation_db.variant)],
+        variant_revision_ids=[str(evaluation_db.variant_revision)],
+        revisions=[revision],
         variant_names=[variant_name],
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
@@ -106,6 +111,13 @@ async def human_evaluation_db_to_pydantic(
         variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
         variant_name = variant.variant_name if variant else str(variant_id)
         variant_names.append(str(variant_name))
+    revisions = []
+    for variant_revision_id in evaluation_db.variant_revisions:
+        variant_revision = await db_manager.get_app_variant_revision_by_id(
+            str(variant_revision_id)
+        )
+        revision = variant_revision.revision
+        revisions.append(str(revision))
 
     return HumanEvaluation(
         id=str(evaluation_db.id),
@@ -116,6 +128,11 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
+        variant_revision_ids=[
+            str(variant_revision)
+            for variant_revision in evaluation_db.variant_revisions
+        ],
+        revisions=revisions,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
@@ -124,11 +141,11 @@ async def human_evaluation_db_to_pydantic(
 
 
 def human_evaluation_scenario_db_to_pydantic(
-    evaluation_scenario_db: HumanEvaluationScenarioDB,
+    evaluation_scenario_db: HumanEvaluationScenarioDB, evaluation_id: str
 ) -> HumanEvaluationScenario:
     return HumanEvaluationScenario(
         id=str(evaluation_scenario_db.id),
-        evaluation_id=str(evaluation_scenario_db.evaluation.id),
+        evaluation_id=evaluation_id,
         inputs=evaluation_scenario_db.inputs,
         outputs=evaluation_scenario_db.outputs,
         vote=evaluation_scenario_db.vote,
@@ -170,11 +187,11 @@ def evaluation_scenarios_results_to_pydantic(
 
 
 def evaluation_scenario_db_to_pydantic(
-    evaluation_scenario_db: EvaluationScenarioDB,
+    evaluation_scenario_db: EvaluationScenarioDB, evaluation_id: str
 ) -> EvaluationScenario:
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
-        evaluation_id=str(evaluation_scenario_db.evaluation.id),
+        evaluation_id=evaluation_id,
         inputs=[
             EvaluationScenarioInput(**scenario_input.dict())
             for scenario_input in evaluation_scenario_db.inputs

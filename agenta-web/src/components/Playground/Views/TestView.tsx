@@ -1,4 +1,4 @@
-import React, {useContext, useEffect, useState} from "react"
+import React, {useContext, useEffect, useRef, useState} from "react"
 import {
     Button,
     Input,
@@ -15,7 +15,7 @@ import {
     Result,
 } from "antd"
 import {
-    CaretRightOutlined,
+    CaretRightOutlined, CloseCircleOutlined,
     HistoryOutlined,
     LoadingOutlined,
     PlusOutlined,
@@ -174,6 +174,7 @@ interface BoxComponentProps {
     onDelete?: () => void
     isChatVariant?: boolean
     variant: Variant
+    onCancel: () => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -187,6 +188,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     onDelete,
     isChatVariant = false,
     variant,
+    onCancel,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStylesBox()
@@ -273,17 +275,29 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         disabled={loading || !result}
                         shape="round"
                     />
-                    <Button
-                        data-cy="testview-input-parameters-run-button"
-                        className={`testview-run-button-${testData._id}`}
-                        type="primary"
-                        shape="round"
-                        icon={<CaretRightOutlined />}
-                        onClick={isChatVariant ? onRun : form.submit}
-                        loading={loading}
-                    >
-                        Run
-                    </Button>
+                    {loading ? (
+                        <Button
+                            icon={<CloseCircleOutlined />}
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={onCancel}
+                            className={`testview-cancel-button-${testData._id}`}
+                        >
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Button
+                            data-cy="testview-input-parameters-run-button"
+                            className={`testview-run-button-${testData._id}`}
+                            type="primary"
+                            shape="round"
+                            icon={<CaretRightOutlined />}
+                            onClick={isChatVariant ? onRun : form.submit}
+                            loading={loading}
+                        >
+                            Run
+                        </Button>
+                    )}
                 </Col>
             </Row>
             {!isChatVariant && (
@@ -346,6 +360,15 @@ const App: React.FC<TestViewProps> = ({
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
 
+    const abortControllersRef = useRef<AbortController[]>([])
+    const [isRunningAll, setIsRunningAll] = useState(false)
+
+    useEffect(() => {
+        return () => {
+            abortControllersRef.current.forEach((controller) => controller.abort())
+        }
+    }, [])
+
     useEffect(() => {
         setResultsList((prevResultsList) => {
             const newResultsList = testList.map((_, index) => {
@@ -396,25 +419,30 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleRun = async (index: number) => {
+        const controller = new AbortController()
+        abortControllersRef.current[index] = controller
         try {
             const testItem = testList[index]
             if (compareMode && !isRunning[index]) {
-                setIsRunning(
-                    (prevState) => {
-                        const newState = [...prevState]
-                        newState[index] = true
-                        return newState
-                    },
-                    () => {
-                        document
-                            .querySelectorAll(`.testview-run-button-${testItem._id}`)
-                            .forEach((btn) => {
-                                if (btn.parentElement?.id !== variant.variantId) {
-                                    ;(btn as HTMLButtonElement).click()
-                                }
-                            })
-                    },
-                )
+                let called = false
+                const callback = () => {
+                    if (called) return
+                    called = true
+                    document
+                        .querySelectorAll(`.testview-run-button-${testItem._id}`)
+                        .forEach((btn) => {
+                            if (btn.parentElement?.id !== variant.variantId) {
+                                ;(btn as HTMLButtonElement).click()
+                            }
+                        })
+                }
+
+                setIsRunning((prevState) => {
+                    const newState = [...prevState]
+                    newState[index] = true
+                    return newState
+                }, callback)
+                setTimeout(callback, 300)
             }
             setResultForIndex(LOADING_TEXT, index)
 
@@ -425,7 +453,10 @@ const App: React.FC<TestViewProps> = ({
                 appId || "",
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
+                controller.signal,
+                true,
             )
+
             // check if res is an object or string
             if (typeof res === "string") {
                 setResultForIndex(res, index)
@@ -438,7 +469,16 @@ const App: React.FC<TestViewProps> = ({
                 })
             }
         } catch (e) {
-            setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+            if (!controller.signal.aborted) {
+                setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+            } else {
+                setResultForIndex("", index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: null, latency: null, usage: null}
+                    return newDataList
+                })
+            }
         } finally {
             setIsRunning((prevState) => {
                 const newState = [...prevState]
@@ -448,13 +488,38 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
-    const handleRunAll = () => {
+    const handleCancel = (index: number) => {
+        if (abortControllersRef.current[index]) {
+            abortControllersRef.current[index].abort()
+        }
+        if (compareMode && isRunning[index]) {
+            const testItem = testList[index]
+
+            document.querySelectorAll(`.testview-cancel-button-${testItem._id}`).forEach((btn) => {
+                if (btn.parentElement?.id !== variant.variantId) {
+                    ;(btn as HTMLButtonElement).click()
+                }
+            })
+        }
+    }
+
+    const handleCancelAll = () => {
+        const funcs: Function[] = []
+        rootRef.current
+            ?.querySelectorAll("[class*=testview-cancel-button-]")
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
+        batchExecute(funcs)
+    }
+
+    const handleRunAll = async () => {
         const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
             .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
-        batchExecute(funcs)
+        setIsRunningAll(true)
+        await batchExecute(funcs)
+        setIsRunningAll(false)
     }
 
     const handleAddRow = () => {
@@ -534,14 +599,25 @@ const App: React.FC<TestViewProps> = ({
                 <Space size={10}>
                     <LoadTestsModal onLoad={onLoadTests} />
 
-                    <Button
-                        type="primary"
-                        size="middle"
-                        className={classes.runAllBtn}
-                        onClick={handleRunAll}
-                    >
-                        Run all
-                    </Button>
+                    {!isRunningAll ? (
+                        <Button
+                            type="primary"
+                            size="middle"
+                            className={classes.runAllBtn}
+                            onClick={handleRunAll}
+                        >
+                            Run all
+                        </Button>
+                    ) : (
+                        <Button
+                            size="middle"
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={handleCancelAll}
+                        >
+                            Cancel All
+                        </Button>
+                    )}
                 </Space>
             </div>
 
@@ -565,6 +641,7 @@ const App: React.FC<TestViewProps> = ({
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
                     isChatVariant={isChatVariant}
                     variant={variant}
+                    onCancel={() => handleCancel(index)}
                 />
             ))}
             <Button

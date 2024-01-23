@@ -3,7 +3,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId
+from beanie import Document, Link, PydanticObjectId, free_fall_migration
+
+# Old models
 
 
 class APIKeyDB(Document):
@@ -110,25 +112,37 @@ class VariantBaseDB(Document):
         name = "bases"
 
 
-class ConfigDB(BaseModel):
+class ConfigVersionDB(BaseModel):
+    version: int
+    parameters: Dict[str, Any]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+
+class OldConfigDB(Document):
     config_name: str
+    current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
+    version_history: List[ConfigVersionDB] = Field(default=[])
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "configs"
 
 
 class AppVariantDB(Document):
     app: Link[AppDB]
     variant_name: str
-    revision: int
     image: Link[ImageDB]
     user: Link[UserDB]
-    modified_by: Link[UserDB]
     organization: Link[OrganizationDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: Link[VariantBaseDB]
     config_name: Optional[str]
-    config: ConfigDB
+    config: Link[OldConfigDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -140,31 +154,17 @@ class AppVariantDB(Document):
         name = "app_variants"
 
 
-class AppVariantRevisionsDB(Document):
-    variant: Link[AppVariantDB]
-    revision: int
-    modified_by: Link[UserDB]
-    base: Link[VariantBaseDB]
-    config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "app_variant_revisions"
-
-
 class AppEnvironmentDB(Document):
     app: Link[AppDB]
     name: str
     user: Link[UserDB]
     organization: Link[OrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
-    deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "environments"
+        name = "app_environment_db"
 
 
 class TemplateDB(Document):
@@ -253,7 +253,6 @@ class HumanEvaluationDB(Document):
     status: str
     evaluation_type: str
     variants: List[PydanticObjectId]
-    variant_revisions: List[PydanticObjectId]
     testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -287,7 +286,6 @@ class EvaluationDB(Document):
     status: str = Field(default="EVALUATION_INITIALIZED")
     testset: Link[TestSetDB]
     variant: PydanticObjectId
-    variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
@@ -364,3 +362,91 @@ class TraceDB(Document):
 
     class Settings:
         name = "traces"
+
+
+# New models
+class ConfigDB(BaseModel):
+    config_name: str
+    parameters: Dict[str, Any] = Field(default=dict)
+
+
+class NewAppVariantDB(Document):
+    app: Link[AppDB]
+    variant_name: str
+    revision: int
+    image: Link[ImageDB]
+    user: Link[UserDB]
+    modified_by: Link[UserDB]
+    organization: Link[OrganizationDB]
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
+    base_name: Optional[str]
+    base: Link[VariantBaseDB]
+    config_name: Optional[str]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    is_deleted: bool = Field(  # TODO: deprecated. remove
+        default=False
+    )  # soft deletion for using the template variants
+
+    class Settings:
+        name = "app_variants"
+
+
+class NewAppVariantRevisionsDB(Document):
+    variant: Link[NewAppVariantDB]
+    revision: int
+    modified_by: Link[UserDB]
+    base: Link[VariantBaseDB]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_variant_revisions"
+
+
+class NewAppEnvironmentDB(Document):
+    app: Link[AppDB]
+    name: str
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
+    deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[NewAppVariantRevisionsDB]]
+    deployment: Optional[PydanticObjectId]  # reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_environment_db"
+
+
+class Forward:
+
+    @free_fall_migration(
+        document_models=[
+            UserDB,
+            OrganizationDB,
+            AppDB,
+            ImageDB,
+            VariantBaseDB,
+            NewAppVariantDB,
+            NewAppVariantRevisionsDB,
+        ]
+    )
+    async def create_app_variant_revision(self, session):
+        new_app_variants = await NewAppVariantDB.find(fetch_links=True).to_list()
+        for app_variant in new_app_variants:
+            variant_revision = NewAppVariantRevisionsDB(
+                variant=app_variant,
+                revision=app_variant.revision,
+                modified_by=app_variant.user,
+                base=app_variant.base,
+                config=app_variant.config,
+            )
+            await variant_revision.create(session=session)
+
+
+class Backward:
+    pass

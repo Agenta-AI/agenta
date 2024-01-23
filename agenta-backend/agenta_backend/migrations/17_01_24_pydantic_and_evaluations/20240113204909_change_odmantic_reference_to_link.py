@@ -7,8 +7,6 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId
 
-# Old models
-
 
 class APIKeyDB(Document):
     prefix: str
@@ -166,7 +164,7 @@ class AppEnvironmentDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class TemplateDB(Document):
@@ -204,7 +202,7 @@ class EvaluatorConfigDB(Document):
     user: Link[UserDB]
     name: str
     evaluator_key: str
-    settings_values: Dict[str, Any] = Field(default=dict)
+    settings_values: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -294,7 +292,7 @@ class EvaluationDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "new_evaluations"
+        name = "evaluations"
 
 
 class EvaluationScenarioDB(Document):
@@ -313,65 +311,70 @@ class EvaluationScenarioDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "new_evaluation_scenarios"
-
-
-class SpanDB(Document):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str  # Function or execution name
-    event_type: Optional[str]
-    start_time: datetime
-    duration: Optional[int]
-    status: str  # initiated, completed, stopped, cancelled
-    end_time: datetime = Field(default=datetime.utcnow())
-    inputs: Optional[List[str]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-
-    class Settings:
-        name = "spans"
-
-
-class Feedback(BaseModel):
-    uid: str = Field(default=str(uuid4()))
-    user_id: str
-    feedback: Optional[str]
-    score: Optional[float]
-    meta: Optional[Dict[str, Any]]
-    created_at: datetime
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-
-class TraceDB(Document):
-    app_id: Optional[str]
-    variant_id: str
-    spans: List[PydanticObjectId]
-    start_time: datetime
-    end_time: datetime = Field(default=datetime.utcnow())
-    cost: Optional[float]
-    latency: float
-    status: str  # initiated, completed, stopped, cancelled, failed
-    token_consumption: Optional[int]
-    user: Link[UserDB]
-    tags: Optional[List[str]]
-    feedbacks: Optional[List[Feedback]]
-
-    class Settings:
-        name = "traces"
-
-
-# New models
+        name = "evaluation_scenarios"
 
 
 class Forward:
-    ...
+    @iterative_migration(document_models=[OrganizationDB, UserDB, ImageDB])
+    async def rename_image_db_reference_to_link(
+        self, input_document: ImageDB, output_document: ImageDB
+    ):
+        output_document.user = input_document.user
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB])
+    async def rename_app_db_reference_to_link(
+        self, input_document: AppDB, output_document: AppDB
+    ):
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB, DeploymentDB])
+    async def rename_deployment_db_reference_to_link(
+        self, input_document: DeploymentDB, output_document: DeploymentDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, ImageDB, VariantBaseDB]
+    )
+    async def rename_variant_base_db_reference_to_link(
+        self, input_document: VariantBaseDB, output_document: VariantBaseDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+        output_document.image = input_document.image
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, AppEnvironmentDB]
+    )
+    async def rename_app_environment_db_reference_to_link(
+        self, input_document: AppEnvironmentDB, output_document: AppEnvironmentDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(document_models=[OrganizationDB, UserDB, AppDB, TestSetDB])
+    async def rename_testset_db_reference_to_link(
+        self, input_document: TestSetDB, output_document: TestSetDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
+
+    @iterative_migration(
+        document_models=[OrganizationDB, UserDB, AppDB, EvaluatorConfigDB]
+    )
+    async def rename_evaluator_config_db_reference_to_link(
+        self, input_document: EvaluatorConfigDB, output_document: EvaluatorConfigDB
+    ):
+        output_document.app = input_document.app
+        output_document.user = input_document.user
+        output_document.organization = input_document.organization
 
 
 class Backward:
-    ...
+    pass
