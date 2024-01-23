@@ -178,7 +178,7 @@ export interface EvaluationResponseType {
     status: string
     evaluation_type: string
     variant_revision_ids: string[]
-    variant_revisions: string[] // The revision number
+    revisions: string[] // The revision number
     evaluation_type_settings: {
         similarity_threshold: number
         regex_pattern: string
