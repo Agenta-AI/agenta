@@ -63,6 +63,8 @@ class Evaluation(BaseModel):
     user_username: str
     variant_ids: List[str]
     variant_names: List[str]
+    variant_revision_ids: List[str]
+    revisions: List[str]
     testset_id: str
     testset_name: str
     status: str

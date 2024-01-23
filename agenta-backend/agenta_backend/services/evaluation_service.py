@@ -688,6 +688,10 @@ async def create_new_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     testset = await db_manager.fetch_testset_by_id(testset_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id)
+    variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
+        variant_id, variant_db.revision
+    )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -696,6 +700,7 @@ async def create_new_evaluation(
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variant=variant_id,
+        variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)

@@ -1653,7 +1653,8 @@ async def create_new_evaluation(
     user: UserDB,
     testset: TestSetDB,
     status: str,
-    variant: AppVariantDB,
+    variant: str,
+    variant_revision: str,
     evaluators_configs: List[str],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
@@ -1667,6 +1668,7 @@ async def create_new_evaluation(
         testset=testset,
         status=status,
         variant=variant,
+        variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
         created_at=datetime.now().isoformat(),
