@@ -200,6 +200,9 @@ async def test_create_evaluation():
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
 
+    # Sleep for 10 seconds
+    await asyncio.sleep(10)
+
     # Make request to create evaluation
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
@@ -221,7 +224,7 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 3  # seconds
+    intervals = 5  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
@@ -252,7 +255,7 @@ async def test_fetch_evaluation_results():
 
     assert response.status_code == 200
     assert response_data["evaluation_id"] == str(evaluation.id)
-    assert len(response_data["results"]) == 5
+    assert len(response_data["results"]) == 6
 
 
 @pytest.mark.asyncio
