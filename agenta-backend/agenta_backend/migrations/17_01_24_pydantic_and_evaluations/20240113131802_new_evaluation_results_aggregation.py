@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -116,6 +117,26 @@ class EvaluationScenarioDB(Document):
 
 
 def prepare_evaluation_keyvalue_store(
+    evaluation_id: str, evaluation_keyvalue_store: Dict
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Construct a key-value store to saves results based on a evaluator config in an evaluation
+
+    Args:
+        evaluation_id (str): ID of evaluation
+        evaluation_keyvalue_store (Dict): evaluation keyvalue store
+
+    Returns:
+        Dict[str, Dict[str, Any]]: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
+    """
+
+    if evaluation_id not in evaluation_keyvalue_store:
+        evaluation_keyvalue_store[evaluation_id] = {}
+
+    return evaluation_keyvalue_store
+
+
+def prepare_evaluator_keyvalue_store(
     evaluation_id: str, evaluator_id: str, evaluation_keyvalue_store: Dict
 ) -> Dict[str, Dict[str, Any]]:
     """
@@ -129,9 +150,6 @@ def prepare_evaluation_keyvalue_store(
     Returns:
         Dict[str, Dict[str, Any]]: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
     """
-
-    if evaluation_id not in evaluation_keyvalue_store:
-        evaluation_keyvalue_store[evaluation_id] = {}
 
     if evaluator_id not in evaluation_keyvalue_store[evaluation_id]:
         evaluation_keyvalue_store[evaluation_id][evaluator_id] = {"results": []}
@@ -218,16 +236,25 @@ class Forward:
     async def aggregate_new_evaluation_with_evaluation_scenario_results(self, session):
         # STEP 1:
         # Create a key-value store that saves all the evaluator configs & results for a particular evaluation id
-        # Example: {"evaluation_id": {"evaluation_config_id": {"results": [Result("type": str, "value": Any)]}}}
+        # Example: {"evaluation_id": {"evaluation_config_id": {"results": [}}}
         evaluation_keyvalue_store = {}
         new_auto_evaluations = await EvaluationDB.find().to_list()
+        print("### len new_auto_evaluations", len(new_auto_evaluations))
+
         for auto_evaluation in new_auto_evaluations:
+            evaluation_keyvalue_store = prepare_evaluation_keyvalue_store(
+                str(auto_evaluation.id),
+                evaluation_keyvalue_store,
+            )
             for evaluator_config in auto_evaluation.evaluators_configs:
-                evaluation_keyvalue_store = prepare_evaluation_keyvalue_store(
+                evaluation_keyvalue_store = prepare_evaluator_keyvalue_store(
                     str(auto_evaluation.id),
                     str(evaluator_config),
                     evaluation_keyvalue_store,
                 )
+
+        print("### len evaluation_keyvalue_store", len(evaluation_keyvalue_store))
+        await asyncio.sleep(2)
 
         # STEP 2:
         # Update the evaluation key-value store
@@ -236,13 +263,20 @@ class Forward:
         ).to_list()
         for auto_evaluation in new_auto_evaluation_scenarios:
             evaluation_id = str(auto_evaluation.evaluation.id)
-            evaluation_store = evaluation_keyvalue_store[evaluation_id]
-            configs_with_results = zip(
-                auto_evaluation.evaluators_configs, auto_evaluation.results
-            )
-            for evaluator, result in configs_with_results:
-                modify_evaluation_scenario_store(
-                    str(evaluator), result, evaluation_store
+
+            # Check if the evaluation_id exists in the key-value store
+            if evaluation_id in evaluation_keyvalue_store:
+                evaluation_store = evaluation_keyvalue_store[evaluation_id]
+                configs_with_results = zip(
+                    auto_evaluation.evaluators_configs, auto_evaluation.results
+                )
+                for evaluator, result in configs_with_results:
+                    modify_evaluation_scenario_store(
+                        str(evaluator), result, evaluation_store
+                    )
+            else:
+                print(
+                    f"Warning: Evaluation ID {evaluation_id} not found in the key-value store."
                 )
 
         # STEP 3:

@@ -2,11 +2,12 @@ import cURLCode from "@/code_snippets/endpoints/curl"
 import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
+import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
 import {ApiOutlined, DownOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Space, Typography} from "antd"
+import {Alert, Button, Dropdown, Empty, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -129,19 +130,21 @@ export default function VariantEndpoint() {
     }
 
     if (isVariantsError) {
-        return <div>Failed to load variants</div>
+        return <ResultComponent status={"error"} title="Failed to load variants" />
     }
     if (isVariantsLoading) {
-        return <div>Loading variants...</div>
+        return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
     if (!variant) {
-        return <div>No variant available</div>
+        return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
     }
     if (isLoading) {
-        return <div>Loading variant...</div>
+        return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
     if (isError) {
-        return <div>{error?.message || "Error loading variant"}</div>
+        return (
+            <ResultComponent status={"error"} title={error?.message || "Error loading variant"} />
+        )
     }
 
     const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
