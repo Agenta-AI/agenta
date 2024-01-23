@@ -436,7 +436,7 @@ async def create_deployment(
         status=status,
     )
 
-    if FEATURE_FLAG in ["lcoud", "ee"]:
+    if FEATURE_FLAG in ["cloud", "ee"]:
         deployment.organization = organization
         deployment.workspace = workspace
 
