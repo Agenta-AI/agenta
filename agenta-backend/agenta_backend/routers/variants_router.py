@@ -313,7 +313,7 @@ async def get_variant(
         app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
-        app_variant_revisions = await db_manager.fetch_app_variant_revision_by_variant(
+        app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
             app_variant_id=variant_id
         )
         return await converters.app_variant_db_and_revision_to_extended_output(

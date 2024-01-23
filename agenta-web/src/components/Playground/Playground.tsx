@@ -16,6 +16,7 @@ import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
 import PromptVersioningProvider from "./PromptVersioningProvider"
+import ResultComponent from "../ResultComponent/ResultComponent"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -162,8 +163,16 @@ const Playground: React.FC = () => {
         (newRoute) => !newRoute.includes("playground"),
     )
 
-    if (isError) return <div>failed to load variants for app {appId}</div>
-    if (isLoading) return <div>loading variants...</div>
+    if (isError)
+        return (
+            <ResultComponent
+                status="error"
+                title={`Failed to load variants`}
+                subtitle={`App ID: ${appId}`}
+            />
+        )
+    if (isLoading)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
 
     /**
      * Called when the variant is saved for the first time to the backend
