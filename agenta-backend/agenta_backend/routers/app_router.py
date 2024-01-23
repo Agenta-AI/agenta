@@ -464,7 +464,7 @@ async def create_app_and_variant_from_template(
                     status_code=403,
                 )
 
-        print(
+        logger.debug(
             f"Step 5: Checking if app {payload.app_name} already exists"
             if FEATURE_FLAG in ["cloud", "ee"]
             else f"Step 1: Checking if app {payload.app_name} already exists"
@@ -481,13 +481,12 @@ async def create_app_and_variant_from_template(
                 f"App with name {app_name} already exists",
             )
 
-        print(
+        logger.debug(
             "Step 6: Creating new app and initializing environments"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 2: Creating new app and initializing environments"
         )
         if app is None:
-            print("Here next step")
             app = await db_manager.create_app_and_envs(
                 app_name,
                 request.state.user_id,
@@ -495,7 +494,7 @@ async def create_app_and_variant_from_template(
                 workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
             )
 
-        print(
+        logger.debug(
             "Step 7: Retrieve template from db"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 3: Retrieve template from db"
@@ -504,7 +503,7 @@ async def create_app_and_variant_from_template(
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
-        print(
+        logger.debug(
             "Step 8: Creating image instance and adding variant based on image"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 4: Creating image instance and adding variant based on image"
@@ -522,7 +521,7 @@ async def create_app_and_variant_from_template(
             user_uid=request.state.user_id,
         )
 
-        print(
+        logger.debug(
             "Step 9: Creating testset for app variant"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 5: Creating testset for app variant"
@@ -536,14 +535,14 @@ async def create_app_and_variant_from_template(
             user_uid=request.state.user_id,
         )
 
-        print(
+        logger.debug(
             "Step 10: We create ready-to use evaluators"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 6: We create ready-to use evaluators"
         )
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
-        print(
+        logger.debug(
             "Step 11: Starting variant and injecting environment variables"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 7: Starting variant and injecting environment variables"
@@ -595,8 +594,8 @@ async def list_environments(
     try:
         if FEATURE_FLAG in ["cloud", "ee"]:
             has_permission = await check_action_access(
-                user_id=request.state.user_id,
-                object_uid=app_id,
+                user_uid=request.state.user_id,
+                object_id=app_id,
                 object_type="app",
                 permission=Permission.VIEW_APPLICATION,
             )
