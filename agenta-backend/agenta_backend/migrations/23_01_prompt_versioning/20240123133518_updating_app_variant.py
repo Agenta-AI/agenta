@@ -1,4 +1,3 @@
-from uuid import uuid4
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -215,9 +214,9 @@ class NewAppVariantDB(Document):
 class Forward:
     @free_fall_migration(
         document_models=[
+            AppDB,
             UserDB,
             OrganizationDB,
-            AppDB,
             ImageDB,
             VariantBaseDB,
             OldConfigDB,
@@ -225,29 +224,35 @@ class Forward:
             NewAppVariantDB,
         ]
     )
-    async def migrate_old_app_variant_to_new_app_variant(self, session):
-        app_variant_base_queries = AppVariantDB.find(fetch_links=True)
-        old_app_variants = await app_variant_base_queries.to_list()
-        for app_variant in old_app_variants:
+    async def migrate_old_app_variants_to_new_format(self, session):
+        old_app_variants = await AppVariantDB.find(fetch_links=True).to_list()
+        for old_app_variant in old_app_variants:
+            # Create variables for configuration data
+            old_config_name = old_app_variant.config.config_name
+            old_config_parameters = old_app_variant.config.parameters
+
+            # Construct the new configuration object
             new_config = ConfigDB(
-                config_name=app_variant.config.config_name,
-                parameters=app_variant.config.parameters,
+                config_name=old_config_name,
+                parameters=old_config_parameters,
             )
+
+            # Create the new app variant object, reusing values
             new_app_variant = NewAppVariantDB(
-                app=app_variant.app,
-                variant_name=app_variant.variant_name,
+                id=old_app_variant.id,
+                variant_name=old_app_variant.variant_name,
+                app=old_app_variant.app,
                 revision=1,
-                image=app_variant.image,
-                user=app_variant.user,
-                modified_by=app_variant.user,
-                organization=app_variant.organization,
-                base_name=app_variant.base_name,
-                base=app_variant.base,
-                config_name=app_variant.config_name,
+                image=old_app_variant.image,
+                user=old_app_variant.user,
+                modified_by=old_app_variant.user,
+                organization=old_app_variant.organization,
+                base_name=old_app_variant.base_name,
+                base=old_app_variant.base,
+                config_name=old_config_name,
                 config=new_config,
             )
-            await new_app_variant.create(session=session)
-        await app_variant_base_queries.delete()
+            await new_app_variant.replace(session=session)
 
 
 class Backward:
