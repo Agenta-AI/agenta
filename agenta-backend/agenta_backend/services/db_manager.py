@@ -1,5 +1,6 @@
 import os
 import logging
+import traceback
 
 from pathlib import Path
 from datetime import datetime
@@ -23,7 +24,6 @@ from agenta_backend.models.db_models import (
     Result,
     ConfigDB,
     TemplateDB,
-    DeploymentDB,
     ConfigVersionDB,
     AggregatedResult,
     EvaluationScenarioResult,
@@ -34,11 +34,9 @@ from agenta_backend.models.db_models import (
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.services import db_manager_ee
-
-    from agenta_backend.commons.models.api.api_models import (
-        AppVariant_ as AppVariant,
-        ImageExtended_ as ImageExtended,
-    )
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_rbac_permission
+    from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
 
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
@@ -47,6 +45,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
+        DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -54,11 +53,8 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
     )
+    
 else:
-    from agenta_backend.models.api.api_models import (
-        AppVariant,
-        ImageExtended,
-    )
 
     from agenta_backend.models.db_models import (
         AppDB,
@@ -67,6 +63,7 @@ else:
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
+        DeploymentDB,
         VariantBaseDB,
         AppEnvironmentDB,
         EvaluatorConfigDB,
@@ -427,21 +424,24 @@ async def create_deployment(
     Returns:
         DeploymentDB: The created deployment.
     """
-    deployment = DeploymentDB(
-        app=app,
-        user=user,
-        container_name=container_name,
-        container_id=container_id,
-        uri=uri,
-        status=status,
-    )
+    try:
+        deployment = DeploymentDB(
+            app=app,
+            user=user,
+            container_name=container_name,
+            container_id=container_id,
+            uri=uri,
+            status=status,
+        )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
-        deployment.organization = organization
-        deployment.workspace = workspace
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            deployment.organization = organization
+            deployment.workspace = workspace
 
-    await deployment.create()
-    return deployment
+        await deployment.create()
+        return deployment
+    except Exception as e:
+        raise Exception(f"Error while creating deployment: {e}")
 
 
 async def create_app_and_envs(
@@ -818,38 +818,38 @@ async def list_apps(
         )
         return [converters.app_db_to_pydantic(app_db)]
 
-    # elif (org_id is not None) or (workspace_id is not None): # TODO: Remember to enable this when workspace_id is provided after the RBAC is implemented
-    #     if not FEATURE_FLAG in ["cloud", "ee"]:
-    #         return JSONResponse(
-    #             {"error": "organization and/or workspace is only available in Cloud and EE"},
-    #             status_code=400,
-    #         )
+    elif (org_id is not None) or (workspace_id is not None):
+        if not FEATURE_FLAG in ["cloud", "ee"]:
+            return JSONResponse(
+                {"error": "organization and/or workspace is only available in Cloud and EE"},
+                status_code=400,
+            )
 
-    #     # assert that if org_id is provided, workspace_id is also provided, and vice versa
-    #     assert (
-    #         org_id is not None and workspace_id is not None
-    #     ), "org_id and workspace_id must be provided together"
+        # assert that if org_id is provided, workspace_id is also provided, and vice versa
+        assert (
+            org_id is not None and workspace_id is not None
+        ), "org_id and workspace_id must be provided together"
 
-    #     user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)
-    #     has_permission = await check_rbac_permission(
-    #         user_org_workspace_data=user_org_workspace_data,
-    #         workspace_id=ObjectId(workspace_id),
-    #         organization_id=ObjectId(org_id),
-    #         permission=Permission.VIEW_APPLICATION,
-    #     )
-    #     logger.debug(f"User has Permission to list apps: {has_permission}")
-    #     if not has_permission:
-    #         error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-    #         return JSONResponse(
-    #             {"detail": error_msg},
-    #             status_code=400,
-    #         )
+        user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)
+        has_permission = await check_rbac_permission(
+            user_org_workspace_data=user_org_workspace_data,
+            workspace_id=ObjectId(workspace_id),
+            organization_id=ObjectId(org_id),
+            permission=Permission.VIEW_APPLICATION,
+        )
+        logger.debug(f"User has Permission to list apps: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
 
-    #     apps: List[AppDB] = await AppDB.find(
-    #         AppDB.organization.id == ObjectId(org_id),
-    #         AppDB.workspace.id == ObjectId(workspace_id),
-    #     ).to_list()
-    #     return [converters.app_db_to_pydantic(app) for app in apps]
+        apps: List[AppDB] = await AppDB.find(
+            AppDB.organization.id == ObjectId(org_id),
+            AppDB.workspace.id == ObjectId(workspace_id),
+        ).to_list()
+        return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         apps = await AppDB.find(AppDB.user.id == user.id).to_list()
