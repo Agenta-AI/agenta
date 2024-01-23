@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId, free_fall_migration
+from beanie import Document, Link, PydanticObjectId, iterative_migration
 
 # Old models
 
@@ -164,7 +164,7 @@ class AppEnvironmentDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class TemplateDB(Document):
@@ -419,12 +419,12 @@ class NewAppEnvironmentDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class Forward:
 
-    @free_fall_migration(
+    @iterative_migration(
         document_models=[
             UserDB,
             OrganizationDB,
@@ -437,27 +437,19 @@ class Forward:
             NewAppEnvironmentDB,
         ]
     )
-    async def updating_app_environment(self, session):
-        old_environments = await AppEnvironmentDB.find(fetch_links=True).to_list()
-        for old_environment in old_environments:
-            app_variant = await NewAppVariantDB.find_one(
-                NewAppVariantDB.id == old_environment.deployed_app_variant,
-                fetch_links=True,
-            )
+    async def updating_app_environment(self, input_document: AppEnvironmentDB, output_document: NewAppEnvironmentDB):
+        # Find the app variant and the app variant revision document
+        app_variant = await NewAppVariantDB.find_one(
+            NewAppVariantDB.id == input_document.deployed_app_variant
+        )
+        if app_variant is not None:
             app_variant_revision = await NewAppVariantRevisionsDB.find_one(
                 NewAppVariantRevisionsDB.variant.id == app_variant.id
             )
-            new_environment = NewAppEnvironmentDB(
-                id=old_environment.id,
-                app=app_variant.app,
-                name=old_environment.name,
-                user=app_variant.user,
-                organization=app_variant.organization,
-                deployed_app_variant=old_environment.deployed_app_variant,
-                deployed_app_variant_revision=app_variant_revision,
-                deployment=old_environment.deployment,
-            )
-            await new_environment.replace(session=session)
+
+            # Update fields
+            output_document.deployed_app_variant = input_document.deployed_app_variant
+            output_document.deployed_app_variant_revision = app_variant_revision
 
 
 class Backward:
