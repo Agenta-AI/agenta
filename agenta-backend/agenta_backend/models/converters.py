@@ -120,7 +120,7 @@ async def human_evaluation_db_to_pydantic(
             str(variant_revision)
             for variant_revision in evaluation_db.variant_revisions
         ],
-        variant_revisions=[
+        revisions=[
             str(variant_revision.revision)
             for variant_revision in evaluation_db.variant_revisions
         ],

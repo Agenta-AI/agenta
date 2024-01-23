@@ -118,7 +118,7 @@ class HumanEvaluation(BaseModel):
     variant_ids: List[str]
     variant_names: List[str]
     variant_revision_ids: List[str]
-    variant_revisions: List[str]  # the revision / version of each of the variants
+    revisions: List[str]  # the revision / version of each of the variants
     testset_id: str
     testset_name: str
     status: str
