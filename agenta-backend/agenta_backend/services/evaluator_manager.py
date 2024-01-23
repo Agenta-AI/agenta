@@ -10,9 +10,9 @@ FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
-        EvaluatorConfigDB_ as EvaluatorConfigDB
+        EvaluatorConfigDB_ as EvaluatorConfigDB,
     )
-else:    
+else:
     from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
@@ -91,7 +91,9 @@ async def create_evaluator_config(
     app = await db_manager.fetch_app_by_id(app_id)
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
-        organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa,
+        organization=app.organization
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,  # noqa,
         workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa,
         user=app.user,
         name=name,
@@ -158,8 +160,12 @@ async def create_ready_to_use_evaluators(app: AppDB):
     for evaluator in direct_use_evaluators:
         await db_manager.create_evaluator_config(
             app=app,
-            organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa,
-            workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa,
+            organization=app.organization
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa,
+            workspace=app.workspace
+            if FEATURE_FLAG in ["cloud", "ee"]
+            else None,  # noqa,
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],

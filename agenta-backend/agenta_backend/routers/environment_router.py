@@ -49,7 +49,7 @@ async def deploy_to_environment(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         await db_manager.deploy_to_environment(
             environment_name=payload.environment_name,
             variant_id=payload.variant_id,

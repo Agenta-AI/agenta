@@ -56,7 +56,7 @@ async def list_bases(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         bases = await db_manager.list_bases_for_app_id(app_id, base_name)
         return [converters.base_db_to_pydantic(base) for base in bases]
     except Exception as e:

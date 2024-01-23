@@ -41,7 +41,7 @@ else:
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
-    
+
 from agenta_backend.models.db_models import (
     SpanDB,
     TraceDB,

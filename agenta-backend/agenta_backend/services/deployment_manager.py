@@ -58,7 +58,9 @@ async def start_service(
         container_id=container_id,
         uri=uri,
         status="running",
-        organization=app_variant_db.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
+        organization=app_variant_db.organization
+        if FEATURE_FLAG in ["cloud", "ee"]
+        else None,
         workspace=app_variant_db.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
     )
     return deployment

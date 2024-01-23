@@ -34,12 +34,12 @@ from agenta_backend.models.db_models import (
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.services import db_manager_ee
-    
+
     from agenta_backend.commons.models.api.api_models import (
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
     )
-    
+
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -127,19 +127,19 @@ async def add_testset_to_app_variant(
                 app=app_db,
                 user=user_db,
             )
-            
+
             if FEATURE_FLAG in ["cloud", "ee"]:
                 # assert that if organization is provided, workspace_id is also provided, and vice versa
                 assert (
                     org_id is not None and workspace_id is not None
                 ), "organization and workspace must be provided together"
-                
+
                 organization_db = await db_manager_ee.get_organization(org_id)
                 workspace_db = await db_manager_ee.get_workspace(workspace_id)
-                
+
                 testset_db.organization = organization_db
                 testset_db.workspace = workspace_db
-            
+
             await testset_db.create()
 
     except Exception as e:
@@ -235,8 +235,8 @@ async def create_new_variant_base(
     user: UserDB,
     base_name: str,
     image: ImageDB,
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
@@ -256,16 +256,16 @@ async def create_new_variant_base(
         base_name=base_name,
         image=image,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         base.organization = organization
         base.workspace = workspace
-    
+
     await base.create()
     return base
 
@@ -305,8 +305,8 @@ async def create_new_app_variant(
     base_name: str,
     config_name: str,
     parameters: Dict,
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
 ) -> AppVariantDB:
     """Create a new variant.
     Args:
@@ -328,16 +328,16 @@ async def create_new_app_variant(
         config_name=config_name,
         parameters=parameters,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         variant.organization = organization
         variant.workspace = workspace
-    
+
     await variant.create()
     return variant
 
@@ -346,8 +346,8 @@ async def create_image(
     image_type: str,
     user: UserDB,
     deletable: bool,
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
     template_uri: str = None,
     docker_id: str = None,
     tags: str = None,
@@ -390,16 +390,16 @@ async def create_image(
     elif image_type == "image":
         image.type = "image"
         image.docker_id = docker_id
-        
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         image.organization = organization
         image.workspace = workspace
-    
+
     await image.create()
     return image
 
@@ -411,8 +411,8 @@ async def create_deployment(
     container_id: str,
     uri: str,
     status: str,
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
 ) -> DeploymentDB:
     """Create a new deployment.
     Args:
@@ -435,11 +435,11 @@ async def create_deployment(
         uri=uri,
         status=status,
     )
-    
+
     if FEATURE_FLAG in ["lcoud", "ee"]:
         deployment.organization = organization
         deployment.workspace = workspace
-    
+
     await deployment.create()
     return deployment
 
@@ -470,26 +470,26 @@ async def create_app_and_envs(
     app = await fetch_app_by_name_and_parameters(
         app_name,
         user_uid,
-        organization_id, 
+        organization_id,
         workspace_id,
     )
     if app is not None:
         raise ValueError("App with the same name already exists")
 
     app = AppDB(app_name=app_name, user=user_instance)
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization_id is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
         ), "org_id and workspace_id must be provided together"
-        
+
         organization_db = await db_manager_ee.get_organization(organization_id)
         workspace_db = await db_manager_ee.get_workspace(workspace_id)
-        
+
         app.organization = organization_db
         app.workspace = workspace_db
-    
+
     await app.create()
     await initialize_environments(app)
     return app
@@ -542,9 +542,7 @@ async def list_bases_for_app_id(
     return bases_db
 
 
-async def list_variants_for_base(
-    base: VariantBaseDB
-) -> List[AppVariantDB]:
+async def list_variants_for_base(base: VariantBaseDB) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db for a base
     Args:
@@ -575,7 +573,6 @@ async def get_user(user_uid: str) -> UserDB:
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
-            
             # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
@@ -661,19 +658,21 @@ async def get_orga_image_instance_by_docker_id(
     Returns:
         ImageDB: instance of image object
     """
-    
-    query_expression = {'docker_id': docker_id}
-    
+
+    query_expression = {"docker_id": docker_id}
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
         ), "organization and workspace must be provided together"
-        
-        query_expression.update({
-            'organization.id': ObjectId(organization_id),
-            'workspace.id': ObjectId(workspace_id),
-        })
+
+        query_expression.update(
+            {
+                "organization.id": ObjectId(organization_id),
+                "workspace.id": ObjectId(workspace_id),
+            }
+        )
 
     image = await ImageDB.find_one(query_expression)
     return image
@@ -695,19 +694,21 @@ async def get_orga_image_instance_by_uri(
 
     if not parsed_url.scheme and not parsed_url.netloc:
         raise ValueError(f"Invalid URL: {template_uri}")
-    
-    query_expression = {'template_uri': template_uri}
-    
+
+    query_expression = {"template_uri": template_uri}
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
         ), "organization and workspace must be provided together"
-        
-        query_expression.update({
-            'organization.id': ObjectId(organization_id),
-            'workspace.id': ObjectId(workspace_id),
-        })
+
+        query_expression.update(
+            {
+                "organization.id": ObjectId(organization_id),
+                "workspace.id": ObjectId(workspace_id),
+            }
+        )
 
     image = await ImageDB.find_one(query_expression)
     return image
@@ -810,10 +811,12 @@ async def list_apps(
 
     if app_name is not None:
         app_db = await fetch_app_by_name_and_parameters(
-            app_name=app_name, user_uid=user_uid, organization_id=org_id, workspace_id=workspace_id
+            app_name=app_name,
+            user_uid=user_uid,
+            organization_id=org_id,
+            workspace_id=workspace_id,
         )
         return [converters.app_db_to_pydantic(app_db)]
-    
 
     # elif (org_id is not None) or (workspace_id is not None): # TODO: Remember to enable this when workspace_id is provided after the RBAC is implemented
     #     if not FEATURE_FLAG in ["cloud", "ee"]:
@@ -821,12 +824,12 @@ async def list_apps(
     #             {"error": "organization and/or workspace is only available in Cloud and EE"},
     #             status_code=400,
     #         )
-            
+
     #     # assert that if org_id is provided, workspace_id is also provided, and vice versa
     #     assert (
     #         org_id is not None and workspace_id is not None
     #     ), "org_id and workspace_id must be provided together"
-        
+
     #     user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)
     #     has_permission = await check_rbac_permission(
     #         user_org_workspace_data=user_org_workspace_data,
@@ -841,7 +844,7 @@ async def list_apps(
     #             {"detail": error_msg},
     #             status_code=400,
     #         )
-        
+
     #     apps: List[AppDB] = await AppDB.find(
     #         AppDB.organization.id == ObjectId(org_id),
     #         AppDB.workspace.id == ObjectId(workspace_id),
@@ -985,9 +988,7 @@ async def list_environments(app_id: str) -> List[AppEnvironmentDB]:
     return environments_db
 
 
-async def initialize_environments(
-    app_db: AppDB
-) -> List[AppEnvironmentDB]:
+async def initialize_environments(app_db: AppDB) -> List[AppEnvironmentDB]:
     """
     Initializes the environments for the app with the given database.
 
@@ -1005,9 +1006,7 @@ async def initialize_environments(
     return environments
 
 
-async def create_environment(
-    name: str, app_db: AppDB
-) -> AppEnvironmentDB:
+async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
     """
     Creates a new environment in the database.
 
@@ -1019,22 +1018,18 @@ async def create_environment(
     Returns:
         AppEnvironmentDB: The newly created AppEnvironmentDB object.
     """
-    environment_db = AppEnvironmentDB(
-        app=app_db,
-        name=name,
-        user=app_db.user
-    )
-    
+    environment_db = AppEnvironmentDB(app=app_db, name=name, user=app_db.user)
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         environment_db.organization = app_db.organization
         environment_db.workspace = app_db.workspace
-    
+
     await environment_db.create()
     return environment_db
 
 
 async def list_environments_by_variant(
-    app_variant: AppVariantDB
+    app_variant: AppVariantDB,
 ) -> List[AppEnvironmentDB]:
     """
     Returns a list of environments for a given app variant.
@@ -1522,7 +1517,7 @@ async def update_app_variant(
 async def fetch_app_by_name_and_parameters(
     app_name: str,
     user_uid: str,
-    organization_id: str = None, 
+    organization_id: str = None,
     workspace_id: str = None,
 ):
     """Fetch an app by its name, organization id, and workspace id.
@@ -1536,25 +1531,29 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    query_expression = {'app_name': app_name}
-    
+    query_expression = {"app_name": app_name}
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
         ), "organization_id and workspace_id must be provided together"
-        
-        query_expression.update({
-            'organization.id': ObjectId(organization_id),
-            'workspace.id': ObjectId(workspace_id),
-        })
+
+        query_expression.update(
+            {
+                "organization.id": ObjectId(organization_id),
+                "workspace.id": ObjectId(workspace_id),
+            }
+        )
     else:
-        query_expression.update({
-            'user.id': ObjectId(user_uid),
-        })
-        
+        query_expression.update(
+            {
+                "user.id": ObjectId(user_uid),
+            }
+        )
+
     app_db = await AppDB.find_one(query_expression, fetch_links=True)
-    
+
     return app_db
 
 
@@ -1565,8 +1564,8 @@ async def create_new_evaluation(
     status: str,
     variant: AppVariantDB,
     evaluators_configs: List[str],
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1583,16 +1582,16 @@ async def create_new_evaluation(
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         evaluation.organization = organization
         evaluation.workspace = workspace
-    
+
     await evaluation.create()
     return evaluation
 
@@ -1608,8 +1607,8 @@ async def create_new_evaluation_scenario(
     note: Optional[str],
     evaluators_configs: List[EvaluatorConfigDB],
     results: List[EvaluationScenarioResult],
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1629,16 +1628,16 @@ async def create_new_evaluation_scenario(
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         evaluation_scenario.organization = organization
         evaluation_scenario.workspace = workspace
-    
+
     await evaluation_scenario.create()
     return evaluation_scenario
 
@@ -1746,8 +1745,8 @@ async def create_evaluator_config(
     user: UserDB,
     name: str,
     evaluator_key: str,
-    organization = None,
-    workspace = None,
+    organization=None,
+    workspace=None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
@@ -1759,14 +1758,13 @@ async def create_evaluator_config(
         evaluator_key=evaluator_key,
         settings_values=settings_values,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
-    
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-        
+
         new_evaluator_config.organization = organization
         new_evaluator_config.workspace = workspace
 

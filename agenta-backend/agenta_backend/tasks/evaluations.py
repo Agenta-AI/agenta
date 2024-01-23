@@ -26,7 +26,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
-    
+
 from agenta_backend.models.db_models import (
     Result,
     AggregatedResult,
@@ -182,8 +182,12 @@ def evaluate(
                         EvaluationScenarioOutputDB(type="text", value=app_output.output)
                     ],
                     results=evaluators_results,
-                    organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
-                    workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
+                    organization=app.organization
+                    if FEATURE_FLAG in ["cloud", "ee"]
+                    else None,
+                    workspace=app.workspace
+                    if FEATURE_FLAG in ["cloud", "ee"]
+                    else None,
                 )
             )
 

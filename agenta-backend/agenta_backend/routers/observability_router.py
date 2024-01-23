@@ -144,5 +144,7 @@ async def update_feedback(
     payload: UpdateFeedback,
     request: Request,
 ):
-    feedback = await update_trace_feedback(trace_id, feedback_id, payload, request.state.user_id)
+    feedback = await update_trace_feedback(
+        trace_id, feedback_id, payload, request.state.user_id
+    )
     return feedback

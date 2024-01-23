@@ -94,7 +94,7 @@ async def restart_docker_container(
     Args:
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
-    logger.debug(f"Restarting container for variant {payload.variant_id}")    
+    logger.debug(f"Restarting container for variant {payload.variant_id}")
     app_variant_db = await db_manager.fetch_app_variant_by_id(payload.variant_id)
     try:
         deployment = await db_manager.get_deployment_by_objectid(
@@ -152,7 +152,7 @@ async def construct_app_container_url(
     """
     # assert that one of base_id or variant_id is provided
     assert base_id or variant_id, "Please provide either base_id or variant_id"
-        
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -167,7 +167,7 @@ async def construct_app_container_url(
                 {"detail": error_msg},
                 status_code=403,
             )
-    
+
     if base_id:
         base_db = await db_manager.fetch_base_by_id(base_id)
         # TODO: Add status check if base_db.status == "running"

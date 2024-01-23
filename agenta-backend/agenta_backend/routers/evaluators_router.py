@@ -38,7 +38,9 @@ async def get_evaluators_endpoint():
         evaluators = evaluator_manager.get_evaluators()
 
         if evaluators is None:
-            raise HTTPException(status_code=500, detail="Error processing evaluators file")
+            raise HTTPException(
+                status_code=500, detail="Error processing evaluators file"
+            )
 
         if not evaluators:
             raise HTTPException(status_code=404, detail="No evaluators found")
@@ -91,7 +93,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluators_configs = await evaluator_manager.get_evaluator_config(
             evaluator_config_id
         )
