@@ -1,7 +1,8 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useContext} from "react"
 import {saveNewVariant, updateVariantParams} from "@/lib/services/api"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
+import {PromptVersioningContext} from "@/components/Playground/PromptVersioningProvider"
 
 /**
  * Hook for using the variant.
@@ -11,7 +12,7 @@ import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantH
  * @returns
  */
 export function useVariant(appId: string, variant: Variant) {
-    const [optParams, setOptParams] = useState<Parameter[] | null>(null)
+    const {setPromptOptParams, promptOptParams} = useContext(PromptVersioningContext)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -28,7 +29,7 @@ export function useVariant(appId: string, variant: Variant) {
                 appId,
                 variant,
             )
-            setOptParams(parameters)
+            setPromptOptParams(parameters)
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
@@ -46,9 +47,9 @@ export function useVariant(appId: string, variant: Variant) {
     }, [variant?.variantName])
 
     useEffect(() => {
-        const updatedInputParams = updateInputParams(optParams, inputParams || [])
+        const updatedInputParams = updateInputParams(promptOptParams, inputParams || [])
         setInputParams(updatedInputParams)
-    }, [optParams])
+    }, [promptOptParams])
 
     /**
      * Saves new values for the optional parameters of the variant.
@@ -80,7 +81,7 @@ export function useVariant(appId: string, variant: Variant) {
                     return {...acc, [param.name]: param.default}
                 }, {})
             }
-            setOptParams(updatedOptParams)
+            setPromptOptParams(updatedOptParams)
         } catch (error) {
             setIsError(true)
         } finally {
@@ -90,7 +91,7 @@ export function useVariant(appId: string, variant: Variant) {
 
     return {
         inputParams,
-        optParams,
+        promptOptParams,
         URIPath,
         isLoading,
         isError,
@@ -99,7 +100,6 @@ export function useVariant(appId: string, variant: Variant) {
         saveOptParams,
         refetch: fetchParameters,
         isChatVariant,
-        setOptParams,
     }
 }
 
