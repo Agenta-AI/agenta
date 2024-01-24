@@ -70,7 +70,7 @@ const EvaluationVariantCard: React.FC<Props> = ({
     outputImg,
     index = 0,
     showVariantName = true,
-    evaluation
+    evaluation,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -87,7 +87,10 @@ const EvaluationVariantCard: React.FC<Props> = ({
                         </Typography.Text>
                     </div>
                     <Typography.Text className={classes.title}>
-                        {variant.variantName} <span style={{color: "#656d76", fontSize: 14}}>#{evaluation.revisions[index]}</span>
+                        {variant.variantName}{" "}
+                        <span style={{color: "#656d76", fontSize: 14}}>
+                            #{evaluation.revisions[index]}
+                        </span>
                     </Typography.Text>{" "}
                 </>
             )}

@@ -26,7 +26,7 @@ const EvaluationCard: React.FC<Props> = ({
     variants,
     isChat,
     showVariantName = true,
-    evaluation
+    evaluation,
 }) => {
     const classes = useStyles()
 
