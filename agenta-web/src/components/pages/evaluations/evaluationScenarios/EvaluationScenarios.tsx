@@ -17,7 +17,7 @@ import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
+import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRenderers"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
@@ -112,11 +112,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 autoHeaderHeight: true,
                 field: `results`,
                 ...getFilterParams("text"),
-                valueGetter: (params) => {
-                    return getTypedValue(
-                        params.data?.results.find((item) => item.evaluator_config === config.id)
-                            ?.result,
-                    )
+                cellRenderer: ResultRenderer,
+                cellRendererParams: {
+                    config,
                 },
             })
         })

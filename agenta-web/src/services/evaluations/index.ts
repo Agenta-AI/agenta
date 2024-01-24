@@ -111,7 +111,7 @@ export const fetchEvaluation = async (evaluationId: string) => {
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
     const response = await axios.get(`/api/evaluations/${evaluationId}/status/`)
-    return response.data as {status: EvaluationStatus}
+    return response.data as {status: _Evaluation["status"]}
 }
 
 export type CreateEvaluationData = {
@@ -247,7 +247,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
                         evaluatorConfig: config,
                         result: scenario?.results.find(
                             (result) => result.evaluator_config === config.id,
-                        )?.result || {type: "string", value: ""},
+                        )?.result || {type: "string", value: "", error: null},
                     })),
                 }
             }),

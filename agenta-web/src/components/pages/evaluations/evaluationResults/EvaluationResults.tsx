@@ -66,7 +66,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const runningEvaluationIds = useMemo(
         () =>
             evaluations
-                .filter((item) => runningStatuses.includes(item.status))
+                .filter((item) => runningStatuses.includes(item.status.value))
                 .map((item) => item.id),
         [evaluations],
     )
@@ -112,7 +112,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         newEvals[index].duration = calcEvalDuration(newEvals[index])
                                     }
                                 })
-                                if (res.some((item) => !runningStatuses.includes(item.status)))
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                )
                                     fetcher()
                                 return newEvals
                             })
@@ -150,7 +152,7 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    item.status !== EvaluationStatus.FINISHED ||
+                    item.status.value !== EvaluationStatus.FINISHED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],
@@ -233,7 +235,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 185,
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status as EvaluationStatus].label,
+                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
                 cellRenderer: StatusRenderer,
             },
             {
