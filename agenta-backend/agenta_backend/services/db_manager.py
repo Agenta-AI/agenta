@@ -1051,7 +1051,7 @@ async def list_app_variant_revisions_by_variant(
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
     app_variant_revision = await AppVariantRevisionsDB.find(
-        AppVariantRevisionsDB.variant == app_variant.id, fetch_links=True
+        AppVariantRevisionsDB.variant.id == app_variant.id, fetch_links=True
     ).to_list()
     return app_variant_revision
 
