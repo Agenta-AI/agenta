@@ -687,7 +687,8 @@ const App: React.FC<TestViewProps> = ({
                     <>
                         {!!promptRevisions?.revisions.length ? (
                             promptRevisions?.revisions
-                                .map((item: IPromptRevisions) => (
+                                .filter((item) => item.config.parameters.inputs)
+                                ?.map((item: IPromptRevisions) => (
                                     <div key={item.revision} className={classes.historyContainer}>
                                         <div
                                             style={{
