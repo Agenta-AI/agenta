@@ -90,7 +90,6 @@ async def get_first_user_app(get_first_user_object):
         config_name="default",
         parameters={},
     )
-    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app", image=db_image, organization=organization, user=user, app=app
@@ -107,6 +106,8 @@ async def get_first_user_app(get_first_user_object):
         base_name="app",
         config_name="default",
         base=db_base,
+        revision=0,
+        modified_by=user,
         config=db_config,
     )
     await appvariant.create()
@@ -228,7 +229,8 @@ def use_open_ai_key():
 
 @pytest.fixture(scope="session")
 def fetch_single_prompt_template(fetch_templates):
-    return fetch_templates[1]
+    sorted_templates = sorted(fetch_templates, key=lambda x: x["image"]["name"])
+    return sorted_templates[0]
 
 
 @pytest.fixture()
