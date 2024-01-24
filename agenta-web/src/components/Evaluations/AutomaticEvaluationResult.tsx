@@ -32,6 +32,8 @@ interface EvaluationListTableDataType {
     custom_code_eval_id: string
     resultsData: {[key: string]: number}
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 type StyleProps = {
@@ -104,6 +106,8 @@ export default function AutomaticEvaluationResult() {
                             custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
                             resultsData: result.results_data,
                             avgScore: result.avg_score,
+                            revisions: item.revisions,
+                            variant_revision_ids: item.variant_revision_ids,
                         }
                     }
                 })
@@ -141,10 +145,10 @@ export default function AutomaticEvaluationResult() {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value) => {
+            render: (value, record: EvaluationListTableDataType) => {
                 return (
                     <div>
-                        <span>{value[0].variantName}</span>
+                        <span>{`${value[0].variantName} #${record.revisions[0]}`}</span>
                     </div>
                 )
             },

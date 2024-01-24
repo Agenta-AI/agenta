@@ -1,4 +1,4 @@
-import {Variant} from "@/lib/Types"
+import {Evaluation, Variant} from "@/lib/Types"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVariantCard from "./EvaluationVariantCard"
@@ -18,6 +18,7 @@ interface Props {
     variants: Variant[]
     isChat?: boolean
     showVariantName?: boolean
+    evaluation: Evaluation
 }
 
 const EvaluationCard: React.FC<Props> = ({
@@ -25,6 +26,7 @@ const EvaluationCard: React.FC<Props> = ({
     variants,
     isChat,
     showVariantName = true,
+    evaluation
 }) => {
     const classes = useStyles()
 
@@ -46,6 +48,7 @@ const EvaluationCard: React.FC<Props> = ({
                         }
                         index={ix}
                         showVariantName={showVariantName}
+                        evaluation={evaluation}
                     />
                 ) : (
                     <EvaluationVariantCard
@@ -59,6 +62,7 @@ const EvaluationCard: React.FC<Props> = ({
                         }
                         index={ix}
                         showVariantName={showVariantName}
+                        evaluation={evaluation}
                         //random image from unsplash
                         // outputImg={`https://source.unsplash.com/random/?sig=${ix}`}
                     />
