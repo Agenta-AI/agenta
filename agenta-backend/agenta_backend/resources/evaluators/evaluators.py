@@ -5,8 +5,8 @@ evaluators = [
         "direct_use": True,
         "settings_template": {
             "label": "Exact Match Settings",
-            "description": "Settings for the Exact Match evaluator"
-        }
+            "description": "Settings for the Exact Match evaluator",
+        },
     },
     {
         "name": "Similarity Match",
@@ -17,9 +17,9 @@ evaluators = [
                 "label": "Similarity Threshold",
                 "type": "number",
                 "default": 0.5,
-                "description": "The threshold value for similarity comparison"
+                "description": "The threshold value for similarity comparison",
             }
-        }
+        },
     },
     {
         "name": "Regex Test",
@@ -30,15 +30,15 @@ evaluators = [
                 "label": "Regex Pattern",
                 "type": "regex",
                 "default": "",
-                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)"
+                "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
             },
             "regex_should_match": {
                 "label": "Match/Mismatch",
                 "type": "boolean",
                 "default": True,
-                "description": "If the regex should match or mismatch"
-            }
-        }
+                "description": "If the regex should match or mismatch",
+            },
+        },
     },
     {
         "name": "AI Critique",
@@ -49,9 +49,9 @@ evaluators = [
                 "label": "Prompt Template",
                 "type": "text",
                 "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
-                "description": "Template for AI critique prompts"
+                "description": "Template for AI critique prompts",
             }
-        }
+        },
     },
     {
         "name": "Code Evaluation",
@@ -62,9 +62,9 @@ evaluators = [
                 "label": "Evaluation Code",
                 "type": "code",
                 "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
-                "description": "Code for evaluating submissions"
+                "description": "Code for evaluating submissions",
             }
-        }
+        },
     },
     {
         "name": "Webhook test",
@@ -75,15 +75,15 @@ evaluators = [
                 "label": "Webhook URL",
                 "type": "string",
                 "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
-                "description": "URL for the webhook test"
+                "description": "URL for the webhook test",
             },
             "webhook_body": {
                 "label": "Webhook Body",
                 "type": "object",
                 "default": "{}",
-                "description": "Request body for webhook URL"
-            }
-        }
+                "description": "Request body for webhook URL",
+            },
+        },
     },
     {
         "name": "A/B Test",
@@ -91,8 +91,8 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "A/B Testing Settings",
-            "description": "Settings for A/B testing configurations"
-        }
+            "description": "Settings for A/B testing configurations",
+        },
     },
     {
         "name": "Single Model Test",
@@ -100,9 +100,9 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Settings for single model testing configurations"
-        }
-    }
+            "description": "Settings for single model testing configurations",
+        },
+    },
 ]
 
 
