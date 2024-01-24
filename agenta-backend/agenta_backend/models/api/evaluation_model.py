@@ -95,8 +95,7 @@ class EvaluationScenarioInput(BaseModel):
 
 
 class EvaluationScenarioOutput(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
