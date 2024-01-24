@@ -128,7 +128,7 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
-        variant_revision_ids=[
+        variants_revision_ids=[
             str(variant_revision)
             for variant_revision in evaluation_db.variants_revisions
         ],
