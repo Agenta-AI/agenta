@@ -99,7 +99,7 @@ async def invoke_app(
                 result=Result(
                     type="error",
                     error=Error(
-                        message="An error occurred during the request.",
+                        message="An error occurred while invoking the LLM App",
                         stacktrace=str(e),
                     ),
                 )
