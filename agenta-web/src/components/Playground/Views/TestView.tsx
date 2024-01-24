@@ -594,6 +594,10 @@ const App: React.FC<TestViewProps> = ({
         onStateChange(true)
     }
 
+    const filteredRevisions = promptRevisions?.revisions.filter(
+        (item) => item.config.parameters.inputs,
+    )
+
     return (
         <div ref={rootRef}>
             <div className={classes.testView}>
@@ -685,9 +689,8 @@ const App: React.FC<TestViewProps> = ({
                     />
                 ) : (
                     <>
-                        {!!promptRevisions?.revisions.length ? (
-                            promptRevisions?.revisions
-                                .filter((item) => item.config.parameters.inputs)
+                        {!!filteredRevisions?.length ? (
+                            filteredRevisions
                                 ?.map((item: IPromptRevisions) => (
                                     <div key={item.revision} className={classes.historyContainer}>
                                         <div
