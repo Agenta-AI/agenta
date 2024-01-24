@@ -385,6 +385,7 @@ async def create_image(
         image.template_uri = template_uri
     elif image_type == "image":
         image.type = "image"
+        image.tags = tags
         image.docker_id = docker_id
 
     if FEATURE_FLAG in ["cloud", "ee"]:
@@ -775,8 +776,6 @@ async def add_variant_from_base_and_config(
         variant_name=new_variant_name,
         image=base_db.image,
         user=user_db,
-        organization=previous_app_variant_db.organization,
-        workspace=previous_app_variant_db.workspace,
         parameters=parameters,
         previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
         base_name=base_db.base_name,
@@ -785,6 +784,11 @@ async def add_variant_from_base_and_config(
         config=config_db,
         is_deleted=False,
     )
+    
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        db_app_variant.organization = previous_app_variant_db.organization
+        db_app_variant.workspace = previous_app_variant_db.workspace
+    
     await db_app_variant.create()
     return db_app_variant
 

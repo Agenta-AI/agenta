@@ -63,11 +63,11 @@ def list_images() -> List[Image]:
 def start_container(
     image_name: str, uri_path: str, container_name: str, env_vars: DockerEnvVars
 ) -> Dict:
-    print("Starting container with the following parameters:")
-    print(f"image_name: {image_name}")
-    print(f"uri_path: {uri_path}")
-    print(f"container_name: {container_name}")
-    print(f"env_vars: {env_vars}")
+    logger.debug("Starting container with the following parameters:")
+    logger.debug(f"image_name: {image_name}")
+    logger.debug(f"uri_path: {uri_path}")
+    logger.debug(f"container_name: {container_name}")
+    logger.debug(f"env_vars: {env_vars}")
     try:
         image = client.images.get(f"{image_name}")
 

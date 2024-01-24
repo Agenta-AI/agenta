@@ -221,17 +221,21 @@ def evaluation_scenario_db_to_pydantic(
 def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
-    return AppVariant(
+    app_variant = AppVariant(
         app_id=str(app_variant_db.app.id),
         app_name=app_variant_db.app.app_name,
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
-        organization_id=str(app_variant_db.organization.id),
-        workspace_id=str(app_variant_db.workspace.id),
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
+    
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        app_variant.organization_id = str(app_variant_db.organization.id)
+        app_variant.workspace_id = str(app_variant_db.workspace.id)
+        
+    return app_variant
 
 
 async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
@@ -244,14 +248,12 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         deployment = None
         uri = None
     logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
-    return AppVariantResponse(
+    variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app.id),
         app_name=str(app_variant_db.app.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user.id),
-        organization_id=str(app_variant_db.organization.id),
-        workspace_id=str(app_variant_db.workspace.id),
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
@@ -260,6 +262,12 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_id=str(app_variant_db.config.id),
         uri=uri,
     )
+    
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        variant_response.organization_id = str(app_variant_db.organization.id)
+        variant_response.workspace_id = str(app_variant_db.workspace.id)
+    
+    return variant_response
 
 
 async def environment_db_to_output(
@@ -293,13 +301,17 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
-    return ImageExtended(
-        organization_id=str(image_db.organization.id),
-        workspace_id=str(image_db.workspace.id),
+    image = ImageExtended(
         docker_id=image_db.docker_id,
         tags=image_db.tags,
         id=str(image_db.id),
     )
+    
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        image.organization_id = str(image_db.organization.id)
+        image.workspace_id = str(image_db.workspace.id)
+        
+    return image
 
 
 def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
