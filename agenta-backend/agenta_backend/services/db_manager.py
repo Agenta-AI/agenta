@@ -53,9 +53,8 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
     )
-    
-else:
 
+else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
@@ -821,7 +820,9 @@ async def list_apps(
     elif (org_id is not None) or (workspace_id is not None):
         if not FEATURE_FLAG in ["cloud", "ee"]:
             return JSONResponse(
-                {"error": "organization and/or workspace is only available in Cloud and EE"},
+                {
+                    "error": "organization and/or workspace is only available in Cloud and EE"
+                },
                 status_code=400,
             )
 
@@ -884,11 +885,17 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
         true if it's the last variant, false otherwise
     """
 
-    count_variants = await AppVariantDB.find(
-        AppVariantDB.organization.id == db_app_variant.organization.id,
-        AppVariantDB.workspace.id == db_app_variant.workspace.id,
-        AppVariantDB.base.id == db_app_variant.base.id,
-    ).count()
+    query_expression = {"base.id": db_app_variant.base.id}
+
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        query_expression.update(
+            {
+                "organization.id": db_app_variant.organization.id,
+                "workspace.id": db_app_variant.workspace.id,
+            }
+        )
+
+    count_variants = await AppVariantDB.find(query_expression).count()
     return count_variants == 1
 
 
@@ -1548,7 +1555,7 @@ async def fetch_app_by_name_and_parameters(
     else:
         query_expression.update(
             {
-                "user.id": ObjectId(user_uid),
+                "user.uid": user_uid,
             }
         )
 

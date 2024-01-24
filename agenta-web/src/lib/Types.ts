@@ -251,7 +251,6 @@ export interface AppTemplate {
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
-    organization_id?: string
 }
 
 export type GenericObject = Record<string, any>
@@ -278,13 +277,6 @@ export interface User {
     uid: string
     username: string
     email: string
-}
-
-export interface Org {
-    id: string
-    name: string
-    description?: string
-    owner: string
 }
 
 export enum ChatRole {

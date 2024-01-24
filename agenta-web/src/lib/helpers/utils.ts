@@ -181,21 +181,6 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
     return result
 }
 
-export const getInitials = (str: string, limit = 2) => {
-    let initialText = "E"
-
-    try {
-        initialText = str
-            ?.split(" ")
-            .slice(0, limit)
-            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
-    } catch (error) {
-        console.log("Error using getInitials", error)
-    }
-
-    return initialText
-}
-
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
         return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)

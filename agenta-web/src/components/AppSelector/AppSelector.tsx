@@ -95,7 +95,6 @@ const useStyles = createUseStyles({
 const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
-    const router = useRouter()
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -111,7 +110,6 @@ const AppSelector: React.FC = () => {
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const {selectedOrg} = useProfileData()
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
@@ -190,7 +188,6 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
-            orgId: selectedOrg?.id!,
             providerKey: isDemo() ? "" : getApikeys(),
             timeout,
             onStatusChange: async (status, details, appId) => {
