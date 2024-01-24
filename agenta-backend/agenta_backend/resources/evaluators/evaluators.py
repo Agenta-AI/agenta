@@ -1,8 +1,8 @@
-[
+evaluators = [
     {
         "name": "Exact Match",
         "key": "auto_exact_match",
-        "direct_use": true,
+        "direct_use": True,
         "settings_template": {
             "label": "Exact Match Settings",
             "description": "Settings for the Exact Match evaluator"
@@ -11,7 +11,7 @@
     {
         "name": "Similarity Match",
         "key": "auto_similarity_match",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "similarity_threshold": {
                 "label": "Similarity Threshold",
@@ -24,7 +24,7 @@
     {
         "name": "Regex Test",
         "key": "auto_regex_test",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "regex_pattern": {
                 "label": "Regex Pattern",
@@ -35,7 +35,7 @@
             "regex_should_match": {
                 "label": "Match/Mismatch",
                 "type": "boolean",
-                "default": true,
+                "default": True,
                 "description": "If the regex should match or mismatch"
             }
         }
@@ -43,7 +43,7 @@
     {
         "name": "AI Critique",
         "key": "auto_ai_critique",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "prompt_template": {
                 "label": "Prompt Template",
@@ -56,7 +56,7 @@
     {
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "code": {
                 "label": "Evaluation Code",
@@ -69,7 +69,7 @@
     {
         "name": "Webhook test",
         "key": "auto_webhook_test",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "webhook_url": {
                 "label": "Webhook URL",
@@ -88,7 +88,7 @@
     {
         "name": "A/B Test",
         "key": "human_a_b_testing",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "label": "A/B Testing Settings",
             "description": "Settings for A/B testing configurations"
@@ -97,10 +97,20 @@
     {
         "name": "Single Model Test",
         "key": "human_single_model_test",
-        "direct_use": false,
+        "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
             "description": "Settings for single model testing configurations"
         }
     }
 ]
+
+
+def get_all_evaluators():
+    """
+    Returns a list of evaluators.
+
+    Returns:
+        List[dict]: A list of evaluator dictionaries.
+    """
+    return evaluators
