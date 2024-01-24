@@ -90,8 +90,11 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 valueGetter: (params) => {
-                    const value = getTypedValue(params.data?.outputs[index]?.result)
-                    return value.message
+                    const result = params.data?.outputs[index].result
+                    if (result.type == "error") {
+                        return result?.error?.message
+                    }
+                    return result.value.message
                 },
                 cellRenderer: LongTextCellRenderer,
             })
