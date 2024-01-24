@@ -142,6 +142,9 @@ const useStylesApp = createUseStyles({
         color: "#656d76",
         fontSize: 12,
     },
+    revisionText: {
+        fontWeight: "bold",
+    },
     emptyContainer: {
         marginTop: "4rem",
     },
@@ -693,48 +696,34 @@ const App: React.FC<TestViewProps> = ({
                                                 justifyContent: "space-between",
                                             }}
                                         >
-                                            <div>
-                                                <Space direction="vertical">
-                                                    <div>
-                                                        <Tag icon={<SaveOutlined />} color="blue">
-                                                            Saved
-                                                        </Tag>
-                                                        <Text className={classes.tagText}>
-                                                            {dayjs(item.created_at).fromNow()}
-                                                        </Text>
-                                                    </div>
-                                                    <div>
-                                                        <Tag
-                                                            icon={<HistoryOutlined />}
-                                                            color="warning"
-                                                        >
-                                                            Revision
-                                                        </Tag>
-                                                        <Text className={classes.tagText}>
-                                                            {`# ${item.revision}`}
-                                                        </Text>
-                                                    </div>
-                                                </Space>
-                                            </div>
+                                            <Text className={classes.revisionText}>
+                                                {`# ${item.revision}`}
+                                            </Text>
+
+                                            <Text className={classes.tagText}>
+                                                {dayjs(item.created_at).fromNow()}
+                                            </Text>
+                                        </div>
+
+                                        <Divider className={classes.divider} />
+
+                                        <Space style={{justifyContent: "space-between"}}>
+                                            <Space direction="vertical">
+                                                <div>
+                                                    <Text strong>Config Name: </Text>
+                                                    <Text>{item.config.config_name}</Text>
+                                                </div>
+                                                <div>
+                                                    <Text strong>Modified By: </Text>
+                                                    <Text>{item.modified_by}</Text>
+                                                </div>
+                                            </Space>
                                             <Button
                                                 type="primary"
                                                 onClick={() => handleRestore(item.revision)}
                                             >
                                                 Restore
                                             </Button>
-                                        </div>
-
-                                        <Divider className={classes.divider} />
-
-                                        <Space direction="vertical">
-                                            <div>
-                                                <Text strong>Config Name: </Text>
-                                                <Text>{item.config.config_name}</Text>
-                                            </div>
-                                            <div>
-                                                <Text strong>Modified By: </Text>
-                                                <Text>{item.modified_by}</Text>
-                                            </div>
                                         </Space>
                                     </div>
                                 ))
