@@ -6,6 +6,7 @@ import {
     Variant,
     _Evaluation,
     EvaluationScenario,
+    EvaluationError,
 } from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
 import {capitalize, round} from "lodash"
@@ -277,6 +278,6 @@ export function getFilterParams(type: "number" | "text" | "date") {
 
 export const calcEvalDuration = (evaluation: _Evaluation) => {
     return dayjs(
-        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
+        runningStatuses.includes(evaluation.status.value) ? Date.now() : evaluation.updated_at,
     ).diff(dayjs(evaluation.created_at), "milliseconds")
 }

@@ -341,16 +341,21 @@ export interface TypedValue {
     value: ValueType
 }
 
-export interface EvaluationScenarioResult {
-    evaluator: Evaluator
-    result: TypedValue
-}
-
 export enum EvaluationStatus {
     INITIALIZED = "EVALUATION_INITIALIZED",
     STARTED = "EVALUATION_STARTED",
     FINISHED = "EVALUATION_FINISHED",
     ERROR = "EVALUATION_FAILED",
+}
+
+export type EvaluationError = {
+    message: string
+    stacktrace: string
+}
+
+export enum EvaluationStatusType {
+    STATUS = "status",
+    ERROR = "error",
 }
 
 export interface _Evaluation {
@@ -364,11 +369,15 @@ export interface _Evaluation {
         id: string
         name: string
     }
-    status: EvaluationStatus
+    status: {
+        type: EvaluationStatusType
+        value: EvaluationStatus
+        error: null | EvaluationError
+    }
     variants: {variantId: string; variantName: string}[]
     aggregated_results: {
         evaluator_config: EvaluatorConfig
-        result: TypedValue
+        result: TypedValue & {error: null | EvaluationError}
     }[]
     created_at?: string
     updated_at?: string
@@ -385,7 +394,7 @@ export interface _EvaluationScenario {
     correct_answer?: string
     is_pinned?: boolean
     note?: string
-    results: {evaluator_config: string; result: TypedValue}[]
+    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
 }
 
 export interface Annotation {
@@ -421,7 +430,7 @@ export type ComparisonResultRow = {
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig
-            result: TypedValue
+            result: TypedValue & {error: null | EvaluationError}
         }[]
     }[]
     id: string
