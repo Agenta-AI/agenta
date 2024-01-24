@@ -184,25 +184,26 @@ export default function VariantEndpoint() {
             </div>
 
             {selectedEnvironment?.deployed_app_variant_id ? (
-                <Tabs
-                    destroyInactiveTabPane
-                    defaultActiveKey={tab}
-                    items={[
-                        {
-                            key: "overview",
-                            label: "Overview",
-                            icon: <AppstoreOutlined />,
-                            children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
-                        },
-                        {
-                            key: "history",
-                            label: "History",
-                            icon: <HistoryOutlined />,
-                            children: <DeploymentHistory variant={variant} />,
-                        },
-                    ]}
-                    onChange={setTab}
-                />
+                // <Tabs
+                //     destroyInactiveTabPane
+                //     defaultActiveKey={tab}
+                //     items={[
+                //         {
+                //             key: "overview",
+                //             label: "Overview",
+                //             icon: <AppstoreOutlined />,
+                //             children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
+                //         },
+                //         {
+                //             key: "history",
+                //             label: "History",
+                //             icon: <HistoryOutlined />,
+                //             children: <DeploymentHistory variant={variant} />,
+                //         },
+                //     ]}
+                //     onChange={setTab}
+                // />
+                <DynamicCodeBlock codeSnippets={codeSnippets} />
             ) : (
                 <Alert
                     message="Publish Required"
