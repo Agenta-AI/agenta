@@ -1,12 +1,7 @@
-import {
-    deleteEvaluations,
-    fetchData,
-    fetchEvaluationResults,
-    loadEvaluations,
-} from "@/lib/services/api"
+import {deleteEvaluations, fetchData} from "@/lib/services/api"
 import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
+import {useContext, useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
 import {EvaluationResponseType} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -16,6 +11,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {PromptVersioningContext} from "../Playground/PromptVersioningProvider"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -41,6 +37,8 @@ export interface HumanEvaluationListTableDataType {
         variants_votes_data: Record<string, VariantVotesData>
     }
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 type StyleProps = {
@@ -128,6 +126,8 @@ export default function HumanEvaluationResult() {
                                                     _id: item.testset_id,
                                                     name: item.testset_name,
                                                 },
+                                                revisions: item.revisions,
+                                                variant_revision_ids: item.variant_revision_ids,
                                             }
                                         }
                                     }
@@ -185,7 +185,7 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[0]})</div>
+                        <div>({`${value[0]} #${record.revisions[0]}`})</div>
                     </div>
                 )
             },
@@ -204,7 +204,7 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[1]})</div>
+                        <div>({`${value[1]} #${record.revisions[1]}`})</div>
                     </div>
                 )
             },

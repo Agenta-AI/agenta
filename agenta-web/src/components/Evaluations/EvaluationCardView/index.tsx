@@ -418,6 +418,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                 variants={variants}
                                 evaluationScenario={scenario}
                                 showVariantName={isAbTesting}
+                                evaluation={evaluation}
                             />
                         </div>
                     </div>

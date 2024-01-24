@@ -169,10 +169,11 @@ const EvaluationResults: React.FC<Props> = () => {
                 cellRenderer: (params: any) => (
                     <LinkCellRenderer
                         {...params}
-                        href={`/apps/${appId}/playground/?variant=${params.value}`}
+                        href={`/apps/${appId}/playground/?variant=${params.value.split(" ")[0]}`}
                     />
                 ),
-                valueGetter: (params) => params.data?.variants[0].variantName,
+                valueGetter: (params) =>
+                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),

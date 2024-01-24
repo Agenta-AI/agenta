@@ -1,5 +1,5 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Variant} from "@/lib/Types"
+import {Evaluation, Variant} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
@@ -61,6 +61,7 @@ type Props = {
     outputImg?: string
     index?: number
     showVariantName?: boolean
+    evaluation: Evaluation
 }
 
 const EvaluationVariantCard: React.FC<Props> = ({
@@ -69,6 +70,7 @@ const EvaluationVariantCard: React.FC<Props> = ({
     outputImg,
     index = 0,
     showVariantName = true,
+    evaluation
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -85,7 +87,7 @@ const EvaluationVariantCard: React.FC<Props> = ({
                         </Typography.Text>
                     </div>
                     <Typography.Text className={classes.title}>
-                        {variant.variantName}
+                        {variant.variantName} <span style={{color: "#656d76", fontSize: 14}}>#{evaluation.revisions[index]}</span>
                     </Typography.Text>{" "}
                 </>
             )}

@@ -82,6 +82,8 @@ export interface Evaluation {
         llmAppPromptTemplate?: string
         evaluationPromptTemplate?: string
     }
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface EvaluationScenario {
@@ -415,6 +417,8 @@ export interface _Evaluation {
     created_at?: string
     updated_at?: string
     duration?: number
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface _EvaluationScenario {
