@@ -253,7 +253,7 @@ class HumanEvaluationDB(Document):
     status: str
     evaluation_type: str
     variants: List[PydanticObjectId]
-    variant_revisions: List[PydanticObjectId]
+    variants_revisions: List[PydanticObjectId]
     testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
