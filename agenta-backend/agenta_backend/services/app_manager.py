@@ -64,7 +64,7 @@ async def start_variant(
         RuntimeError: If there is an error starting the Docker container.
     """
     try:
-        logger.debug(
+        print(
             "Starting variant %s with image name %s and tags %s and app_name %s and organization %s",
             db_app_variant.variant_name,
             db_app_variant.image.docker_id,
