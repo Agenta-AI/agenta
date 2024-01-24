@@ -15,7 +15,8 @@ import {
     Result,
 } from "antd"
 import {
-    CaretRightOutlined, CloseCircleOutlined,
+    CaretRightOutlined,
+    CloseCircleOutlined,
     HistoryOutlined,
     LoadingOutlined,
     PlusOutlined,
@@ -131,11 +132,11 @@ const useStylesApp = createUseStyles({
         borderRadius: 10,
         backgroundColor: themeMode === "dark" ? "#1f1f1f" : "#fff",
         color: themeMode === "dark" ? "#fff" : "#000",
-    }),
-    promptHistoryDrawer: ({themeMode}: StyleProps) => ({
-        "& .ant-drawer-body": {
-            backgroundColor: themeMode === "dark" ? "#333" : "#eceff1",
-        },
+        borderColor: themeMode === "dark" ? "#333" : "#eceff1",
+        border: "1px solid",
+        boxShadow: `0px 4px 8px ${
+            themeMode === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"
+        }`,
     }),
     tagText: {
         color: "#656d76",
@@ -155,7 +156,6 @@ interface TestViewProps {
     optParams: Parameter[] | null
     isChatVariant?: boolean
     compareMode: boolean
-    setOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
     onStateChange: (isDirty: boolean) => void
 }
 
@@ -333,7 +333,6 @@ const App: React.FC<TestViewProps> = ({
     variant,
     isChatVariant,
     compareMode,
-    setOptParams,
     onStateChange,
 }) => {
     const router = useRouter()
@@ -349,7 +348,7 @@ const App: React.FC<TestViewProps> = ({
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
-    const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus} =
+    const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus, setPromptOptParams} =
         useContext(PromptVersioningContext)
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
@@ -563,7 +562,7 @@ const App: React.FC<TestViewProps> = ({
     const handleRestore = (revisionId: number) => {
         const revision = promptRevisions?.revisions.find((rev) => rev.revision === revisionId)
 
-        setOptParams((prevState: Parameter[] | null) => {
+        setPromptOptParams((prevState: Parameter[] | null) => {
             if (!prevState) {
                 return prevState
             }
@@ -668,7 +667,6 @@ const App: React.FC<TestViewProps> = ({
                 size="default"
                 destroyOnClose
                 onClose={() => setIsDrawerOpen(false)}
-                className={classes.promptHistoryDrawer}
             >
                 {historyStatus.loading ? (
                     <Result
