@@ -193,11 +193,12 @@ const AppSelector: React.FC = () => {
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
+        const apiKey = getApikeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            providerKey: isDemo() ? "" : getApikeys(),
+            providerKey: isDemo() && (!apiKey || apiKey === "") ? "" : apiKey,
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
