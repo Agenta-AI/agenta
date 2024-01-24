@@ -150,7 +150,6 @@ async def test_get_evaluator_configs():
 async def test_update_app_variant_parameters(update_app_variant_parameters):
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
-    print("TS: ", testset)
     app_variant = await AppVariantDB.find_one(
         AppVariantDB.app.id == app.id, AppVariantDB.variant_name == "app.default"
     )
@@ -200,8 +199,8 @@ async def test_create_evaluation():
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
 
-    # Sleep for 10 seconds (to allow the llm app container start completely)
-    await asyncio.sleep(10)
+    # Sleep for 15 seconds (to allow the llm app container start completely)
+    await asyncio.sleep(15)
 
     # Make request to create evaluation
     response = await test_client.post(
@@ -224,7 +223,7 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 5  # seconds
+    intervals = 3  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
