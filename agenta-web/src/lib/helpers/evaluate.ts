@@ -238,7 +238,7 @@ export function getTypedValue(res?: TypedValue) {
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
           ? capitalize(value?.toString())
-          : value?.toString()
+          : value
 }
 
 export function getFilterParams(type: "number" | "text" | "date") {
