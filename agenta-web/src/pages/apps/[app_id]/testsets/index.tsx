@@ -94,21 +94,17 @@ export default function Testsets() {
                         >
                             <Button>Create a test set with UI</Button>
                         </Link>
-                        {isDemo() ? (
-                            <Tooltip title="API test set creation is unavailable in the demo version. Check out the self-hosted open-source version at https://github.com/agenta-ai/agenta">
-                                <Button disabled>Create a test set with API</Button>
-                            </Tooltip>
-                        ) : (
-                            <Link
-                                data-cy="testset-new-api-link"
-                                href={`/apps/${appId}/testsets/new/api`}
-                            >
-                                <Button>Create a test set with API</Button>
+                        <Link
+                            data-cy="testset-new-api-link"
+                            href={`/apps/${appId}/testsets/new/api`}
+                        >
+                            <Button>Create a test set with API</Button>
+                        </Link>
+                        {!isDemo() && (
+                            <Link href={`/apps/${appId}/testsets/new/endpoint`}>
+                                <Button>Import from Endpoint</Button>
                             </Link>
                         )}
-                        <Link href={`/apps/${appId}/testsets/new/endpoint`}>
-                            <Button>Import from Endpoint</Button>
-                        </Link>
                     </div>
 
                     <Link href={`/apps/${appId}/evaluations`} className={classes.startLink}>
