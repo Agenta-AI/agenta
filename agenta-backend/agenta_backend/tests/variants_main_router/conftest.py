@@ -322,8 +322,6 @@ def auto_ai_critique_evaluator_config():
         "settings_values": {
             "open_ai_key": OPEN_AI_KEY,
             "temperature": 0.9,
-            "evaluation_prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
-            "llm_app_prompt_template": "",
-            "llm_app_inputs": [{"input_name": "country", "input_value": "tunisia"}],
+            "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
         },
     }
