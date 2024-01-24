@@ -230,11 +230,11 @@ def app_variant_db_to_pydantic(
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         app_variant.organization_id = str(app_variant_db.organization.id)
         app_variant.workspace_id = str(app_variant_db.workspace.id)
-        
+
     return app_variant
 
 
@@ -262,11 +262,11 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_id=str(app_variant_db.config.id),
         uri=uri,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         variant_response.organization_id = str(app_variant_db.organization.id)
         variant_response.workspace_id = str(app_variant_db.workspace.id)
-    
+
     return variant_response
 
 
@@ -306,11 +306,11 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
         tags=image_db.tags,
         id=str(image_db.id),
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         image.organization_id = str(image_db.organization.id)
         image.workspace_id = str(image_db.workspace.id)
-        
+
     return image
 
 

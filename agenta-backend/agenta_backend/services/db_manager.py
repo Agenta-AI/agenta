@@ -784,11 +784,11 @@ async def add_variant_from_base_and_config(
         config=config_db,
         is_deleted=False,
     )
-    
+
     if FEATURE_FLAG in ["cloud", "ee"]:
         db_app_variant.organization = previous_app_variant_db.organization
         db_app_variant.workspace = previous_app_variant_db.workspace
-    
+
     await db_app_variant.create()
     return db_app_variant
 
