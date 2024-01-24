@@ -423,7 +423,6 @@ class NewAppEnvironmentDB(Document):
 
 
 class Forward:
-
     @iterative_migration(
         document_models=[
             UserDB,
@@ -437,7 +436,9 @@ class Forward:
             NewAppEnvironmentDB,
         ]
     )
-    async def updating_app_environment(self, input_document: AppEnvironmentDB, output_document: NewAppEnvironmentDB):
+    async def updating_app_environment(
+        self, input_document: AppEnvironmentDB, output_document: NewAppEnvironmentDB
+    ):
         # Find the app variant and the app variant revision document
         app_variant = await NewAppVariantDB.find_one(
             NewAppVariantDB.id == input_document.deployed_app_variant
