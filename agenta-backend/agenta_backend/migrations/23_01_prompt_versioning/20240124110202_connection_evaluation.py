@@ -315,6 +315,10 @@ class Forward:
             OrganizationDB,
             UserDB,
             TestSetDB,
+            ImageDB,
+            VariantBaseDB,
+            AppVariantDB,
+            AppVariantRevisionsDB,
             OldHumanEvaluationDB,
             HumanEvaluationDB,
         ]
@@ -326,7 +330,7 @@ class Forward:
         for variant in input_document.variants:
             variant_revision = (
                 await AppVariantRevisionsDB.find(
-                    AppVariantRevisionsDB.variant == variant
+                    AppVariantRevisionsDB.variant.id == variant
                 )
                 .sort(-AppVariantRevisionsDB.created_at)
                 .first_or_none()
@@ -342,6 +346,10 @@ class Forward:
             OrganizationDB,
             UserDB,
             TestSetDB,
+            ImageDB,
+            VariantBaseDB,
+            AppVariantDB,
+            AppVariantRevisionsDB,
             OldEvaluationDB,
             EvaluationDB,
         ]
@@ -351,7 +359,8 @@ class Forward:
     ):
         variant_revision = (
             await AppVariantRevisionsDB.find(
-                AppVariantRevisionsDB.variant == input_document.variant
+                AppVariantRevisionsDB.variant.id
+                == PydanticObjectId(input_document.variant)
             )
             .sort(-AppVariantRevisionsDB.created_at)
             .first_or_none()
