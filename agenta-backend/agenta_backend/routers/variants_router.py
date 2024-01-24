@@ -250,19 +250,16 @@ async def start_variant(
 
     logger.debug("Starting variant %s", variant_id)
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
+    envvars = {} if env_vars is None else env_vars.env_vars
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-        if not os.environ["OPENAI_API_KEY"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Unable to start app container. Please file an issue by clicking on the button below.",
-            )
-        envvars = {
-            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        }
-    else:
-        envvars = {} if env_vars is None else env_vars.env_vars
+        if envvars.get("OPENAI_API_KEY", "") == "":
+            if not os.environ["OPENAI_API_KEY"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
     access = await check_access_to_variant(
         user_org_data=user_org_data, variant_id=variant_id
