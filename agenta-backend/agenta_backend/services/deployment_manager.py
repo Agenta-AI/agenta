@@ -28,8 +28,12 @@ async def start_service(
         True if successful, False otherwise.
     """
 
-    uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
-    container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
+        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+    else:
+        uri_path = f"{app_variant_db.user.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
+        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.user.id}"
     logger.debug("Starting service with the following parameters:")
     logger.debug(f"image_name: {app_variant_db.image.tags}")
     logger.debug(f"uri_path: {uri_path}")

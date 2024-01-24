@@ -10,10 +10,9 @@ import {
     PhoneOutlined,
     SettingOutlined,
     LogoutOutlined,
-    ApartmentOutlined,
     FormOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Avatar} from "antd"
+import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -22,8 +21,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
-import {getColorFromStr} from "@/lib/helpers/colors"
-import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
 
 type StyleProps = {
@@ -76,44 +74,10 @@ const useStyles = createUseStyles({
     menuLinks: {
         width: "100%",
     },
-    menuItemNoBg: {
-        textOverflow: "unset !important",
-        "& .ant-menu-submenu-title": {display: "flex", alignItems: "center"},
-        "& .ant-select-selector": {
-            padding: "0 !important",
-        },
-        "&> span": {
-            display: "inline-block",
-            marginTop: 4,
-        },
-        "& .ant-select-selection-item": {
-            "&> span > span": {
-                width: 120,
-                marginRight: 10,
-            },
-        },
-    },
-    orgLabel: {
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        justifyContent: "flex-start",
-        "&> div": {
-            width: 18,
-            height: 18,
-            aspectRatio: "1/1",
-            borderRadius: "50%",
-        },
-        "&> span": {
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-        },
-    },
 })
 
 const Sidebar: React.FC = () => {
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const {appTheme} = useAppTheme()
     const {
         token: {colorBgContainer},
     } = theme.useToken()
@@ -137,7 +101,7 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
+    const {user} = useProfileData()
     const [collapsed, setCollapsed] = useState(false)
 
     useEffect(() => {
@@ -159,6 +123,8 @@ const Sidebar: React.FC = () => {
             onOk: logout,
         })
     }
+
+    const OrgsListSubMenu = dynamicComponent("OrgsListSubMenu/OrgsListSubMenu")
 
     return (
         <div className={classes.siderWrapper}>
@@ -352,39 +318,7 @@ const Sidebar: React.FC = () => {
                                                 Book Onboarding Call
                                             </Link>
                                         </Menu.Item>
-                                        {selectedOrg && (
-                                            <Menu.SubMenu
-                                                title={selectedOrg.name}
-                                                key="workspaces"
-                                                className={classes.menuItemNoBg}
-                                                icon={<ApartmentOutlined />}
-                                            >
-                                                {orgs.map((org, index) => (
-                                                    <Menu.Item
-                                                        key={index}
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                        }}
-                                                        icon={
-                                                            <Avatar
-                                                                size={"small"}
-                                                                style={{
-                                                                    backgroundColor:
-                                                                        getColorFromStr(org.id),
-                                                                    color: "#fff",
-                                                                }}
-                                                            >
-                                                                {getInitials(org.name)}
-                                                            </Avatar>
-                                                        }
-                                                        onClick={() => changeSelectedOrg(org.id)}
-                                                    >
-                                                        <span>{org.name}</span>
-                                                    </Menu.Item>
-                                                ))}
-                                            </Menu.SubMenu>
-                                        )}
+                                        <OrgsListSubMenu key="workspaces" />
                                         {user?.username && (
                                             <Menu.Item
                                                 key="logout"

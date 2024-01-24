@@ -63,11 +63,11 @@ def list_images() -> List[Image]:
 def start_container(
     image_name: str, uri_path: str, container_name: str, env_vars: DockerEnvVars
 ) -> Dict:
-    logger.debug("Starting container with the following parameters:")
-    logger.debug(f"image_name: {image_name}")
-    logger.debug(f"uri_path: {uri_path}")
-    logger.debug(f"container_name: {container_name}")
-    logger.debug(f"env_vars: {env_vars}")
+    print("Starting container with the following parameters:")
+    print(f"image_name: {image_name}")
+    print(f"uri_path: {uri_path}")
+    print(f"container_name: {container_name}")
+    print(f"env_vars: {env_vars}")
     try:
         image = client.images.get(f"{image_name}")
 
@@ -134,6 +134,9 @@ def start_container(
             logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             logger.error(
                 f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
             )

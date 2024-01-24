@@ -70,8 +70,8 @@ async def start_variant(
             db_app_variant.image.docker_id,
             db_app_variant.image.tags,
             db_app_variant.app.app_name,
-            db_app_variant.organization,
-            db_app_variant.workspace,
+            db_app_variant.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
+            db_app_variant.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
         # update the env variables
@@ -99,6 +99,9 @@ async def start_variant(
             deployment=deployment.id,
         )
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.error(
             f"Error starting Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name}: {str(e)}"
         )

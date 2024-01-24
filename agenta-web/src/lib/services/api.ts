@@ -527,28 +527,18 @@ export const updateEvaluationScenarioScore = async (
 }
 
 export const useApps = () => {
-    const {selectedOrg} = useProfileData()
-    const {data, error, isLoading, mutate} = useSWR(
-        `${getAgentaApiUrl()}/api/apps/?org_id=${selectedOrg?.id}`,
-        selectedOrg?.id ? fetcher : () => {}, //doon't fetch if org is not selected
-    )
+    const {data, error, isLoading, mutate} = useSWR(`${getAgentaApiUrl()}/api/apps/`, fetcher)
 
     return {
         data: (data || []) as ListAppsItem[],
         error,
-        isLoading: selectedOrg?.id ? isLoading : true,
+        isLoading,
         mutate,
     }
 }
 
 export const getProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-}
-
-export const getOrgsList = async (ignoreAxiosError: boolean = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/organizations/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -606,14 +596,12 @@ export const createAndStartTemplate = async ({
     appName,
     providerKey,
     templateId,
-    orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
     providerKey: string
     templateId: string
-    orgId: string
     timeout?: number
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -632,7 +620,6 @@ export const createAndStartTemplate = async ({
                     env_vars: {
                         OPENAI_API_KEY: providerKey,
                     },
-                    organization_id: orgId,
                 },
                 true,
             )
