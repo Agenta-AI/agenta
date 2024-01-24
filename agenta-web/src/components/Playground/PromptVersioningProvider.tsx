@@ -1,4 +1,4 @@
-import {IPromptVersioning} from "@/lib/Types"
+import {IPromptVersioning, Parameter} from "@/lib/Types"
 import {Dispatch, PropsWithChildren, SetStateAction, createContext, useState} from "react"
 
 export const PromptVersioningContext = createContext<{
@@ -16,6 +16,8 @@ export const PromptVersioningContext = createContext<{
             error: boolean
         }>
     >
+    promptOptParams: Parameter[] | null
+    setPromptOptParams: Dispatch<SetStateAction<Parameter[] | null>>
 }>({
     promptRevisions: undefined,
     setPromptRevisions: () => {},
@@ -23,12 +25,15 @@ export const PromptVersioningContext = createContext<{
     setIsDrawerOpen: () => {},
     historyStatus: {loading: false, error: false},
     setHistoryStatus: () => {},
+    promptOptParams: null,
+    setPromptOptParams: () => {},
 })
 
 const PromptVersioningProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [promptRevisions, setPromptRevisions] = useState<IPromptVersioning>()
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [historyStatus, setHistoryStatus] = useState({loading: false, error: false})
+    const [promptOptParams, setPromptOptParams] = useState<Parameter[] | null>(null)
 
     return (
         <PromptVersioningContext.Provider
@@ -39,6 +44,8 @@ const PromptVersioningProvider: React.FC<PropsWithChildren> = ({children}) => {
                 setIsDrawerOpen,
                 historyStatus,
                 setHistoryStatus,
+                promptOptParams,
+                setPromptOptParams,
             }}
         >
             {children}

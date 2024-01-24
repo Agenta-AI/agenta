@@ -52,7 +52,7 @@ const ViewNavigation: React.FC<Props> = ({
     const appId = router.query.app_id as unknown as string
     const {
         inputParams,
-        optParams,
+        promptOptParams,
         refetch,
         isError,
         error,
@@ -60,7 +60,6 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
         isChatVariant,
-        setOptParams,
     } = useVariant(appId, variant)
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
@@ -225,7 +224,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <ParametersView
                         compareMode={compareMode}
                         variant={variant}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
@@ -246,11 +245,10 @@ const ViewNavigation: React.FC<Props> = ({
                 <Col span={24}>
                     <TestView
                         inputParams={inputParams}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        setOptParams={setOptParams}
                         onStateChange={onStateChange}
                     />
                 </Col>
