@@ -221,8 +221,6 @@ class Result(BaseModel):
 
 class InvokationResult(BaseModel):
     result: Result
-    # latency: #TODO: add me
-    # cost:
 
 
 class EvaluationScenarioResult(BaseModel):
