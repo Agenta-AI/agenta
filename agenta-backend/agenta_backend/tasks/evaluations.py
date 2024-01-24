@@ -181,7 +181,7 @@ def evaluate(
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 result = evaluators_service.evaluate(
                     evaluator_key=evaluator_config_db.evaluator_key,
-                    output=app_output.output,
+                    output=app_output.result.value,
                     correct_answer=data_point["correct_answer"],
                     settings_values=evaluator_config_db.settings_values,
                     app_params=app_variant_parameters,
@@ -215,7 +215,9 @@ def evaluate(
                     note="",
                     correct_answer=data_point["correct_answer"],
                     outputs=[
-                        EvaluationScenarioOutputDB(type="text", value=app_output.output)
+                        EvaluationScenarioOutputDB(
+                            result=Result(type="text", value=app_output.result.value)
+                        )
                     ],
                     results=evaluators_results,
                 )
@@ -257,8 +259,7 @@ async def aggregate_evaluator_results(
         results = val["results"] or []
 
         if not results:
-            # average_value = "-"
-            average_value = 0
+            result = Result(type="error", value="-", error=Error(message="No results"))
         else:
             if evaluator_key == "auto_ai_critique":
                 numeric_scores = []
@@ -279,6 +280,11 @@ async def aggregate_evaluator_results(
                     if numeric_scores
                     else None
                 )
+                result = Result(
+                    type="number",
+                    value=average_value,
+                )
+
             else:
                 # Handle boolean values for auto_regex_test and other evaluators
                 if all(isinstance(result.value, bool) for result in results):
@@ -289,14 +295,15 @@ async def aggregate_evaluator_results(
                     # Handle other data types or mixed results
                     average_value = None
 
+                result = Result(
+                    type="number",
+                    value=average_value,
+                )
+
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
-            result=Result(
-                # type="string" if average_value == "-" else "number",
-                type="number",
-                value=average_value,
-            ),
+            result=result,
         )
         aggregated_results.append(aggregated_result)
     return aggregated_results

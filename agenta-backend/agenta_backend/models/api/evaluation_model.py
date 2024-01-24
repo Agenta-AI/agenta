@@ -65,7 +65,7 @@ class Evaluation(BaseModel):
     variant_names: List[str]
     testset_id: str
     testset_name: str
-    status: str
+    status: Result
     aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime

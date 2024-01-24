@@ -1674,7 +1674,9 @@ async def update_evaluation_with_aggregated_results(
     if not evaluation:
         raise ValueError("Evaluation not found")
 
-    evaluation.status = EvaluationStatusEnum.EVALUATION_FINISHED
+    evaluation.status = Result(
+        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
+    )
     evaluation.aggregated_results = aggregated_results
     evaluation.updated_at = datetime.utcnow().isoformat()
 
