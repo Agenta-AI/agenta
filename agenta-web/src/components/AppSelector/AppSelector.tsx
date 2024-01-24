@@ -24,7 +24,6 @@ import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import ResultComponent from "../ResultComponent/ResultComponent"
-import {get} from "lodash"
 
 type StyleProps = {
     themeMode: "dark" | "light"
