@@ -151,7 +151,7 @@ export const StatusRenderer = React.memo(
             params.data?.duration || 0,
             runningStatuses.includes(params.value),
         )
-        const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
+        const {label, color} = statusMapper(token)[params.value.value as EvaluationStatus]
 
         return (
             <Typography.Text className={classes.statusCell}>
