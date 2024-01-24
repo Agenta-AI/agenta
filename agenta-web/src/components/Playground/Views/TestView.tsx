@@ -398,9 +398,12 @@ const App: React.FC<TestViewProps> = ({
                     return newDataList
                 })
             }
-        } catch (e) {
+        } catch (e: any) {
             if (!controller.signal.aborted) {
-                setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+                setResultForIndex(
+                    `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
+                    index,
+                )
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
