@@ -59,7 +59,8 @@ def auto_similarity_match(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Exact Match evaluation", stacktrace=str(e)
+                message="Error during Auto Similarity Match evaluation",
+                stacktrace=str(e),
             ),
         )
 
@@ -72,9 +73,20 @@ def auto_regex_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
-    result = bool(re_pattern.search(output)) == settings_values["regex_should_match"]
-    return Result(type="bool", value=result)
+    try:
+        re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
+        result = (
+            bool(re_pattern.search(output)) == settings_values["regex_should_match"]
+        )
+        return Result(type="bool", value=result)
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Regex evaluation", stacktrace=str(e)
+            ),
+        )
 
 
 def auto_webhook_test(
@@ -155,7 +167,9 @@ def auto_custom_code_run(
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Auto Custom Code", stacktrace=str(e)),
+            error=Error(
+                message="Error during Auto Custom Code Evaluation", stacktrace=str(e)
+            ),
         )
 
 
