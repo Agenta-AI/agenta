@@ -18,11 +18,12 @@ const useStyles = createUseStyles({
         flexDirection: "column",
         justifyContent: "space-between",
         overflow: "hidden",
+        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
         "& svg": {
-            color: "red",
+            color: "hsl(0, 60%, 50%)",
         },
         "& .ant-card-meta": {
-            height: "90%",
+            height: "110%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -120,7 +121,7 @@ const AppCard: React.FC<{
                         avatar={
                             <Avatar
                                 size="large"
-                                style={{backgroundImage: getGradientFromStr(app.app_id)}}
+                                style={{backgroundColor: "hsl(150, 52%, 62%)"}} // Example: blue in HSL
                             >
                                 {app.app_name.charAt(0).toUpperCase()}
                             </Avatar>
