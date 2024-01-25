@@ -1695,7 +1695,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
 
     try:
         evaluator_config: EvaluatorConfigDB = await EvaluatorConfigDB.find_one(
-            EvaluatorConfigDB.id == ObjectId(evaluator_config_id, fetch_links=True)
+            EvaluatorConfigDB.id == ObjectId(evaluator_config_id), fetch_links=True
         )
         return evaluator_config
     except Exception as e:
