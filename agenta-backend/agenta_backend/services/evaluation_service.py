@@ -542,8 +542,6 @@ async def create_new_human_evaluation(
     # Initialize and save evaluation instance to database
     eval_instance = HumanEvaluationDB(
         app=app,
-        organization=app.organization,  # Assuming user has an organization_id attribute
-        workspace=app.workspace,
         user=user,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
@@ -552,6 +550,11 @@ async def create_new_human_evaluation(
         created_at=current_time,
         updated_at=current_time,
     )
+    
+    if FEATURE_FLAG in ["cloud", "ee"]:
+        eval_instance.organization = app.organization
+        eval_instance.workspace = app.workspace
+    
     newEvaluation = await eval_instance.create()
     if newEvaluation is None:
         raise HTTPException(
