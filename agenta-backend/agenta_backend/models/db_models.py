@@ -112,7 +112,7 @@ class VariantBaseDB(Document):
 
 class ConfigDB(BaseModel):
     config_name: str
-    parameters: Dict[str, Any] = Field(default=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AppVariantDB(Document):
