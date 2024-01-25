@@ -441,7 +441,7 @@ async def delete_testsets(
                 user_uid=request.state.user_id,
                 object_id=testset_id,
                 object_type="testset",
-                permission=Permission.VIEW_TESTSET,
+                permission=Permission.DELETE_TESTSET,
             )
             logger.debug(f"User has Permission to delete Testset: {has_permission}")
             if not has_permission:
