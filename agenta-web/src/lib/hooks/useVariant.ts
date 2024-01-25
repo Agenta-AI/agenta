@@ -2,6 +2,7 @@ import {useState, useEffect, useContext} from "react"
 import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
 import {Variant, Parameter, IPromptVersioning} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
+import {isDemo} from "../helpers/utils"
 
 /**
  * Hook for using the variant.
@@ -32,7 +33,7 @@ export function useVariant(appId: string, variant: Variant) {
                 variant,
             )
             setPromptOptParams(parameters)
-            if (variant.variantId) {
+            if (variant.variantId && isDemo()) {
                 const revisions = await promptVersioning(variant.variantId)
                 setPromptRevisions(revisions)
             }

@@ -8,6 +8,7 @@ import PublishVariantModal from "./PublishVariantModal"
 import {promptVersioning, removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface Props {
     variant: Variant
@@ -141,8 +142,10 @@ const ParametersView: React.FC<Props> = ({
         setHistoryStatus({loading: true, error: false})
         setIsDrawerOpen(true)
         try {
-            const revisions = await promptVersioning(variant.variantId)
-            setPromptRevisions(revisions)
+            if (variant.variantId && isDemo()) {
+                const revisions = await promptVersioning(variant.variantId)
+                setPromptRevisions(revisions)
+            }
             setHistoryStatus({loading: false, error: false})
         } catch (error) {
             setHistoryStatus({loading: false, error: true})
@@ -161,16 +164,18 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col>
                             <Space>
-                                <Tooltip>
-                                    <Button
-                                        onClick={handleHistoryBtn}
-                                        data-cy="history-button"
-                                        type="link"
-                                        icon={compareMode && <HistoryOutlined />}
-                                    >
-                                        {compareMode ? null : "History"}
-                                    </Button>
-                                </Tooltip>
+                                {isDemo() && (
+                                    <Tooltip>
+                                        <Button
+                                            onClick={handleHistoryBtn}
+                                            data-cy="history-button"
+                                            type="link"
+                                            icon={compareMode && <HistoryOutlined />}
+                                        >
+                                            {compareMode ? null : "History"}
+                                        </Button>
+                                    </Tooltip>
+                                )}
 
                                 {isVariantExisting && (
                                     <Tooltip
