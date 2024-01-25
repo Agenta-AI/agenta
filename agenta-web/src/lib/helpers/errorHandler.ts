@@ -1,3 +1,4 @@
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {message} from "antd"
 
 export const getErrorMessage = (error: any, fallback = "An unknown error occurred!") => {
@@ -15,6 +16,16 @@ export const getErrorMessage = (error: any, fallback = "An unknown error occurre
 }
 
 export const globalErrorHandler = (error: any) => {
+    if (error.response?.status === 403) {
+        AlertPopup({
+            title: "Permission Denied",
+            message:
+                "You don't have permission to perform this action. Please contact your organization admin.",
+            cancelText: null,
+        })
+        return
+    }
+
     const errorMsg = getErrorMessage(error)
     console.error(errorMsg, error)
     message.error(errorMsg)
