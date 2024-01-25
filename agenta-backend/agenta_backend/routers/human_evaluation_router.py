@@ -74,7 +74,7 @@ async def create_evaluation(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
@@ -120,7 +120,7 @@ async def fetch_list_human_evaluations(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         return await evaluation_service.fetch_list_human_evaluations(app_id)
@@ -153,7 +153,7 @@ async def fetch_human_evaluation(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         return await evaluation_service.fetch_human_evaluation(evaluation_id)
@@ -194,7 +194,7 @@ async def fetch_evaluation_scenarios(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         eval_scenarios = (
@@ -234,7 +234,7 @@ async def update_human_evaluation(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         await update_human_evaluation_service(evaluation_id, update_data)
@@ -277,7 +277,7 @@ async def update_evaluation_scenario_router(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         await update_human_evaluation_scenario(
@@ -317,7 +317,7 @@ async def get_evaluation_scenario_score_router(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         return await get_evaluation_scenario_score_service(evaluation_scenario_id)
@@ -351,7 +351,7 @@ async def update_evaluation_scenario_score_router(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         await update_evaluation_scenario_score_service(
@@ -388,7 +388,7 @@ async def fetch_results(
                 error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         evaluation = await evaluation_service._fetch_human_evaluation(evaluation_id)
@@ -433,7 +433,7 @@ async def delete_evaluations(
                     error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
                     return JSONResponse(
                         {"detail": error_msg},
-                        status_code=400,
+                        status_code=403,
                     )
 
         await evaluation_service.delete_human_evaluations(
