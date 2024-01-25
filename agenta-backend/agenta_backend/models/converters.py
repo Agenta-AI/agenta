@@ -28,7 +28,7 @@ from agenta_backend.models.db_models import (
 from agenta_backend.models.api.api_models import (
     AppVariant,
     AppVariantRevision,
-    # AppVariantOutputExtended,
+    AppVariantOutputExtended,
     ImageExtended,
     Template,
     TemplateImageInfo,
@@ -273,40 +273,22 @@ async def app_variant_db_and_revision_to_extended_output(
                 created_at=app_variant_revision_db.created_at,
             )
         )
-    # return AppVariantOutputExtended(
-    #     app_id=str(app_variant_db.app.id),
-    #     app_name=str(app_variant_db.app.app_name),
-    #     variant_name=app_variant_db.variant_name,
-    #     variant_id=str(app_variant_db.id),
-    #     user_id=str(app_variant_db.user.id),
-    #     organization_id=str(app_variant_db.organization.id),
-    #     parameters=app_variant_db.config.parameters,
-    #     previous_variant_name=app_variant_db.previous_variant_name,
-    #     base_name=app_variant_db.base_name,
-    #     base_id=str(app_variant_db.base.id),
-    #     config_name=app_variant_db.config_name,
-    #     uri=uri,
-    #     revision=app_variant_db.revision,
-    #     revisions=app_variant_revisions,
-    # )
-    
-    # Return dict
-    return {
-        "app_id": str(app_variant_db.app.id),
-        "app_name": str(app_variant_db.app.app_name),
-        "variant_name": app_variant_db.variant_name,
-        "variant_id": str(app_variant_db.id),
-        "user_id": str(app_variant_db.user.id),
-        "organization_id": str(app_variant_db.organization.id),
-        "parameters": app_variant_db.config.parameters,
-        "previous_variant_name": app_variant_db.previous_variant_name,
-        "base_name": app_variant_db.base_name,
-        "base_id": str(app_variant_db.base.id),
-        "config_name": app_variant_db.config_name,
-        "uri": uri,
-        "revision": app_variant_db.revision,
-        "revisions": app_variant_revisions,
-    }
+    return AppVariantOutputExtended(
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
+        variant_name=app_variant_db.variant_name,
+        variant_id=str(app_variant_db.id),
+        user_id=str(app_variant_db.user.id),
+        organization_id=str(app_variant_db.organization.id),
+        parameters=app_variant_db.config.parameters,
+        previous_variant_name=app_variant_db.previous_variant_name,
+        base_name=app_variant_db.base_name,
+        base_id=str(app_variant_db.base.id),
+        config_name=app_variant_db.config_name,
+        uri=uri,
+        revision=app_variant_db.revision,
+        revisions=app_variant_revisions,
+    )
 
 
 async def environment_db_to_output(
