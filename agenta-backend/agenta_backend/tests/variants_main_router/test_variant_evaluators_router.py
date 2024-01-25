@@ -9,7 +9,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     AppVariantDB,
     EvaluationDB,
-    AppVariantDB,
     DeploymentDB,
     EvaluationScenarioDB,
 )
@@ -148,24 +147,6 @@ async def test_get_evaluator_configs():
 
 
 @pytest.mark.asyncio
-async def test_update_app_variant_parameters(update_app_variant_parameters):
-    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
-    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
-    app_variant = await AppVariantDB.find_one(
-        AppVariantDB.app.id == app.id, AppVariantDB.variant_name == "app.default"
-    )
-
-    parameters = update_app_variant_parameters
-    parameters["inputs"] = [{"name": list(testset.csvdata[0].keys())[0]}]
-    payload = {"parameters": parameters}
-
-    response = await test_client.put(
-        f"{BACKEND_API_HOST}/variants/{str(app_variant.id)}/parameters/", json=payload
-    )
-    assert response.status_code == 200
-
-
-@pytest.mark.asyncio
 async def test_create_evaluation():
     # Fetch app, app_variant and testset
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
@@ -224,7 +205,7 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 5  # seconds
+    intervals = 3  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",

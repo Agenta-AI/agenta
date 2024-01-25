@@ -1,9 +1,8 @@
-from uuid import uuid4
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId
+from beanie import Document, Link, PydanticObjectId, iterative_migration
 
 
 class APIKeyDB(Document):
@@ -131,7 +130,6 @@ class AppVariantDB(Document):
     config: ConfigDB
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
     )  # soft deletion for using the template variants
@@ -246,6 +244,21 @@ class HumanEvaluationScenarioOutput(BaseModel):
     variant_output: str
 
 
+class OldHumanEvaluationDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
+    status: str
+    evaluation_type: str
+    variants: List[PydanticObjectId]
+    testset: Link[TestSetDB]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "human_evaluations"
+
+
 class HumanEvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
@@ -262,22 +275,20 @@ class HumanEvaluationDB(Document):
         name = "human_evaluations"
 
 
-class HumanEvaluationScenarioDB(Document):
-    user: Link[UserDB]
+class OldEvaluationDB(Document):
+    app: Link[AppDB]
     organization: Link[OrganizationDB]
-    evaluation: Link[HumanEvaluationDB]
-    inputs: List[HumanEvaluationScenarioInput]
-    outputs: List[HumanEvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Any]
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    is_pinned: Optional[bool]
-    note: Optional[str]
+    user: Link[UserDB]
+    status: str = Field(default="EVALUATION_INITIALIZED")
+    testset: Link[TestSetDB]
+    variant: PydanticObjectId
+    evaluators_configs: List[PydanticObjectId]
+    aggregated_results: List[AggregatedResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        name = "human_evaluations_scenarios"
+        name = "new_evaluations"
 
 
 class EvaluationDB(Document):
@@ -297,70 +308,66 @@ class EvaluationDB(Document):
         name = "new_evaluations"
 
 
-class EvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    evaluation: Link[EvaluationDB]
-    variant_id: PydanticObjectId
-    inputs: List[EvaluationScenarioInputDB]
-    outputs: List[EvaluationScenarioOutputDB]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
-    evaluators_configs: List[PydanticObjectId]
-    results: List[EvaluationScenarioResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+class Forward:
+    @iterative_migration(
+        document_models=[
+            AppDB,
+            OrganizationDB,
+            UserDB,
+            TestSetDB,
+            ImageDB,
+            VariantBaseDB,
+            AppVariantDB,
+            AppVariantRevisionsDB,
+            OldHumanEvaluationDB,
+            HumanEvaluationDB,
+        ]
+    )
+    async def connecting_human_evaluations(
+        self, input_document: OldHumanEvaluationDB, output_document: HumanEvaluationDB
+    ):
+        variants_revisions: List[PydanticObjectId] = []
+        for variant in input_document.variants:
+            variant_revision = (
+                await AppVariantRevisionsDB.find(
+                    AppVariantRevisionsDB.variant.id == variant
+                )
+                .sort(-AppVariantRevisionsDB.created_at)
+                .first_or_none()
+            )  # fetch app variant revision by the newest date
+            if variant_revision is not None:
+                variants_revisions.append(variant_revision.id)
 
-    class Settings:
-        name = "new_evaluation_scenarios"
+        output_document.variants_revisions = variants_revisions
+
+    @iterative_migration(
+        document_models=[
+            AppDB,
+            OrganizationDB,
+            UserDB,
+            TestSetDB,
+            ImageDB,
+            VariantBaseDB,
+            AppVariantDB,
+            AppVariantRevisionsDB,
+            OldEvaluationDB,
+            EvaluationDB,
+        ]
+    )
+    async def connecting_auto_evaluations(
+        self, input_document: OldEvaluationDB, output_document: EvaluationDB
+    ):
+        variant_revision = (
+            await AppVariantRevisionsDB.find(
+                AppVariantRevisionsDB.variant.id
+                == PydanticObjectId(input_document.variant)
+            )
+            .sort(-AppVariantRevisionsDB.created_at)
+            .first_or_none()
+        )  # fetch app variant revision by the newest date
+        if variant_revision is not None:
+            output_document.variant_revision = variant_revision.id
 
 
-class SpanDB(Document):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str  # Function or execution name
-    event_type: Optional[str]
-    start_time: datetime
-    duration: Optional[int]
-    status: str  # initiated, completed, stopped, cancelled
-    end_time: datetime = Field(default=datetime.utcnow())
-    inputs: Optional[List[str]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-
-    class Settings:
-        name = "spans"
-
-
-class Feedback(BaseModel):
-    uid: str = Field(default=str(uuid4()))
-    user_id: str
-    feedback: Optional[str]
-    score: Optional[float]
-    meta: Optional[Dict[str, Any]]
-    created_at: datetime
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-
-class TraceDB(Document):
-    app_id: Optional[str]
-    variant_id: str
-    spans: List[PydanticObjectId]
-    start_time: datetime
-    end_time: datetime = Field(default=datetime.utcnow())
-    cost: Optional[float]
-    latency: float
-    status: str  # initiated, completed, stopped, cancelled, failed
-    token_consumption: Optional[int]
-    user: Link[UserDB]
-    tags: Optional[List[str]]
-    feedbacks: Optional[List[Feedback]]
-
-    class Settings:
-        name = "traces"
+class Backward:
+    pass
