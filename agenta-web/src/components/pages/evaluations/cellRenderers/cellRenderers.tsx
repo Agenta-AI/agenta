@@ -169,6 +169,10 @@ export const statusMapper = (token: GlobalToken) => ({
         label: "Failed",
         color: token.colorError,
     },
+    [EvaluationStatus.FINISHED_WITH_ERRORS]: {
+        label: "Completed with Errors",
+        color: token.colorWarning,
+    },
 })
 export const StatusRenderer = React.memo(
     (params: ICellRendererParams<_Evaluation>) => {
