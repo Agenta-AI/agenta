@@ -310,6 +310,7 @@ type ValueTypeOptions =
     | "code"
     | "regex"
     | "object"
+    | "error"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -336,9 +337,15 @@ export interface EvaluatorConfig {
     created_at: string
 }
 
+export type EvaluationError = {
+    message: string
+    stacktrace: string
+}
+
 export interface TypedValue {
     type: ValueTypeOptions
     value: ValueType
+    error: EvaluationError
 }
 
 export enum EvaluationStatus {
@@ -347,11 +354,6 @@ export enum EvaluationStatus {
     FINISHED = "EVALUATION_FINISHED",
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
-}
-
-export type EvaluationError = {
-    message: string
-    stacktrace: string
 }
 
 export enum EvaluationStatusType {
