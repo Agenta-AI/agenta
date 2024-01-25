@@ -364,8 +364,9 @@ const App: React.FC<TestViewProps> = ({
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
-    // const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus, setPromptOptParams} =
-    //     useContext(PromptVersioningContext)
+    const filteredRevisions = promptRevisions?.revisions.filter(
+        (item) => item.config.parameters.inputs,
+    )
 
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
@@ -380,9 +381,7 @@ const App: React.FC<TestViewProps> = ({
     useEffect(() => {
         if (!revisionNum) return
 
-        const revision = promptRevisions?.revisions.find(
-            (rev) => rev.revision === parseInt(revisionNum),
-        )
+        const revision = filteredRevisions?.find((rev) => rev.revision === parseInt(revisionNum))
 
         if (!revision) return
 
@@ -611,10 +610,6 @@ const App: React.FC<TestViewProps> = ({
             _setTestList((prev) => [...prev, ...testsList])
         }
     }
-
-    const filteredRevisions = promptRevisions?.revisions.filter(
-        (item) => item.config.parameters.inputs,
-    )
 
     return (
         <div ref={rootRef}>
