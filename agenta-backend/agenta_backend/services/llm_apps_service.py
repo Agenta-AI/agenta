@@ -81,19 +81,22 @@ async def invoke_app(
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
     async with httpx.AsyncClient() as client:
-        logger.debug(f"Invoking app {uri} with payload {payload}")
-        response = await client.post(
-            url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
-        )
-        response.raise_for_status()
+        try:
+            logger.debug(f"Invoking app {uri} with payload {payload}")
+            response = await client.post(
+                url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
+            )
+            response.raise_for_status()
 
-        llm_app_response = response.json()
-        app_output = (
-            llm_app_response["message"]
-            if isinstance(llm_app_response, dict)
-            else llm_app_response
-        )
-        return AppOutput(output=app_output, status="success")
+            llm_app_response = response.json()
+            app_output = (
+                llm_app_response["message"]
+                if isinstance(llm_app_response, dict)
+                else llm_app_response
+            )
+            return AppOutput(output=app_output, status="success")
+        except:
+            return AppOutput(output="Error", status="error")
 
 
 async def run_with_retry(
