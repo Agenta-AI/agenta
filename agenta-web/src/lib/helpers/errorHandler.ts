@@ -22,6 +22,7 @@ export const globalErrorHandler = (error: any) => {
             message:
                 "You don't have permission to perform this action. Please contact your organization admin.",
             cancelText: null,
+            okText: "Ok",
         })
         return
     }
