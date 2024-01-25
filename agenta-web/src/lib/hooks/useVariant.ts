@@ -1,8 +1,7 @@
 import {useState, useEffect, useContext} from "react"
 import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
-import {Variant, Parameter} from "@/lib/Types"
+import {Variant, Parameter, IPromptVersioning} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
-import {PromptVersioningContext} from "@/components/Playground/PromptVersioningProvider"
 
 /**
  * Hook for using the variant.
@@ -12,8 +11,9 @@ import {PromptVersioningContext} from "@/components/Playground/PromptVersioningP
  * @returns
  */
 export function useVariant(appId: string, variant: Variant) {
-    const {setPromptOptParams, promptOptParams, setPromptRevisions, setHistoryStatus} =
-        useContext(PromptVersioningContext)
+    const [promptRevisions, setPromptRevisions] = useState<IPromptVersioning>()
+    const [historyStatus, setHistoryStatus] = useState({loading: false, error: false})
+    const [promptOptParams, setPromptOptParams] = useState<Parameter[] | null>(null)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -107,6 +107,11 @@ export function useVariant(appId: string, variant: Variant) {
         saveOptParams,
         refetch: fetchParameters,
         isChatVariant,
+        promptRevisions,
+        historyStatus,
+        setPromptOptParams,
+        setPromptRevisions,
+        setHistoryStatus,
     }
 }
 

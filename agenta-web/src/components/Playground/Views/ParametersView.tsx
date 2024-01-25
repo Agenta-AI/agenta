@@ -1,4 +1,4 @@
-import {Environment, Parameter, Variant} from "@/lib/Types"
+import {Environment, IPromptVersioning, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useContext, useEffect, useState} from "react"
@@ -8,7 +8,6 @@ import PublishVariantModal from "./PublishVariantModal"
 import {promptVersioning, removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
-import {PromptVersioningContext} from "../PromptVersioningProvider"
 
 interface Props {
     variant: Variant
@@ -30,6 +29,14 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
+    setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setPromptRevisions: React.Dispatch<React.SetStateAction<IPromptVersioning | undefined>>
+    setHistoryStatus: React.Dispatch<
+        React.SetStateAction<{
+            loading: boolean
+            error: boolean
+        }>
+    >
 }
 
 const useStyles = createUseStyles({
@@ -68,15 +75,15 @@ const ParametersView: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
+    setHistoryStatus,
+    setIsDrawerOpen,
+    setPromptRevisions,
 }) => {
     const classes = useStyles()
     const posthog = usePostHogAg()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
-
-    const {setPromptRevisions, setIsDrawerOpen, setHistoryStatus} =
-        useContext(PromptVersioningContext)
 
     useEffect(() => {
         onStateChange(variant.persistent === false)
