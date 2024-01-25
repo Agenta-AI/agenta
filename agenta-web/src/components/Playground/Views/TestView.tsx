@@ -47,6 +47,7 @@ import {PromptVersioningContext} from "../PromptVersioningProvider"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
+import {useQueryParam} from "@/hooks/useQuery"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -350,6 +351,7 @@ const App: React.FC<TestViewProps> = ({
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
     const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus, setPromptOptParams} =
         useContext(PromptVersioningContext)
+
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
@@ -358,6 +360,42 @@ const App: React.FC<TestViewProps> = ({
             usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
+    const [revisionNum, setRevisionNum] = useQueryParam("revision")
+
+    useEffect(() => {
+        if (!revisionNum) return
+
+        const revision = promptRevisions?.revisions.find(
+            (rev) => rev.revision === parseInt(revisionNum),
+        )
+
+        if (!revision) return
+
+        setPromptOptParams((prevState: Parameter[] | null) => {
+            if (!prevState) {
+                return prevState
+            }
+
+            const parameterNames = [
+                "temperature",
+                "model",
+                "max_tokens",
+                "prompt_system",
+                "prompt_user",
+                "top_p",
+                "frequence_penalty",
+                "presence_penalty",
+                "inputs",
+            ]
+
+            return prevState.map((param: Parameter) => {
+                if (parameterNames.includes(param.name)) {
+                    param.default = (revision?.config.parameters as Record<string, any>)[param.name]
+                }
+                return param
+            })
+        })
+    }, [revisionNum, promptRevisions])
 
     const abortControllersRef = useRef<AbortController[]>([])
     const [isRunningAll, setIsRunningAll] = useState(false)
@@ -559,38 +597,6 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
-    const handleRestore = (revisionId: number) => {
-        const revision = promptRevisions?.revisions.find((rev) => rev.revision === revisionId)
-
-        setPromptOptParams((prevState: Parameter[] | null) => {
-            if (!prevState) {
-                return prevState
-            }
-
-            const parameterNames = [
-                "temperature",
-                "model",
-                "max_tokens",
-                "prompt_system",
-                "prompt_user",
-                "top_p",
-                "frequence_penalty",
-                "presence_penalty",
-                "inputs",
-            ]
-
-            return prevState.map((param: Parameter) => {
-                if (parameterNames.includes(param.name)) {
-                    param.default = (revision?.config.parameters as Record<string, any>)[param.name]
-                }
-                return param
-            })
-        })
-
-        setIsDrawerOpen(false)
-        onStateChange(true)
-    }
-
     const filteredRevisions = promptRevisions?.revisions.filter(
         (item) => item.config.parameters.inputs,
     )
@@ -721,7 +727,11 @@ const App: React.FC<TestViewProps> = ({
                                             </Space>
                                             <Button
                                                 type="primary"
-                                                onClick={() => handleRestore(item.revision)}
+                                                onClick={() => {
+                                                    setRevisionNum(item.revision.toString())
+                                                    onStateChange(true)
+                                                    setIsDrawerOpen(false)
+                                                }}
                                             >
                                                 Restore
                                             </Button>
