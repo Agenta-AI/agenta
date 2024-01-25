@@ -18,4 +18,4 @@ def event_loop():
     yield res
 
     res._close()  # close event loop
-    # DBEngine().remove_db()  # drop database
+    DBEngine().remove_db()  # drop database

@@ -229,8 +229,10 @@ def use_open_ai_key():
 
 @pytest.fixture(scope="session")
 def fetch_single_prompt_template(fetch_templates):
-    sorted_templates = sorted(fetch_templates, key=lambda x: x["image"]["name"])
-    return sorted_templates[0]
+    return next(
+        (temp for temp in fetch_templates if temp["image"]["name"] == "chat_openai"),
+        None,
+    )
 
 
 @pytest.fixture()
