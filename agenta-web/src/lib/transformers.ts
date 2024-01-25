@@ -42,7 +42,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         evaluationTypeSettings,
         llmAppPromptTemplate: item.evaluation_type_settings?.llm_app_prompt_template,
         revisions: item.revisions,
-        variant_revision_ids: item.variant_revision_ids,
+        variant_revision_ids: item.variants_revision_ids,
     } as Evaluation
 }
 

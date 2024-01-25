@@ -128,7 +128,7 @@ export default function HumanEvaluationResult() {
                                                     name: item.testset_name,
                                                 },
                                                 revisions: item.revisions,
-                                                variant_revision_ids: item.variant_revision_ids,
+                                                variant_revision_ids: item.variants_revision_ids,
                                             }
                                         }
                                     }
