@@ -32,8 +32,10 @@ export function useVariant(appId: string, variant: Variant) {
                 variant,
             )
             setPromptOptParams(parameters)
-            const revisions = await promptVersioning(variant.variantId)
-            setPromptRevisions(revisions)
+            if (variant.variantId) {
+                const revisions = await promptVersioning(variant.variantId)
+                setPromptRevisions(revisions)
+            }
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
