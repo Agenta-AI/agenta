@@ -11,13 +11,9 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class EnvironmentOutput(pydantic.BaseModel):
-    name: str
-    app_id: str
-    deployed_app_variant_id: typing.Optional[str]
-    deployed_variant_name: typing.Optional[str]
-    deployed_app_variant_revision_id: typing.Optional[str]
-    revision: typing.Optional[str]
+class ConfigDb(pydantic.BaseModel):
+    config_name: str
+    parameters: typing.Optional[typing.Dict[str, typing.Any]]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
