@@ -179,7 +179,6 @@ class TestSetDB(Document):
         name = "testsets"
 
 
-
 # New models
 class ConfigDB(BaseModel):
     config_name: str
@@ -224,7 +223,9 @@ class Forward:
             NewAppVariantDB,
         ]
     )
-    async def migrate_old_app_variants_to_new_format(self, input_document: AppVariantDB, output_document: NewAppVariantDB):
+    async def migrate_old_app_variants_to_new_format(
+        self, input_document: AppVariantDB, output_document: NewAppVariantDB
+    ):
         # Retrieve config linkedin document only
         await input_document.fetch_link(AppVariantDB.config)
 

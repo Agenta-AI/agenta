@@ -1,10 +1,11 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {getApikeys, isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
@@ -38,16 +39,18 @@ const useStyles = createUseStyles({
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
-        gap: 12,
+        gap: 24,
         "& .ant-card-bordered, .ant-card-actions": {
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
     }),
     createCard: {
         fontSize: 20,
-        backgroundColor: "#1777FF",
-        borderColor: "#1777FF !important",
+        backgroundColor: "hsl(0, 0%, 100%)",
+        borderColor: "hsl(0, 0%, 10%) !important",
         color: "#FFFFFF",
+        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
+
         width: 300,
         height: 120,
         display: "flex",
@@ -55,7 +58,7 @@ const useStyles = createUseStyles({
         justifyContent: "center",
         cursor: "pointer",
         "& .ant-card-meta-title": {
-            color: "#FFFFFF",
+            color: "hsl(0, 0%, 10%)",
         },
     },
     createCardMeta: {
@@ -63,6 +66,7 @@ const useStyles = createUseStyles({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-evenly",
+        color: "hsl(0, 0%, 10%)",
     },
     closeIcon: {
         fontSize: 20,
@@ -70,10 +74,12 @@ const useStyles = createUseStyles({
     },
     divider: ({themeMode}: StyleProps) => ({
         marginTop: 0,
+        marginBottom: 32,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
     h1: {
-        fontSize: 24,
+        fontSize: 28,
+        fontWeight: "normal",
     },
     modal: {
         "& .ant-modal-body": {
@@ -259,16 +265,11 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
                     <>
-                        <h1 className={classes.h1}>LLM Applications</h1>
+                        <h1 className={classes.h1}>Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    {apps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))}
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
@@ -280,12 +281,18 @@ const AppSelector: React.FC = () => {
                                         }}
                                     >
                                         <Card.Meta
-                                            data-cy="create-new-app-button"
+                                            data-cy="create-new-ap`p-button"
                                             className={classes.createCardMeta}
-                                            title={<div>Create New App</div>}
+                                            title={<div>Create new app</div>}
                                             avatar={<PlusOutlined size={24} />}
                                         />
                                     </Card>
+
+                                    {apps.map((app, index: number) => (
+                                        <div key={index}>
+                                            <AppCard app={app} />
+                                        </div>
+                                    ))}
                                 </>
                             )}
                         </div>

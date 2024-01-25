@@ -423,7 +423,6 @@ class NewAppEnvironmentDB(Document):
 
 
 class Forward:
-
     @free_fall_migration(
         document_models=[
             UserDB,
