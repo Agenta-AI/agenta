@@ -351,7 +351,7 @@ async def create_new_app_variant(
 
     variant_revision = AppVariantRevisionsDB(
         variant=variant,
-        revision=1,
+        revision=0,
         modified_by=user,
         base=base,
         config=config,
