@@ -11,28 +11,16 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class CustomEvaluationDetail(pydantic.BaseModel):
-    id: str
-    app_id: str
-    evaluation_name: str
-    python_code: str
-    created_at: dt.datetime
-    updated_at: dt.datetime
+class Result(pydantic.BaseModel):
+    type: str
+    value: typing.Optional[typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:
