@@ -329,7 +329,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         )
                                     )
                                         return
-                                    EvaluationStatus.FINISHED === params.data?.status.value &&
+                                    ;(EvaluationStatus.FINISHED === params.data?.status.value ||
+                                        EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value) &&
                                         router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                                 }}
                                 rowSelection="multiple"
