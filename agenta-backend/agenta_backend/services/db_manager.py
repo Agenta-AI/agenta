@@ -331,7 +331,9 @@ async def create_new_app_variant(
     Returns:
         AppVariantDB: The created variant.
     """
-    assert parameters == {}, "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
+    assert (
+        parameters == {}
+    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
     variant = AppVariantDB(
         app=app,
         organization=organization,
@@ -1052,7 +1054,7 @@ async def list_app_variant_revisions_by_variant(
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
     app_variant_revision = await AppVariantRevisionsDB.find(
-        AppVariantRevisionsDB.variant == app_variant.id, fetch_links=True
+        AppVariantRevisionsDB.variant.id == app_variant.id, fetch_links=True
     ).to_list()
     return app_variant_revision
 

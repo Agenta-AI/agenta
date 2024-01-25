@@ -82,6 +82,8 @@ export interface Evaluation {
         llmAppPromptTemplate?: string
         evaluationPromptTemplate?: string
     }
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface EvaluationScenario {
@@ -161,6 +163,45 @@ export interface Parameter {
     enum?: Array<string>
     minimum?: number
     maximum?: number
+}
+
+export interface Parameters {
+    frequence_penalty: number
+    inputs: [{}]
+    max_tokens: number
+    model: string
+    presence_penalty: number
+    prompt_system: string
+    prompt_user: string
+    temperature: number
+    top_p: number
+}
+
+export interface IPromptRevisions {
+    config: {
+        config_name: string
+        parameters: Parameters
+    }
+    created_at: string
+    modified_by: string
+    revision: number
+}
+
+export interface IPromptVersioning {
+    app_id: string
+    app_name: string
+    base_id: string
+    base_name: string
+    config_name: string
+    organization_id: string
+    parameters: Parameters
+    previous_variant_name: string | null
+    revision: number
+    revisions: [IPromptRevisions]
+    uri: string
+    user_id: string
+    variant_id: string
+    variant_name: string
 }
 
 export interface EvaluationResponseType {
@@ -376,6 +417,8 @@ export interface _Evaluation {
     created_at?: string
     updated_at?: string
     duration?: number
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface _EvaluationScenario {
