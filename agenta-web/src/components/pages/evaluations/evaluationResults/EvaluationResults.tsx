@@ -1,11 +1,11 @@
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import React, {useContext, useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
 import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
+import {EvaluationStatus, JSSTheme, Parameter, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -29,6 +29,8 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
+import {promptVersioning} from "@/lib/services/api"
+import {PromptVersioningContext} from "@/components/Playground/PromptVersioningProvider"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -62,6 +64,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
+    const {setPromptOptParams} = useContext(PromptVersioningContext)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -156,6 +159,44 @@ const EvaluationResults: React.FC<Props> = () => {
         [selected],
     )
 
+    const handleNavigation = async (variantId: string, revisionId: string, variantName: string) => {
+        try {
+            const promptVersion = await promptVersioning(variantId)
+            const revision = promptVersion.revisions.find(
+                (item: any) => item.revision === parseInt(revisionId),
+            )
+
+            setPromptOptParams((prevState: Parameter[] | null) => {
+                if (!prevState) {
+                    return prevState
+                }
+
+                const parameterNames = [
+                    "temperature",
+                    "model",
+                    "max_tokens",
+                    "prompt_system",
+                    "prompt_user",
+                    "top_p",
+                    "frequence_penalty",
+                    "presence_penalty",
+                    "inputs",
+                ]
+
+                return prevState.map((param: Parameter) => {
+                    if (parameterNames.includes(param.name)) {
+                        param.default = (revision?.config.parameters as Record<string, any>)[
+                            param.name
+                        ]
+                    }
+                    return param
+                })
+            })
+
+            router.push(`/apps/${appId}/playground?variant=${variantName}`)
+        } catch (error) {}
+    }
+
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
             {
@@ -166,12 +207,23 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerCheckboxSelection: true,
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
-                cellRenderer: (params: any) => (
-                    <LinkCellRenderer
-                        {...params}
-                        href={`/apps/${appId}/playground/?variant=${params.value.split(" ")[0]}`}
-                    />
-                ),
+                cellRenderer: (params: any) => {
+                    const {variant_ids, revisions, variants} = params.data
+
+                    return (
+                        <div
+                            onClick={() =>
+                                handleNavigation(
+                                    variant_ids[0],
+                                    revisions[0],
+                                    variants[0].variantName,
+                                )
+                            }
+                        >
+                            {params.value}
+                        </div>
+                    )
+                },
                 valueGetter: (params) =>
                     `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
                 headerName: "Variant",

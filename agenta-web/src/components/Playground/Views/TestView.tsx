@@ -8,7 +8,6 @@ import {
     Space,
     Form,
     Drawer,
-    Tag,
     Typography,
     Divider,
     Empty,
@@ -17,10 +16,8 @@ import {
 import {
     CaretRightOutlined,
     CloseCircleOutlined,
-    HistoryOutlined,
     LoadingOutlined,
     PlusOutlined,
-    SaveOutlined,
 } from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {

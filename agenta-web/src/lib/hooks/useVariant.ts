@@ -1,5 +1,5 @@
 import {useState, useEffect, useContext} from "react"
-import {saveNewVariant, updateVariantParams} from "@/lib/services/api"
+import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PromptVersioningContext} from "@/components/Playground/PromptVersioningProvider"
@@ -12,7 +12,8 @@ import {PromptVersioningContext} from "@/components/Playground/PromptVersioningP
  * @returns
  */
 export function useVariant(appId: string, variant: Variant) {
-    const {setPromptOptParams, promptOptParams} = useContext(PromptVersioningContext)
+    const {setPromptOptParams, promptOptParams, setPromptRevisions, setHistoryStatus} =
+        useContext(PromptVersioningContext)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -24,21 +25,27 @@ export function useVariant(appId: string, variant: Variant) {
     const fetchParameters = async () => {
         setIsLoading(true)
         setIsError(false)
+        setHistoryStatus({loading: true, error: false})
         try {
             const {parameters, inputs, URIPath, isChatVariant} = await getAllVariantParameters(
                 appId,
                 variant,
             )
+            const revisions = await promptVersioning(variant.variantId)
+            setPromptRevisions(revisions)
             setPromptOptParams(parameters)
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
+            setHistoryStatus({loading: false, error: true})
         } catch (error: any) {
             console.log(error)
             setIsError(true)
             setError(error)
+            setHistoryStatus({loading: false, error: true})
         } finally {
             setIsLoading(false)
+            setHistoryStatus({loading: false, error: false})
         }
     }
 
