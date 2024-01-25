@@ -11,7 +11,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
-import {PromptVersioningContext} from "../Playground/PromptVersioningProvider"
+import Link from "next/link"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -39,6 +39,7 @@ export interface HumanEvaluationListTableDataType {
     createdAt: string
     revisions: string[]
     variant_revision_ids: string[]
+    variantNames: string[]
 }
 
 type StyleProps = {
@@ -162,6 +163,10 @@ export default function HumanEvaluationResult() {
         }
     }
 
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${app_id}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
     const columns: ColumnsType<HumanEvaluationListTableDataType> = [
         {
             title: "Test set",
@@ -185,7 +190,12 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({`${value[0]} #${record.revisions[0]}`})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[0], record.revisions[0])}
+                        >
+                            ({`${value[0]} #${record.revisions[0]}`})
+                        </div>
                     </div>
                 )
             },
@@ -204,7 +214,12 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({`${value[1]} #${record.revisions[1]}`})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[1], record.revisions[1])}
+                        >
+                            ({`${value[1]} #${record.revisions[1]}`})
+                        </div>
                     </div>
                 )
             },
