@@ -90,7 +90,7 @@ async def invoke_app(
             response.raise_for_status()
             app_output = response.json()
             return InvokationResult(
-                result=Result(type="text", value=app_output, error=None)
+                result=Result(type="text", value=app_output["message"], error=None)
             )
 
         except httpx.HTTPError as e:
