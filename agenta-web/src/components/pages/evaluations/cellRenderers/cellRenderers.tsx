@@ -141,7 +141,7 @@ export const ResultRenderer = React.memo(
         const result = params.data?.results.find(
             (item) => item.evaluator_config === params.config.id,
         )?.result
-        const errorMsg = result?.error?.message
+        const errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
         return (
             <Typography.Text type={errorMsg ? "danger" : undefined}>
                 {errorMsg || getTypedValue(result)}

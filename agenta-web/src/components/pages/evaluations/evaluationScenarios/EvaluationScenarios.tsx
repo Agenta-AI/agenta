@@ -92,7 +92,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 valueGetter: (params) => {
                     const result = params.data?.outputs[index].result
                     if (result.type == "error") {
-                        return result?.error?.message
+                        return `${result?.error?.message}\n${result?.error?.stacktrace}`
                     }
                     return result.value.message
                 },
