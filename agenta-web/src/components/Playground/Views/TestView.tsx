@@ -25,6 +25,7 @@ import {
     ChatRole,
     GenericObject,
     IPromptRevisions,
+    IPromptVersioning,
     Parameter,
     Variant,
 } from "@/lib/Types"
@@ -43,7 +44,6 @@ import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {PromptVersioningContext} from "../PromptVersioningProvider"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -158,6 +158,15 @@ interface TestViewProps {
     isChatVariant?: boolean
     compareMode: boolean
     onStateChange: (isDirty: boolean) => void
+    promptRevisions: IPromptVersioning | undefined
+    historyStatus: {
+        loading: boolean
+        error: boolean
+    }
+    setPromptOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
+    promptOptParams: Parameter[] | null
+    setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
+    isDrawerOpen: boolean
 }
 
 interface BoxComponentProps {
@@ -335,6 +344,12 @@ const App: React.FC<TestViewProps> = ({
     isChatVariant,
     compareMode,
     onStateChange,
+    setPromptOptParams,
+    promptOptParams,
+    promptRevisions,
+    historyStatus,
+    isDrawerOpen,
+    setIsDrawerOpen,
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
@@ -349,8 +364,8 @@ const App: React.FC<TestViewProps> = ({
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
-    const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus, setPromptOptParams} =
-        useContext(PromptVersioningContext)
+    // const {promptRevisions, isDrawerOpen, setIsDrawerOpen, historyStatus, setPromptOptParams} =
+    //     useContext(PromptVersioningContext)
 
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
