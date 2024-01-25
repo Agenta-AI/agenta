@@ -6,7 +6,9 @@ import traceback
 from collections import defaultdict
 from typing import Any, Dict, List
 
-from agenta_backend.models.api.evaluation_model import NewEvaluation, AppOutput
+from agenta_backend.models.api.evaluation_model import (
+    EvaluationStatusEnum,
+)
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AggregatedResult,
@@ -31,6 +33,7 @@ from agenta_backend.services.db_manager import (
     update_evaluation,
     update_evaluation_with_aggregated_results,
     EvaluationScenarioResult,
+    check_if_evaluation_contains_failed_evaluation_scenarios,
 )
 from celery import shared_task, states
 
@@ -113,7 +116,7 @@ def evaluate(
         )
 
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
-            # 2. We prepare the inputs
+            # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
@@ -131,6 +134,7 @@ def evaluate(
             ]
             logger.debug(f"Inputs: {inputs}")
 
+            # 2. We skip the iteration if error invking the llm-app
             if app_output.result.error:
                 print("There is an error when invoking the llm app so we need to skip")
                 error_results = [
@@ -249,6 +253,27 @@ def evaluate(
         )
     )
 
+    failed_evaluation_scenarios = loop.run_until_complete(
+        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
+    )
+
+    evaluation_status = Result(
+        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
+    )
+
+    if failed_evaluation_scenarios:
+        evaluation_status = Result(
+            type="status",
+            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+            error=None,
+        )
+
+    loop.run_until_complete(
+        update_evaluation(
+            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+        )
+    )
+
 
 async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
@@ -259,7 +284,7 @@ async def aggregate_evaluator_results(
         results = val["results"] or []
 
         if not results:
-            result = Result(type="error", value="-", error=Error(message="No results"))
+            result = Result(type="error", value=None, error=Error(message="-"))
         else:
             if evaluator_key == "auto_ai_critique":
                 numeric_scores = []

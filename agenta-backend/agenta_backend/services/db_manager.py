@@ -1674,9 +1674,6 @@ async def update_evaluation_with_aggregated_results(
     if not evaluation:
         raise ValueError("Evaluation not found")
 
-    evaluation.status = Result(
-        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
-    )
     evaluation.aggregated_results = aggregated_results
     evaluation.updated_at = datetime.utcnow().isoformat()
 
@@ -1852,3 +1849,17 @@ async def update_evaluation(
             setattr(evaluation, key, value)
     await evaluation.save()
     return evaluation
+
+
+async def check_if_evaluation_contains_failed_evaluation_scenarios(
+    evaluation_id: str,
+) -> bool:
+    query = EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id),
+        {"results": {"$elemMatch": {"result.type": "error"}}},
+    )
+
+    count = await query.count()
+    if count > 0:
+        return True
+    return False
