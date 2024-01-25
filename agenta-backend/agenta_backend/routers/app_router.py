@@ -98,7 +98,7 @@ async def list_app_variants(
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         app_variants = await db_manager.list_app_variants(app_id=app_id)
@@ -150,7 +150,7 @@ async def get_variant_by_env(
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         # Fetch the app variant using the provided app_id and environment
@@ -242,7 +242,7 @@ async def create_app(
                     error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                     return JSONResponse(
                         {"detail": error_msg},
-                        status_code=400,
+                        status_code=403,
                     )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
@@ -342,7 +342,7 @@ async def add_variant_from_image(
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         app = await db_manager.fetch_app_by_id(app_id)
@@ -387,7 +387,7 @@ async def remove_app(app_id: str, request: Request):
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         else:
@@ -610,7 +610,7 @@ async def list_environments(
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
-                    status_code=400,
+                    status_code=403,
                 )
 
         environments_db = await db_manager.list_environments(app_id=app_id)
