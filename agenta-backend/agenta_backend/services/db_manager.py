@@ -331,12 +331,13 @@ async def create_new_app_variant(
     Returns:
         AppVariantDB: The created variant.
     """
+    assert parameters == {}, "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
     variant = AppVariantDB(
         app=app,
         organization=organization,
         user=user,
         modified_by=user,
-        revision=1,
+        revision=0,
         variant_name=variant_name,
         image=image,
         base=base,
