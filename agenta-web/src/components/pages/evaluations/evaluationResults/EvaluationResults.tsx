@@ -29,6 +29,7 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
+import Link from "next/link"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -156,10 +157,6 @@ const EvaluationResults: React.FC<Props> = () => {
         [selected],
     )
 
-    const handleNavigation = async (revisionId: string, variantName: string) => {
-        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionId}`)
-    }
-
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
             {
@@ -173,12 +170,11 @@ const EvaluationResults: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     const {revisions, variants} = params.data
                     return (
-                        <div
-                            onClick={() => handleNavigation(revisions[0], variants[0].variantName)}
-                            style={{cursor: "pointer"}}
+                        <Link
+                            href={`/apps/${appId}/playground?variant=${variants[0].variantName}&revision=${revisions[0]}`}
                         >
                             {params.value}
-                        </div>
+                        </Link>
                     )
                 },
                 valueGetter: (params) =>
