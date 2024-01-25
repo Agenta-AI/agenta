@@ -1,7 +1,9 @@
 import {ListAppsItem} from "@/lib/Types"
-import {useApps} from "@/lib/services/api"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {axiosFetcher} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {PropsWithChildren, createContext, useContext, useMemo} from "react"
+import useSWR from "swr"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -17,6 +19,16 @@ const initialValues: AppContextType = {
     error: null,
     isLoading: false,
     mutate: () => {},
+}
+
+const useApps = () => {
+    const {data, error, isLoading, mutate} = useSWR(`${getAgentaApiUrl()}/api/apps/`, axiosFetcher)
+    return {
+        data: (data || []) as ListAppsItem[],
+        error,
+        isLoading,
+        mutate,
+    }
 }
 
 export const AppContext = createContext<AppContextType>(initialValues)

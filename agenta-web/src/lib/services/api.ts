@@ -14,7 +14,6 @@ import {
     Environment,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
-    ListAppsItem,
     AICritiqueCreate,
     ChatMessage,
     KeyValuePair,
@@ -24,13 +23,12 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay, getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
-import {useProfileData} from "@/contexts/profile.context"
+import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data)
+export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
 
 export async function fetchVariants(
     appId: string,
@@ -250,7 +248,7 @@ export async function removeVariant(variantId: string) {
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
-        fetcher,
+        axiosFetcher,
         {revalidateOnFocus: false},
     )
 
@@ -524,17 +522,6 @@ export const updateEvaluationScenarioScore = async (
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
-}
-
-export const useApps = () => {
-    const {data, error, isLoading, mutate} = useSWR(`${getAgentaApiUrl()}/api/apps/`, fetcher)
-
-    return {
-        data: (data || []) as ListAppsItem[],
-        error,
-        isLoading,
-        mutate,
-    }
 }
 
 export const getProfile = async (ignoreAxiosError: boolean = false) => {
