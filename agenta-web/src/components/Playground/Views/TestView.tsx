@@ -364,9 +364,7 @@ const App: React.FC<TestViewProps> = ({
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
-    const filteredRevisions = promptRevisions?.revisions.filter(
-        (item) => item.config.parameters.inputs,
-    )
+    const filteredRevisions = promptRevisions?.revisions.filter((item) => item.revision !== 0)
 
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [additionalDataList, setAdditionalDataList] = useState<
@@ -404,7 +402,12 @@ const App: React.FC<TestViewProps> = ({
 
             return prevState.map((param: Parameter) => {
                 if (parameterNames.includes(param.name)) {
-                    param.default = (revision?.config.parameters as Record<string, any>)[param.name]
+                    const newValue = (revision?.config.parameters as Record<string, any>)[
+                        param.name
+                    ]
+                    if (newValue !== undefined) {
+                        param.default = newValue
+                    }
                 }
                 return param
             })
