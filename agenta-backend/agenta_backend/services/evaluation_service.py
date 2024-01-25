@@ -160,12 +160,15 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         eval_scenario_instance = HumanEvaluationScenarioDB(
             **evaluation_scenario_payload,
             user=user,
-            organization=app.organization,
-            workspace=app.workspace,
             evaluation=new_evaluation,
             inputs=list_of_scenario_input,
             outputs=[],
         )
+        
+        if FEATURE_FLAG in ["cloud", "ee"]:
+            eval_scenario_instance.organization = app.organization
+            eval_scenario_instance.workspace = app.workspace
+        
         await eval_scenario_instance.create()
 
 
