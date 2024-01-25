@@ -6,7 +6,6 @@ import asyncio
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
     AppDB,
-    ConfigDB,
     TestSetDB,
     AppVariantDB,
     EvaluationDB,
