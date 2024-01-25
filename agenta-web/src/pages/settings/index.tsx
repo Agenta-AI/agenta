@@ -1,10 +1,9 @@
 import Secrets from "@/components/pages/settings/Secrets/Secrets"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 import {useQueryParam} from "@/hooks/useQuery"
-import {isFeatureEnabled} from "@/lib/helpers/featureFlag"
 import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
 import {ApartmentOutlined, KeyOutlined, LockOutlined} from "@ant-design/icons"
-import {Tabs, Typography} from "antd"
+import {Space, Tabs, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -36,10 +35,10 @@ const Settings: React.FC = () => {
     const items = [
         {
             label: (
-                <span>
+                <Space>
                     <ApartmentOutlined />
                     Workspace
-                </span>
+                </Space>
             ),
             key: "workspace",
             children: <WorkspaceManage />,
@@ -47,20 +46,20 @@ const Settings: React.FC = () => {
         },
         {
             label: (
-                <span>
+                <Space>
                     <LockOutlined />
                     LLM Keys
-                </span>
+                </Space>
             ),
             key: "secrets",
             children: <Secrets />,
         },
         {
             label: (
-                <span>
+                <Space>
                     <KeyOutlined />
                     API Keys
-                </span>
+                </Space>
             ),
             key: "apiKeys",
             children: <APIKeys />,
