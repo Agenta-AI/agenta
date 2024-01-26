@@ -142,7 +142,7 @@ export const ResultRenderer = React.memo(
             (item) => item.evaluator_config === params.config.id,
         )?.result
         let errorMsg = ""
-        if (result.type === "error"){
+        if (result.type === "error") {
             errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
         }
 
