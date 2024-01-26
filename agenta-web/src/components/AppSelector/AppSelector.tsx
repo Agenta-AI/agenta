@@ -198,7 +198,10 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            providerKey: isDemo() && (!apiKey || apiKey === "") ? "" : apiKey,
+            providerKey:
+                isDemo() && apiKey?.length === 0
+                    ? []
+                    : (apiKey as {title: string; key: string; name: string}[]),
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
