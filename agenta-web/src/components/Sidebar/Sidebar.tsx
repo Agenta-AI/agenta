@@ -25,6 +25,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import {getColorFromStr} from "@/lib/helpers/colors"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
+import {useLocalStorage} from "usehooks-ts"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
@@ -138,7 +139,7 @@ const Sidebar: React.FC = () => {
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
     const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
-    const [collapsed, setCollapsed] = useState(false)
+    const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
