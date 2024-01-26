@@ -164,15 +164,26 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col>
                             <Space>
-                                {isDemo() && (
-                                    <Tooltip>
+                                {isDemo() ? (
+                                    <Tooltip title="View History: Revert to previous configurations">
                                         <Button
                                             onClick={handleHistoryBtn}
                                             data-cy="history-button"
                                             type="link"
-                                            icon={compareMode && <HistoryOutlined />}
+                                            icon={<HistoryOutlined />}
                                         >
-                                            {compareMode ? null : "History"}
+                                            "History"
+                                        </Button>
+                                    </Tooltip>
+                                ) : (
+                                    <Tooltip title="Versioning configuration available in Cloud/Enterprise editions only">
+                                        <Button
+                                            data-cy="history-button"
+                                            type="link"
+                                            icon={<HistoryOutlined />}
+                                            disabled
+                                        >
+                                            "History"
                                         </Button>
                                     </Tooltip>
                                 )}
