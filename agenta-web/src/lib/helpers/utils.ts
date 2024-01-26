@@ -87,9 +87,6 @@ export const getApikeys = () => {
                 llmAvailableProvidersTokenArray.length > 0
             ) {
                 for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
-                    if (!llmAvailableProvidersTokenArray[i].name) {
-                        getAllProviderLlmKeys()
-                    }
                     if (llmAvailableProvidersTokenArray[i].key !== "") {
                         apiKeys.push(llmAvailableProvidersTokenArray[i])
                     }
