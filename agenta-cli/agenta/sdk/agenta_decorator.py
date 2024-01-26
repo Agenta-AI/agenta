@@ -184,10 +184,11 @@ async def execute_function(
 def handle_exception(e: Exception) -> JSONResponse:
     """Handle exceptions and return a JSONResponse."""
 
-    traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)
+    status_code: int = e.status_code if hasattr(e, "status_code") else 500
+    message = str(e)
     return JSONResponse(
-        status_code=500,
-        content={"error": str(e), "traceback": "".join(traceback_str)},
+        status_code=status_code,
+        content={"error": message},
     )
 
 
