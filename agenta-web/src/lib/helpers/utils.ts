@@ -127,9 +127,23 @@ export const getAllProviderLlmKeys = () => {
     if (typeof window !== "undefined") {
         const inStorage = localStorage.getItem(llmAvailableProvidersToken)
         if (inStorage) {
-            return JSON.parse(inStorage)
+            const parsedArray = JSON.parse(inStorage)
+            const updatedLlmAvailableProviders = parsedArray.map(
+                (item: LlmProvider, index: number) => {
+                    if (!item.hasOwnProperty("name")) {
+                        item.name = llmAvailableProviders[index].name
+                    }
+                    return item
+                },
+            )
+
+            localStorage.setItem(
+                llmAvailableProvidersToken,
+                JSON.stringify(updatedLlmAvailableProviders),
+            )
+
+            return updatedLlmAvailableProviders
         }
-        // if doesn't have the localStorage variable
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
     }
 
