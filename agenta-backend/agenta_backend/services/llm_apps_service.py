@@ -1,13 +1,11 @@
-import asyncio
 import json
+import asyncio
 import logging
-from typing import Any, Dict, List
 import traceback
+from typing import Any, Dict, List
 
 import httpx
-from pydantic import BaseModel
 
-# from agenta_backend.models.api.evaluation_model import AppOutput
 from agenta_backend.models.db_models import InvokationResult, Result, Error
 
 # Set logger
@@ -265,5 +263,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 async def _get_openai_json_from_uri(uri):
     async with httpx.AsyncClient() as client:
         resp = await client.get(uri)
+        timeout = httpx.Timeout(timeout=5, read=None, write=5)
+        resp = await client.get(uri, timeout=timeout)
         json_data = json.loads(resp.text)
         return json_data

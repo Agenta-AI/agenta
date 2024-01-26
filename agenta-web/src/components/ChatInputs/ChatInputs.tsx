@@ -143,12 +143,12 @@ const ChatInputs: React.FC<Props> = ({
                     <Input.TextArea
                         style={{
                             maxWidth: "none",
-                            background: msg.content.startsWith("❌ Error code")
+                            background: msg.content.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#490b0b"
                                     : "#fff1f0"
                                 : "",
-                            color: msg.content.startsWith("❌ Error code")
+                            color: msg.content.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#ffffffd9"
                                     : "#000000e0"
