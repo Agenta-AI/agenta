@@ -154,7 +154,7 @@ def auto_ai_critique(
     """
     try:
         llm = OpenAI(
-            openai_api_key=lm_providers_keys["openai"],
+            openai_api_key=lm_providers_keys["OPENAI_API_KEY"],
             temperature=0.8,
             model="gpt-3.5-turbo-instruct",
         )
