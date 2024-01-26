@@ -95,7 +95,6 @@ class EvaluationDB(Document):
         name = "new_evaluations"
 
 
-
 #### New Schemas ####
 class Error(BaseModel):
     message: str
