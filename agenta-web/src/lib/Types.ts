@@ -393,7 +393,7 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: TypedValue[]
+    outputs: {result: TypedValue[]}
     correct_answer?: string
     is_pinned?: boolean
     note?: string

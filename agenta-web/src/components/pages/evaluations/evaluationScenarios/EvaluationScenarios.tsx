@@ -94,7 +94,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     if (result.type == "error") {
                         return `${result?.error?.message}\n${result?.error?.stacktrace}`
                     }
-                    return result.value.message
+                    return result.value
                 },
                 cellRenderer: LongTextCellRenderer,
             })
