@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {getApikeys, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
 import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
@@ -118,7 +118,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         createEvalutaiton(appId, {
             ...values,
             rate_limit: rateLimitValues,
-            lm_providers_keys: {openai: getApikeys()},
+            lm_providers_keys: apiKeyObject(),
         })
             .then(onSuccess)
             .catch(console.error)
