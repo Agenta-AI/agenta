@@ -303,12 +303,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
                         style={{
-                            background: result?.startsWith("❌ Error code")
+                            background: result?.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#490b0b"
                                     : "#fff1f0"
                                 : "",
-                            color: result?.startsWith("❌ Error code")
+                            color: result?.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#ffffffd9"
                                     : "#000000e0"
@@ -505,9 +505,12 @@ const App: React.FC<TestViewProps> = ({
                     return newDataList
                 })
             }
-        } catch (e) {
+        } catch (e: any) {
             if (!controller.signal.aborted) {
-                setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+                setResultForIndex(
+                    `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
+                    index,
+                )
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
