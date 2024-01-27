@@ -212,10 +212,6 @@ const EvaluationCardView: React.FC<Props> = ({
                         </li>
                     )}
                     <li>
-                        Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
-                        <PushpinOutlined style={{color: token.colorError}} /> button on the right.
-                    </li>
-                    <li>
                         Add a note to an evaluation from the <b>Additional Notes</b> input section{" "}
                         in the right sidebar.
                     </li>
@@ -372,35 +368,12 @@ const EvaluationCardView: React.FC<Props> = ({
                             <Tooltip title="Instructions">
                                 <QuestionCircleOutlined
                                     onClick={showInstructions}
-                                    style={{color: token.colorPrimary}}
+                                    style={{fontSize: 24}}
                                 />
                             </Tooltip>
-                            {scenario.isPinned ? (
-                                <Tooltip title="Unpin">
-                                    <PushpinFilled
-                                        style={{color: token.colorErrorActive}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: false,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            ) : (
-                                <Tooltip title="Pin">
-                                    <PushpinOutlined
-                                        style={{color: token.colorError}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: true,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            )}
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
-                                    style={{color: token.colorSuccessActive}}
+                                    style={{color: token.colorSuccessActive, fontSize: 24}}
                                     onClick={form.submit}
                                 />
                             </Tooltip>

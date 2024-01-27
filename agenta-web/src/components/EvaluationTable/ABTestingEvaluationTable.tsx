@@ -478,7 +478,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 }
                                 disabled={false}
                             >
-                                Export results
+                                Export Results
                             </SecondaryButton>
                         </Space>
                     </Col>
