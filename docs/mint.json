@@ -13,7 +13,7 @@
     "dark": "#34d399"
   },
   "modeToggle": {
-    "default": "dark",
+    "default": "light",
     "isHidden": false
   },
   "feedback": {
