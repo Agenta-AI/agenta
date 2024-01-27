@@ -605,12 +605,7 @@ const App: React.FC<TestViewProps> = ({
                     <LoadTestsModal onLoad={onLoadTests} />
 
                     {!isRunningAll ? (
-                        <Button
-                            type="primary"
-                            size="middle"
-                            className={classes.runAllBtn}
-                            onClick={handleRunAll}
-                        >
+                        <Button type="primary" size="middle" onClick={handleRunAll}>
                             Run all
                         </Button>
                     ) : (
