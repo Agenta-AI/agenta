@@ -164,13 +164,24 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col>
                             <Space>
-                                {isDemo() && (
-                                    <Tooltip>
+                                {isDemo() ? (
+                                    <Tooltip title="View History: Revert to previous configurations">
                                         <Button
                                             onClick={handleHistoryBtn}
                                             data-cy="history-button"
-                                            type="link"
+                                            type="text"
                                             icon={compareMode && <HistoryOutlined />}
+                                        >
+                                            {compareMode ? null : "History"}
+                                        </Button>
+                                    </Tooltip>
+                                ) : (
+                                    <Tooltip title="Versioning configuration available in Cloud/Enterprise editions only">
+                                        <Button
+                                            data-cy="history-button"
+                                            type="text"
+                                            icon={compareMode && <HistoryOutlined />}
+                                            disabled
                                         >
                                             {compareMode ? null : "History"}
                                         </Button>
@@ -191,6 +202,19 @@ const ParametersView: React.FC<Props> = ({
                                         </Button>
                                     </Tooltip>
                                 )}
+                                <Tooltip placement="bottom" title="Delete the variant permanently">
+                                    <Button
+                                        danger
+                                        onClick={() => {
+                                            handleDelete()
+                                            tabID.current = variant.variantId
+                                        }}
+                                        data-cy="playground-delete-variant-button"
+                                        icon={compareMode && <DeleteOutlined />}
+                                    >
+                                        {compareMode ? null : "Delete"}
+                                    </Button>
+                                </Tooltip>
 
                                 <Tooltip
                                     placement="bottom"
@@ -203,22 +227,7 @@ const ParametersView: React.FC<Props> = ({
                                         data-cy="playground-save-changes-button"
                                         icon={compareMode && <SaveOutlined />}
                                     >
-                                        {compareMode ? null : "Save changes"}
-                                    </Button>
-                                </Tooltip>
-
-                                <Tooltip placement="bottom" title="Delete the variant permanently">
-                                    <Button
-                                        type="primary"
-                                        danger
-                                        onClick={() => {
-                                            handleDelete()
-                                            tabID.current = variant.variantId
-                                        }}
-                                        data-cy="playground-delete-variant-button"
-                                        icon={compareMode && <DeleteOutlined />}
-                                    >
-                                        {compareMode ? null : "Delete Variant"}
+                                        {compareMode ? null : "Save"}
                                     </Button>
                                 </Tooltip>
                             </Space>
