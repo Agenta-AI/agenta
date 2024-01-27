@@ -395,7 +395,7 @@ const App: React.FC<TestViewProps> = ({
                 return param
             })
         })
-    }, [revisionNum, promptRevisions])
+    }, [revisionNum])
 
     const abortControllersRef = useRef<AbortController[]>([])
     const [isRunningAll, setIsRunningAll] = useState(false)
