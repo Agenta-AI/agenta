@@ -2,8 +2,8 @@
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/c52a75b0-29fd-4213-9635-fb93552ff3a7"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
+        <source width="500" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/c52a75b0-29fd-4213-9635-fb93552ff3a7"  >
+        <source width="500" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
         <img alt="Shows the logo of agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
     </div>
@@ -14,8 +14,8 @@
     <a href="https://docs.agenta.ai/">Documentation</a>
   </h4>
 <div align="center">
-  <strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br />
-  The open-source LLMOps platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
+  <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM-powered features with confidence </h2></strong>
+  The open-source LLM developer platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
 </div>
 </br>
 <p align="center">
@@ -33,10 +33,6 @@
 
   <a href="https://pypi.org/project/agenta/">
     <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
-  </a>
-
-  <a href="https://repo-rater.eddiehub.io/rate?owner=Agenta-AI&name=agenta">
-    <img src="https://repo-rater.eddiehub.io/api/badge?owner=Agenta-AI&name=agenta" alt="RepoRater">
   </a>
 </br>
 </p>
@@ -87,32 +83,30 @@
   <a href="#features"><b>Features</b></a> &bull;
   <a href="https://docs.agenta.ai"><b>Documentation</b></a> &bull;
   <a href="#enterprise-support"><b>Enterprise</b></a> &bull;
-  <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"><b>Community</b></a> &bull;
+  <a href="https://github.com/orgs/Agenta-AI/projects/13"><b>Roadmap</b></a> &bull;
+  <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"><b>Join Our Slack</b></a> &bull;
   <a href="#contributing"><b>Contributing</b></a>
 </h3>
 
 ---
 
-# ℹ️ About
+# ⭐️ Why Agenta?
 
-Agenta is an end-to-end LLMOps platform. It provides the tools for **prompt engineering and management**,  ⚖️ **evaluation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model. 
+Agenta is an end-to-end LLM developer platform. It provides the tools for **prompt engineering and management**,  ⚖️ **evaluation**, **human annotation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model. 
 
-Agenta allows developers and product teams to collaborate and build robust AI applications in less time. 
+Agenta allows developers and product teams to collaborate in building production-grade LLM-powered applications in less time. 
 
 ### With Agenta, you can:
 
-1. Quickly [**experiment** and **compare** prompts](https://docs.agenta.ai/basic_guides/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/advanced_guides/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...) 
-2. Quickly [**create test sets**](https://docs.agenta.ai/basic_guides/test_sets) and **golden datasets** for evaluation
-3. [**Evaluate** your application](https://docs.agenta.ai/basic_guides/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/advanced_guides/using_custom_evaluators)
-4. [**Annotate** and **A/B test**](https://docs.agenta.aibasic_guides/human_evaluation) your applications with **human feedback**
-5. [**Collaborate with product teams**](https://docs.agenta.ai/basic_guides/team_management) for prompt engineering and evaluation
-6. [**Deploy your application**](https://docs.agenta.ai/basic_guides/deployment) in one-click in the UI,  through CLI, or through github workflows. 
-
-Agenta focuses on increasing the speed of the development cycle of LLM applications by increasing the speed of experimentation.
-
-## How is Agenta different? 
+- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/basic_guides/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/advanced_guides/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...) 
+- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/basic_guides/test_sets) for evaluation
+- 📈 [**Evaluate** your application](https://docs.agenta.ai/basic_guides/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/advanced_guides/using_custom_evaluators)
+- [🔍 **Annotate** and **A/B test**](https://docs.agenta.aibasic_guides/human_evaluation) your applications with **human feedback**
+- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/basic_guides/team_management) for prompt engineering and evaluation
+- [🚀 **Deploy your application**](https://docs.agenta.ai/basic_guides/deployment) in one-click in the UI,  through CLI, or through github workflows. 
 
 ### Works with any LLM app workflow
+
 Agenta enables prompt engineering and evaluation on any LLM app architecture:
 - Chain of prompts
 - RAG
@@ -123,25 +117,16 @@ It works with any framework such as [Langchain](https://langchain.com), [LlamaIn
 
 [Jump here to see how to use your own custom application with agenta](/advanced_guides/custom_applications)
 
-### Enable collaboration between developers and product teams
-
-
-Agenta empowers **non-developers** to iterate on the configuration of any custom LLM application, evaluate it, annotate it, A/B test it, and deploy it, all within the UI.
-
-By **adding a few lines to your application code**, you can create a prompt playground that allows non-developers to experiment with prompts for your application and use all the tools within agenta.
-
-
 # Quick Start
 
-### [Try the cloud version](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
+### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
+### [Explore the Docs](https://docs.agenta.ai)
 ### [Create your first application in one-minute](https://docs.agenta.ai/quickstart/getting-started-ui)
 ### [Create an application using Langchain](https://docs.agenta.ai/tutorials/first-app-with-langchain)
 ### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
-### [Read the Documentation](https://docs.agenta.ai)
 ### [Check the Cookbook](https://docs.agenta.ai/cookbook)
 
 # Features
-
 
 
 | Playground | Evaluation |
