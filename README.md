@@ -2,8 +2,8 @@
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/a356f263-6f5e-43df-8b58-4c183b8d8878"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253"  >
+        <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/c52a75b0-29fd-4213-9635-fb93552ff3a7"  >
+        <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
         <img alt="Shows the logo of agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
     </div>
