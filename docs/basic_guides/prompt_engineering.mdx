@@ -1,0 +1,55 @@
+---
+title: 'Prompt Engineering'
+description: 'Using the playground for prompt engineering.'
+---
+
+The agenta playground is a platform that lets you create, modify, and compare different prompts and configurations for your LLM application.
+
+
+## Prompt Templates
+An LLM takes a prompt and returns a completion. To make the prompt reusable, we need to be able to dynamically modify it based on a set of inputs. A prompt template is a prompt that can be dynamically modified based on a set of inputs.
+
+For instance, a prompt to create a blog post might look like this:
+```
+Write a blog post about {subject}
+```
+
+Here, the input is the subject of the blog post. The prompt can be reused for different subjects.
+
+The LLM app templates in agenta use the f-string templating language, with prompt variables referenced using a curly bracket syntax.
+
+## Adding new inputs
+
+To add new inputs to the LLM app, navigate to the playground and modify the inputs under "Modify Parameters."
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/08_add_new_input_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/08_add_new_input_dark.png" />
+
+After adding an input, incorporate it into the prompt templates using the curly bracket syntax.
+
+## Creating a variant
+
+You can create a new variant of an application by clicking on "Add Variant" in the "Side-by-side" view or the "+" tab in the "Tab view".
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/09_add_variant_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/09_add_variant_dark.png" />
+
+You'll then see a window where you can select the source variant to use as a template and provide a new name for your variant.
+
+After creating a variant, you can alter its parameters. Remember to save your changes before deploying the variant.
+
+## Testing a variant
+
+Fill in the inputs in the cards and click "Run" to test a variant dynamically.
+
+You can also load a test set to populate the playground with a set of inputs. Then You can click Run all to run all the inputs in the test set.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/10_testing_a_variant_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/10_testing_a_variant_dark.png" />
+
+## Comparing variants side by side
+
+Click on the "Side-by-side" tab to compare variants. From the dropdowns, select the variants you wish to compare. This allows you to view the results of multiple variants simultaneously. When using a chat application, you can interact with different variants in parallel.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/11_side_by_side_chat_mode_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/11_side_by_side_chat_mode_dark.png" />

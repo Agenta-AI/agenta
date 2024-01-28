@@ -64,7 +64,6 @@ async def add_variant_from_base_and_config(
         )
 
         # Find the previous variant in the database
-
         db_app_variant = await db_manager.add_variant_from_base_and_config(
             base_db=base_db,
             new_config_name=payload.new_config_name,
@@ -72,9 +71,15 @@ async def add_variant_from_base_and_config(
             **user_org_data,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
-        return await converters.app_variant_db_to_output(db_app_variant)
+        app_variant_db = await db_manager.get_app_variant_instance_by_id(
+            str(db_app_variant.id)
+        )
+        return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.error(f"An exception occurred while adding the new variant: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -97,7 +102,6 @@ async def remove_variant(
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         # Check app access
-
         access_app = await check_access_to_variant(
             user_org_data, variant_id=variant_id, check_owner=True
         )
@@ -246,19 +250,16 @@ async def start_variant(
 
     logger.debug("Starting variant %s", variant_id)
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
+    envvars = {} if env_vars is None else env_vars.env_vars
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-        if not os.environ["OPENAI_API_KEY"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Unable to start app container. Please file an issue by clicking on the button below.",
-            )
-        envvars = {
-            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        }
-    else:
-        envvars = {} if env_vars is None else env_vars.env_vars
+        if envvars.get("OPENAI_API_KEY", "") == "":
+            if not os.environ["OPENAI_API_KEY"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
     access = await check_access_to_variant(
         user_org_data=user_org_data, variant_id=variant_id

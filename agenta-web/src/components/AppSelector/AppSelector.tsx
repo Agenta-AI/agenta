@@ -8,7 +8,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getApikeys, isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -24,6 +24,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import ResultComponent from "../ResultComponent/ResultComponent"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -38,16 +39,18 @@ const useStyles = createUseStyles({
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
-        gap: 12,
+        gap: 24,
         "& .ant-card-bordered, .ant-card-actions": {
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
     }),
     createCard: {
         fontSize: 20,
-        backgroundColor: "#1777FF",
-        borderColor: "#1777FF !important",
+        backgroundColor: "hsl(0, 0%, 100%)",
+        borderColor: "hsl(0, 0%, 10%) !important",
         color: "#FFFFFF",
+        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
+
         width: 300,
         height: 120,
         display: "flex",
@@ -55,7 +58,7 @@ const useStyles = createUseStyles({
         justifyContent: "center",
         cursor: "pointer",
         "& .ant-card-meta-title": {
-            color: "#FFFFFF",
+            color: "hsl(0, 0%, 10%)",
         },
     },
     createCardMeta: {
@@ -63,6 +66,7 @@ const useStyles = createUseStyles({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-evenly",
+        color: "hsl(0, 0%, 10%)",
     },
     closeIcon: {
         fontSize: 20,
@@ -70,10 +74,12 @@ const useStyles = createUseStyles({
     },
     divider: ({themeMode}: StyleProps) => ({
         marginTop: 0,
+        marginBottom: 32,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
     h1: {
-        fontSize: 24,
+        fontSize: 28,
+        fontWeight: "normal",
     },
     modal: {
         "& .ant-modal-body": {
@@ -181,26 +187,18 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const providerKeys = getApikeys()
-        if (!providerKeys && !isDemo()) {
-            notification.error({
-                message: "OpenAI API Key Missing",
-                description: "Please provide your OpenAI API key to access this feature.",
-                duration: 5,
-            })
-            router.push("/settings?tab=secrets")
-            return
-        }
+        if (redirectIfNoLLMKeys()) return
 
         setFetchingTemplate(true)
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
+        const apiKey = getApikeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            providerKey: isDemo() ? "" : (providerKeys as string),
+            providerKey: isDemo() && (!apiKey || apiKey === "") ? "" : apiKey,
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
@@ -246,7 +244,8 @@ const AppSelector: React.FC = () => {
     }
 
     const appNameExist = useMemo(
-        () => apps.some((app: GenericObject) => app.app_name === newApp),
+        () =>
+            apps.some((app: GenericObject) => app.app_name.toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
     )
 
@@ -259,26 +258,19 @@ const AppSelector: React.FC = () => {
             <div className={classes.container}>
                 {isLoading ? (
                     <div>
-                        <Spin />
-                        <h1>loading...</h1>
+                        <ResultComponent status={"info"} title="Loading..." spinner={true} />
                     </div>
                 ) : error ? (
                     <div>
-                        <CloseCircleFilled className={classes.closeIcon} />
-                        <h1>failed to load</h1>
+                        <ResultComponent status={"error"} title="Failed to load" />
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
                     <>
-                        <h1 className={classes.h1}>LLM Applications</h1>
+                        <h1 className={classes.h1}>Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    {apps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))}
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
@@ -290,12 +282,18 @@ const AppSelector: React.FC = () => {
                                         }}
                                     >
                                         <Card.Meta
-                                            data-cy="create-new-app-button"
+                                            data-cy="create-new-ap`p-button"
                                             className={classes.createCardMeta}
-                                            title={<div>Create New App</div>}
+                                            title={<div>Create new app</div>}
                                             avatar={<PlusOutlined size={24} />}
                                         />
                                     </Card>
+
+                                    {apps.map((app, index: number) => (
+                                        <div key={index}>
+                                            <AppCard app={app} />
+                                        </div>
+                                    ))}
                                 </>
                             )}
                         </div>

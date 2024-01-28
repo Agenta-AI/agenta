@@ -43,6 +43,7 @@ async def start_service(
         container_name=container_name,
         env_vars=env_vars,
     )
+
     uri = results["uri"]
     container_id = results["container_id"]
     container_name = results["container_name"]
@@ -138,3 +139,7 @@ async def validate_image(image: Image) -> bool:
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
     return True
+
+
+def get_deployment_uri(deployment: DeploymentDB) -> str:
+    return deployment.uri.replace("http://localhost", "http://host.docker.internal")

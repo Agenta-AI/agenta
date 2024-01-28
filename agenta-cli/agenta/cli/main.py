@@ -12,6 +12,7 @@ import toml
 from agenta.cli import helper
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
+from agenta.cli import evaluation_commands
 
 from agenta.client.backend.client import AgentaApi
 
@@ -216,6 +217,7 @@ def init(app_name: str):
 cli.add_command(init)
 cli.add_command(variant_configs.config)
 cli.add_command(variant_commands.variant)
+cli.add_command(evaluation_commands.evaluation)
 
 if __name__ == "__main__":
     cli()
