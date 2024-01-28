@@ -241,13 +241,15 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
                 return {
                     variantId: variant.variantId,
                     variantName: variant.variantName,
-                    output: scenario?.outputs[0] || {type: "string", value: ""},
+                    output: scenario?.outputs[0] || {
+                        result: {type: "string", value: "", error: null},
+                    },
                     evaluationId: scenario?.evaluation.id || "",
                     evaluatorConfigs: (scenario?.evaluators_configs || []).map((config) => ({
                         evaluatorConfig: config,
                         result: scenario?.results.find(
                             (result) => result.evaluator_config === config.id,
-                        )?.result || {type: "string", value: "", error: null},
+                        )?.result || {type: "string", value: "", error: null}, // Adjust this line
                     })),
                 }
             }),

@@ -241,7 +241,7 @@ export function getTypedValue(res?: TypedValue) {
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
           ? capitalize(value?.toString())
-          : value
+          : value?.toString()
 }
 
 export function getFilterParams(type: "number" | "text" | "date") {
@@ -296,5 +296,5 @@ function customComparator(valueA: string, valueB: string) {
     if (valueB === "-") {
         return -1
     }
-    return valueA - valueB
+    return parseFloat(valueA) - parseFloat(valueB)
 }

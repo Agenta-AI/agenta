@@ -152,8 +152,8 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    item.status === EvaluationStatus.STARTED ||
-                    item.status === EvaluationStatus.INITIALIZED ||
+                    item.status.value === EvaluationStatus.STARTED ||
+                    item.status.value === EvaluationStatus.INITIALIZED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],

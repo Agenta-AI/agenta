@@ -127,7 +127,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     return getTypedValue(
                         params.data?.variants.find(
                             (item) => item.evaluationId === variant.evaluationId,
-                        )?.output.result,
+                        )?.output?.result,
                     )
                 },
                 cellRenderer: LongTextCellRenderer,
