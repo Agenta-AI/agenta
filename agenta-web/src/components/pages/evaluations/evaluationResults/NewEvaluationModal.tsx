@@ -116,7 +116,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             return
         setSubmitLoading(true)
         createEvalutaiton(appId, {
-            ...values,
+            testset_id: values.testset_id,
+            variant_ids: values.variant_ids,
+            evaluators_configs: values.evaluators_configs,
             rate_limit: rateLimitValues,
             lm_providers_keys: {openai: getApikeys()},
         })
