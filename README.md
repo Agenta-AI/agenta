@@ -139,11 +139,14 @@ By **adding a few lines to your application code**, you can create a prompt play
 
 # Features
 
+
+
+
 | Playground | Evaluation |
 | ------- | ------- |
-| With just a few lines of code, define the parameters and prompts you wish to experiment with. You and your team can quickly experiment and test new variants on the web UI. <br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c" controls="controls" style="max-width:100%;"> | Define test sets, then evaluate manually or programmatically your different variants.<br/> ![](https://github.com/Agenta-AI/agenta/assets/4510758/b1de455d-7e0a-48d6-8497-39ba641600f0) |
+| Compare and version prompts for any LLM app, from single prompt to agents. <br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c" controls="controls" style="max-width:100%;"> | Define test sets, then evaluate manually or programmatically your different variants.<br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8c6997c6-da87-46ad-a81f-e15e277263d2" controls="controls" style="max-width:100%;">|
 | Human annotation | Deployment |
-| | When you are ready, deploy your LLM applications as APIs in one click.<br/>![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif) |
+| Use Human annotator to A/B test and score your LLM apps. <br/>  <img width="750" alt="Screenshot 2024-01-28 at 12 57 46" src="https://github.com/Agenta-AI/agenta/assets/4510758/bf62a697-bf19-4ba9-850e-742fbfb75424"> | When you are ready, deploy your LLM applications as APIs in one click.<br/>![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif) |
 
 # Enterprise Support
 Contact us here for enterprise support and early access to agenta self-managed enterprise with Kubernetes support. <br/><br/>
