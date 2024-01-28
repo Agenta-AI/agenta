@@ -13,8 +13,23 @@ const useBlockNavigation = (
     const props = useRef(_props)
     const shouldAlert = useRef(_shouldAlert)
 
+    const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+        if (blocking.current) {
+            const message = "You have unsaved changes. Are you sure you want to leave?"
+            event.returnValue = message // Standard for most browsers
+            return message // For some older browsers
+        }
+    }
+
     useEffect(() => {
         blocking.current = _blocking
+
+        // prevent from reload or closing tab with unsaved changes
+        window.addEventListener("beforeunload", beforeUnloadHandler)
+
+        return () => {
+            window.removeEventListener("beforeunload", beforeUnloadHandler)
+        }
     }, [_blocking])
 
     useEffect(() => {
@@ -26,9 +41,6 @@ const useBlockNavigation = (
     }, [_shouldAlert])
 
     useEffect(() => {
-        // prevent from reload or closing tab
-        window.onbeforeunload = () => true
-
         const handler = (newRoute: string) => {
             if (opened.current || !blocking.current) return
 
@@ -76,7 +88,7 @@ const useBlockNavigation = (
 
         Router.events.on("routeChangeStart", handler)
         return () => {
-            window.onbeforeunload = null
+            window.removeEventListener("beforeunload", beforeUnloadHandler)
             Router.events.off("routeChangeStart", handler)
         }
     }, [])

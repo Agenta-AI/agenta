@@ -3,8 +3,6 @@ import asyncio
 
 from agenta_backend.models.db_engine import DBEngine
 
-engine = DBEngine().engine()
-
 
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
@@ -13,6 +11,9 @@ def event_loop():
     res = policy.new_event_loop()
     asyncio.set_event_loop(res)
     res._close = res.close
+
+    # Initialize beanie
+    res.run_until_complete(DBEngine().init_db())
 
     yield res
 

@@ -1,5 +1,6 @@
 """Main Business logic
 """
+
 import os
 import logging
 from urllib.parse import urlparse
@@ -15,7 +16,11 @@ from agenta_backend.models.db_models import (
     AppEnvironmentDB,
     AppDB,
 )
-from agenta_backend.services import db_manager
+
+from agenta_backend.services import (
+    db_manager,
+    evaluator_manager,
+)
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.cloud.services import (
@@ -139,8 +144,13 @@ async def update_variant_image(
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
+    # Update variant to remove configuration
+    await db_manager.update_variant_parameters(
+        app_variant_db=app_variant_db, parameters={}
+    )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
+
     # Start variant
     await start_variant(app_variant_db, **kwargs)
 
@@ -467,5 +477,6 @@ async def add_variant_based_on_image(
         base=db_base,
         config=config_db,
     )
+
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant

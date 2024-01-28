@@ -1,6 +1,6 @@
-import React, {useContext, useEffect, useState} from "react"
+import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form} from "antd"
-import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
@@ -17,6 +17,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
+import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -97,25 +98,34 @@ interface BoxComponentProps {
     inputParams: Parameter[] | null
     testData: GenericObject
     result: string
+    additionalData: {
+        cost: number | null
+        latency: number | null
+        usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+    }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
     onDelete?: () => void
     isChatVariant?: boolean
     variant: Variant
+    onCancel: () => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
     testData,
     result,
+    additionalData,
     onInputParamChange,
     onRun,
     onAddToTestset,
     onDelete,
     isChatVariant = false,
     variant,
+    onCancel,
 }) => {
+    const {appTheme} = useAppTheme()
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
@@ -131,9 +141,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         })
         params.correct_answer = result
         if (isChatVariant) {
-            const messages = testData.chat.filter((item: ChatMessage) => !!item.content)
-            params.chat = messages.slice(0, -1)
-            params.correct_answer = messages.at(-1)
+            const messages = testData?.chat?.filter((item: ChatMessage) => !!item.content)
+            params.chat = messages?.slice(0, -1)
+            params.correct_answer = messages?.at(-1)
         }
 
         onAddToTestset(params)
@@ -160,6 +170,30 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     imageSize="large"
                 />
             </Row>
+            {additionalData?.cost || additionalData?.latency ? (
+                <Space>
+                    <p>
+                        Tokens:{" "}
+                        {additionalData.usage !== null
+                            ? JSON.stringify(additionalData.usage.total_tokens)
+                            : 0}
+                    </p>
+                    <p>
+                        Cost:{" "}
+                        {additionalData.cost !== null
+                            ? `$${additionalData.cost.toFixed(4)}`
+                            : "$0.00"}
+                    </p>
+                    <p>
+                        Latency:{" "}
+                        {additionalData.latency !== null
+                            ? `${Math.round(additionalData.latency * 1000)}ms`
+                            : "0ms"}
+                    </p>
+                </Space>
+            ) : (
+                ""
+            )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
                     <Button
@@ -176,17 +210,29 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         disabled={loading || !result}
                         shape="round"
                     />
-                    <Button
-                        data-cy="testview-input-parameters-run-button"
-                        className={`testview-run-button-${testData._id}`}
-                        type="primary"
-                        shape="round"
-                        icon={<CaretRightOutlined />}
-                        onClick={isChatVariant ? onRun : form.submit}
-                        loading={loading}
-                    >
-                        Run
-                    </Button>
+                    {loading ? (
+                        <Button
+                            icon={<CloseCircleOutlined />}
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={onCancel}
+                            className={`testview-cancel-button-${testData._id}`}
+                        >
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Button
+                            data-cy="testview-input-parameters-run-button"
+                            className={`testview-run-button-${testData._id}`}
+                            type="primary"
+                            shape="round"
+                            icon={<CaretRightOutlined />}
+                            onClick={isChatVariant ? onRun : form.submit}
+                            loading={loading}
+                        >
+                            Run
+                        </Button>
+                    )}
                 </Col>
             </Row>
             {!isChatVariant && (
@@ -197,6 +243,18 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         rows={6}
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
+                        style={{
+                            background: result?.startsWith("❌")
+                                ? appTheme === "dark"
+                                    ? "#490b0b"
+                                    : "#fff1f0"
+                                : "",
+                            color: result?.startsWith("❌")
+                                ? appTheme === "dark"
+                                    ? "#ffffffd9"
+                                    : "#000000e0"
+                                : "",
+                        }}
                     />
                 </Row>
             )}
@@ -224,6 +282,22 @@ const App: React.FC<TestViewProps> = ({
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [additionalDataList, setAdditionalDataList] = useState<
+        Array<{
+            cost: number | null
+            latency: number | null
+            usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+        }>
+    >(testList.map(() => ({cost: null, latency: null, usage: null})))
+
+    const abortControllersRef = useRef<AbortController[]>([])
+    const [isRunningAll, setIsRunningAll] = useState(false)
+
+    useEffect(() => {
+        return () => {
+            abortControllersRef.current.forEach((controller) => controller.abort())
+        }
+    }, [])
 
     useEffect(() => {
         setResultsList((prevResultsList) => {
@@ -275,25 +349,30 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleRun = async (index: number) => {
+        const controller = new AbortController()
+        abortControllersRef.current[index] = controller
         try {
             const testItem = testList[index]
             if (compareMode && !isRunning[index]) {
-                setIsRunning(
-                    (prevState) => {
-                        const newState = [...prevState]
-                        newState[index] = true
-                        return newState
-                    },
-                    () => {
-                        document
-                            .querySelectorAll(`.testview-run-button-${testItem._id}`)
-                            .forEach((btn) => {
-                                if (btn.parentElement?.id !== variant.variantId) {
-                                    ;(btn as HTMLButtonElement).click()
-                                }
-                            })
-                    },
-                )
+                let called = false
+                const callback = () => {
+                    if (called) return
+                    called = true
+                    document
+                        .querySelectorAll(`.testview-run-button-${testItem._id}`)
+                        .forEach((btn) => {
+                            if (btn.parentElement?.id !== variant.variantId) {
+                                ;(btn as HTMLButtonElement).click()
+                            }
+                        })
+                }
+
+                setIsRunning((prevState) => {
+                    const newState = [...prevState]
+                    newState[index] = true
+                    return newState
+                }, callback)
+                setTimeout(callback, 300)
             }
             setResultForIndex(LOADING_TEXT, index)
 
@@ -304,16 +383,35 @@ const App: React.FC<TestViewProps> = ({
                 appId || "",
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
+                controller.signal,
+                true,
             )
 
-            setResultForIndex(res, index)
-        } catch (e) {
-            setResultForIndex(
-                "The code has resulted in the following error: \n\n --------------------- \n" +
-                    getErrorMessage(e) +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
-                index,
-            )
+            // check if res is an object or string
+            if (typeof res === "string") {
+                setResultForIndex(res, index)
+            } else {
+                setResultForIndex(res.message, index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    return newDataList
+                })
+            }
+        } catch (e: any) {
+            if (!controller.signal.aborted) {
+                setResultForIndex(
+                    `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
+                    index,
+                )
+            } else {
+                setResultForIndex("", index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: null, latency: null, usage: null}
+                    return newDataList
+                })
+            }
         } finally {
             setIsRunning((prevState) => {
                 const newState = [...prevState]
@@ -323,13 +421,38 @@ const App: React.FC<TestViewProps> = ({
         }
     }
 
-    const handleRunAll = () => {
+    const handleCancel = (index: number) => {
+        if (abortControllersRef.current[index]) {
+            abortControllersRef.current[index].abort()
+        }
+        if (compareMode && isRunning[index]) {
+            const testItem = testList[index]
+
+            document.querySelectorAll(`.testview-cancel-button-${testItem._id}`).forEach((btn) => {
+                if (btn.parentElement?.id !== variant.variantId) {
+                    ;(btn as HTMLButtonElement).click()
+                }
+            })
+        }
+    }
+
+    const handleCancelAll = () => {
+        const funcs: Function[] = []
+        rootRef.current
+            ?.querySelectorAll("[class*=testview-cancel-button-]")
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
+        batchExecute(funcs)
+    }
+
+    const handleRunAll = async () => {
         const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
             .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
-        batchExecute(funcs)
+        setIsRunningAll(true)
+        await batchExecute(funcs)
+        setIsRunningAll(false)
     }
 
     const handleAddRow = () => {
@@ -377,14 +500,25 @@ const App: React.FC<TestViewProps> = ({
                 <Space size={10}>
                     <LoadTestsModal onLoad={onLoadTests} />
 
-                    <Button
-                        type="primary"
-                        size="middle"
-                        className={classes.runAllBtn}
-                        onClick={handleRunAll}
-                    >
-                        Run all
-                    </Button>
+                    {!isRunningAll ? (
+                        <Button
+                            type="primary"
+                            size="middle"
+                            className={classes.runAllBtn}
+                            onClick={handleRunAll}
+                        >
+                            Run all
+                        </Button>
+                    ) : (
+                        <Button
+                            size="middle"
+                            type="primary"
+                            style={{backgroundColor: "#d32f2f"}}
+                            onClick={handleCancelAll}
+                        >
+                            Cancel All
+                        </Button>
+                    )}
                 </Space>
             </div>
 
@@ -399,6 +533,7 @@ const App: React.FC<TestViewProps> = ({
                                   ?.content
                             : resultsList[index]
                     }
+                    additionalData={additionalDataList[index]}
                     onInputParamChange={(paramName, value) =>
                         handleInputParamChange(paramName, value, index)
                     }
@@ -407,6 +542,7 @@ const App: React.FC<TestViewProps> = ({
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
                     isChatVariant={isChatVariant}
                     variant={variant}
+                    onCancel={() => handleCancel(index)}
                 />
             ))}
             <Button

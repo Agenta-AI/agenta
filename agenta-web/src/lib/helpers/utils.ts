@@ -1,8 +1,20 @@
+import {v4 as uuidv4} from "uuid"
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+import {notification} from "antd"
+import Router from "next/router"
+
+if (typeof window !== "undefined") {
+    //@ts-ignore
+    if (!window.Cypress) {
+        dayjs.extend(utc)
+    }
+}
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -34,7 +46,11 @@ export const getAllLlmProviderKeysAsEnvVariable = () => {
 }
 
 export const renameVariables = (name: string) => {
-    return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    if (name === "inputs") {
+        return "Prompt Variables"
+    } else {
+        return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    }
 }
 
 export const renameVariablesCapitalizeAll = (name: string) => {
@@ -300,16 +316,89 @@ export async function batchExecute(
     return results
 }
 
-export const shortPoll = async (
+export const shortPoll = (
     func: Function,
     {delayMs, timeoutMs = 2000}: {delayMs: number; timeoutMs?: number},
 ) => {
     let startTime = Date.now()
     let shouldContinue = true
-    while (shouldContinue && Date.now() - startTime < timeoutMs) {
-        try {
-            shouldContinue = await func()
-        } catch {}
-        await delay(delayMs)
+
+    const executor = async () => {
+        while (shouldContinue && Date.now() - startTime < timeoutMs) {
+            try {
+                await func()
+            } catch {}
+            await delay(delayMs)
+        }
+        if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
     }
+
+    const promise = executor()
+
+    return {
+        stopper: () => {
+            shouldContinue = false
+        },
+        promise,
+    }
+}
+
+export function pickRandom<T>(arr: T[], len: number) {
+    const result: T[] = []
+    const length = arr.length
+
+    for (let i = 0; i < len; i++) {
+        const randomIndex = Math.floor(Math.random() * length)
+        result.push(arr[randomIndex])
+    }
+
+    return result
+}
+
+export function durationToStr(ms: number) {
+    const duration = dayjs.duration(ms, "milliseconds")
+    const days = Math.floor(duration.asDays())
+    const hours = Math.floor(duration.asHours() % 24)
+    const mins = Math.floor(duration.asMinutes() % 60)
+    const secs = Math.floor(duration.asSeconds() % 60)
+
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${mins}m`
+    if (mins > 0) return `${mins}m ${secs}s`
+    return `${secs}s`
+}
+
+type DayjsDate = Parameters<typeof dayjs>[0]
+export function getDurationStr(date1: DayjsDate, date2: DayjsDate) {
+    const d1 = dayjs(date1)
+    const d2 = dayjs(date2)
+
+    return durationToStr(d2.diff(d1, "milliseconds"))
+}
+
+export const generateOrRetrieveDistinctId = (): string => {
+    if (typeof localStorage !== "undefined") {
+        let distinctId = localStorage.getItem("posthog_distinct_id")
+        if (!distinctId) {
+            distinctId = uuidv4()
+            localStorage.setItem("posthog_distinct_id", distinctId)
+        }
+        return distinctId
+    } else {
+        return uuidv4()
+    }
+}
+
+export const redirectIfNoLLMKeys = () => {
+    const providerKeys = getApikeys()
+    if (!providerKeys && !isDemo()) {
+        notification.error({
+            message: "OpenAI API Key Missing",
+            description: "Please provide your OpenAI API key to access this feature.",
+            duration: 5,
+        })
+        Router.push("/settings?tab=secrets")
+        return true
+    }
+    return false
 }

@@ -1,6 +1,18 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
-import {Button, Card, Col, Radio, Row, Space, Statistic, Table, Typography, message} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Radio,
+    Row,
+    Space,
+    Statistic,
+    Table,
+    Typography,
+    message,
+} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -21,6 +33,8 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
+import {PassThrough} from "stream"
+import {debounce} from "lodash"
 
 const {Title} = Typography
 
@@ -89,6 +103,22 @@ const useStyles = createUseStyles({
         top: 36,
         zIndex: 1,
     },
+    sideBar: {
+        marginTop: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+        border: "1px solid #d9d9d9",
+        borderRadius: 6,
+        padding: "1rem",
+        alignSelf: "flex-start",
+        "&>h4.ant-typography": {
+            margin: 0,
+        },
+        flex: 0.35,
+        minWidth: 240,
+        maxWidth: 500,
+    },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -116,6 +146,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
             ?.number_of_votes || 0
 
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>, scenarioId) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
+        [evaluationScenarios],
+    )
+
     useEffect(() => {
         if (evaluationScenarios) {
             const obj = [...evaluationScenarios]
@@ -137,6 +174,66 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         setRows(newRows)
     }
 
+    const setRowValue = useCallback(
+        (rowIndex: number, columnKey: keyof ABTestingEvaluationTableRow, value: any) => {
+            const newRows = [...rows]
+            newRows[rowIndex][columnKey] = value as never
+            setRows(newRows)
+        },
+        [rows],
+    )
+
+    const updateEvaluationScenarioData = useCallback(
+        async (id: string, data: Partial<EvaluationScenario>, showNotification: boolean = true) => {
+            await updateEvaluationScenario(
+                evaluation.id,
+                id,
+                Object.keys(data).reduce(
+                    (acc, key) => ({
+                        ...acc,
+                        [camelToSnake(key)]: data[key as keyof EvaluationScenario],
+                    }),
+                    {},
+                ),
+                evaluation.evaluationType,
+            )
+                .then(() => {
+                    Object.keys(data).forEach((key) => {
+                        setRowValue(
+                            evaluationScenarios.findIndex((item) => item.id === id),
+                            key,
+                            data[key as keyof EvaluationScenario],
+                        )
+                    })
+                    if (showNotification) message.success("Evaluation Updated!")
+                })
+                .catch(console.error)
+        },
+        [evaluation.evaluationType, evaluation.id, evaluationScenarios, setRowValue],
+    )
+
+    const handleVoteClick = useCallback(
+        (id: string, vote: string) => {
+            const rowIndex = rows.findIndex((row) => row.id === id)
+            const evaluation_scenario_id = rows[rowIndex].id
+
+            if (evaluation_scenario_id) {
+                setRowValue(rowIndex, "vote", "loading")
+                const data = {
+                    vote: vote,
+                    outputs: variants.map((v: Variant) => ({
+                        variant_id: v.variantId,
+                        variant_output: rows[rowIndex][v.variantId],
+                    })),
+                    inputs: rows[rowIndex].inputs,
+                }
+
+                updateEvaluationScenarioData(evaluation_scenario_id, data)
+            }
+        },
+        [rows, setRowValue, updateEvaluationScenarioData, variants],
+    )
+
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
             fetchEvaluationResults(evaluation.id)
@@ -147,56 +244,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
-    }, [evaluationStatus, evaluation.id])
-
-    const handleVoteClick = (id: string, vote: string) => {
-        const rowIndex = rows.findIndex((row) => row.id === id)
-        const evaluation_scenario_id = rows[rowIndex].id
-
-        if (evaluation_scenario_id) {
-            setRowValue(rowIndex, "vote", "loading")
-            const data = {
-                vote: vote,
-                outputs: variants.map((v: Variant) => ({
-                    variant_id: v.variantId,
-                    variant_output: rows[rowIndex][v.variantId],
-                })),
-                inputs: rows[rowIndex].inputs,
-            }
-
-            updateEvaluationScenarioData(evaluation_scenario_id, data)
-        }
-    }
-
-    const updateEvaluationScenarioData = async (
-        id: string,
-        data: Partial<EvaluationScenario>,
-        showNotification: boolean = true,
-    ) => {
-        await updateEvaluationScenario(
-            evaluation.id,
-            id,
-            Object.keys(data).reduce(
-                (acc, key) => ({
-                    ...acc,
-                    [camelToSnake(key)]: data[key as keyof EvaluationScenario],
-                }),
-                {},
-            ),
-            evaluation.evaluationType,
-        )
-            .then(() => {
-                Object.keys(data).forEach((key) => {
-                    setRowValue(
-                        evaluationScenarios.findIndex((item) => item.id === id),
-                        key,
-                        data[key as keyof EvaluationScenario],
-                    )
-                })
-                if (showNotification) message.success("Evaluation Updated!")
-            })
-            .catch(console.error)
-    }
+    }, [evaluationStatus, evaluation.id, handleVoteClick])
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
@@ -238,6 +286,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
+                    if (typeof result !== "string") {
+                        result = result.message
+                    }
 
                     setRowValue(rowIndex, variant.variantId, result)
                     ;(outputs as KeyValuePair)[variant.variantId] = result
@@ -267,16 +318,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         )
     }
 
-    const setRowValue = (
-        rowIndex: number,
-        columnKey: keyof ABTestingEvaluationTableRow,
-        value: any,
-    ) => {
-        const newRows = [...rows]
-        newRows[rowIndex][columnKey] = value as never
-        setRows(newRows)
-    }
-
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = variants.map(
         (variant: Variant, ix) => {
             const columnKey = variant.variantId
@@ -293,7 +334,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 ),
                 dataIndex: columnKey,
                 key: columnKey,
-                width: "25%",
+                width: "20%",
                 render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
@@ -340,24 +381,75 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
             },
         },
+        {
+            title: "Expected Output",
+            dataIndex: "expectedOutput",
+            key: "expectedOutput",
+            width: "25%",
+            render: (text: any, record: any, rowIndex: number) => {
+                let correctAnswer =
+                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
+
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={correctAnswer}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario(
+                                    {
+                                        correctAnswer: e.target.value,
+                                    },
+                                    record.id,
+                                )
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
+        },
         ...dynamicColumns,
         {
-            title: "Evaluate",
-            dataIndex: "evaluate",
-            key: "evaluate",
-            width: 200,
-            // fixed: 'right',
-            render: (text: any, record: any, rowIndex: number) => (
-                <EvaluationVotePanel
-                    type="comparison"
-                    value={record.vote || ""}
-                    variants={variants}
-                    onChange={(vote) => handleVoteClick(record.id, vote)}
-                    loading={record.vote === "loading"}
-                    vertical
-                    key={record.id}
-                />
-            ),
+            title: "Score",
+            dataIndex: "score",
+            key: "score",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        {
+                            <EvaluationVotePanel
+                                type="comparison"
+                                value={record.vote || ""}
+                                variants={variants}
+                                onChange={(vote) => handleVoteClick(record.id, vote)}
+                                loading={record.vote === "loading"}
+                                vertical
+                                key={record.id}
+                            />
+                        }
+                    </>
+                )
+            },
+        },
+        {
+            title: "Additional Note",
+            dataIndex: "additionalNote",
+            key: "additionalNote",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={record?.note || ""}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario({note: e.target.value}, record.id)
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
         },
     ]
 
@@ -377,8 +469,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportABTestingEvaluationData(evaluation, rows)}
-                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                                onClick={() =>
+                                    exportABTestingEvaluationData(
+                                        evaluation,
+                                        evaluationScenarios,
+                                        rows,
+                                    )
+                                }
+                                disabled={false}
                             >
                                 Export results
                             </SecondaryButton>

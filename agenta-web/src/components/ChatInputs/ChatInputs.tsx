@@ -6,6 +6,7 @@ import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 import {v4 as uuidv4} from "uuid"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const useStyles = createUseStyles({
     root: {
@@ -62,6 +63,7 @@ const ChatInputs: React.FC<Props> = ({
     disableEditContent,
     readonly,
 }) => {
+    const {appTheme} = useAppTheme()
     const classes = useStyles()
     const [messages, setMessages] = useState<ChatMessage[]>(
         cloneDeep(value || defaultValue || [getDefaultNewMessage()]),
@@ -139,7 +141,19 @@ const ChatInputs: React.FC<Props> = ({
                         onChange={(newRole) => handleRoleChange(ix, newRole)}
                     />
                     <Input.TextArea
-                        style={{maxWidth: "none"}}
+                        style={{
+                            maxWidth: "none",
+                            background: msg.content.startsWith("❌")
+                                ? appTheme === "dark"
+                                    ? "#490b0b"
+                                    : "#fff1f0"
+                                : "",
+                            color: msg.content.startsWith("❌")
+                                ? appTheme === "dark"
+                                    ? "#ffffffd9"
+                                    : "#000000e0"
+                                : "",
+                        }}
                         disabled={disableEditContent}
                         autoSize={{maxRows}}
                         value={msg.content}

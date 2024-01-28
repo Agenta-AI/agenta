@@ -44,7 +44,7 @@ async def save_config(
                 variant_to_overwrite = variant_db
                 break
         if variant_to_overwrite is not None:
-            if payload.overwrite:
+            if payload.overwrite or variant_to_overwrite.config.parameters == {}:
                 print(f"update_variant_parameters  ===> {payload.overwrite}")
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
@@ -53,7 +53,7 @@ async def save_config(
                 )
             else:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=200,
                     detail="Config name already exists. Please use a different name or set overwrite to True.",
                 )
         else:

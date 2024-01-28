@@ -1,4 +1,8 @@
+import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
+import {GlobalToken} from "antd"
+
+export type JSSTheme = GlobalToken & {isDark: boolean}
 
 export interface testset {
     _id: string
@@ -44,6 +48,13 @@ export interface PlaygroundTabsItem {
     label: string
     children: JSX.Element
     closable: boolean
+}
+
+export interface LLMRunRateLimit {
+    batch_size: number
+    max_retries: number
+    retry_delay: number
+    delay_between_batches: number
 }
 
 export interface Evaluation {
@@ -287,4 +298,131 @@ export type ChatMessage = {
     role: ChatRole
     content: string
     id?: string
+}
+
+type ValueType = number | string | boolean | GenericObject | null
+type ValueTypeOptions =
+    | "text"
+    | "number"
+    | "boolean"
+    | "bool"
+    | "string"
+    | "code"
+    | "regex"
+    | "object"
+
+//evaluation revamp types
+export interface EvaluationSettingsTemplate {
+    type: ValueTypeOptions
+    label: string
+    default?: ValueType
+    description: string
+}
+
+export interface Evaluator {
+    name: string
+    key: string
+    settings_template: Record<string, EvaluationSettingsTemplate>
+    icon_url?: string | StaticImageData
+    color?: string
+    direct_use?: boolean
+}
+
+export interface EvaluatorConfig {
+    id: string
+    evaluator_key: string
+    name: string
+    settings_values: Record<string, any>
+    created_at: string
+}
+
+export interface TypedValue {
+    type: ValueTypeOptions
+    value: ValueType
+}
+
+export interface EvaluationScenarioResult {
+    evaluator: Evaluator
+    result: TypedValue
+}
+
+export enum EvaluationStatus {
+    INITIALIZED = "EVALUATION_INITIALIZED",
+    STARTED = "EVALUATION_STARTED",
+    FINISHED = "EVALUATION_FINISHED",
+    ERROR = "EVALUATION_FAILED",
+}
+
+export interface _Evaluation {
+    id: string
+    appId: string
+    user: {
+        id: string
+        username: string
+    }
+    testset: {
+        id: string
+        name: string
+    }
+    status: EvaluationStatus
+    variants: {variantId: string; variantName: string}[]
+    aggregated_results: {
+        evaluator_config: EvaluatorConfig
+        result: TypedValue
+    }[]
+    created_at?: string
+    updated_at?: string
+    duration?: number
+}
+
+export interface _EvaluationScenario {
+    id: string
+    evaluation_id: string
+    evaluation: _Evaluation
+    evaluators_configs: EvaluatorConfig[]
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    correct_answer?: string
+    is_pinned?: boolean
+    note?: string
+    results: {evaluator_config: string; result: TypedValue}[]
+}
+
+export interface Annotation {
+    id: string
+    app_id: string
+    variants: {variantId: string; variantName: string}[]
+    annotation_name: "flag" | "score"
+    testset: {
+        id: string
+        name: string
+    }
+    aggregated_results: string[]
+}
+
+export interface AnnotationScenario {
+    id: string
+    annotation_id: string
+    annotation: Annotation
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    is_pinned?: boolean
+    note?: string
+    result: TypedValue
+}
+
+export type ComparisonResultRow = {
+    inputs: {name: string; value: string}[]
+    correctAnswer: string
+    variants: {
+        variantId: string
+        variantName: string
+        output: TypedValue
+        evaluationId: string
+        evaluatorConfigs: {
+            evaluatorConfig: EvaluatorConfig
+            result: TypedValue
+        }[]
+    }[]
+    id: string
 }
