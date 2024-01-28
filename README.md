@@ -55,7 +55,7 @@
 
 <a href="https://cloud.agenta.ai">
   <picture>
-  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
+  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/d622f268-c295-42d4-a43c-548b611ff6f2" />
   </picture>
 </a>
 
@@ -140,13 +140,14 @@ Contact us here for enterprise support and early access to agenta self-managed e
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
 # Disabling Anonymized Tracking
+By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information.
 
-To disable anonymized telemetry, set the following environment variable:
+To disable anonymized telemetry, follow these steps:
 
 - For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
 - For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
 
-After making this change, restart agenta compose.
+After making this change, restart Agenta Compose.
 
 # Contributing
 
