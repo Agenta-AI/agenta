@@ -345,7 +345,7 @@ export type EvaluationError = {
 export interface TypedValue {
     type: ValueTypeOptions
     value: ValueType
-    error: EvaluationError
+    error: null | EvaluationError
 }
 
 export enum EvaluationStatus {
@@ -393,7 +393,7 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: {result: TypedValue[]}
+    outputs: {result: TypedValue}[]
     correct_answer?: string
     is_pinned?: boolean
     note?: string
@@ -429,7 +429,7 @@ export type ComparisonResultRow = {
     variants: {
         variantId: string
         variantName: string
-        output: TypedValue
+        output: {result: TypedValue}
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig
