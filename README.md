@@ -14,7 +14,7 @@
     <a href="https://docs.agenta.ai/">Documentation</a>
   </h4>
 <div align="center">
-  <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM-powered features with confidence </h2></strong>
+  <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
   The open-source LLM developer platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
 </div>
 </br>
