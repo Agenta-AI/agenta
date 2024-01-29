@@ -2,13 +2,14 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {ChatMessage, Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
 import {
     LeftOutlined,
+    LoadingOutlined,
     PlayCircleOutlined,
     PushpinFilled,
     PushpinOutlined,
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Button, Empty, Form, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
@@ -122,6 +123,11 @@ const useStyles = createUseStyles({
         minWidth: 240,
         maxWidth: 500,
     },
+    centeredItem: {
+        display: "grid",
+        placeItems: "center",
+        width: "100%",
+    },
 })
 
 interface Props {
@@ -133,6 +139,7 @@ interface Props {
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
     variantData: ReturnType<typeof useVariants>
+    isLoading: boolean
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -144,6 +151,7 @@ const EvaluationCardView: React.FC<Props> = ({
     updateEvaluationScenarioData,
     evaluation,
     variantData,
+    isLoading,
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -161,6 +169,8 @@ const EvaluationCardView: React.FC<Props> = ({
         )
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
+
+    // console.log(evaluationScenarios, isLoading)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
@@ -315,7 +325,9 @@ const EvaluationCardView: React.FC<Props> = ({
 
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
-            {scenario ? (
+            {isLoading ? (
+                <Result className={classes.centeredItem} icon={<LoadingOutlined />} />
+            ) : scenario ? (
                 <>
                     <div className={classes.evaluation}>
                         <div className={classes.heading}>
@@ -489,7 +501,7 @@ const EvaluationCardView: React.FC<Props> = ({
                     </div>
                 </>
             ) : (
-                <Empty description="Evaluation not found" />
+                <Empty description="Evaluation not found" className={classes.centeredItem} />
             )}
         </div>
     )

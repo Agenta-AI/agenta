@@ -12,6 +12,7 @@ export default function Evaluation() {
         ? router.query.evaluation_id.toString()
         : ""
     const [evaluationScenarios, setEvaluationScenarios] = useState<EvaluationScenario[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [evaluation, setEvaluation] = useState<Evaluation>()
     const appId = router.query.app_id as string
 
@@ -20,13 +21,18 @@ export default function Evaluation() {
             return
         }
         const init = async () => {
-            const data = await loadEvaluationsScenarios(evaluationTableId, evaluation)
-            setEvaluationScenarios(
-                data.map((item: GenericObject) => {
-                    const numericScore = parseInt(item.score)
-                    return {...item, score: isNaN(numericScore) ? null : numericScore}
-                }),
-            )
+            setIsLoading(true)
+            try {
+                const data = await loadEvaluationsScenarios(evaluationTableId, evaluation)
+                setEvaluationScenarios(
+                    data.map((item: GenericObject) => {
+                        const numericScore = parseInt(item.score)
+                        return {...item, score: isNaN(numericScore) ? null : numericScore}
+                    }),
+                )
+            } finally {
+                setTimeout(() => setIsLoading(false), 1000)
+            }
         }
         init()
     }, [evaluation])
@@ -65,6 +71,7 @@ export default function Evaluation() {
                 <SingleModelEvaluationTable
                     evaluationScenarios={evaluationScenarios as any[]}
                     evaluation={evaluation}
+                    isLoading={isLoading}
                 />
             )}
         </div>

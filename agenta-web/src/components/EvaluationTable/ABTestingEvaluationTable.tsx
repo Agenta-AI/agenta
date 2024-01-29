@@ -42,6 +42,7 @@ interface EvaluationTableProps {
     evaluation: Evaluation
     columnsCount: number
     evaluationScenarios: ABTestingEvaluationTableRow[]
+    isLoading: boolean
 }
 
 export type ABTestingEvaluationTableRow = EvaluationScenario & {
@@ -124,6 +125,7 @@ const useStyles = createUseStyles({
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
+    isLoading
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -546,6 +548,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
                     variantData={variantData}
+                    isLoading={isLoading}
                 />
             )}
         </div>
