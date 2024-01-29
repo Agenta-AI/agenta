@@ -8,7 +8,13 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {
+    getAllProviderLlmKeys,
+    getApikeys,
+    isAppNameInputValid,
+    isDemo,
+    redirectIfNoLLMKeys,
+} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -124,6 +130,10 @@ const AppSelector: React.FC = () => {
         details: undefined,
         appId: undefined,
     })
+
+    useEffect(() => {
+        getAllProviderLlmKeys()
+    }, [])
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
