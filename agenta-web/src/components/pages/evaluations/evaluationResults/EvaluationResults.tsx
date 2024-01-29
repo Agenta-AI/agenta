@@ -150,7 +150,8 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    item.status !== EvaluationStatus.FINISHED ||
+                    item.status === EvaluationStatus.STARTED ||
+                    item.status === EvaluationStatus.INITIALIZED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],
@@ -327,7 +328,8 @@ const EvaluationResults: React.FC<Props> = () => {
                                         )
                                     )
                                         return
-                                    EvaluationStatus.FINISHED === params.data?.status &&
+                                    ;(params.data?.status === EvaluationStatus.FINISHED ||
+                                        params.data?.status === EvaluationStatus.ERROR) &&
                                         router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                                 }}
                                 rowSelection="multiple"

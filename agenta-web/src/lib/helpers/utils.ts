@@ -21,16 +21,17 @@ const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 export type LlmProvider = {
     title: string
     key: string
+    name: string
 }
 
 export const llmAvailableProviders: LlmProvider[] = [
-    {title: "OpenAI", key: ""},
-    {title: "Replicate", key: ""},
-    {title: "Hugging Face", key: ""},
-    {title: "Cohere", key: ""},
-    {title: "Anthropic", key: ""},
-    {title: "Azure", key: ""},
-    {title: "TogetherAI", key: ""},
+    {title: "OpenAI", key: "", name: "OPENAI_API_KEY"},
+    {title: "Replicate", key: "", name: "REPLICATE_API_KEY"},
+    {title: "Hugging Face", key: "", name: "HUGGING_FACE_API_KEY"},
+    {title: "Cohere", key: "", name: "COHERE_API_KEY"},
+    {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
+    {title: "Azure", key: "", name: "AZURE_API_KEY"},
+    {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
 ]
 
 export const getAllLlmProviderKeysAsEnvVariable = () => {
@@ -76,6 +77,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
 export const getApikeys = () => {
     if (typeof window !== "undefined") {
         const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
+        let apiKeys: Array<{title: string; key: string; name: string}> = []
 
         if (llmAvailableProvidersTokenString !== null) {
             const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
@@ -86,13 +88,27 @@ export const getApikeys = () => {
             ) {
                 for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
                     if (llmAvailableProvidersTokenArray[i].key !== "") {
-                        return llmAvailableProvidersTokenArray[i].key
+                        apiKeys.push(llmAvailableProvidersTokenArray[i])
                     }
                 }
             }
         }
-        return ""
+        return apiKeys
     }
+}
+
+export const apiKeyObject = () => {
+    const apiKey = getApikeys()
+
+    if (!apiKey) return {}
+
+    return apiKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
 }
 
 export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
@@ -111,9 +127,23 @@ export const getAllProviderLlmKeys = () => {
     if (typeof window !== "undefined") {
         const inStorage = localStorage.getItem(llmAvailableProvidersToken)
         if (inStorage) {
-            return JSON.parse(inStorage)
+            const parsedArray = JSON.parse(inStorage)
+            const updatedLlmAvailableProviders = parsedArray.map(
+                (item: LlmProvider, index: number) => {
+                    if (!item.hasOwnProperty("name")) {
+                        item.name = llmAvailableProviders[index].name
+                    }
+                    return item
+                },
+            )
+
+            localStorage.setItem(
+                llmAvailableProvidersToken,
+                JSON.stringify(updatedLlmAvailableProviders),
+            )
+
+            return updatedLlmAvailableProviders
         }
-        // if doesn't have the localStorage variable
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
     }
 
@@ -391,10 +421,10 @@ export const generateOrRetrieveDistinctId = (): string => {
 
 export const redirectIfNoLLMKeys = () => {
     const providerKeys = getApikeys()
-    if (!providerKeys && !isDemo()) {
+    if (providerKeys?.length === 0 && !isDemo()) {
         notification.error({
-            message: "OpenAI API Key Missing",
-            description: "Please provide your OpenAI API key to access this feature.",
+            message: "LLM Key Missing",
+            description: "Please provide at least one LLM key to access this feature.",
             duration: 5,
         })
         Router.push("/settings?tab=secrets")
