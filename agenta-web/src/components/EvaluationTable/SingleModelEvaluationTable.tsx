@@ -171,7 +171,7 @@ export const ParamsFormWithRun = ({
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
-    isLoading
+    isLoading,
 }) => {
     const classes = useStyles()
     const router = useRouter()
