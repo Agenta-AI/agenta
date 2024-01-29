@@ -224,7 +224,7 @@ class LLMRunRateLimit(BaseModel):
 
 
 class LMProvidersEnum(str, Enum):
-    openai = "openai"
+    openai = "OPENAI_API_KEY"
 
 
 class NewEvaluation(BaseModel):

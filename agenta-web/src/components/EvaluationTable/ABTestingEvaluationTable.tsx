@@ -27,7 +27,7 @@ import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
-import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
+import {Evaluation, EvaluationResult, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
 import {EvaluationTypeLabels, batchExecute, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
@@ -91,6 +91,11 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    stat: {
+        "& .ant-statistic-content-value": {
+            color: "#1677ff",
+        },
+    },
     statWrong: {
         "& .ant-statistic-content-value": {
             color: "#cf1322",
@@ -136,11 +141,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [evaluationResults, setEvaluationResults] = useState<EvaluationResult | null>(null)
     const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
 
     let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
     let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
+    let positive_votes = evaluationResults?.votes_data.positive_votes.number_of_votes || 0
     let appVariant1 =
         evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantId]
             ?.number_of_votes || 0
@@ -428,6 +434,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 loading={record.vote === "loading"}
                                 vertical
                                 key={record.id}
+                                outputs={record.outputs}
                             />
                         }
                     </>
@@ -494,7 +501,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                             evaluation.variants[0]?.variantName || ""
                                         } is better:`}
                                         value={`${appVariant1} out of ${num_of_rows}`}
-                                        className={classes.statCorrect}
+                                        className={classes.stat}
                                     />
                                 </Col>
                                 <Col span={10}>
@@ -503,6 +510,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                             evaluation.variants[1]?.variantName || ""
                                         } is better:`}
                                         value={`${appVariant2} out of ${num_of_rows}`}
+                                        className={classes.stat}
+                                    />
+                                </Col>
+                                <Col span={4}>
+                                    <Statistic
+                                        title="Both are good:"
+                                        value={`${positive_votes} out of ${num_of_rows}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>

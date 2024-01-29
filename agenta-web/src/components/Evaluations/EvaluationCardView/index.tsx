@@ -27,6 +27,7 @@ import {useVariants} from "@/lib/hooks/useVariant"
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
     "#F6D167", //"#13c2c2",
+    "#4caf50",
 ]
 
 const useStyles = createUseStyles({
@@ -453,6 +454,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.vote === "loading"}
                                             vertical
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     ) : (
                                         <EvaluationVotePanel
@@ -468,6 +470,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.score === "loading"}
                                             showVariantName={false}
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     )}
                                 </Space>

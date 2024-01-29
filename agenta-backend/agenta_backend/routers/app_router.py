@@ -378,12 +378,16 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_uri=template_db.template_uri
-            if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
-            else template_db.digest,
-            tags=f"{image_name}"
-            if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
-            else None,
+            docker_id_or_template_uri=(
+                template_db.template_uri
+                if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+                else template_db.digest
+            ),
+            tags=(
+                f"{image_name}"
+                if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
+                else None
+            ),
             base_name="app",
             config_name="default",
             is_template_image=True,
@@ -403,19 +407,16 @@ async def create_app_and_variant_from_template(
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug("Step 9: Starting variant and injecting environment variables")
+
+        envvars = {} if payload.env_vars is None else payload.env_vars
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-            if not os.environ["OPENAI_API_KEY"]:
-                raise Exception(
-                    "Unable to start app container. Please file an issue by clicking on the button below.",
-                )
-            envvars = {
-                **(payload.env_vars or {}),
-                "OPENAI_API_KEY": os.environ[
-                    "OPENAI_API_KEY"
-                ],  # order is important here
-            }
-        else:
-            envvars = {} if payload.env_vars is None else payload.env_vars
+            if envvars.get("OPENAI_API_KEY", "") == "":
+                if not os.environ["OPENAI_API_KEY"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                    )
+                envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
         await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
 
