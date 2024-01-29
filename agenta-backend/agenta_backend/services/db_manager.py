@@ -18,9 +18,10 @@ from agenta_backend.models.converters import (
 )
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
+    AppEnvironmentRevisionDB,
+    Result,
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
-    Result,
     AggregatedResult,
     AppDB,
     AppVariantDB,
@@ -37,6 +38,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     OrganizationDB,
     DeploymentDB,
+    AppEnvironmentRevisionDB,
     TemplateDB,
     TestSetDB,
     UserDB,
@@ -504,7 +506,7 @@ async def create_user_organization(user_uid: str) -> OrganizationDB:
 
 
 async def get_deployment_by_objectid(
-    deployment_id: ObjectId,
+    deployment_id: str,
 ) -> DeploymentDB:
     """Get the deployment object from the database with the provided id.
 
@@ -517,6 +519,23 @@ async def get_deployment_by_objectid(
 
     deployment = await DeploymentDB.find_one(
         DeploymentDB.id == ObjectId(deployment_id), fetch_links=True
+    )
+    logger.debug(f"deployment: {deployment}")
+    return deployment
+
+
+async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
+    """Get the deployment object from the database with the provided app id.
+
+    Arguments:
+        app_id (str): The app id
+
+    Returns:
+        DeploymentDB: instance of deployment object
+    """
+
+    deployment = await DeploymentDB.find_one(
+        DeploymentDB.app.id == ObjectId(app_id), fetch_links=True
     )
     logger.debug(f"deployment: {deployment}")
     return deployment
@@ -931,7 +950,9 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     await app_variant_db.delete()
 
 
-async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs: dict):
+async def deploy_to_environment(
+    environment_name: str, variant_id: str, **user_org_data: dict
+):
     """
     Deploys an app variant to a specified environment.
 
@@ -943,10 +964,10 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
                     deployed to the environment.
-
     Returns:
         None
     """
+
     app_variant_db = await fetch_app_variant_by_id(variant_id)
     app_variant_revision_db = await fetch_app_variant_revision_by_variant(
         app_variant_id=variant_id, revision=app_variant_db.revision
@@ -968,9 +989,23 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     #         f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
     #     )
 
+    # Retrieve app deployment
+    deployment = await get_deployment_by_appid(str(app_variant_db.app.id))
+
     # Update the environment with the new variant name
+    environment_db.revision += 1
     environment_db.deployed_app_variant = app_variant_db.id
     environment_db.deployed_app_variant_revision = app_variant_revision_db
+    environment_db.deployment = deployment.id
+
+    # Create revision for app environment
+    user = await get_user(user_uid=user_org_data["uid"])
+    await create_environment_revision(
+        environment_db,
+        user,
+        deployed_app_variant_revision=app_variant_revision_db.id,
+        deployment=deployment.id,
+    )
     await environment_db.save()
 
 
@@ -1035,10 +1070,43 @@ async def create_environment(
         app=app_db,
         name=name,
         user=app_db.user,
+        revision=0,
         organization=app_db.organization,
     )
     await environment_db.create()
     return environment_db
+
+
+async def create_environment_revision(
+    environment: AppEnvironmentDB, user: UserDB, **kwargs: dict
+):
+    """Creates a new environment revision.
+
+    Args:
+        environment (AppEnvironmentDB): The environment to create a revision for.
+        user (UserDB): The user that made the deployment.
+    """
+
+    assert environment is not None, "environment cannot be None"
+    assert user is not None, "user cannot be None"
+
+    environment_revision = AppEnvironmentRevisionDB(
+        environment=environment,
+        revision=environment.revision,
+        modified_by=user,
+    )
+
+    if kwargs:
+        deployed_app_variant_revision = kwargs.get("deployed_app_variant_revision")
+        if deployed_app_variant_revision is not None:
+            environment_revision.deployed_app_variant_revision = (
+                deployed_app_variant_revision
+            )
+
+        deployment = kwargs.get("deployment")
+        if deployment is not None:
+            environment_revision.deployment = deployment
+    await environment_revision.create()
 
 
 async def list_app_variant_revisions_by_variant(
