@@ -1,35 +1,16 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {
-    Button,
-    Input,
-    Card,
-    Row,
-    Col,
-    Space,
-    Form,
-    Drawer,
-    Typography,
-    Divider,
-    Empty,
-    Result,
-} from "antd"
-import {
-    CaretRightOutlined,
-    CloseCircleOutlined,
-    LoadingOutlined,
-    PlusOutlined,
-} from "@ant-design/icons"
+import {Button, Input, Card, Row, Col, Space, Form} from "antd"
+import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {
     ChatMessage,
     ChatRole,
     GenericObject,
-    IPromptRevisions,
     IPromptVersioning,
     Parameter,
     Variant,
 } from "@/lib/Types"
-import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, dynamicComponent, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -48,14 +29,17 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
+
+const PromptVersioningDrawer: any = dynamicComponent(
+    `PromptVersioningDrawer/PromptVersioningDrawer`,
+)
+
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
-
-const {Text} = Typography
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -319,12 +303,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
                         style={{
-                            background: result?.startsWith("❌ Error code")
+                            background: result?.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#490b0b"
                                     : "#fff1f0"
                                 : "",
-                            color: result?.startsWith("❌ Error code")
+                            color: result?.startsWith("❌")
                                 ? appTheme === "dark"
                                     ? "#ffffffd9"
                                     : "#000000e0"
@@ -345,7 +329,6 @@ const App: React.FC<TestViewProps> = ({
     compareMode,
     onStateChange,
     setPromptOptParams,
-    promptOptParams,
     promptRevisions,
     historyStatus,
     isDrawerOpen,
@@ -412,7 +395,7 @@ const App: React.FC<TestViewProps> = ({
                 return param
             })
         })
-    }, [revisionNum, promptRevisions])
+    }, [revisionNum])
 
     const abortControllersRef = useRef<AbortController[]>([])
     const [isRunningAll, setIsRunningAll] = useState(false)
@@ -522,9 +505,12 @@ const App: React.FC<TestViewProps> = ({
                     return newDataList
                 })
             }
-        } catch (e) {
+        } catch (e: any) {
             if (!controller.signal.aborted) {
-                setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
+                setResultForIndex(
+                    `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
+                    index,
+                )
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
@@ -622,12 +608,7 @@ const App: React.FC<TestViewProps> = ({
                     <LoadTestsModal onLoad={onLoadTests} />
 
                     {!isRunningAll ? (
-                        <Button
-                            type="primary"
-                            size="middle"
-                            className={classes.runAllBtn}
-                            onClick={handleRunAll}
-                        >
+                        <Button type="primary" size="middle" onClick={handleRunAll}>
                             Run all
                         </Button>
                     ) : (
@@ -684,83 +665,14 @@ const App: React.FC<TestViewProps> = ({
                 isChatVariant={!!isChatVariant}
             />
 
-            <Drawer
-                open={isDrawerOpen}
-                title="History"
-                size="default"
-                destroyOnClose
-                onClose={() => setIsDrawerOpen(false)}
-            >
-                {historyStatus.loading ? (
-                    <Result
-                        className={classes.emptyContainer}
-                        icon={<LoadingOutlined />}
-                        subTitle="Loading..."
-                    />
-                ) : historyStatus.error ? (
-                    <Result
-                        className={classes.emptyContainer}
-                        subTitle="Failed to Load History."
-                        status={"error"}
-                    />
-                ) : (
-                    <>
-                        {!!filteredRevisions?.length ? (
-                            filteredRevisions
-                                ?.map((item: IPromptRevisions) => (
-                                    <div key={item.revision} className={classes.historyContainer}>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                            }}
-                                        >
-                                            <Text className={classes.revisionText}>
-                                                {`# ${item.revision}`}
-                                            </Text>
-
-                                            <Text className={classes.tagText}>
-                                                {dayjs(item.created_at).fromNow()}
-                                            </Text>
-                                        </div>
-
-                                        <Divider className={classes.divider} />
-
-                                        <Space style={{justifyContent: "space-between"}}>
-                                            <Space direction="vertical">
-                                                <div>
-                                                    <Text strong>Config Name: </Text>
-                                                    <Text>{item.config.config_name}</Text>
-                                                </div>
-                                                <div>
-                                                    <Text strong>Modified By: </Text>
-                                                    <Text>{item.modified_by}</Text>
-                                                </div>
-                                            </Space>
-                                            <Button
-                                                type="primary"
-                                                onClick={() => {
-                                                    setRevisionNum(item.revision.toString())
-                                                    onStateChange(true)
-                                                    setIsDrawerOpen(false)
-                                                }}
-                                            >
-                                                Restore
-                                            </Button>
-                                        </Space>
-                                    </div>
-                                ))
-                                .reverse()
-                        ) : (
-                            <Empty
-                                className={classes.emptyContainer}
-                                description="You have no saved changes"
-                            />
-                        )}
-                    </>
-                )}
-            </Drawer>
+            <PromptVersioningDrawer
+                setIsDrawerOpen={setIsDrawerOpen}
+                setRevisionNum={setRevisionNum}
+                isDrawerOpen={isDrawerOpen}
+                historyStatus={historyStatus}
+                promptRevisions={filteredRevisions}
+                onStateChange={onStateChange}
+            />
         </div>
     )
 }
