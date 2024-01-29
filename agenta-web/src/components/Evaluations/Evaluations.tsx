@@ -190,10 +190,6 @@ export default function Evaluations() {
     }, [appId])
 
     useEffect(() => {
-        getAllProviderLlmKeys()
-    }, [])
-
-    useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {

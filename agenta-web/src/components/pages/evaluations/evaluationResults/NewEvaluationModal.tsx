@@ -79,10 +79,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [form] = Form.useForm()
 
     useEffect(() => {
-        getAllProviderLlmKeys()
-    }, [])
-
-    useEffect(() => {
         setFetching(true)
         form.resetFields()
         Promise.all([fetchTestsets(appId), fetchVariants(appId)])
