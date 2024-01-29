@@ -1009,6 +1009,37 @@ async def deploy_to_environment(
     await environment_db.save()
 
 
+async def fetch_app_environment(environment_id: str, **kwargs: dict) -> AppEnvironmentDB:
+    """Fetch an app environment using the provided environment id.
+
+    Args:
+        environment_id (str): the Id of the environment
+
+    Returns:
+        AppEnvironmentDB: app environment object
+    """
+
+    app_environment = await AppEnvironmentDB.find_one(AppEnvironmentDB.id == ObjectId(environment_id), fetch_links=True)
+    return app_environment
+
+
+async def fetch_environment_revisions_for_environment(environment: AppEnvironmentDB, **kwargs: dict) -> List[AppEnvironmentRevisionDB]:
+    """Returns list of app environment revision for the given environment.
+
+    Args:
+        environment (AppEnvironmentDB): The app environment to retrieve environments revisions for.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppEnvironmentRevisionDB]: A list of AppEnvironmentRevisionDB objects.
+    """
+
+    environment_revisions = await AppEnvironmentRevisionDB.find(
+        AppEnvironmentRevisionDB.environment.id == environment.id, fetch_links=True
+    ).to_list()
+    return environment_revisions
+
+
 async def list_environments(app_id: str, **kwargs: dict) -> List[AppEnvironmentDB]:
     """
     List all environments for a given app ID.
