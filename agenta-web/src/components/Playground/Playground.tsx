@@ -299,6 +299,7 @@ const Playground: React.FC = () => {
                             setIsLoading(true)
                             fetchData()
                         }}
+                        ghost
                     >
                         Refresh
                     </Button>

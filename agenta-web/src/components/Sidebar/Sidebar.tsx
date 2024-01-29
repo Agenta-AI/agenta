@@ -25,6 +25,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import {getColorFromStr} from "@/lib/helpers/colors"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
+import {useLocalStorage} from "usehooks-ts"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
@@ -138,7 +139,7 @@ const Sidebar: React.FC = () => {
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
     const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
-    const [collapsed, setCollapsed] = useState(false)
+    const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -254,7 +255,7 @@ const Sidebar: React.FC = () => {
                                             placement="right"
                                             title={
                                                 !collapsed
-                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                    ? "Evaluate and Compare variants programmatically."
                                                     : ""
                                             }
                                             key="evaluations"
@@ -266,7 +267,7 @@ const Sidebar: React.FC = () => {
                                                     className={classes.menuLinks}
                                                 >
                                                     {collapsed
-                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                        ? "Evaluate and Compare variants programmatically."
                                                         : "Evaluations"}
                                                 </Link>
                                             </Menu.Item>
@@ -276,7 +277,7 @@ const Sidebar: React.FC = () => {
                                             placement="right"
                                             title={
                                                 !collapsed
-                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                    ? "Use human feedback to score and compare variants."
                                                     : ""
                                             }
                                             key="annotations"
@@ -288,7 +289,7 @@ const Sidebar: React.FC = () => {
                                                     className={classes.menuLinks}
                                                 >
                                                     {collapsed
-                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                        ? "Use human feedback to score and compare variants."
                                                         : "Annotations"}
                                                 </Link>
                                             </Menu.Item>
@@ -298,7 +299,7 @@ const Sidebar: React.FC = () => {
                                             placement="right"
                                             title={
                                                 !collapsed
-                                                    ? "Monitor production logs to ensure seamless operations."
+                                                    ? "Deploy your applications to different environments."
                                                     : ""
                                             }
                                             key="endpoints"
@@ -312,7 +313,7 @@ const Sidebar: React.FC = () => {
                                                     <Space>
                                                         <span>
                                                             {collapsed
-                                                                ? "Monitor production logs to ensure seamless operations."
+                                                                ? "Deploy your applications to different environments."
                                                                 : "Endpoints"}
                                                         </span>
                                                     </Space>

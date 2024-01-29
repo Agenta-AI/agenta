@@ -42,9 +42,8 @@ const EmptyEvaluations: React.FC<Props> = ({onConfigureEvaluators, onBeginEvalua
                 className={classes.empty}
                 description={
                     <span>
-                        Welcome to the evaluation setup!
+                        Get Started with Your First Evaluation
                         <br />
-                        Are you ready to get started?
                     </span>
                 }
                 image={
