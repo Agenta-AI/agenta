@@ -130,7 +130,7 @@ const useStyles = createUseStyles({
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
-    isLoading
+    isLoading,
 }) => {
     const classes = useStyles()
     const router = useRouter()
