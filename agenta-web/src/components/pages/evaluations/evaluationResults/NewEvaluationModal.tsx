@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {getApikeys, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {getAllProviderLlmKeys, getApikeys, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
 import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
@@ -77,6 +77,10 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [submitLoading, setSubmitLoading] = useState(false)
     const [showRateLimitInputs, setShowRateLimitInputs] = useState(false)
     const [form] = Form.useForm()
+
+    useEffect(() => {
+        getAllProviderLlmKeys()
+    }, [])
 
     useEffect(() => {
         setFetching(true)
