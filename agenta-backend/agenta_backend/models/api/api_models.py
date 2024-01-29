@@ -112,8 +112,19 @@ class EnvironmentOutput(BaseModel):
     deployed_app_variant_id: Optional[str]
     deployed_variant_name: Optional[str]
     deployed_app_variant_revision_id: Optional[str]
-    revision: Optional[str]
+    revision: Optional[int]
 
+
+class EnvironmentRevision(BaseModel):
+    revision: int
+    modified_by: str
+    deployed_app_variant_revision: Optional[str]
+    deployment: Optional[str]
+    created_at: datetime
+
+
+class EnvironmentOutputExtended(EnvironmentOutput):
+    revisions: List[EnvironmentRevision]
 
 class AddVariantFromPreviousPayload(BaseModel):
     new_variant_name: str
