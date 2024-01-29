@@ -5,7 +5,9 @@ import re
 import traceback
 from typing import Any, Dict, List
 
-from agenta_backend.models.api.evaluation_model import AppOutput
+from agenta_backend.models.api.evaluation_model import (
+    EvaluationStatusEnum,
+)
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AggregatedResult,
@@ -13,6 +15,8 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
+    InvokationResult,
+    Error,
     Result,
 )
 from agenta_backend.services import (
@@ -30,6 +34,8 @@ from agenta_backend.services.db_manager import (
     get_deployment_by_objectid,
     update_evaluation,
     update_evaluation_with_aggregated_results,
+    EvaluationScenarioResult,
+    check_if_evaluation_contains_failed_evaluation_scenarios,
 )
 from celery import shared_task, states
 
@@ -97,7 +103,7 @@ def evaluate(
         }
 
         # 3. Invoke the app
-        app_outputs: List[AppOutput] = loop.run_until_complete(
+        app_outputs: List[InvokationResult] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
                 testset_db.csvdata,
@@ -106,21 +112,13 @@ def evaluate(
             )
         )
 
+        # 4. Evaluate the app outputs
         openapi_parameters = loop.run_until_complete(
             llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
         )
 
-        # 4. Evaluate the app outputs
-        if len(testset_db.csvdata) != len(app_outputs):
-            loop.run_until_complete(
-                update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
-            )
-            self.update_state(state=states.FAILURE)
-
-            raise ValueError("Length of csv data and app_outputs are not the same")
-
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
-            # 2. We prepare the inputs
+            # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
@@ -140,13 +138,58 @@ def evaluate(
             ]
             logger.debug(f"Inputs: {inputs}")
 
+            # 2. We skip the iteration if error invking the llm-app
+            if app_output.result.error:
+                print("There is an error when invoking the llm app so we need to skip")
+                error_results = [
+                    EvaluationScenarioResult(
+                        evaluator_config=evaluator_config_db.id,
+                        result=Result(
+                            type=app_output.result.type,
+                            value=None,
+                            error=Error(
+                                message=app_output.result.error.message,
+                                stacktrace=app_output.result.error.stacktrace,
+                            ),
+                        ),
+                    )
+                    for evaluator_config_db in evaluator_config_dbs
+                ]
+                loop.run_until_complete(
+                    create_new_evaluation_scenario(
+                        user=app.user,
+                        organization=app.organization,
+                        evaluation=new_evaluation_db,
+                        variant_id=variant_id,
+                        evaluators_configs=new_evaluation_db.evaluators_configs,
+                        inputs=inputs,
+                        is_pinned=False,
+                        note="",
+                        correct_answer=data_point["correct_answer"],
+                        outputs=[
+                            EvaluationScenarioOutputDB(
+                                result=Result(
+                                    type="error",
+                                    value=None,
+                                    error=Error(
+                                        message=app_output.result.error.message,
+                                        stacktrace=app_output.result.error.stacktrace,
+                                    ),
+                                )
+                            )
+                        ],
+                        results=error_results,
+                    )
+                )
+                continue
+
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 result = evaluators_service.evaluate(
                     evaluator_key=evaluator_config_db.evaluator_key,
-                    output=app_output.output,
+                    output=app_output.result.value,
                     correct_answer=data_point["correct_answer"],
                     settings_values=evaluator_config_db.settings_values,
                     app_params=app_variant_parameters,
@@ -180,7 +223,9 @@ def evaluate(
                     note="",
                     correct_answer=data_point["correct_answer"],
                     outputs=[
-                        EvaluationScenarioOutputDB(type="text", value=app_output.output)
+                        EvaluationScenarioOutputDB(
+                            result=Result(type="text", value=app_output.result.value)
+                        )
                     ],
                     results=evaluators_results,
                 )
@@ -190,10 +235,17 @@ def evaluate(
         logger.error(f"An error occurred during evaluation: {e}")
         traceback.print_exc()
         loop.run_until_complete(
-            update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        value="EVALUATION_FAILED",
+                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
+                    )
+                },
+            )
         )
         self.update_state(state=states.FAILURE)
-
         return
 
     aggregated_results = loop.run_until_complete(
@@ -202,6 +254,27 @@ def evaluate(
     loop.run_until_complete(
         update_evaluation_with_aggregated_results(
             new_evaluation_db.id, aggregated_results
+        )
+    )
+
+    failed_evaluation_scenarios = loop.run_until_complete(
+        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
+    )
+
+    evaluation_status = Result(
+        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
+    )
+
+    if failed_evaluation_scenarios:
+        evaluation_status = Result(
+            type="status",
+            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+            error=None,
+        )
+
+    loop.run_until_complete(
+        update_evaluation(
+            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
         )
     )
 
@@ -215,36 +288,51 @@ async def aggregate_evaluator_results(
         results = val["results"] or []
 
         if not results:
-            average_value = 0
-        if evaluator_key == "auto_ai_critique":
-            numeric_scores = []
-            for result in results:
-                # Extract the first number found in the result value
-                match = re.search(r"\d+", result.value)
-                if match:
-                    try:
-                        score = int(match.group())
-                        numeric_scores.append(score)
-                    except ValueError:
-                        # Ignore if the extracted value is not an integer
-                        continue
-
-            # Calculate the average of numeric scores if any are present
-            average_value = (
-                sum(numeric_scores) / len(numeric_scores) if numeric_scores else None
-            )
+            result = Result(type="error", value=None, error=Error(message="-"))
         else:
-            # Handle boolean values for auto_regex_test and other evaluators
-            if all(isinstance(result.value, bool) for result in results):
-                average_value = sum(result.value for result in results) / len(results)
+            if evaluator_key == "auto_ai_critique":
+                numeric_scores = []
+                for result in results:
+                    # Extract the first number found in the result value
+                    match = re.search(r"\d+", result.value)
+                    if match:
+                        try:
+                            score = int(match.group())
+                            numeric_scores.append(score)
+                        except ValueError:
+                            # Ignore if the extracted value is not an integer
+                            continue
+
+                # Calculate the average of numeric scores if any are present
+                average_value = (
+                    sum(numeric_scores) / len(numeric_scores)
+                    if numeric_scores
+                    else None
+                )
+                result = Result(
+                    type="number",
+                    value=average_value,
+                )
+
             else:
-                # Handle other data types or mixed results
-                average_value = None
+                # Handle boolean values for auto_regex_test and other evaluators
+                if all(isinstance(result.value, bool) for result in results):
+                    average_value = sum(result.value for result in results) / len(
+                        results
+                    )
+                else:
+                    # Handle other data types or mixed results
+                    average_value = None
+
+                result = Result(
+                    type="number",
+                    value=average_value,
+                )
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
-            result=Result(type="number", value=average_value),
+            result=result,
         )
         aggregated_results.append(aggregated_result)
     return aggregated_results

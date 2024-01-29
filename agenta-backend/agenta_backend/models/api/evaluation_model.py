@@ -30,6 +30,7 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
     EVALUATION_STARTED = "EVALUATION_STARTED"
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
+    EVALUATION_FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS"
     EVALUATION_FAILED = "EVALUATION_FAILED"
 
 
@@ -65,7 +66,7 @@ class Evaluation(BaseModel):
     variant_names: List[str]
     testset_id: str
     testset_name: str
-    status: str
+    status: Result
     aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
@@ -95,8 +96,7 @@ class EvaluationScenarioInput(BaseModel):
 
 
 class EvaluationScenarioOutput(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
