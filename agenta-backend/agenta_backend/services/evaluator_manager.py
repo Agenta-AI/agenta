@@ -10,6 +10,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
 
 def get_evaluators() -> Optional[List[Evaluator]]:
@@ -20,17 +21,7 @@ def get_evaluators() -> Optional[List[Evaluator]]:
         Optional[List[Evaluator]]: A list of evaluator objects or None if an error occurs.
     """
 
-    file_path = "agenta_backend/resources/evaluators/evaluators.json"
-
-    if not os.path.exists(file_path):
-        return None
-
-    try:
-        with open(file_path, "r") as file:
-            evaluators = json.load(file)
-        return evaluators
-    except Exception:
-        return None
+    return get_all_evaluators()
 
 
 async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:

@@ -312,6 +312,7 @@ type ValueTypeOptions =
     | "code"
     | "regex"
     | "object"
+    | "error"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -338,21 +339,28 @@ export interface EvaluatorConfig {
     created_at: string
 }
 
+export type EvaluationError = {
+    message: string
+    stacktrace: string
+}
+
 export interface TypedValue {
     type: ValueTypeOptions
     value: ValueType
-}
-
-export interface EvaluationScenarioResult {
-    evaluator: Evaluator
-    result: TypedValue
+    error: null | EvaluationError
 }
 
 export enum EvaluationStatus {
     INITIALIZED = "EVALUATION_INITIALIZED",
     STARTED = "EVALUATION_STARTED",
     FINISHED = "EVALUATION_FINISHED",
+    FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
+}
+
+export enum EvaluationStatusType {
+    STATUS = "status",
+    ERROR = "error",
 }
 
 export interface _Evaluation {
@@ -366,11 +374,15 @@ export interface _Evaluation {
         id: string
         name: string
     }
-    status: EvaluationStatus
+    status: {
+        type: EvaluationStatusType
+        value: EvaluationStatus
+        error: null | EvaluationError
+    }
     variants: {variantId: string; variantName: string}[]
     aggregated_results: {
         evaluator_config: EvaluatorConfig
-        result: TypedValue
+        result: TypedValue & {error: null | EvaluationError}
     }[]
     created_at?: string
     updated_at?: string
@@ -383,11 +395,11 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: TypedValue[]
+    outputs: {result: TypedValue}[]
     correct_answer?: string
     is_pinned?: boolean
     note?: string
-    results: {evaluator_config: string; result: TypedValue}[]
+    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
 }
 
 export interface Annotation {
@@ -419,11 +431,11 @@ export type ComparisonResultRow = {
     variants: {
         variantId: string
         variantName: string
-        output: TypedValue
+        output: {result: TypedValue}
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig
-            result: TypedValue
+            result: TypedValue & {error: null | EvaluationError}
         }[]
     }[]
     id: string

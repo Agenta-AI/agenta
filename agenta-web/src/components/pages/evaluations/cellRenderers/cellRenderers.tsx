@@ -1,14 +1,26 @@
 import {useDurationCounter} from "@/hooks/useDurationCounter"
-import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
-import {CopyOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
+import {
+    EvaluationStatus,
+    EvaluatorConfig,
+    JSSTheme,
+    _Evaluation,
+    _EvaluationScenario,
+} from "@/lib/Types"
+import {
+    CopyOutlined,
+    FullscreenExitOutlined,
+    FullscreenOutlined,
+    InfoCircleOutlined,
+} from "@ant-design/icons"
 import {ICellRendererParams} from "ag-grid-community"
-import {GlobalToken, Space, Typography, message, theme} from "antd"
+import {GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import Link from "next/link"
 import React, {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {getTypedValue} from "@/lib/helpers/evaluate"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -124,6 +136,25 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
     )
 }
 
+export const ResultRenderer = React.memo(
+    (params: ICellRendererParams<_EvaluationScenario> & {config: EvaluatorConfig}) => {
+        const result = params.data?.results.find(
+            (item) => item.evaluator_config === params.config.id,
+        )?.result
+        let errorMsg = ""
+        if (result?.type === "error") {
+            errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
+        }
+
+        return (
+            <Typography.Text type={errorMsg ? "danger" : undefined}>
+                {errorMsg || getTypedValue(result)}
+            </Typography.Text>
+        )
+    },
+    (prev, next) => prev.value === next.value,
+)
+
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
 export const statusMapper = (token: GlobalToken) => ({
     [EvaluationStatus.INITIALIZED]: {
@@ -142,6 +173,10 @@ export const statusMapper = (token: GlobalToken) => ({
         label: "Failed",
         color: token.colorError,
     },
+    [EvaluationStatus.FINISHED_WITH_ERRORS]: {
+        label: "Completed with Errors",
+        color: token.colorWarning,
+    },
 })
 export const StatusRenderer = React.memo(
     (params: ICellRendererParams<_Evaluation>) => {
@@ -151,12 +186,20 @@ export const StatusRenderer = React.memo(
             params.data?.duration || 0,
             runningStatuses.includes(params.value),
         )
-        const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
+        const {label, color} = statusMapper(token)[params.value.value as EvaluationStatus]
+        const errorMsg = params.data?.status.error?.message
 
         return (
             <Typography.Text className={classes.statusCell}>
                 <div style={{backgroundColor: color}} />
                 <span>{label}</span>
+                {errorMsg && (
+                    <span style={{marginRight: 2}}>
+                        <Tooltip title={errorMsg}>
+                            <InfoCircleOutlined />
+                        </Tooltip>
+                    </span>
+                )}
                 <span className={classes.dot}></span>
                 <span className={classes.date}>{duration}</span>
             </Typography.Text>
