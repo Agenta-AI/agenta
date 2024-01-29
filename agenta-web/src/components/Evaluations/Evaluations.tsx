@@ -13,7 +13,7 @@ import {
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
-import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getAllProviderLlmKeys, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, JSSTheme} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
