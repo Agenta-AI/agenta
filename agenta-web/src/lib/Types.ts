@@ -106,6 +106,10 @@ export interface EvaluationResult {
             number_of_votes: number
             percentage: number
         }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
         variants: string[]
         variant_names: string[]
         variants_votes_data: {
@@ -248,9 +252,7 @@ export interface LlmProvidersKeys {
 export interface AppTemplate {
     app_name: string
     template_id: string
-    env_vars?: {
-        OPENAI_API_KEY: string | null
-    }
+    env_vars?: Record<string, string>
     organization_id?: string
 }
 
