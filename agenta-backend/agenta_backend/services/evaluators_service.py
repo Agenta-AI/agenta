@@ -19,9 +19,12 @@ def auto_exact_match(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    exact_match = True if output == correct_answer else False
-    result = Result(type="bool", value=exact_match)
-    return result
+    try:
+        exact_match = True if output == correct_answer else False
+        result = Result(type="bool", value=exact_match)
+        return result
+    except:
+        return Result(type="bool", value=False)
 
 
 def auto_similarity_match(
@@ -32,16 +35,21 @@ def auto_similarity_match(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    set1 = set(output.split())
-    set2 = set(correct_answer.split())
-    intersect = set1.intersection(set2)
-    union = set1.union(set2)
+    try:
+        set1 = set(output.split())
+        set2 = set(correct_answer.split())
+        intersect = set1.intersection(set2)
+        union = set1.union(set2)
 
-    similarity = len(intersect) / len(union)
+        similarity = len(intersect) / len(union)
 
-    is_similar = True if similarity > settings_values["similarity_threshold"] else False
-    result = Result(type="bool", value=is_similar)
-    return result
+        is_similar = (
+            True if similarity > settings_values["similarity_threshold"] else False
+        )
+        result = Result(type="bool", value=is_similar)
+        return result
+    except:
+        return Result(type="bool", value=False)
 
 
 def auto_regex_test(
@@ -52,9 +60,14 @@ def auto_regex_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
-    result = bool(re_pattern.search(output)) == settings_values["regex_should_match"]
-    return Result(type="bool", value=result)
+    try:
+        re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
+        result = (
+            bool(re_pattern.search(output)) == settings_values["regex_should_match"]
+        )
+        return Result(type="bool", value=result)
+    except:
+        return Result(type="bool", value=False)
 
 
 def auto_webhook_test(
@@ -87,11 +100,13 @@ def auto_webhook_test(
             return Result(type="number", value=score)
     except httpx.HTTPError as e:
         print(f"An HTTP error occurred: {e}")
+        return Result(type="number", value=0)
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         print(f"An error occurred: {e}")
+        return Result(type="number", value=0)
 
 
 def auto_custom_code_run(
@@ -112,7 +127,7 @@ def auto_custom_code_run(
         )
         return Result(type="number", value=result)
     except Exception as exc:
-        raise exc
+        return Result(type="number", value=0)
 
 
 def auto_ai_critique(
@@ -137,31 +152,35 @@ def auto_ai_critique(
     Returns:
         str: Evaluation result.
     """
+    try:
+        llm = OpenAI(
+            openai_api_key=lm_providers_keys["openai"],
+            temperature=0.8,
+            model="gpt-3.5-turbo-instruct",
+        )
 
-    llm = OpenAI(
-        openai_api_key=lm_providers_keys["openai"],
-        temperature=0.8,
-        model="gpt-3.5-turbo-instruct",
-    )
+        chain_run_args = {
+            "llm_app_prompt_template": app_params.get("prompt_user", ""),
+            "variant_output": output,
+            "correct_answer": correct_answer,
+        }
 
-    chain_run_args = {
-        "llm_app_prompt_template": app_params.get("prompt_user", ""),
-        "variant_output": output,
-        "correct_answer": correct_answer,
-    }
+        for key, value in inputs.items():
+            chain_run_args[key] = value
 
-    for key, value in inputs.items():
-        chain_run_args[key] = value
+        prompt = PromptTemplate(
+            input_variables=list(
+                chain_run_args.keys()
+            ),  # Use the keys from chain_run_args
+            template=settings_values["prompt_template"],
+        )
+        chain = LLMChain(llm=llm, prompt=prompt)
 
-    prompt = PromptTemplate(
-        input_variables=list(chain_run_args.keys()),  # Use the keys from chain_run_args
-        template=settings_values["prompt_template"],
-    )
-    chain = LLMChain(llm=llm, prompt=prompt)
+        evaluation_output = chain.run(**chain_run_args)
 
-    evaluation_output = chain.run(**chain_run_args)
-
-    return Result(type="text", value=evaluation_output.strip())
+        return Result(type="text", value=evaluation_output.strip())
+    except:
+        return Result(type="text", value="0")
 
 
 def evaluate(

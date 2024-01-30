@@ -1,4 +1,14 @@
 import json
+<<<<<<< HEAD
+=======
+import asyncio
+import logging
+import traceback
+from typing import Any, Dict, List
+
+from agenta_backend.models.api.evaluation_model import AppOutput
+
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 import httpx
 import logging
 import asyncio
@@ -6,7 +16,6 @@ import traceback
 from typing import Any, Dict, List
 
 
-from agenta_backend.models.api.evaluation_model import AppOutput
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -80,19 +89,22 @@ async def invoke_app(
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
     async with httpx.AsyncClient() as client:
-        logger.debug(f"Invoking app {uri} with payload {payload}")
-        response = await client.post(
-            url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
-        )
-        response.raise_for_status()
+        try:
+            logger.debug(f"Invoking app {uri} with payload {payload}")
+            response = await client.post(
+                url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
+            )
+            response.raise_for_status()
 
-        llm_app_response = response.json()
-        app_output = (
-            llm_app_response["message"]
-            if isinstance(llm_app_response, dict)
-            else llm_app_response
-        )
-        return AppOutput(output=app_output, status="success")
+            llm_app_response = response.json()
+            app_output = (
+                llm_app_response["message"]
+                if isinstance(llm_app_response, dict)
+                else llm_app_response
+            )
+            return AppOutput(output=app_output, status="success")
+        except:
+            return AppOutput(output="Error", status="error")
 
 
 async def run_with_retry(
@@ -245,5 +257,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 async def _get_openai_json_from_uri(uri):
     async with httpx.AsyncClient() as client:
         resp = await client.get(uri)
+        timeout = httpx.Timeout(timeout=5, read=None, write=5)
+        resp = await client.get(uri, timeout=timeout)
         json_data = json.loads(resp.text)
         return json_data

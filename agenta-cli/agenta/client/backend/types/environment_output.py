@@ -16,6 +16,8 @@ class EnvironmentOutput(pydantic.BaseModel):
     app_id: str
     deployed_app_variant_id: typing.Optional[str]
     deployed_variant_name: typing.Optional[str]
+    deployed_app_variant_revision_id: typing.Optional[str]
+    revision: typing.Optional[str]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

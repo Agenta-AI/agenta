@@ -1,4 +1,5 @@
 from datetime import datetime
+from agenta_backend.models.db_models import ConfigDB
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
@@ -75,8 +76,31 @@ class AppVariantResponse(BaseModel):
     base_name: str
     base_id: str
     config_name: str
-    config_id: str
     uri: Optional[str]
+
+
+class AppVariantRevision(BaseModel):
+    revision: int
+    modified_by: str
+    config: ConfigDB
+    created_at: datetime
+
+
+class AppVariantOutputExtended(BaseModel):
+    app_id: str
+    app_name: str
+    variant_id: str
+    variant_name: str
+    parameters: Optional[Dict[str, Any]]
+    previous_variant_name: Optional[str]
+    organization_id: str
+    user_id: str
+    base_name: str
+    base_id: str
+    config_name: str
+    uri: Optional[str]
+    revision: int
+    revisions: List[AppVariantRevision]
 
 
 class EnvironmentOutput(BaseModel):
@@ -84,6 +108,8 @@ class EnvironmentOutput(BaseModel):
     app_id: str
     deployed_app_variant_id: Optional[str]
     deployed_variant_name: Optional[str]
+    deployed_app_variant_revision_id: Optional[str]
+    revision: Optional[str]
 
 
 class AddVariantFromPreviousPayload(BaseModel):

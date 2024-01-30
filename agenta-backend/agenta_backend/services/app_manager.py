@@ -1,5 +1,6 @@
 """Main Business logic
 """
+
 import os
 import logging
 from urllib.parse import urlparse
@@ -49,7 +50,13 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
+<<<<<<< HEAD
     db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None
+=======
+    db_app_variant: AppVariantDB,
+    env_vars: DockerEnvVars = None,
+    **user_org_data: dict,
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -117,7 +124,13 @@ async def start_variant(
     return URI(uri=deployment.uri)
 
 
+<<<<<<< HEAD
 async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
+=======
+async def update_variant_image(
+    app_variant_db: AppVariantDB, image: Image, **user_org_data: dict
+):
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -157,13 +170,17 @@ async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
     await db_manager.update_base(app_variant_db.base, image=db_image)
     # Update variant to remove configuration
     await db_manager.update_variant_parameters(
-        app_variant_db=app_variant_db, parameters={}
+        app_variant_db=app_variant_db, parameters={}, **user_org_data
     )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
 
     # Start variant
+<<<<<<< HEAD
     await start_variant(app_variant_db)
+=======
+    await start_variant(app_variant_db, **user_org_data)
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 
 
 async def terminate_and_remove_app_variant(
@@ -330,7 +347,13 @@ async def remove_app(app: AppDB):
         raise e from None
 
 
+<<<<<<< HEAD
 async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any]):
+=======
+async def update_variant_parameters(
+    app_variant_id: str, parameters: Dict[str, Any], **user_org_data: dict
+):
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
     """Updates the parameters for app variant in the database.
 
     Arguments:
@@ -345,7 +368,11 @@ async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, A
         raise ValueError(error_msg)
     try:
         await db_manager.update_variant_parameters(
+<<<<<<< HEAD
             app_variant_db=app_variant_db, parameters=parameters
+=======
+            app_variant_db=app_variant_db, parameters=parameters, **user_org_data
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
         )
     except Exception as e:
         logger.error(

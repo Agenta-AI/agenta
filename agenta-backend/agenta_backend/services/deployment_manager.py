@@ -144,3 +144,7 @@ async def validate_image(image: Image) -> bool:
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
     return True
+
+
+def get_deployment_uri(deployment: DeploymentDB) -> str:
+    return deployment.uri.replace("http://localhost", "http://host.docker.internal")

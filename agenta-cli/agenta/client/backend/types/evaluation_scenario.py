@@ -6,7 +6,7 @@ import typing
 from ..core.datetime_utils import serialize_datetime
 from .evaluation_scenario_input import EvaluationScenarioInput
 from .evaluation_scenario_output import EvaluationScenarioOutput
-from .evaluation_scenario_score import EvaluationScenarioScore
+from .evaluation_scenario_result import EvaluationScenarioResult
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -19,12 +19,11 @@ class EvaluationScenario(pydantic.BaseModel):
     evaluation_id: str
     inputs: typing.List[EvaluationScenarioInput]
     outputs: typing.List[EvaluationScenarioOutput]
-    vote: typing.Optional[str]
-    score: typing.Optional[EvaluationScenarioScore]
     evaluation: typing.Optional[str]
     correct_answer: typing.Optional[str]
     is_pinned: typing.Optional[bool]
     note: typing.Optional[str]
+    results: typing.List[EvaluationScenarioResult]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
