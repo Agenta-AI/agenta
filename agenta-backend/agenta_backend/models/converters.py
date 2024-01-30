@@ -320,7 +320,7 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision
         ),
-        revision=str(revision),
+        revision=revision,
     )
 
 
