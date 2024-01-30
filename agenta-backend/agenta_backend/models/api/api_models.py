@@ -11,7 +11,7 @@ class Result(BaseModel):
     value: Any
 
 
-class GetConfigReponse(BaseModel):
+class GetConfigResponse(BaseModel):
     config_id: str
     config_name: str
     current_version: int
@@ -125,6 +125,7 @@ class EnvironmentRevision(BaseModel):
 
 class EnvironmentOutputExtended(EnvironmentOutput):
     revisions: List[EnvironmentRevision]
+
 
 class AddVariantFromPreviousPayload(BaseModel):
     new_variant_name: str
