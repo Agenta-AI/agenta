@@ -140,3 +140,29 @@ async def get_config(
     except Exception as e:
         logger.error(f"get_config exception: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get(
+    "/deployment/{deployment_revision_id}/",
+    operation_id="get_config_deployment_revision",
+)
+async def get_config_deployment_revision(request: Request, deployment_revision_id: str):
+    environment_revision = await db_manager.fetch_app_environment_revision(
+        deployment_revision_id
+    )
+    if environment_revision is not None:
+        variant_revision = await db_manager.fetch_app_variant_revision_by_id(
+            str(environment_revision.deployed_app_variant_revision)
+        )
+        if variant_revision:
+            return GetConfigResponse(
+                **variant_revision.config.dict(),
+                current_version=environment_revision.revision,
+            )
+        raise HTTPException(
+            404,
+            f"Config does not exist for deployment revision {deployment_revision_id}",
+        )
+    raise HTTPException(
+        400, f"Environment revision {deployment_revision_id} does not exist"
+    )
