@@ -697,7 +697,7 @@ class Forward:
         ]
     )
     async def remove_organization_from_deployment_model(
-        self, input_document: OldDeploymentDB, output_document: NewOrganizationDB
+        self, input_document: OldDeploymentDB, output_document: NewDeploymentDB
     ):
         data = input_document.dict(exclude={"organization"})
         new_document = NewDeploymentDB(**data)
