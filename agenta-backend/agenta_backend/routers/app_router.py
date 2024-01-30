@@ -517,11 +517,14 @@ async def create_app_and_variant_from_template(
             app=app,
             variant_name="app.default",
 <<<<<<< HEAD
+<<<<<<< HEAD
             docker_id_or_template_uri=template_db.template_uri
             if isCloudEE
             else template_db.digest,
             tags=f"{image_name}" if not isCloudEE else None,
 =======
+=======
+>>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
             docker_id_or_template_uri=(
                 template_db.template_uri
                 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
@@ -532,7 +535,10 @@ async def create_app_and_variant_from_template(
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
                 else None
             ),
+<<<<<<< HEAD
 >>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
+=======
+>>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
             base_name="app",
             config_name="default",
             is_template_image=True,

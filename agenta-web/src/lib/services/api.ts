@@ -587,7 +587,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
     timeout?: number
     onStatusChange?: (
@@ -596,6 +596,14 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
         const {getOrgValues} = await dynamicContext("org.context", {
             getOrgValues: () => ({
@@ -610,11 +618,9 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
                     organization_id: selectedOrg.id,
                     workspace_id: selectedOrg.default_workspace.id,
+                    env_vars: apiKeys,
                 },
                 true,
             )

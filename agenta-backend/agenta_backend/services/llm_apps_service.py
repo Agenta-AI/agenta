@@ -6,9 +6,12 @@ import logging
 import traceback
 from typing import Any, Dict, List
 
+<<<<<<< HEAD
 from agenta_backend.models.api.evaluation_model import AppOutput
 
 >>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
+=======
+>>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
 import httpx
 import logging
 import asyncio
@@ -16,6 +19,7 @@ import traceback
 from typing import Any, Dict, List
 
 
+from agenta_backend.models.db_models import InvokationResult, Result, Error
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -68,7 +72,7 @@ async def make_payload(
 
 async def invoke_app(
     uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
-) -> AppOutput:
+) -> InvokationResult:
     """
     Invokes an app for one datapoint using the openapi_parameters to determine
     how to invoke the app.
@@ -80,7 +84,7 @@ async def invoke_app(
         openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
 
     Returns:
-        AppOutput: The output of the app.
+        InvokationResult: The output of the app.
 
     Raises:
         httpx.HTTPError: If the POST request fails.
@@ -95,16 +99,22 @@ async def invoke_app(
                 url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
             )
             response.raise_for_status()
-
-            llm_app_response = response.json()
-            app_output = (
-                llm_app_response["message"]
-                if isinstance(llm_app_response, dict)
-                else llm_app_response
+            app_output = response.json()
+            return InvokationResult(
+                result=Result(type="text", value=app_output["message"], error=None)
             )
-            return AppOutput(output=app_output, status="success")
-        except:
-            return AppOutput(output="Error", status="error")
+
+        except httpx.HTTPError as e:
+            logger.error(f"Error occurred during request: {e}")
+            return InvokationResult(
+                result=Result(
+                    type="error",
+                    error=Error(
+                        message="An error occurred while invoking the LLM App",
+                        stacktrace=str(e),
+                    ),
+                )
+            )
 
 
 async def run_with_retry(
@@ -114,7 +124,7 @@ async def run_with_retry(
     max_retry_count: int,
     retry_delay: int,
     openapi_parameters: List[Dict],
-) -> AppOutput:
+) -> InvokationResult:
     """
     Runs the specified app with retry mechanism.
 
@@ -127,7 +137,7 @@ async def run_with_retry(
         openapi_parameters (List[Dict]): The OpenAPI parameters for the app.
 
     Returns:
-        AppOutput: The output of the app.
+        InvokationResult: The invokation result.
 
     """
     retries = 0
@@ -143,12 +153,19 @@ async def run_with_retry(
             retries += 1
 
     # If max retries reached, return the last exception
-    return AppOutput(output=None, status=str(last_exception))
+    # return AppOutput(output=None, status=str(last_exception))
+    return InvokationResult(
+        result=Result(
+            type="error",
+            value=None,
+            error=Error(message="max retries reached", stacktrace=last_exception),
+        )
+    )
 
 
 async def batch_invoke(
     uri: str, testset_data: List[Dict], parameters: Dict, rate_limit_config: Dict
-) -> List[AppOutput]:
+) -> List[InvokationResult]:
     """
     Invokes the LLm apps in batches, processing the testset data.
 
@@ -159,7 +176,7 @@ async def batch_invoke(
         rate_limit_config (Dict): The rate limit configuration.
 
     Returns:
-        List[AppOutput]: The list of app outputs after running all batches.
+        List[InvokationResult]: The list of app outputs after running all batches.
     """
     batch_size = rate_limit_config[
         "batch_size"
@@ -174,7 +191,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[AppOutput] = []  # Outputs after running all batches
+    list_of_app_outputs: List[InvokationResult] = (
+        []
+    )  # Outputs after running all batches
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):
@@ -182,7 +201,7 @@ async def batch_invoke(
         end_idx = min(start_idx + batch_size, len(testset_data))
         for index in range(start_idx, end_idx):
             try:
-                batch_output: AppOutput = await run_with_retry(
+                batch_output: InvokationResult = await run_with_retry(
                     uri,
                     testset_data[index],
                     parameters,
