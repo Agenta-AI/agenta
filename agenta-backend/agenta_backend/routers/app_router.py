@@ -47,7 +47,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         check_action_access,
         check_rbac_permission,
     )
-    from agenta_backend.commons.models.db_models import Permission, WorkspaceRole
+    from agenta_backend.commons.models.db_models import Permission
 
 
 if FEATURE_FLAG in ["cloud"]:

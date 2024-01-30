@@ -34,17 +34,8 @@ from agenta_backend.services.evaluation_service import (
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
-        get_user_org_and_workspace_id,
-    )
-    from agenta_backend.commons.utils.permissions import (  # noqa pylint: disable-all
-        check_action_access,
-        check_rbac_permission,
-    )
-    from agenta_backend.commons.models.db_models import (  # noqa pylint: disable-all
-        Permission,
-        WorkspaceRole,
-    )
+    from agenta_backend.commons.models.db_models import Permission  # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
 
 router = APIRouter()
 

@@ -10,7 +10,7 @@ from agenta_backend.utils.common import APIRouter
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.models.db_models import WorkspaceRole, Permission
+    from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.commons.models.api.api_models import Image_ as Image
 else:
