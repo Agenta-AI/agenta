@@ -3,11 +3,13 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {LoadingOutlined} from "@ant-design/icons"
-import {promptVersioning} from "@/lib/services/api"
-import {IPromptRevisions, IPromptVersioning, Variant} from "@/lib/Types"
+import {fetchDeploymentRevisions, fetchDeploymentRevisionConfig} from "@/lib/services/api"
+import {IPromptRevisions, DeploymentRevisions, DeploymentRevisionConfig, IEnvironmentRevision, Environment} from "@/lib/Types"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
+
+
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -16,7 +18,7 @@ type StyleProps = {
 }
 
 type DeploymentHistoryProps = {
-    variant: Variant
+    selectedEnvironment: Environment
 }
 
 const {Text} = Typography
@@ -79,39 +81,37 @@ const useStyles = createUseStyles({
     }),
 })
 
-const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
+const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironment}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const [deploymentRevisions, setDeploymentRevisions] = useState<IPromptVersioning>()
-    const [isLoading, setIsLoading] = useState(false)
-    const [filtered, setFiltered] = useState<IPromptRevisions[]>()
 
-    const [showDeployments, setShowDeployments] = useState<IPromptRevisions>()
     const [activeItem, setActiveItem] = useState(0)
+    const [isLoading, setIsLoading] = useState(false)
+    const [filtered, setFiltered] = useState<IEnvironmentRevision[]>()
+    const [showDeployments, setShowDeployments] = useState<DeploymentRevisionConfig>()
+    const [deploymentRevisions, setDeploymentRevisions] = useState<DeploymentRevisions>()
 
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true)
             try {
-                const data = await promptVersioning(variant.variantId)
+                const data = await fetchDeploymentRevisions(selectedEnvironment?.app_id, selectedEnvironment?.name)
                 setDeploymentRevisions(data)
-
                 setFiltered(
                     data?.revisions.filter(
-                        (item: IPromptRevisions) =>
-                            Object.keys(item.config.parameters).length !== 0,
+                        (item: IEnvironmentRevision) =>
+                            item.revision >= 1,
                     ),
                 )
             } catch (error) {
                 setIsLoading(false)
-                console.log(error)
             } finally {
                 setIsLoading(false)
             }
         }
 
         fetchData()
-    }, [variant.variantId])
+    }, [selectedEnvironment.app_id, selectedEnvironment.name])
 
     useEffect(() => {
         if (filtered && filtered.length) {
@@ -119,11 +119,12 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
         }
     }, [filtered])
 
-    const handleShowDeployments = (id: number, index: number) => {
+    const handleShowDeployments = async (id: number, index: number) => {
         setActiveItem(index)
-        const findPrompt = deploymentRevisions?.revisions.find((prompt) => prompt.revision === id)
+        const findRevision = deploymentRevisions?.revisions.find((deploymentRevision) => deploymentRevision.revision === id)
 
-        setShowDeployments(findPrompt)
+        const revisionConfig = await fetchDeploymentRevisionConfig(findRevision.id)
+        setShowDeployments(revisionConfig)
     }
 
     const handleRevert = (id: number) => {}
@@ -170,10 +171,6 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
 
                                 <Space direction="vertical">
                                     <div>
-                                        <Text strong>Config Name: </Text>
-                                        <Text>{item.config.config_name}</Text>
-                                    </div>
-                                    <div>
                                         <Text strong>Modified By: </Text>
                                         <Text>{item.modified_by}</Text>
                                     </div>
@@ -197,51 +194,51 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({variant}) => {
                         <div>{dayjs(showDeployments?.created_at).format("DD-MM-YYYY mm:ss")}</div>
 
                         <Card title="Prompt System" className={classes.promptHistoryCard}>
-                            <div>{showDeployments?.config.parameters?.prompt_system}</div>
+                            <div>{showDeployments?.parameters?.prompt_system}</div>
                         </Card>
 
                         <Card title="Model Parameters" className={classes.promptHistoryCard}>
                             <Space direction="vertical">
-                                {showDeployments?.config.parameters?.temperature && (
+                                {showDeployments?.parameters?.temperature && (
                                     <Typography.Text>
                                         Temperature:{" "}
-                                        {showDeployments?.config.parameters?.temperature}
+                                        {showDeployments?.parameters?.temperature}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.config.parameters?.model && (
+                                {showDeployments?.parameters?.model && (
                                     <Typography.Text>
-                                        Model: {showDeployments?.config.parameters?.model}
+                                        Model: {showDeployments?.parameters?.model}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.config.parameters?.max_tokens && (
+                                {showDeployments?.parameters?.max_tokens && (
                                     <Typography.Text>
-                                        Max tokens: {showDeployments?.config.parameters?.max_tokens}
+                                        Max tokens: {showDeployments?.parameters?.max_tokens}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.config.parameters?.top_p && (
+                                {showDeployments?.parameters?.top_p && (
                                     <Typography.Text>
-                                        Top p: {showDeployments?.config.parameters?.top_p}
+                                        Top p: {showDeployments?.parameters?.top_p}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.config.parameters?.frequence_penalty ||
-                                showDeployments?.config.parameters?.frequence_penalty == 0 ? (
+                                {showDeployments?.parameters?.frequence_penalty ||
+                                showDeployments?.parameters?.frequence_penalty == 0 ? (
                                     <Typography.Text>
                                         Frequence penalty:{" "}
-                                        {showDeployments?.config.parameters?.frequence_penalty}
+                                        {showDeployments?.parameters?.frequence_penalty}
                                     </Typography.Text>
                                 ) : (
                                     ""
                                 )}
 
-                                {showDeployments?.config.parameters?.presence_penalty ||
-                                showDeployments?.config.parameters?.presence_penalty == 0 ? (
+                                {showDeployments?.parameters?.presence_penalty ||
+                                showDeployments?.parameters?.presence_penalty == 0 ? (
                                     <Typography.Text>
                                         Presence penalty:{" "}
-                                        {showDeployments?.config.parameters?.presence_penalty}
+                                        {showDeployments?.parameters?.presence_penalty}
                                     </Typography.Text>
                                 ) : (
                                     ""
