@@ -8,7 +8,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -24,6 +24,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {getApikeys} from "@/lib/helpers/llmProviders"
 
 type StyleProps = {
     themeMode: "dark" | "light"

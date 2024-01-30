@@ -1,4 +1,5 @@
-import {randString, removeLlmProviderKey} from "../../../src/lib/helpers/utils"
+import {randString} from "../../../src/lib/helpers/utils"
+import {removeLlmProviderKey} from "../../../src/lib/helpers/llmProviders"
 
 let app_id
 

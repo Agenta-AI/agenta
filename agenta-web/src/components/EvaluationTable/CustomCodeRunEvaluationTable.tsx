@@ -30,13 +30,14 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {batchExecute, getApikeys} from "@/lib/helpers/utils"
+import {batchExecute} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
 import CodeBlock from "../DynamicCodeBlock/CodeBlock"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {getApikeys} from "@/lib/helpers/llmProviders"
 
 const {Title} = Typography
 
