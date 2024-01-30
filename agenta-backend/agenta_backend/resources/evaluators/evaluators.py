@@ -41,6 +41,19 @@ evaluators = [
         },
     },
     {
+        "name": "JSON Field Match",
+        "key": "field_match_test",
+        "direct_use": False,
+        "settings_template": {
+            "json_field": {
+                "label": "JSON Field",
+                "type": "string",
+                "default": "",
+                "description": "The name of the field in the JSON output that you wish to evaluate",
+            }
+        },
+    },
+    {
         "name": "AI Critique",
         "key": "auto_ai_critique",
         "direct_use": False,

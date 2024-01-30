@@ -9,6 +9,10 @@ from agenta_backend.models.db_models import Error, Result
 from langchain.llms import OpenAI
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def auto_exact_match(
@@ -87,6 +91,23 @@ def auto_regex_test(
                 message="Error during Auto Regex evaluation", stacktrace=str(e)
             ),
         )
+
+
+def field_match_test(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        output_json = json.loads(output)
+        result = output_json[settings_values["json_field"]] == correct_answer
+        return Result(type="bool", value=result)
+    except Exception as e:
+        logging.debug("Field Match Test Failed because of Error: " + str(e))
+        return Result(type="bool", value=False)
 
 
 def auto_webhook_test(
