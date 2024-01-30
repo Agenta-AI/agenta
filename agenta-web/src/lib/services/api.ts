@@ -12,6 +12,7 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
+    DeploymentRevisions,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
@@ -670,6 +671,18 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
     const data: Environment[] = await response.json()
     return data
 }
+
+export const fetchDeploymentRevisions = async (appId: string, environmentName: string): Promise<DeploymentRevisions[]> => {
+    const response = await fetch(`${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`)
+
+    if (response.status != 200) {
+        throw new Error("Failed to fetch deployment revisions")
+    }
+
+    const data: DeploymentRevisions[] = await response.json()
+    return data
+}
+
 
 export const publishVariant = async (variantId: string, environmentName: string) => {
     await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/`, {
