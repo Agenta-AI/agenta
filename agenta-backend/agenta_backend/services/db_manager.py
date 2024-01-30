@@ -1009,21 +1009,30 @@ async def deploy_to_environment(
     await environment_db.save()
 
 
-async def fetch_app_environment(environment_id: str, **kwargs: dict) -> AppEnvironmentDB:
-    """Fetch an app environment using the provided environment id.
+async def fetch_app_environment_by_name_and_appid(
+    app_id: str, environment_name: str, **kwargs: dict
+) -> AppEnvironmentDB:
+    """Fetch an app environment using the provided app id and environment name.
 
     Args:
-        environment_id (str): the Id of the environment
+        app_id (str): The Id of the app
+        environment_name (str): The name of the environment
 
     Returns:
         AppEnvironmentDB: app environment object
     """
 
-    app_environment = await AppEnvironmentDB.find_one(AppEnvironmentDB.id == ObjectId(environment_id), fetch_links=True)
+    app_environment = await AppEnvironmentDB.find_one(
+        AppEnvironmentDB.app.id == ObjectId(app_id),
+        AppEnvironmentDB.name == environment_name,
+        fetch_links=True,
+    )
     return app_environment
 
 
-async def fetch_environment_revisions_for_environment(environment: AppEnvironmentDB, **kwargs: dict) -> List[AppEnvironmentRevisionDB]:
+async def fetch_environment_revisions_for_environment(
+    environment: AppEnvironmentDB, **kwargs: dict
+) -> List[AppEnvironmentRevisionDB]:
     """Returns list of app environment revision for the given environment.
 
     Args:
