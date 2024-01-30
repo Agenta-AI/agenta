@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
@@ -282,6 +282,8 @@ const App: React.FC<TestViewProps> = ({
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [isModalOpen, setIsModalOpen] = useState(false)
+
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
             cost: number | null
@@ -404,6 +406,9 @@ const App: React.FC<TestViewProps> = ({
                     `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
                     index,
                 )
+                if (e.response.status === 401) {
+                    setIsModalOpen(true)
+                }
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
@@ -562,6 +567,20 @@ const App: React.FC<TestViewProps> = ({
                 params={params || {}}
                 isChatVariant={!!isChatVariant}
             />
+
+            <Modal
+                centered
+                title="Incorrect LLM key provided"
+                open={isModalOpen}
+                onOk={() => router.push("/settings?tab=secrets")}
+                onCancel={() => setIsModalOpen(false)}
+                okText={"View LLM Keys"}
+            >
+                <p>
+                    The API key for the Language Model app is either incorrect or missing. Please
+                    ensure that you have a valid API key.
+                </p>
+            </Modal>
         </div>
     )
 }
