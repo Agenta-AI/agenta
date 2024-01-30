@@ -8,7 +8,7 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import {notification} from "antd"
 import Router from "next/router"
-import {getApikeys} from "./llmProviders"
+import {getAllProviderLlmKeys, getApikeys} from "./llmProviders"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
@@ -46,12 +46,12 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
 }
 
 export const apiKeyObject = () => {
-    const apiKey = getApikeys()
+    const apiKeys = getAllProviderLlmKeys()
 
-    if (!apiKey) return {}
+    if (!apiKeys) return {}
 
-    return apiKey.reduce((acc: GenericObject, {key, name}: GenericObject) => {
-        acc[name] = key
+    return apiKeys.reduce((acc: GenericObject, {key, name}: GenericObject) => {
+        if (key) acc[name] = key
         return acc
     }, {})
 }

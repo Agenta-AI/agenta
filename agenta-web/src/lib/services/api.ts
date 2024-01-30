@@ -26,6 +26,7 @@ import {
 import {EvaluationFlow, EvaluationType} from "../enums"
 import {delay, getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
+import {LlmProvider} from "../helpers/llmProviders"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -611,7 +612,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: Array<{title: string; key: string; name: string}>
+    providerKey: Array<LlmProvider>
     templateId: string
     orgId: string
     timeout?: number
@@ -623,7 +624,7 @@ export const createAndStartTemplate = async ({
 }) => {
     const apiKeys = providerKey.reduce(
         (acc, {key, name}) => {
-            acc[name] = key
+            if (key) acc[name] = key
             return acc
         },
         {} as Record<string, string>,
