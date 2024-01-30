@@ -198,7 +198,7 @@ export default function VariantEndpoint() {
                             key: "history",
                             label: "History",
                             icon: <HistoryOutlined />,
-                            children: <DeploymentHistory variant={variant} selectedEnvironment={selectedEnvironment} />,
+                            children: <DeploymentHistory selectedEnvironment={selectedEnvironment} />,
                         },
                     ]}
                     onChange={setTab}
