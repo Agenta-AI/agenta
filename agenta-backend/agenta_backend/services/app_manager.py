@@ -22,10 +22,10 @@ from agenta_backend.services import (
 )
 
 from agenta_backend.utils.common import (
-    isEE(),
-    isOssEE(),
-    isCloud(),
-    isCloudEE(),
+    isEE,
+    isOssEE,
+    isCloud,
+    isCloudEE,
 )
 
 if isCloud():

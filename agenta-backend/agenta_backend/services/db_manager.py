@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from agenta_backend.models import converters
-from agenta_backend.utils.common import isCloudEE()
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 

@@ -1,7 +1,7 @@
 from beanie import PydanticObjectId as ObjectId
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import isCloudEE()
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.evaluation_model import EvaluationType
 
 if isCloudEE():

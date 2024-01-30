@@ -20,7 +20,7 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import docker_utils
-from agenta_backend.utils.common import isCloud()
+from agenta_backend.utils.common import isCloud
 
 client = docker.from_env()
 

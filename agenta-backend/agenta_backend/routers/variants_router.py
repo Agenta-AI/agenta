@@ -6,7 +6,7 @@ from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from agenta_backend.models import converters
 from fastapi import HTTPException, Request, Body
-from agenta_backend.utils.common import APIRouter, isCloudEE()
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.services import (
     app_manager,

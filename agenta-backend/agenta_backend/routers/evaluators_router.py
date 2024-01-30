@@ -5,7 +5,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.services import evaluator_manager
-from agenta_backend.utils.common import APIRouter, isCloudEE()
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
