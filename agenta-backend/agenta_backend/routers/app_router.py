@@ -434,26 +434,17 @@ async def create_app_and_variant_from_template(
                 request.state.user_id
             )
 
-            logger.debug("Step 2: Setting organization ID")
-            if payload.organization_id is None:
-                organization = await get_user_own_org(user_org_workspace_data["uid"])
-                organization_id = str(organization.id)
-            else:
-                organization_id = payload.organization_id
-                organization = await db_manager_ee.get_organization(organization_id)
+            logger.debug("Step 2: Checking that workspace ID and organization ID are provided")
+            if payload.organization_id is None or payload.workspace_id is None:
+                raise Exception(
+                    "Organization ID and Workspace ID must be provided to create app from template",
+                )
 
-            logger.debug("Step 3: Setting workspace ID")
-            if payload.workspace_id is None:
-                workspace = await get_org_default_workspace(organization)
-                workspace_id = str(workspace.id)
-            else:
-                workspace_id = payload.workspace_id
-
-            logger.debug("Step 4: Checking user has permission to create app")
+            logger.debug("Step 3: Checking user has permission to create app")
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
-                workspace=workspace,
-                organization=organization,
+                workspace_id=payload.workspace_id,
+                organization_id=payload.organization_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -468,7 +459,7 @@ async def create_app_and_variant_from_template(
                 )
 
         logger.debug(
-            f"Step 5: Checking if app {payload.app_name} already exists"
+            f"Step 4: Checking if app {payload.app_name} already exists"
             if FEATURE_FLAG in ["cloud", "ee"]
             else f"Step 1: Checking if app {payload.app_name} already exists"
         )
@@ -476,8 +467,8 @@ async def create_app_and_variant_from_template(
         app = await db_manager.fetch_app_by_name_and_parameters(
             app_name,
             request.state.user_id,
-            organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-            workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            payload.organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            payload.workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
         )
         if app is not None:
             raise Exception(
@@ -485,7 +476,7 @@ async def create_app_and_variant_from_template(
             )
 
         logger.debug(
-            "Step 6: Creating new app and initializing environments"
+            "Step 5: Creating new app and initializing environments"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 2: Creating new app and initializing environments"
         )
@@ -493,12 +484,12 @@ async def create_app_and_variant_from_template(
             app = await db_manager.create_app_and_envs(
                 app_name,
                 request.state.user_id,
-                organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-                workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+                payload.organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+                payload.workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
             )
 
         logger.debug(
-            "Step 7: Retrieve template from db"
+            "Step 6: Retrieve template from db"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 3: Retrieve template from db"
         )
@@ -507,7 +498,7 @@ async def create_app_and_variant_from_template(
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
-            "Step 8: Creating image instance and adding variant based on image"
+            "Step 7: Creating image instance and adding variant based on image"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 4: Creating image instance and adding variant based on image"
         )
@@ -525,28 +516,28 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug(
-            "Step 9: Creating testset for app variant"
+            "Step 8: Creating testset for app variant"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 5: Creating testset for app variant"
         )
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
-            org_id=organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-            workspace_id=workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            org_id=payload.organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            workspace_id=payload.workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
             template_name=template_db.name,
             app_name=app.app_name,
             user_uid=request.state.user_id,
         )
 
         logger.debug(
-            "Step 10: We create ready-to use evaluators"
+            "Step 9: We create ready-to use evaluators"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 6: We create ready-to use evaluators"
         )
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
-            "Step 11: Starting variant and injecting environment variables"
+            "Step 10: Starting variant and injecting environment variables"
             if FEATURE_FLAG in ["cloud", "ee"]
             else "Step 7: Starting variant and injecting environment variables"
         )
