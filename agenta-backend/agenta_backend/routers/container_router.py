@@ -1,4 +1,3 @@
-import os
 import logging
 
 from typing import List, Optional, Union
@@ -6,10 +5,9 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE, isCloud, isEE
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.commons.models.api.api_models import Image_ as Image
@@ -17,9 +15,9 @@ else:
     from agenta_backend.models.api.api_models import Image
 
 
-if FEATURE_FLAG in ["cloud"]:
+if isCloud:
     from agenta_backend.cloud.services import container_manager
-elif FEATURE_FLAG in ["ee"]:
+elif isEE:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
@@ -57,31 +55,34 @@ async def build_image(
     Returns:
         Image: The Docker image that was built.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
-            permission=Permission.CREATE_APPLICATION,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+    try:
+        app_db = await db_manager.fetch_app_by_id(app_id)
+        
+        # Check app access
+        if isCloudEE:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object = app_db,
+                permission=Permission.CREATE_APPLICATION,
             )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
-    # Check app access
-    app_db = await db_manager.fetch_app_by_id(app_id)
 
-    image_result = await container_manager.build_image(
-        app_db=app_db,
-        base_name=base_name,
-        tar_file=tar_file,
-    )
+        image_result = await container_manager.build_image(
+            app_db=app_db,
+            base_name=base_name,
+            tar_file=tar_file,
+        )
 
-    return image_result
+        return image_result
+    except Exception as ex:
+        return JSONResponse({"message": str(ex)}, status_code=500)
 
 
 @router.post("/restart_container/", operation_id="restart_container")
@@ -153,7 +154,7 @@ async def construct_app_container_url(
     # assert that one of base_id or variant_id is provided
     assert base_id or variant_id, "Please provide either base_id or variant_id"
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=base_id if base_id else variant_id,

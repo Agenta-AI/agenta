@@ -1,4 +1,3 @@
-import os
 import secrets
 import logging
 
@@ -6,8 +5,8 @@ from typing import Any, List
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response
 
-from agenta_backend.utils.common import APIRouter
 from agenta_backend.tasks.evaluations import evaluate
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluation_service, db_manager
 
 from agenta_backend.models.api.evaluation_model import (
@@ -23,8 +22,7 @@ from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -45,7 +43,7 @@ async def create_evaluation(
         _description_
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
@@ -113,7 +111,7 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -150,7 +148,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -196,7 +194,7 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -239,7 +237,7 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -278,7 +276,7 @@ async def fetch_evaluation(
         Evaluation: The fetched evaluation.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -317,7 +315,7 @@ async def delete_evaluations(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             for evaluation_id in delete_evaluations.evaluations_ids:
                 has_permission = await check_action_access(
                     user_uid=request.state.user_id,
@@ -382,7 +380,7 @@ async def fetch_evaluation_scenarios(
     try:
         evaluations_ids_list = evaluations_ids.split(",")
 
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             for evaluation_id in evaluations_ids_list:
                 has_permission = await check_action_access(
                     user_uid=request.state.user_id,
