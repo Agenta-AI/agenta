@@ -24,7 +24,7 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay, getAgentaApiUrl, removeKeys} from "../helpers/utils"
+import {delay, getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 /**
  * Raw interface for the parameters parsed from the openapi.json
@@ -84,11 +84,14 @@ export async function callVariant(
     appId: string,
     baseId: string,
     chatMessages?: ChatMessage[],
+    signal?: AbortSignal,
+    ignoreAxiosError?: boolean,
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
+
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -120,9 +123,14 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
-        return res.data
-    })
+    return axios
+        .post(`${appContainerURI}/generate`, requestBody, {
+            signal,
+            _ignoreError: ignoreAxiosError,
+        } as any)
+        .then((res) => {
+            return res.data
+        })
 }
 
 /**
@@ -254,6 +262,11 @@ export const useLoadTestsetsList = (appId: string) => {
     }
 }
 
+export const fetchTestsets = async (appId: string) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+    return response.data
+}
+
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
     const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/${appId}/`, {
         name: testsetName,
@@ -284,21 +297,19 @@ export const deleteTestsets = async (ids: string[]) => {
     return response.data
 }
 
-export const loadEvaluations = async (appId: string) => {
-    return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/?app_id=${appId}`)
-        .then((responseData) => {
-            const evaluations = responseData.data.map((item: EvaluationResponseType) => {
-                return fromEvaluationResponseToEvaluation(item)
-            })
-
-            return evaluations
-        })
+export const loadEvaluations = async (appId: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${appId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return response.data
 }
 
 export const loadEvaluation = async (evaluationId: string) => {
     return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/${evaluationId}/`)
+        .get(`${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/`)
         .then((responseData) => {
             return fromEvaluationResponseToEvaluation(responseData.data)
         })
@@ -307,7 +318,7 @@ export const loadEvaluation = async (evaluationId: string) => {
 export const deleteEvaluations = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/evaluations/`,
+        url: `${getAgentaApiUrl()}/api/human-evaluations/`,
         data: {evaluations_ids: ids},
     })
     return response.data
@@ -318,7 +329,9 @@ export const loadEvaluationsScenarios = async (
     evaluation: Evaluation,
 ) => {
     return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenarios/`)
+        .get(
+            `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenarios/`,
+        )
         .then((responseData) => {
             const evaluationsRows = responseData.data.map((item: any) => {
                 return fromEvaluationScenarioResponseToEvaluationScenario(item, evaluation)
@@ -364,14 +377,17 @@ export const createNewEvaluation = async (
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/api/evaluations/`, data, {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/human-evaluations/`, data, {
         _ignoreError: ignoreAxiosError,
     } as any)
     return response.data.id
 }
 
 export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
-    const response = await axios.put(`${getAgentaApiUrl()}/api/evaluations/${evaluationId}/`, data)
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/`,
+        data,
+    )
     return response.data
 }
 
@@ -382,7 +398,7 @@ export const updateEvaluationScenario = async (
     evaluationType: EvaluationType,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/`,
         data,
     )
     return response.data
@@ -390,7 +406,7 @@ export const updateEvaluationScenario = async (
 
 export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenario/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/`,
         data,
     )
     return response.data
@@ -401,23 +417,29 @@ export const evaluateAICritiqueForEvalScenario = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/ai_critique/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/ai_critique/`,
         data,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
 }
 
-export const fetchEvaluationResults = async (evaluationId: string) => {
+export const fetchEvaluationResults = async (
+    evaluationId: string,
+    ignoreAxiosError: boolean = false,
+) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationId}/results/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
     )
     return response.data
 }
 
 export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
     )
     return response
 }
@@ -427,7 +449,7 @@ export const saveCustomCodeEvaluation = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -440,7 +462,7 @@ export const editCustomEvaluationDetail = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${id}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -449,7 +471,7 @@ export const editCustomEvaluationDetail = async (
 
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/list/${app_id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/list/${app_id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -460,7 +482,7 @@ export const fetchCustomEvaluationDetail = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
@@ -471,7 +493,7 @@ export const fetchCustomEvaluationNames = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${app_id}/names/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${app_id}/names/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -482,7 +504,9 @@ export const executeCustomEvaluationCode = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/execute/${
+            payload.evaluation_id
+        }/`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -495,7 +519,7 @@ export const updateEvaluationScenarioScore = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
         {score},
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -564,25 +588,17 @@ export const waitForAppToStart = async ({
 }) => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
-        const shortPoll = async () => {
-            let started = false
-            while (!started) {
-                try {
-                    await getVariantParametersFromOpenAPI(
-                        appId,
-                        _variant.variantId,
-                        _variant.baseId,
-                        true,
-                    )
-                    started = true
-                } catch {}
-                await delay(interval)
-            }
-        }
-        await Promise.race([
-            shortPoll(),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), timeout)),
-        ])
+        const {stopper, promise} = shortPoll(
+            () =>
+                getVariantParametersFromOpenAPI(
+                    appId,
+                    _variant.variantId,
+                    _variant.baseId,
+                    true,
+                ).then(() => stopper()),
+            {delayMs: interval, timeoutMs: timeout},
+        )
+        await promise
     }
 }
 
@@ -595,7 +611,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
     orgId: string
     timeout?: number
@@ -605,6 +621,14 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
         onStatusChange?.("creating_app")
         let app
@@ -613,9 +637,7 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
+                    env_vars: apiKeys,
                     organization_id: orgId,
                 },
                 true,

@@ -1,13 +1,9 @@
-from bson import ObjectId
 from typing import Tuple, Dict, List
+
 from agenta_backend.models.db_models import (
     UserDB,
     OrganizationDB,
 )
-
-from odmantic import query
-from agenta_backend.utils.common import engine
-from agenta_backend.models.api.organization_models import Organization
 
 
 async def get_user_and_org_id(user_uid_id) -> Dict[str, List]:
@@ -35,15 +31,13 @@ async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
         of the user's organization_ids.
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-
+    user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is not None:
         user_id = str(user.uid)
         organization_ids: List = (
             [org for org in user.organizations] if user.organizations else []
         )
         return user_id, organization_ids
-
     return None, []
 
 
@@ -57,16 +51,10 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
         Organization: Instance of OrganizationDB
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-
-    # Build the query expression for the two conditions
-    query_expression = query.eq(OrganizationDB.owner, str(user.id)) & query.eq(
-        OrganizationDB.type, "default"
+    user = await UserDB.find_one(UserDB.uid == user_uid)
+    org: OrganizationDB = await OrganizationDB.find_one(
+        OrganizationDB.owner == str(user.id), OrganizationDB.type == "default"
     )
-
-    # get the organization
-    org: OrganizationDB = await engine.find_one(OrganizationDB, query_expression)
-
     if org is not None:
         return org
     else:

@@ -1,0 +1,32 @@
+---
+title: Migration
+description: 'This is a step-by-step guide for upgrading to the latest version of Agenta'
+---
+
+## Upgrading to the Latest Version
+
+To upgrade to the latest version of Agenta, execute the following command:
+
+```
+docker compose -f docker-compose.gh.yml up -d --pull always
+```
+
+This command instructs Docker to fetch and use the latest version of the Agenta image.
+
+
+### Migrating from Version 0.8 to 0.9
+
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/24_01_24_error_and_result/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
+
+### Migrating from Version 0.7 to 0.8
+
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/17_01_24_pydantic_and_evaluations/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
+

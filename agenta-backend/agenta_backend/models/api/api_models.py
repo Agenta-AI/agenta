@@ -5,6 +5,17 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
+class Result(BaseModel):
+    type: str
+    value: Optional[Any] = None
+    error: Optional[Error] = None
+
+
 class GetConfigReponse(BaseModel):
     config_id: str
     config_name: str

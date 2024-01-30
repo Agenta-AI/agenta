@@ -1,5 +1,6 @@
 """Main Business logic
 """
+
 import os
 import logging
 from urllib.parse import urlparse
@@ -15,7 +16,11 @@ from agenta_backend.models.db_models import (
     AppEnvironmentDB,
     AppDB,
 )
-from agenta_backend.services import db_manager
+
+from agenta_backend.services import (
+    db_manager,
+    evaluator_manager,
+)
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.cloud.services import (
@@ -472,5 +477,6 @@ async def add_variant_based_on_image(
         base=db_base,
         config=config_db,
     )
+
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant

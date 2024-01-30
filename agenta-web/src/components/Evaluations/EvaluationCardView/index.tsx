@@ -2,13 +2,14 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {ChatMessage, Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
 import {
     LeftOutlined,
+    LoadingOutlined,
     PlayCircleOutlined,
     PushpinFilled,
     PushpinOutlined,
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Button, Empty, Form, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
@@ -26,6 +27,7 @@ import {useVariants} from "@/lib/hooks/useVariant"
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
     "#F6D167", //"#13c2c2",
+    "#4caf50",
 ]
 
 const useStyles = createUseStyles({
@@ -122,6 +124,11 @@ const useStyles = createUseStyles({
         minWidth: 240,
         maxWidth: 500,
     },
+    centeredItem: {
+        display: "grid",
+        placeItems: "center",
+        width: "100%",
+    },
 })
 
 interface Props {
@@ -133,6 +140,7 @@ interface Props {
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
     variantData: ReturnType<typeof useVariants>
+    isLoading: boolean
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -144,6 +152,7 @@ const EvaluationCardView: React.FC<Props> = ({
     updateEvaluationScenarioData,
     evaluation,
     variantData,
+    isLoading,
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -161,6 +170,8 @@ const EvaluationCardView: React.FC<Props> = ({
         )
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
+
+    // console.log(evaluationScenarios, isLoading)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
@@ -298,7 +309,6 @@ const EvaluationCardView: React.FC<Props> = ({
     const correctAnswer = useMemo(() => {
         if (scenario?.correctAnswer) return scenario.correctAnswer
         let res = testsetRow?.correct_answer
-        if (isChat) res = safeParse(res)?.content
         return res || ""
     }, [testsetRow?.correct_answer, scenario?.correctAnswer])
 
@@ -316,7 +326,9 @@ const EvaluationCardView: React.FC<Props> = ({
 
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
-            {scenario ? (
+            {isLoading ? (
+                <Result className={classes.centeredItem} icon={<LoadingOutlined />} />
+            ) : scenario ? (
                 <>
                     <div className={classes.evaluation}>
                         <div className={classes.heading}>
@@ -442,6 +454,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.vote === "loading"}
                                             vertical
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     ) : (
                                         <EvaluationVotePanel
@@ -457,6 +470,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.score === "loading"}
                                             showVariantName={false}
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     )}
                                 </Space>
@@ -490,7 +504,7 @@ const EvaluationCardView: React.FC<Props> = ({
                     </div>
                 </>
             ) : (
-                <Empty description="Evaluation not found" />
+                <Empty description="Evaluation not found" className={classes.centeredItem} />
             )}
         </div>
     )

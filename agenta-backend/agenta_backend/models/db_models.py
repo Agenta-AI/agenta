@@ -1,12 +1,12 @@
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from bson import ObjectId
-from odmantic import EmbeddedModel, Field, Model, Reference
+from pydantic import BaseModel, Field
+from beanie import Document, Link, PydanticObjectId
 
 
-class APIKeyDB(Model):
+class APIKeyDB(Document):
     prefix: str
     hashed_key: str
     user_id: str
@@ -16,44 +16,44 @@ class APIKeyDB(Model):
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime]
 
-    class Config:
-        collection = "api_keys"
+    class Settings:
+        name = "api_keys"
 
 
-class InvitationDB(EmbeddedModel):
+class InvitationDB(BaseModel):
     token: str = Field(unique=True)
     email: str
     expiration_date: datetime = Field(default="0")
     used: bool = False
 
 
-class OrganizationDB(Model):
+class OrganizationDB(Document):
     name: str = Field(default="agenta")
     description: str = Field(default="")
     type: Optional[str]
     owner: str  # user id
-    members: Optional[List[ObjectId]]
+    members: Optional[List[PydanticObjectId]]
     invitations: Optional[List[InvitationDB]] = []
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "organizations"
+    class Settings:
+        name = "organizations"
 
 
-class UserDB(Model):
+class UserDB(Document):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organizations: Optional[List[ObjectId]] = []
+    organizations: Optional[List[PydanticObjectId]] = []
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "users"
+    class Settings:
+        name = "users"
 
 
-class ImageDB(Model):
+class ImageDB(Document):
     """Defines the info needed to get an image and connect it to the app variant"""
 
     type: Optional[str] = Field(default="image")
@@ -61,28 +61,30 @@ class ImageDB(Model):
     docker_id: Optional[str] = Field(index=True)
     tags: Optional[str]
     deletable: bool = Field(default=True)
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    deletable: bool = Field(default=True)
 
-    class Config:
-        collection = "docker_images"
+    class Settings:
+        name = "docker_images"
 
 
-class AppDB(Model):
+class AppDB(Document):
     app_name: str
-    organization: OrganizationDB = Reference(key_name="organization")
-    user: UserDB = Reference(key_name="user")
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
+    class Settings:
+        name = "app_db"
 
-class DeploymentDB(Model):
-    app: AppDB = Reference(key_name="app")
-    organization: OrganizationDB = Reference(key_name="organization")
-    user: UserDB = Reference(key_name="user")
+
+class DeploymentDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
@@ -90,32 +92,32 @@ class DeploymentDB(Model):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "deployments"
+    class Settings:
+        name = "deployments"
 
 
-class VariantBaseDB(Model):
-    app: AppDB = Reference(key_name="app")
-    organization: OrganizationDB = Reference(key_name="organization")
-    user: UserDB = Reference(key_name="user")
+class VariantBaseDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
     base_name: str
-    image: ImageDB = Reference(key_name="image")
-    deployment: Optional[ObjectId]  # Reference to deployment
+    image: Link[ImageDB]
+    deployment: Optional[PydanticObjectId]  # Link to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "bases"
+    class Settings:
+        name = "bases"
 
 
-class ConfigVersionDB(EmbeddedModel):
+class ConfigVersionDB(BaseModel):
     version: int
     parameters: Dict[str, Any]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
 
-class ConfigDB(Model):
+class ConfigDB(Document):
     config_name: str
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
@@ -123,22 +125,22 @@ class ConfigDB(Model):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "configs"
+    class Settings:
+        name = "configs"
 
 
-class AppVariantDB(Model):
-    app: AppDB = Reference(key_name="app")
+class AppVariantDB(Document):
+    app: Link[AppDB]
     variant_name: str
-    image: ImageDB = Reference(key_name="image")
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
+    image: Link[ImageDB]
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
-    base: VariantBaseDB = Reference(key_name="bases")
+    base: Link[VariantBaseDB]
     config_name: Optional[str]
-    config: ConfigDB = Reference(key_name="configs")
+    config: Link[ConfigDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -146,25 +148,24 @@ class AppVariantDB(Model):
         default=False
     )  # soft deletion for using the template variants
 
-    class Config:
-        collection = "app_variants"
+    class Settings:
+        name = "app_variants"
 
 
-class AppEnvironmentDB(Model):
-    app: AppDB = Reference(key_name="app")
+class AppEnvironmentDB(Document):
+    app: Link[AppDB]
     name: str
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
-    deployed_app_variant: Optional[ObjectId]
-    deployment: Optional[ObjectId]  # reference to deployment
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
+    deployed_app_variant: Optional[PydanticObjectId]
+    deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "environments"
+    class Settings:
+        name = "environments"
 
 
-class TemplateDB(Model):
+class TemplateDB(Document):
     type: Optional[str] = Field(default="image")
     template_uri: Optional[str]
     tag_id: Optional[int]
@@ -176,91 +177,151 @@ class TemplateDB(Model):
     digest: Optional[str]  # sha256 hash of image digest
     last_pushed: Optional[datetime]
 
-    class Config:
-        collection = "templates"
+    class Settings:
+        name = "templates"
 
 
-class TestSetDB(Model):
+class TestSetDB(Document):
     name: str
-    app: AppDB = Reference(key_name="app")
+    app: Link[AppDB]
     csvdata: List[Dict[str, str]]
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "testsets"
+    class Settings:
+        name = "testsets"
 
 
-class EvaluationTypeSettings(EmbeddedModel):
-    similarity_threshold: Optional[float]
-    regex_pattern: Optional[str]
-    regex_should_match: Optional[bool]
-    webhook_url: Optional[str]
-    llm_app_prompt_template: Optional[str]
-    custom_code_evaluation_id: Optional[str]
-    evaluation_prompt_template: Optional[str]
+class EvaluatorConfigDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
+    name: str
+    evaluator_key: str
+    settings_values: Dict[str, Any] = Field(default=dict)
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "evaluators_configs"
 
 
-class EvaluationScenarioInput(EmbeddedModel):
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
+class Result(BaseModel):
+    type: str
+    value: Optional[Any] = None
+    error: Optional[Error] = None
+
+
+class InvokationResult(BaseModel):
+    result: Result
+
+
+class EvaluationScenarioResult(BaseModel):
+    evaluator_config: PydanticObjectId
+    result: Result
+
+
+class AggregatedResult(BaseModel):
+    evaluator_config: PydanticObjectId
+    result: Result
+
+
+class EvaluationScenarioInputDB(BaseModel):
+    name: str
+    type: str
+    value: str
+
+
+class EvaluationScenarioOutputDB(BaseModel):
+    result: Result
+
+
+class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
 
 
-class EvaluationScenarioOutput(EmbeddedModel):
+class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str
     variant_output: str
 
 
-class EvaluationDB(Model):
-    app: AppDB = Reference(key_name="app")
-    organization: OrganizationDB = Reference(key_name="organization")
-    user: UserDB = Reference(key_name="user")
+class HumanEvaluationDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
     status: str
     evaluation_type: str
-    evaluation_type_settings: EvaluationTypeSettings
-    variants: List[ObjectId]
-    testset: TestSetDB = Reference(key_name="testsets")
+    variants: List[PydanticObjectId]
+    testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "evaluations"
+    class Settings:
+        name = "human_evaluations"
 
 
-class EvaluationScenarioDB(Model):
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
-    evaluation: EvaluationDB = Reference(key_name="evaluations")
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
+class HumanEvaluationScenarioDB(Document):
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
+    evaluation: Link[HumanEvaluationDB]
+    inputs: List[HumanEvaluationScenarioInput]
+    outputs: List[HumanEvaluationScenarioOutput]
     vote: Optional[str]
-    score: Optional[Union[str, int]]
+    score: Optional[Any]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
     is_pinned: Optional[bool]
     note: Optional[str]
 
-    class Config:
-        collection = "evaluation_scenarios"
+    class Settings:
+        name = "human_evaluations_scenarios"
 
 
-class CustomEvaluationDB(Model):
-    evaluation_name: str
-    python_code: str
-    app: AppDB = Reference(key_name="app")
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+class EvaluationDB(Document):
+    app: Link[AppDB]
+    organization: Link[OrganizationDB]
+    user: Link[UserDB]
+    status: Result
+    testset: Link[TestSetDB]
+    variant: PydanticObjectId
+    evaluators_configs: List[PydanticObjectId]
+    aggregated_results: List[AggregatedResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "custom_evaluations"
+    class Settings:
+        name = "new_evaluations"
 
 
-class SpanDB(Model):
+class EvaluationScenarioDB(Document):
+    user: Link[UserDB]
+    organization: Link[OrganizationDB]
+    evaluation: Link[EvaluationDB]
+    variant_id: PydanticObjectId
+    inputs: List[EvaluationScenarioInputDB]
+    outputs: List[EvaluationScenarioOutputDB]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    evaluators_configs: List[PydanticObjectId]
+    results: List[EvaluationScenarioResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "new_evaluation_scenarios"
+
+
+class SpanDB(Document):
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str  # Function or execution name
@@ -278,11 +339,11 @@ class SpanDB(Model):
     cost: Optional[float]
     tags: Optional[List[str]]
 
-    class Config:
-        collection = "spans"
+    class Settings:
+        name = "spans"
 
 
-class Feedback(EmbeddedModel):
+class Feedback(BaseModel):
     uid: str = Field(default=str(uuid4()))
     user_id: str
     feedback: Optional[str]
@@ -292,19 +353,19 @@ class Feedback(EmbeddedModel):
     updated_at: datetime = Field(default=datetime.utcnow())
 
 
-class TraceDB(Model):
+class TraceDB(Document):
     app_id: Optional[str]
     variant_id: str
-    spans: List[ObjectId]
+    spans: List[PydanticObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
     token_consumption: Optional[int]
-    user: UserDB = Reference()
+    user: Link[UserDB]
     tags: Optional[List[str]]
     feedbacks: Optional[List[Feedback]]
 
-    class Config:
-        collection = "traces"
+    class Settings:
+        name = "traces"
