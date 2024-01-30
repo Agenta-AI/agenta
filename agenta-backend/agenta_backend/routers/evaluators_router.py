@@ -4,8 +4,8 @@ from typing import List
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from agenta_backend.services import evaluator_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
+from agenta_backend.services import evaluator_manager, db_manager
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
@@ -91,11 +91,11 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
     """
 
     try:
+        evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                object_id=evaluator_config_db.app,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -106,9 +106,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
                     status_code=403,
                 )
 
-        evaluators_configs = await evaluator_manager.get_evaluator_config(
-            evaluator_config_id
-        )
+        evaluators_configs = await evaluator_manager.get_evaluator_config(evaluator_config_db)
         return evaluators_configs
     except Exception as e:
         raise HTTPException(
