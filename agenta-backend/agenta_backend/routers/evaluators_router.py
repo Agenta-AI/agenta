@@ -5,7 +5,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.services import evaluator_manager
-from agenta_backend.utils.common import APIRouter, isCloudEE
+from agenta_backend.utils.common import APIRouter, isCloudEE()
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
@@ -14,7 +14,7 @@ from agenta_backend.models.api.evaluation_model import (
     UpdateEvaluatorConfig,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -59,7 +59,7 @@ async def get_evaluator_configs(app_id: str, request: Request):
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -91,7 +91,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluator_config_id,
@@ -130,7 +130,7 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
@@ -169,7 +169,7 @@ async def update_evaluator_config(
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluator_config_id,
@@ -205,7 +205,7 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
         bool: True if deletion was successful, False otherwise.
     """
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluator_config_id,

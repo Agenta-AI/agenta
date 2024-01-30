@@ -22,24 +22,24 @@ from agenta_backend.services import (
 )
 
 from agenta_backend.utils.common import (
-    isEE,
-    isOssEE,
-    isCloud,
-    isCloudEE,
+    isEE(),
+    isOssEE(),
+    isCloud(),
+    isCloudEE(),
 )
 
-if isCloud:
+if isCloud():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
-elif isEE:
+elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services import deployment_manager
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.services import (
         api_key_service,
     )  # noqa pylint: disable-all
@@ -75,8 +75,8 @@ async def start_variant(
             db_app_variant.image.docker_id,
             db_app_variant.image.tags,
             db_app_variant.app.app_name,
-            db_app_variant.organization if isCloudEE else None,
-            db_app_variant.workspace if isCloudEE else None,
+            db_app_variant.organization if isCloudEE() else None,
+            db_app_variant.workspace if isCloudEE() else None,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
         # update the env variables
@@ -91,7 +91,7 @@ async def start_variant(
         env_vars.update(
             {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
         )
-        if isCloudEE:
+        if isCloudEE():
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid), expiration_date=None, hidden=True
             )
@@ -135,7 +135,7 @@ async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(deployment)
 
-    if isOssEE:
+    if isOssEE():
         await deployment_manager.remove_image(app_variant_db.base.image)
 
     await db_manager.remove_image(app_variant_db.base.image)
@@ -147,10 +147,10 @@ async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
         user=app_variant_db.user,
         deletable=True,
         organization=app_variant_db.organization
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa
         workspace=app_variant_db.workspace
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa
     )
     # Update base with new image
@@ -229,7 +229,7 @@ async def terminate_and_remove_app_variant(
                 # If image deletable is True, remove docker image and image db
                 if image.deletable:
                     try:
-                        if isCloudEE:
+                        if isCloudEE():
                             await deployment_manager.remove_repository(image.tags)
                         else:
                             await deployment_manager.remove_image(image)
@@ -395,7 +395,7 @@ async def add_variant_based_on_image(
     ):
         raise ValueError("App variant, variant name or docker_id/template_uri is None")
 
-    if not isCloudEE:
+    if not isCloudEE():
         if tags in [None, ""]:
             raise ValueError("OSS: Tags is None")
 
@@ -418,20 +418,20 @@ async def add_variant_based_on_image(
         db_image = await db_manager.get_orga_image_instance_by_uri(
             template_uri=docker_id_or_template_uri,
             organization_id=str(app.organization.id)
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa
             workspace_id=str(app.workspace.id)
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
             docker_id=docker_id_or_template_uri,
             organization_id=str(app.organization.id)
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa
             workspace_id=str(app.workspace.id)
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa
         )
 
@@ -445,10 +445,10 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization
-                if isCloudEE
+                if isCloudEE()
                 else None,  # noqa
                 workspace=app.workspace
-                if isCloudEE
+                if isCloudEE()
                 else None,  # noqa
             )
         else:
@@ -460,10 +460,10 @@ async def add_variant_based_on_image(
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization
-                if isCloudEE
+                if isCloudEE()
                 else None,  # noqa
                 workspace=app.workspace
-                if isCloudEE
+                if isCloudEE()
                 else None,  # noqa
             )
 
@@ -482,9 +482,9 @@ async def add_variant_based_on_image(
     db_base = await db_manager.create_new_variant_base(
         app=app,
         organization=app.organization
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa
-        workspace=app.workspace if isCloudEE else None,  # noqa
+        workspace=app.workspace if isCloudEE() else None,  # noqa
         user=user_instance,
         base_name=base_name,  # the first variant always has default base
         image=db_image,
@@ -498,9 +498,9 @@ async def add_variant_based_on_image(
         image=db_image,
         user=user_instance,
         organization=app.organization
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa
-        workspace=app.workspace if isCloudEE else None,  # noqa
+        workspace=app.workspace if isCloudEE() else None,  # noqa
         parameters={},
         base_name=base_name,
         config_name=config_name,

@@ -1,10 +1,10 @@
 from beanie import PydanticObjectId as ObjectId
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isCloudEE()
 from agenta_backend.models.api.evaluation_model import EvaluationType
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,

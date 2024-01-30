@@ -6,14 +6,14 @@ from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from agenta_backend.models import converters
 from fastapi import HTTPException, Request, Body
-from agenta_backend.utils.common import APIRouter, isCloudEE
+from agenta_backend.utils.common import APIRouter, isCloudEE()
 
 from agenta_backend.services import (
     app_manager,
     db_manager,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
@@ -296,7 +296,7 @@ async def start_variant(
     logger.debug("Starting variant %s", variant_id)
 
     # Inject env vars to docker container
-    if isCloudEE:
+    if isCloudEE():
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,

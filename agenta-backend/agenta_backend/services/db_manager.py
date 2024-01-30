@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from agenta_backend.models import converters
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isCloudEE()
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 
@@ -33,7 +33,7 @@ from agenta_backend.models.db_models import (
 )
 
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.utils.permissions import check_rbac_permission
     from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
@@ -125,7 +125,7 @@ async def add_testset_to_app_variant(
                 user=user_db,
             )
 
-            if isCloudEE:
+            if isCloudEE():
                 # assert that if organization is provided, workspace_id is also provided, and vice versa
                 assert (
                     org_id is not None and workspace_id is not None
@@ -254,7 +254,7 @@ async def create_new_variant_base(
         image=image,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -326,7 +326,7 @@ async def create_new_app_variant(
         parameters=parameters,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -389,7 +389,7 @@ async def create_image(
         image.tags = tags
         image.docker_id = docker_id
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -435,7 +435,7 @@ async def create_deployment(
             status=status,
         )
 
-        if isCloudEE:
+        if isCloudEE():
             deployment.organization = organization
             deployment.workspace = workspace
 
@@ -479,7 +479,7 @@ async def create_app_and_envs(
 
     app = AppDB(app_name=app_name, user=user_instance)
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization_id is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -573,7 +573,7 @@ async def get_user(user_uid: str) -> UserDB:
 
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
-        if not isCloudEE:
+        if not isCloudEE():
             # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
@@ -662,7 +662,7 @@ async def get_orga_image_instance_by_docker_id(
 
     query_expression = {"docker_id": docker_id}
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -698,7 +698,7 @@ async def get_orga_image_instance_by_uri(
 
     query_expression = {"template_uri": template_uri}
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -786,7 +786,7 @@ async def add_variant_from_base_and_config(
         is_deleted=False,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         db_app_variant.organization = previous_app_variant_db.organization
         db_app_variant.workspace = previous_app_variant_db.workspace
 
@@ -823,7 +823,7 @@ async def list_apps(
         return [converters.app_db_to_pydantic(app_db)]
 
     elif (org_id is not None) or (workspace_id is not None):
-        if not isCloudEE:
+        if not isCloudEE():
             return JSONResponse(
                 {
                     "error": "organization and/or workspace is only available in Cloud and EE"
@@ -892,7 +892,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
 
     query_expression = {"base.id": db_app_variant.base.id}
 
-    if isCloudEE:
+    if isCloudEE():
         query_expression.update(
             {
                 "organization.id": db_app_variant.organization.id,
@@ -1032,7 +1032,7 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
     """
     environment_db = AppEnvironmentDB(app=app_db, name=name, user=app_db.user)
 
-    if isCloudEE:
+    if isCloudEE():
         environment_db.organization = app_db.organization
         environment_db.workspace = app_db.workspace
 
@@ -1545,7 +1545,7 @@ async def fetch_app_by_name_and_parameters(
 
     query_expression = {"app_name": app_name}
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -1595,7 +1595,7 @@ async def create_new_evaluation(
         updated_at=datetime.now().isoformat(),
     )
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -1641,7 +1641,7 @@ async def create_new_evaluation_scenario(
         updated_at=datetime.utcnow(),
     )
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -1771,7 +1771,7 @@ async def create_evaluator_config(
         settings_values=settings_values,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
