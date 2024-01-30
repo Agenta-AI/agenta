@@ -1,10 +1,9 @@
-import os
 import logging
 
 from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
@@ -15,8 +14,7 @@ from agenta_backend.services import (
     app_manager,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -32,11 +30,12 @@ async def save_config(
     request: Request,
 ):
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        base_db = await db_manager.fetch_base_by_id(payload.base_id)
+        
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.base_id,
-                object_type="base",
+                object = base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -47,7 +46,6 @@ async def save_config(
                     status_code=403,
                 )
 
-        base_db = await db_manager.fetch_base_by_id(payload.base_id)
         variants_db = await db_manager.list_variants_for_base(base_db)
         variant_to_overwrite = None
         for variant_db in variants_db:
@@ -92,12 +90,13 @@ async def get_config(
     environment_name: Optional[str] = None,
 ):
     try:
+        base_db = await db_manager.fetch_base_by_id(base_id)
+        
         # detemine whether the user has access to the base
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=base_id,
-                object_type="base",
+                object = base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -108,7 +107,6 @@ async def get_config(
                     status_code=403,
                 )
 
-        base_db = await db_manager.fetch_base_by_id(base_id)
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(

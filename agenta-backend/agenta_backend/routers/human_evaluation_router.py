@@ -1,10 +1,6 @@
-import os
-import secrets
 from typing import List, Dict
-
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
@@ -32,8 +28,7 @@ from agenta_backend.services.evaluation_service import (
     update_human_evaluation_service,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import Permission  # noqa pylint: disable-all
     from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
 
@@ -54,7 +49,7 @@ async def create_evaluation(
         _description_
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
@@ -100,7 +95,7 @@ async def fetch_list_human_evaluations(
         List[HumanEvaluation]: A list of evaluations.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -133,7 +128,7 @@ async def fetch_human_evaluation(
         HumanEvaluation: The fetched evaluation.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -174,7 +169,7 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -214,7 +209,7 @@ async def update_human_evaluation(
         None: A 204 No Content status code, indicating that the update was successful.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -257,7 +252,7 @@ async def update_evaluation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
@@ -297,7 +292,7 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
@@ -331,7 +326,7 @@ async def update_evaluation_scenario_score_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_scenario_id,
@@ -368,7 +363,7 @@ async def fetch_results(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -412,7 +407,7 @@ async def delete_evaluations(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             for evaluation_id in delete_evaluations.evaluations_ids:
                 has_permission = await check_action_access(
                     user_uid=request.state.user_id,

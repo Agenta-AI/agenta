@@ -1,10 +1,9 @@
+import os
 import logging
 from typing import Any, Callable
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-
-from agenta_backend.services import db_manager  # To fix circular import
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -49,3 +48,40 @@ class APIRouter(FastAPIRouter):
             return add_path(func)
 
         return decorator
+
+
+async def check_action_access(
+    user_uid: str,
+    object: dict = None,
+    object_id: str = None,
+    object_type: str = None,
+    permission = None,
+    role: str = None,
+) -> bool:
+    """
+    Validate that a user has access.
+
+    Args:
+        user_id (str): The user's ID.
+        object_id (str): The ID of the object to check.
+        type (str): The type of the object to check.
+        permission (Permission): The permission to check.
+        role (str): The role to check.
+
+    Returns:
+        bool: True.
+    """
+
+    return True
+
+def isCloudEE():
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+
+def isCloud():
+    return os.environ["FEATURE_FLAG"] == "cloud"
+
+def isEE():
+    return os.environ["FEATURE_FLAG"] == "ee"
+
+def isOssEE():
+    return os.environ["FEATURE_FLAG"] in ["oss", "ee"]

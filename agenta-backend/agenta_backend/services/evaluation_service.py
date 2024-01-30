@@ -8,6 +8,7 @@ from beanie import PydanticObjectId as ObjectId
 
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloudEE
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -23,8 +24,7 @@ from agenta_backend.models.api.evaluation_model import (
     NewHumanEvaluation,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -163,7 +163,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             outputs=[],
         )
         
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             eval_scenario_instance.organization = app.organization
             eval_scenario_instance.workspace = app.workspace
         
@@ -552,7 +552,7 @@ async def create_new_human_evaluation(
         updated_at=current_time,
     )
     
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         eval_instance.organization = app.organization
         eval_instance.workspace = app.workspace
     
@@ -603,8 +603,8 @@ async def create_new_evaluation(
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variant=variant_id,
         evaluators_configs=evaluator_config_ids,
-        organization=app.organization if FEATURE_FLAG in ["cloud", "ee"] else None,
-        workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
+        organization=app.organization if isCloudEE else None,
+        workspace=app.workspace if isCloudEE else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 

@@ -6,7 +6,9 @@ from pymongo import MongoClient
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE:
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -70,7 +72,7 @@ document_models: List[Document] = [
     HumanEvaluationScenarioDB,
 ]
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE:
     document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
 
 

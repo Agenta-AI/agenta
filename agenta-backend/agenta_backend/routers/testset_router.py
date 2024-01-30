@@ -1,5 +1,4 @@
 import io
-import os
 import csv
 import json
 import logging
@@ -11,8 +10,8 @@ from typing import Optional, List
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
 from agenta_backend.services.db_manager import get_user
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, UploadFile, File, Form, Request
 from agenta_backend.models.converters import testset_db_to_pydantic
 
@@ -24,8 +23,7 @@ from agenta_backend.models.api.testset_model import (
     TestSetOutputResponse,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
         Permission,
@@ -64,7 +62,7 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=app_id,
@@ -148,7 +146,7 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=app_id,
@@ -235,7 +233,7 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=app_id,
@@ -294,7 +292,7 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=testset_id,
@@ -349,7 +347,7 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=app_id,
@@ -395,7 +393,7 @@ async def get_single_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object_id=testset_id,
@@ -432,7 +430,7 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE:
         for testset_id in delete_testsets.testset_ids:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,

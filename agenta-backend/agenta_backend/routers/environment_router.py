@@ -1,15 +1,13 @@
-import os
 import logging
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import DeployToEnvironmentPayload
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE:
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -34,7 +32,7 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.variant_id,
