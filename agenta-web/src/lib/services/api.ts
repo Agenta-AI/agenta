@@ -600,7 +600,7 @@ export const createAndStartTemplate = async ({
     try {
         const {getOrgValues} = await dynamicContext("org.context", {
             getOrgValues: () => ({
-                selectedOrg: {id: undefined},
+                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
             }),
         })
         const {selectedOrg} = getOrgValues()
@@ -615,6 +615,7 @@ export const createAndStartTemplate = async ({
                         OPENAI_API_KEY: providerKey,
                     },
                     organization_id: selectedOrg.id,
+                    workspace_id: selectedOrg.default_workspace.id,
                 },
                 true,
             )
