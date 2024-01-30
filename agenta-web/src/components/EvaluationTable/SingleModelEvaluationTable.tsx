@@ -36,6 +36,7 @@ const {Title} = Typography
 interface EvaluationTableProps {
     evaluation: Evaluation
     evaluationScenarios: SingleModelEvaluationRow[]
+    isLoading: boolean
 }
 
 export type SingleModelEvaluationRow = EvaluationScenario & {
@@ -170,6 +171,7 @@ export const ParamsFormWithRun = ({
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
+    isLoading,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -478,6 +480,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 loading={record.score === "loading"}
                                 showVariantName={false}
                                 key={record.id}
+                                outputs={record.outputs}
                             />
                         }
                     </>
@@ -579,6 +582,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
                     variantData={variantData}
+                    isLoading={isLoading}
                 />
             )}
         </div>

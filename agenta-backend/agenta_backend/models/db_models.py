@@ -210,9 +210,19 @@ class EvaluatorConfigDB(Document):
         name = "evaluators_configs"
 
 
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
 class Result(BaseModel):
     type: str
-    value: Any
+    value: Optional[Any] = None
+    error: Optional[Error] = None
+
+
+class InvokationResult(BaseModel):
+    result: Result
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -232,8 +242,7 @@ class EvaluationScenarioInputDB(BaseModel):
 
 
 class EvaluationScenarioOutputDB(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -284,7 +293,7 @@ class EvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[TestSetDB]
     variant: PydanticObjectId
     variant_revision: PydanticObjectId

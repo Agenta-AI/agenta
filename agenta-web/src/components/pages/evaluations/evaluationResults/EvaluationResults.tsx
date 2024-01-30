@@ -67,7 +67,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const runningEvaluationIds = useMemo(
         () =>
             evaluations
-                .filter((item) => runningStatuses.includes(item.status))
+                .filter((item) => runningStatuses.includes(item.status.value))
                 .map((item) => item.id),
         [evaluations],
     )
@@ -113,7 +113,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         newEvals[index].duration = calcEvalDuration(newEvals[index])
                                     }
                                 })
-                                if (res.some((item) => !runningStatuses.includes(item.status)))
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                )
                                     fetcher()
                                 return newEvals
                             })
@@ -151,8 +153,8 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    item.status === EvaluationStatus.STARTED ||
-                    item.status === EvaluationStatus.INITIALIZED ||
+                    item.status.value === EvaluationStatus.STARTED ||
+                    item.status.value === EvaluationStatus.INITIALIZED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],
@@ -240,7 +242,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 185,
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status as EvaluationStatus].label,
+                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
                 cellRenderer: StatusRenderer,
             },
             {
@@ -334,8 +336,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         )
                                     )
                                         return
-                                    ;(params.data?.status === EvaluationStatus.FINISHED ||
-                                        params.data?.status === EvaluationStatus.ERROR) &&
+                                    ;(EvaluationStatus.FINISHED === params.data?.status.value ||
+                                        EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value) &&
                                         router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                                 }}
                                 rowSelection="multiple"
