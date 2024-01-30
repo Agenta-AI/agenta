@@ -29,6 +29,7 @@ from agenta_backend.models.db_models import (
     HumanEvaluationScenarioDB,
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
+    Result,
     UserDB,
     AppDB,
 )
@@ -699,7 +700,9 @@ async def create_new_evaluation(
         organization=app.organization,
         user=app.user,
         testset=testset,
-        status=EvaluationStatusEnum.EVALUATION_STARTED,
+        status=Result(
+            value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
+        ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,

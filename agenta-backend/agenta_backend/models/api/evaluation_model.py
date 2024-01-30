@@ -30,6 +30,7 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
     EVALUATION_STARTED = "EVALUATION_STARTED"
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
+    EVALUATION_FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS"
     EVALUATION_FAILED = "EVALUATION_FAILED"
 
 
@@ -67,7 +68,7 @@ class Evaluation(BaseModel):
     revisions: List[str]
     testset_id: str
     testset_name: str
-    status: str
+    status: Result
     aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
@@ -97,8 +98,7 @@ class EvaluationScenarioInput(BaseModel):
 
 
 class EvaluationScenarioOutput(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -228,7 +228,7 @@ class LLMRunRateLimit(BaseModel):
 
 
 class LMProvidersEnum(str, Enum):
-    openai = "openai"
+    openai = "OPENAI_API_KEY"
 
 
 class NewEvaluation(BaseModel):
@@ -238,6 +238,7 @@ class NewEvaluation(BaseModel):
     testset_id: str
     rate_limit: LLMRunRateLimit
     lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+    correct_answer_column: Optional[str]
 
 
 class NewEvaluatorConfig(BaseModel):
