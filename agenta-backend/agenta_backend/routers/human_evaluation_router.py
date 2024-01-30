@@ -49,6 +49,10 @@ async def create_evaluation(
         _description_
     """
     try:
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+        
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -62,11 +66,6 @@ async def create_evaluation(
                     {"detail": error_msg},
                     status_code=403,
                 )
-
-        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-
-        if app is None:
-            raise HTTPException(status_code=404, detail="App not found")
 
         new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
             payload, request.state.user_id
@@ -128,6 +127,10 @@ async def fetch_human_evaluation(
         HumanEvaluation: The fetched evaluation.
     """
     try:
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+        if not human_evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -142,7 +145,7 @@ async def fetch_human_evaluation(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_human_evaluation(evaluation_id)
+        return await evaluation_service.fetch_human_evaluation(human_evaluation)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -170,10 +173,11 @@ async def fetch_evaluation_scenarios(
 
     try:
         if isCloudEE():
+            human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
-                object_type="human_evaluation_scenario_by_evaluation_id",
+                object_type="human_evaluation",
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -184,9 +188,7 @@ async def fetch_evaluation_scenarios(
                 )
 
         eval_scenarios = (
-            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
-                evaluation_id
-            )
+            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(human_evaluation)
         )
 
         return eval_scenarios
@@ -210,10 +212,13 @@ async def update_human_evaluation(
     """
     try:
         if isCloudEE():
+            human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+            if not human_evaluation:
+                raise HTTPException(status_code=404, detail="Evaluation not found")
+            
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="human_evaluation",
+                object=human_evaluation,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -223,7 +228,7 @@ async def update_human_evaluation(
                     status_code=403,
                 )
 
-        await update_human_evaluation_service(evaluation_id, update_data)
+        await update_human_evaluation_service(human_evaluation, update_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except KeyError:
@@ -252,11 +257,23 @@ async def update_evaluation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     try:
+        evaluation_scenario_db = db_manager.fetch_human_evaluation_scenario_by_id(evaluation_scenario_id)
+        if evaluation_scenario is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+            )
+        evaluation = evaluation_scenario.evaluation
+        if evaluation is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
+            )
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_scenario_id,
-                object_type="human_evaluation_scenario",
+                object=evaluation_scenario_db,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -267,7 +284,7 @@ async def update_evaluation_scenario_router(
                 )
 
         await update_human_evaluation_scenario(
-            evaluation_scenario_id,
+            evaluation_scenario_db,
             evaluation_scenario,
             evaluation_type,
         )
@@ -292,11 +309,17 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     try:
+        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(evaluation_scenario_id)
+        if evaluation_scenario is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+            )
+        
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_scenario_id,
-                object_type="human_evaluation_scenario",
+                object=evaluation_scenario,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -306,7 +329,10 @@ async def get_evaluation_scenario_score_router(
                     status_code=403,
                 )
 
-        return await get_evaluation_scenario_score_service(evaluation_scenario_id)
+        return {
+            "scenario_id": str(evaluation_scenario.id),
+            "score": evaluation_scenario.score,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -326,11 +352,17 @@ async def update_evaluation_scenario_score_router(
         None: 204 No Content status code upon successful update.
     """
     try:
+        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(evaluation_scenario_id)
+        if evaluation_scenario is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+            )
+        
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_scenario_id,
-                object_type="human_evaluation_scenario",
+                object=evaluation_scenario,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -340,9 +372,9 @@ async def update_evaluation_scenario_score_router(
                     status_code=403,
                 )
 
-        await update_evaluation_scenario_score_service(
-            evaluation_scenario_id, payload.score
-        )
+        evaluation_scenario.score = payload.score
+        await evaluation_scenario.save()
+        
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -364,10 +396,19 @@ async def fetch_results(
 
     try:
         if isCloudEE():
+            evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+            if evaluation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Evaluation with id {evaluation_id} not found",
+                )
+            
+            if not evaluation:
+                raise HTTPException(status_code=404, detail="Evaluation not found")
+            
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                object=evaluation,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -377,7 +418,6 @@ async def fetch_results(
                     status_code=403,
                 )
 
-        evaluation = await evaluation_service._fetch_human_evaluation(evaluation_id)
         if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
             results = await results_service.fetch_results_for_evaluation(evaluation)
             return {"votes_data": results}

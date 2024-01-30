@@ -47,18 +47,17 @@ async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
     ]
 
 
-async def get_evaluator_config(evaluator_config_id: str) -> EvaluatorConfig:
+async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorConfig:
     """
     Get an evaluator configuration by its ID.
 
     Args:
-        evaluator_config_id (str): The ID of the evaluator configuration.
+        evaluator_config: The evaluator configuration object.
 
     Returns:
         EvaluatorConfig: The evaluator configuration object.
     """
-    evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
-    return evaluator_config_db_to_pydantic(evaluator_config_db)
+    return evaluator_config_db_to_pydantic(evaluator_config)
 
 
 async def create_evaluator_config(

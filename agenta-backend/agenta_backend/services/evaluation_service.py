@@ -212,20 +212,18 @@ async def create_evaluation_scenario(
 
 
 async def update_human_evaluation_service(
-    evaluation_id: str, update_payload: HumanEvaluationUpdate
+    evaluation: EvaluationDB, update_payload: HumanEvaluationUpdate
 ) -> None:
     """
     Update an existing evaluation based on the provided payload.
 
     Args:
-        evaluation_id (str): The existing evaluation ID.
+        evaluation (EvaluationDB): The evaluation instance.
         update_payload (EvaluationUpdate): The payload for the update.
 
     Raises:
         HTTPException: If the evaluation is not found or access is denied.
     """
-    # Fetch the evaluation by ID
-    evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
 
     # Prepare updates
     updates = {}
@@ -237,13 +235,15 @@ async def update_human_evaluation_service(
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str,
+    evaluation_id: str = None,
+    evaluation: EvaluationDB = None
 ) -> List[EvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
+        evaluation (EvaluationDB): The evaluation instance.
 
     Raises:
         HTTPException: If the evaluation is not found or access is denied.
@@ -251,7 +251,11 @@ async def fetch_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+    assert evaluation_id or evaluation, "Please provide either evaluation_id or evaluation"
+    
+    if not evaluation:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+    
     scenarios = await EvaluationScenarioDB.find(
         EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
     ).to_list()
@@ -263,7 +267,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
 
 
 async def fetch_human_evaluation_scenarios_for_evaluation(
-    evaluation_id: str,
+    human_evaluation: HumanEvaluationDB
 ) -> List[HumanEvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
@@ -277,15 +281,12 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluation = await _fetch_human_evaluation(
-        evaluation_id=evaluation_id,
-    )
     scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(human_evaluation.id),
     ).to_list()
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(
-            scenario, str(evaluation.id)
+            scenario, str(human_evaluation.id)
         )
         for scenario in scenarios
     ]
@@ -293,7 +294,7 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
 
 
 async def update_human_evaluation_scenario(
-    evaluation_scenario_id: str,
+    evaluation_scenario_db: HumanEvaluationScenarioDB,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
 ) -> None:
@@ -301,14 +302,13 @@ async def update_human_evaluation_scenario(
     Updates an evaluation scenario.
 
     Args:
-        evaluation_scenario_id (str): The ID of the evaluation scenario.
+        evaluation_scenario_db (EvaluationScenarioDB): The evaluation scenario instance.
         evaluation_scenario_data (EvaluationScenarioUpdate): New data for the scenario.
         evaluation_type (EvaluationType): Type of the evaluation.
 
     Raises:
         HTTPException: If evaluation scenario not found or access denied.
     """
-    eval_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
 
     updated_data = evaluation_scenario_data.dict()
     updated_data["updated_at"] = datetime.utcnow()
@@ -353,46 +353,7 @@ async def update_human_evaluation_scenario(
     if updated_data["correct_answer"] is not None:
         new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
-    await eval_scenario.update({"$set": new_eval_set})
-
-
-async def update_evaluation_scenario_score_service(
-    evaluation_scenario_id: str, score: float
-) -> None:
-    """
-    Updates the score of an evaluation scenario.
-
-    Args:
-        evaluation_scenario_id (str): The ID of the evaluation scenario.
-        score (float): The new score to set.
-
-    Raises:
-        HTTPException: If evaluation scenario not found or access denied.
-    """
-    eval_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
-    eval_scenario.score = score
-
-    # Save the updated evaluation scenario
-    await eval_scenario.save()
-
-
-async def get_evaluation_scenario_score_service(
-    evaluation_scenario_id: str,
-) -> Dict[str, str]:
-    """
-    Retrieve the score of a given evaluation scenario.
-
-    Args:
-        evaluation_scenario_id: The ID of the evaluation scenario.
-
-    Returns:
-        Dictionary with 'scenario_id' and 'score' keys.
-    """
-    evaluation_scenario = await _fetch_human_evaluation_scenario(evaluation_scenario_id)
-    return {
-        "scenario_id": str(evaluation_scenario.id),
-        "score": evaluation_scenario.score,
-    }
+    await evaluation_scenario_db.update({"$set": new_eval_set})
 
 
 def _extend_with_evaluation(evaluation_type: EvaluationType):
@@ -413,39 +374,25 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
 
 
 async def fetch_list_evaluations(
-    app_id: str,
+    app: AppDB,
 ) -> List[Evaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
-        app_id (Optional[str]): An optional app ID to filter the evaluations.
+        app (AppDB): An app to filter the evaluations.
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
 
     evaluations_db = await EvaluationDB.find(
-        EvaluationDB.app.id == ObjectId(app_id), fetch_links=True
+        EvaluationDB.app.id == app.id, fetch_links=True
     ).to_list()
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
     ]
-
-
-async def fetch_evaluation(evaluation_id: str) -> Evaluation:
-    """
-    Fetches a single evaluation based on its ID.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation.
-
-    Returns:
-        Evaluation: The fetched evaluation.
-    """
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-    return await converters.evaluation_db_to_pydantic(evaluation)
 
 
 async def fetch_list_human_evaluations(
@@ -469,18 +416,17 @@ async def fetch_list_human_evaluations(
     ]
 
 
-async def fetch_human_evaluation(evaluation_id: str) -> HumanEvaluation:
+async def fetch_human_evaluation(human_evaluation_db) -> HumanEvaluation:
     """
     Fetches a single evaluation based on its ID.
 
     Args:
-        evaluation_id (str): The ID of the evaluation.
+        human_evaluation_db (HumanEvaluationDB): The evaluation instance.
 
     Returns:
         Evaluation: The fetched evaluation.
     """
-    evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
-    return await converters.human_evaluation_db_to_pydantic(evaluation)
+    return await converters.human_evaluation_db_to_pydantic(human_evaluation_db)
 
 
 async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
@@ -658,7 +604,7 @@ async def compare_evaluations_scenarios(
     all_scenarios = []
 
     for evaluation_id in evaluations_ids:
-        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(evaluation_id)
+        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(evaluation_id=evaluation_id)
         all_scenarios.append(eval_scenarios)
 
     grouped_scenarios_by_inputs = find_scenarios_by_input(

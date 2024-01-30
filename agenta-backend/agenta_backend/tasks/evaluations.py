@@ -2,13 +2,17 @@ import os
 import asyncio
 import logging
 import traceback
+
 from typing import Any, Dict, List
+from celery import shared_task, states
+
+from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.services import evaluators_service, llm_apps_service
 
 from agenta_backend.models.api.evaluation_model import (
     EvaluationStatusEnum,
 )
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services import evaluators_service, llm_apps_service
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
@@ -37,13 +41,10 @@ from agenta_backend.services.db_manager import (
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
-from celery import shared_task, states
-
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
-
 from agenta_backend.models.db_models import (
     Result,
     AggregatedResult,
@@ -263,10 +264,10 @@ def evaluate(
                     ],
                     results=evaluators_results,
                     organization=app.organization
-                    if FEATURE_FLAG in ["cloud", "ee"]
+                    if isCloudEE()
                     else None,
                     workspace=app.workspace
-                    if FEATURE_FLAG in ["cloud", "ee"]
+                    if isCloudEE()
                     else None,
                 )
             )

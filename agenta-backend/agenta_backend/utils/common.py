@@ -50,30 +50,6 @@ class APIRouter(FastAPIRouter):
         return decorator
 
 
-async def check_action_access(
-    user_uid: str,
-    object: dict = None,
-    object_id: str = None,
-    object_type: str = None,
-    permission = None,
-    role: str = None,
-) -> bool:
-    """
-    Validate that a user has access.
-
-    Args:
-        user_id (str): The user's ID.
-        object_id (str): The ID of the object to check.
-        type (str): The type of the object to check.
-        permission (Permission): The permission to check.
-        role (str): The role to check.
-
-    Returns:
-        bool: True.
-    """
-
-    return True
-
 def isCloudEE():
     return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
 

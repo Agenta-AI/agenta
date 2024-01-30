@@ -5,6 +5,7 @@ from typing import Any, List
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response
 
+from agenta_backend.models import converters
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluation_service, db_manager
@@ -43,11 +44,14 @@ async def create_evaluation(
         _description_
     """
     try:
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+        
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.app_id,
-                object_type="app",
+                object=app,
                 permission=Permission.CREATE_EVALUATION,
             )
             logger.debug(f"User has permission to create evaluation: {has_permission}")
@@ -58,10 +62,6 @@ async def create_evaluation(
                     {"detail": error_msg},
                     status_code=403,
                 )
-
-        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-        if app is None:
-            raise HTTPException(status_code=404, detail="App not found")
 
         success, response = await check_ai_critique_inputs(
             payload.evaluators_configs, payload.lm_providers_keys
@@ -117,11 +117,11 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
     """
 
     try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                object=evaluation,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -135,7 +135,6 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
                     status_code=403,
                 )
 
-        evaluation = await evaluation_service.fetch_evaluation(evaluation_id)
         return {"status": evaluation.status}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -154,11 +153,11 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     """
 
     try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                object=evaluation,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -171,8 +170,8 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-
-        results = await evaluation_service.retrieve_evaluation_results(evaluation_id)
+            
+        results = await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -200,11 +199,11 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                object=evaluation,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -220,7 +219,7 @@ async def fetch_evaluation_scenarios(
 
         eval_scenarios = (
             await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-                evaluation_id
+                evaluation=evaluation
             )
         )
         return eval_scenarios
@@ -243,11 +242,11 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
     try:
+        app = await db_manager.fetch_app_by_id(app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                object=app,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -261,7 +260,7 @@ async def fetch_list_evaluations(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_list_evaluations(app_id)
+        return await evaluation_service.fetch_list_evaluations(app)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -282,6 +281,7 @@ async def fetch_evaluation(
         Evaluation: The fetched evaluation.
     """
     try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -300,7 +300,7 @@ async def fetch_evaluation(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_evaluation(evaluation_id)
+        return await converters.evaluation_db_to_pydantic(evaluation)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
