@@ -10,7 +10,6 @@ from agenta_backend.services import db_manager
 from agenta_backend.utils.common import APIRouter
 from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
-    EnvironmentOutputExtended,
     DeployToEnvironmentPayload,
 )
 
@@ -66,21 +65,3 @@ async def deploy_to_environment(
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/{environment_id}/revisions/", operation_id="environment_revisions", response_model=EnvironmentOutputExtended)
-async def environment_revisions(request: Request, environment_id: str):
-    logger.debug("getting environment " + environment_id)
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-        app_environment = await db_manager.fetch_app_environment(environment_id, **user_org_data)
-        app_environment_revisions = await db_manager.fetch_environment_revisions_for_environment(
-            app_environment, **user_org_data
-        )
-        return await converters.environment_db_and_revision_to_extended_output(
-            app_environment, app_environment_revisions
-        )
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
