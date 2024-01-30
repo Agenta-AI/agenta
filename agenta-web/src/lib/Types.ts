@@ -246,6 +246,7 @@ export interface LlmProvidersKeys {
     COHERE_API_KEY: string
     ANTHROPIC_API_KEY: string
     AZURE_API_KEY: string
+    AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
 }
 
