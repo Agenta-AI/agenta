@@ -30,7 +30,8 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Hugging Face", key: "", name: "HUGGING_FACE_API_KEY"},
     {title: "Cohere", key: "", name: "COHERE_API_KEY"},
     {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
-    {title: "Azure", key: "", name: "AZURE_API_KEY"},
+    {title: "Azure API Key", key: "", name: "AZURE_API_KEY"},
+    {title: "Azure API Base", key: "", name: "AZURE_API_BASE"},
     {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
 ]
 
@@ -41,7 +42,8 @@ export const getAllLlmProviderKeysAsEnvVariable = () => {
         HUGGING_FACE_API_KEY: getLlmProviderKey("Hugging Face"),
         COHERE_API_KEY: getLlmProviderKey("Cohere"),
         ANTHROPIC_API_KEY: getLlmProviderKey("Anthropic"),
-        AZURE_API_KEY: getLlmProviderKey("Azure"),
+        AZURE_API_KEY: getLlmProviderKey("Azure API Key"),
+        AZURE_API_BASE: getLlmProviderKey("Azure API Base"),
         TOGETHERAI_API_KEY: getLlmProviderKey("TogetherAI"),
     }
 }
@@ -70,6 +72,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.human_scoring]: "Scoring single variant",
     [EvaluationType.custom_code_run]: "Custom Code Run",
     [EvaluationType.auto_regex_test]: "Regex Test",
+    [EvaluationType.field_match_test]: "JSON Field Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
 }
