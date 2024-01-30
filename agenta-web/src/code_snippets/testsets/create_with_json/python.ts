@@ -1,3 +1,5 @@
+import {isDemo} from "@/lib/helpers/utils"
+
 export default function pythonCode(uri: string, params: string): string {
     return `import requests
 import json
@@ -11,7 +13,9 @@ data = {
     ]
 }
 
-response = requests.post(url, data=json.dumps(data), headers={'Content-Type': 'application/json'})
+response = requests.post(url, data=json.dumps(data), headers={'Content-Type': 'application/json'${
+        !isDemo() ? "" : ", 'Authorization': 'your_api_key'"
+    }})
 
 print(response.status_code)
 print(response.json())
