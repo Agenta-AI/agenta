@@ -6,7 +6,7 @@ import logging
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
-    GetConfigReponse,
+    GetConfigResponse,
 )
 from agenta_backend.services import (
     db_manager,
@@ -74,7 +74,7 @@ async def save_config(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/", response_model=GetConfigReponse, operation_id="get_config")
+@router.get("/", response_model=GetConfigResponse, operation_id="get_config")
 async def get_config(
     request: Request,
     base_id: str,
@@ -124,7 +124,7 @@ async def get_config(
                 )
             config = found_variant.config
         logger.debug(config.parameters)
-        return GetConfigReponse(
+        return GetConfigResponse(
             config_id=str(
                 0
             ),  # TODO: Remove from the model and regenerate the SDK client
