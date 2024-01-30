@@ -577,8 +577,8 @@ const App: React.FC<TestViewProps> = ({
                 okText={"View LLM Keys"}
             >
                 <p>
-                    The API key for the LLM is either incorrect or missing. Please
-                    ensure that you have a valid API key for the model you are using.
+                    The API key for the LLM is either incorrect or missing. Please ensure that you
+                    have a valid API key for the model you are using.
                 </p>
             </Modal>
         </div>
