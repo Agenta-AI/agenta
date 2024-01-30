@@ -34,6 +34,10 @@ export interface HumanEvaluationListTableDataType {
             number_of_votes: number
             percentage: number
         }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
         variants_votes_data: Record<string, VariantVotesData>
     }
     createdAt: string
@@ -81,6 +85,16 @@ const useStyles = createUseStyles({
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
             color: "#1677ff",
+        },
+    },
+    statGood: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#3f8600",
         },
     },
 })
@@ -225,10 +239,28 @@ export default function HumanEvaluationResult() {
             },
         },
         {
+            title: "Both are good",
+            dataIndex: "positive",
+            key: "positive",
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
+                let percentage = record.votesData.positive_votes.percentage
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.statGood}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
+        },
+        {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
-            render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>

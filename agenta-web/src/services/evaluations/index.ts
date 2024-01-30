@@ -36,6 +36,7 @@ const evaluatorIconsMap = {
     auto_exact_match: exactMatchImg,
     auto_similarity_match: similarityImg,
     auto_regex_test: regexImg,
+    field_match_test: exactMatchImg,
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
@@ -114,7 +115,7 @@ export const fetchEvaluation = async (evaluationId: string) => {
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
     const response = await axios.get(`/api/evaluations/${evaluationId}/status/`)
-    return response.data as {status: EvaluationStatus}
+    return response.data as {status: _Evaluation["status"]}
 }
 
 export type CreateEvaluationData = {
@@ -123,6 +124,7 @@ export type CreateEvaluationData = {
     evaluators_configs: string[]
     rate_limit: LLMRunRateLimit
     lm_providers_keys: KeyValuePair
+    correct_answer_column: string
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
     return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
@@ -244,13 +246,15 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
                 return {
                     variantId: variant.variantId,
                     variantName: variant.variantName,
-                    output: scenario?.outputs[0] || {type: "string", value: ""},
+                    output: scenario?.outputs[0] || {
+                        result: {type: "string", value: "", error: null},
+                    },
                     evaluationId: scenario?.evaluation.id || "",
                     evaluatorConfigs: (scenario?.evaluators_configs || []).map((config) => ({
                         evaluatorConfig: config,
                         result: scenario?.results.find(
                             (result) => result.evaluator_config === config.id,
-                        )?.result || {type: "string", value: ""},
+                        )?.result || {type: "string", value: "", error: null}, // Adjust this line
                     })),
                 }
             }),

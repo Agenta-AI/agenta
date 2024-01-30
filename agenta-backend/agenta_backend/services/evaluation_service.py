@@ -46,6 +46,12 @@ else:
 from agenta_backend.models.db_models import (
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
+<<<<<<< HEAD
+=======
+    Result,
+    UserDB,
+    AppDB,
+>>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
 )
 
 logger = logging.getLogger(__name__)
@@ -618,7 +624,9 @@ async def create_new_evaluation(
         app=app,
         user=app.user,
         testset=testset,
-        status=EvaluationStatusEnum.EVALUATION_STARTED,
+        status=Result(
+            value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
+        ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
