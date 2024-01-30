@@ -193,7 +193,7 @@ async def test_create_evaluation():
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
+    assert response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_STARTED
     assert response_data is not None
 
 
