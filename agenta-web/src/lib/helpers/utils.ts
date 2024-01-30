@@ -41,6 +41,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.human_scoring]: "Scoring single variant",
     [EvaluationType.custom_code_run]: "Custom Code Run",
     [EvaluationType.auto_regex_test]: "Regex Test",
+    [EvaluationType.field_match_test]: "JSON Field Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
 }

@@ -16,4 +16,5 @@ export enum EvaluationType {
     auto_regex_test = "auto_regex_test",
     auto_webhook_test = "auto_webhook_test",
     single_model_test = "single_model_test",
+    field_match_test = "field_match_test",
 }
