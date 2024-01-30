@@ -430,6 +430,7 @@ class Forward:
             AppDB,
             ImageDB,
             VariantBaseDB,
+            AppVariantDB,
             NewAppVariantDB,
             NewAppVariantRevisionsDB,
             AppEnvironmentDB,
@@ -439,6 +440,9 @@ class Forward:
     async def updating_app_environment(
         self, input_document: AppEnvironmentDB, output_document: NewAppEnvironmentDB
     ):
+        if input_document.deployed_app_variant is not None:
+            output_document.deployed_app_variant = input_document.deployed_app_variant
+
         # Find the app variant and the app variant revision document
         app_variant = await NewAppVariantDB.find_one(
             NewAppVariantDB.id == input_document.deployed_app_variant
@@ -447,12 +451,13 @@ class Forward:
             app_variant_revision = await NewAppVariantRevisionsDB.find_one(
                 NewAppVariantRevisionsDB.variant.id == app_variant.id
             )
+            print("AVR: ", app_variant_revision)
 
-            # Update fields
-            if input_document.deployed_app_variant is not None:
-                output_document.deployed_app_variant = input_document.deployed_app_variant
             if app_variant_revision is not None:
                 output_document.deployed_app_variant_revision = app_variant_revision
+            else:
+                output_document.deployed_app_variant_revision = None
+            print("ODDAVR: ", output_document.deployed_app_variant_revision)
 
 
 class Backward:
