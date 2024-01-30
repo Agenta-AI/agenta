@@ -234,6 +234,7 @@ class NewEvaluation(BaseModel):
     testset_id: str
     rate_limit: LLMRunRateLimit
     lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+    correct_answer_column: Optional[str]
 
 
 class NewEvaluatorConfig(BaseModel):
