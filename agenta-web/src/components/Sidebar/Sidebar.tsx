@@ -21,8 +21,9 @@ import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
-import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"

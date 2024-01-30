@@ -1,5 +1,4 @@
 import {v4 as uuidv4} from "uuid"
-import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
@@ -186,13 +185,6 @@ export const isDemo = () => {
         return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
-}
-
-export function dynamicComponent<T>(path: string, fallback: any = () => null) {
-    return dynamic<T>(() => import(`@/components/${path}`), {
-        loading: fallback,
-        ssr: false,
-    })
 }
 
 export const removeKeys = (obj: GenericObject, keys: string[]) => {

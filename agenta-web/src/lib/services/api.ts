@@ -24,6 +24,7 @@ import {
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
+import {dynamicContext} from "../helpers/dynamic"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -597,6 +598,12 @@ export const createAndStartTemplate = async ({
     ) => void
 }) => {
     try {
+        const {getOrgValues} = await dynamicContext("org.context", {
+            getOrgValues: () => ({
+                selectedOrg: {id: undefined},
+            }),
+        })
+        const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
         try {
@@ -607,6 +614,7 @@ export const createAndStartTemplate = async ({
                     env_vars: {
                         OPENAI_API_KEY: providerKey,
                     },
+                    organization_id: selectedOrg.id,
                 },
                 true,
             )
