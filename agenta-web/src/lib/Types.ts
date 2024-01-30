@@ -187,6 +187,12 @@ export interface IPromptRevisions {
     revision: number
 }
 
+export interface IEnvironmentRevision {
+    revision: number
+    modified_by: str
+    created_at: string
+}
+
 export interface IPromptVersioning {
     app_id: string
     app_name: string
@@ -306,6 +312,10 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
+}
+
+export interface DeploymentRevisions extends Environment {
+    revisions: string[]
 }
 
 export interface CustomEvaluation {
