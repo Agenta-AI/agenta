@@ -13,7 +13,7 @@ from agenta_backend.services import (
     db_manager,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
@@ -35,15 +35,9 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     VariantAction,
     VariantActionEnum,
-<<<<<<< HEAD
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
-=======
     AppVariantOutputExtended,
-)
-from agenta_backend.utils.common import (
-    check_access_to_app,
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 )
 
 router = APIRouter()
@@ -301,10 +295,9 @@ async def start_variant(
             )
 
     logger.debug("Starting variant %s", variant_id)
-<<<<<<< HEAD
 
     # Inject env vars to docker container
-    if isCloudEE:
+    if isCloudEE():
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,
@@ -315,19 +308,6 @@ async def start_variant(
         }
     else:
         envvars = {} if env_vars is None else env_vars.env_vars
-=======
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    envvars = {} if env_vars is None else env_vars.env_vars
-    # Inject env vars to docker container
-    if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-        if envvars.get("OPENAI_API_KEY", "") == "":
-            if not os.environ["OPENAI_API_KEY"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
-                )
-            envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if action.action == VariantActionEnum.START:

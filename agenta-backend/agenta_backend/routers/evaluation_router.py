@@ -22,7 +22,7 @@ from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -43,7 +43,7 @@ async def create_evaluation(
         _description_
     """
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
@@ -117,7 +117,7 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -154,7 +154,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -200,7 +200,7 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -243,7 +243,7 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -282,7 +282,7 @@ async def fetch_evaluation(
         Evaluation: The fetched evaluation.
     """
     try:
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -321,7 +321,7 @@ async def delete_evaluations(
     """
 
     try:
-        if isCloudEE:
+        if isCloudEE():
             for evaluation_id in delete_evaluations.evaluations_ids:
                 has_permission = await check_action_access(
                     user_uid=request.state.user_id,
@@ -386,7 +386,7 @@ async def fetch_evaluation_scenarios(
     try:
         evaluations_ids_list = evaluations_ids.split(",")
 
-        if isCloudEE:
+        if isCloudEE():
             for evaluation_id in evaluations_ids_list:
                 has_permission = await check_action_access(
                     user_uid=request.state.user_id,

@@ -1,17 +1,4 @@
 import json
-<<<<<<< HEAD
-=======
-import asyncio
-import logging
-import traceback
-from typing import Any, Dict, List
-
-<<<<<<< HEAD
-from agenta_backend.models.api.evaluation_model import AppOutput
-
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
-=======
->>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
 import httpx
 import logging
 import asyncio

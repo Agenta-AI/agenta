@@ -7,44 +7,6 @@ from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
-<<<<<<< HEAD
-
-=======
-from agenta_backend.models.db_models import (
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    EvaluationScenarioResult,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    ImageDB,
-    TemplateDB,
-    AppDB,
-    AppEnvironmentDB,
-    TestSetDB,
-    SpanDB,
-    TraceDB,
-    Feedback as FeedbackDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    VariantBaseDB,
-    UserDB,
-    AggregatedResult,
-)
-from agenta_backend.models.api.api_models import (
-    AppVariant,
-    AppVariantRevision,
-    AppVariantOutputExtended,
-    ImageExtended,
-    Template,
-    TemplateImageInfo,
-    AppVariantOutput,
-    App,
-    EnvironmentOutput,
-    TestSetOutput,
-    BaseOutput,
-)
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 from agenta_backend.models.api.observability_models import (
     Span,
     Trace,
@@ -61,7 +23,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioOutput,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -285,7 +247,7 @@ def app_variant_db_to_pydantic(
         config_name=app_variant_db.config_name,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         app_variant.organization_id = str(app_variant_db.organization.id)
         app_variant.workspace_id = str(app_variant_db.workspace.id)
 
@@ -316,7 +278,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         uri=uri,
     )
 
-    if isCloudEE:
+    if isCloudEE():
         variant_response.organization_id = str(app_variant_db.organization.id)
         variant_response.workspace_id = str(app_variant_db.workspace.id)
 
@@ -409,7 +371,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
         id=str(image_db.id),
     )
 
-    if isCloudEE:
+    if isCloudEE():
         image.organization_id = str(image_db.organization.id)
         image.workspace_id = str(image_db.workspace.id)
 

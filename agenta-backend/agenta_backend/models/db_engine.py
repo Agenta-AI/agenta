@@ -8,7 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from agenta_backend.utils.common import isCloudEE
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -45,26 +45,6 @@ else:
     )
 
 from agenta_backend.models.db_models import (
-<<<<<<< HEAD
-=======
-    APIKeyDB,
-    AppEnvironmentDB,
-    OrganizationDB,
-    UserDB,
-    ImageDB,
-    AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantRevisionsDB,
-    AppVariantDB,
-    TemplateDB,
-    TestSetDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
     SpanDB,
     TraceDB,
     ConfigDB,
@@ -92,7 +72,7 @@ document_models: List[Document] = [
     HumanEvaluationScenarioDB,
 ]
 
-if isCloudEE:
+if isCloudEE():
     document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
 
 
@@ -100,32 +80,6 @@ if isCloudEE:
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-<<<<<<< HEAD
-=======
-# Define Document Models
-document_models: List[Document] = [
-    APIKeyDB,
-    AppEnvironmentDB,
-    OrganizationDB,
-    UserDB,
-    ImageDB,
-    AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    TemplateDB,
-    TestSetDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    SpanDB,
-    TraceDB,
-]
-
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 
 class DBEngine:
     """

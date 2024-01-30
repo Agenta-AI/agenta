@@ -14,7 +14,7 @@ from agenta_backend.services import (
     app_manager,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -32,7 +32,7 @@ async def save_config(
     try:
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
         
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object = base_db,
@@ -93,7 +93,7 @@ async def get_config(
         base_db = await db_manager.fetch_base_by_id(base_id)
         
         # detemine whether the user has access to the base
-        if isCloudEE:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object = base_db,
