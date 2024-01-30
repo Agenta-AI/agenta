@@ -346,6 +346,7 @@ async def environment_db_and_revision_to_extended_output(
     for app_environment_revision in app_environment_revisions_db:
         app_environment_revisions.append(
             EnvironmentRevision(
+                id=str(app_environment_revision.id),
                 revision=app_environment_revision.revision,
                 modified_by=app_environment_revision.modified_by.username,
                 deployed_app_variant_revision=str(app_environment_revision.deployed_app_variant_revision),
