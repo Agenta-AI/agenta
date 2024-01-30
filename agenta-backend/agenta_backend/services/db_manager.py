@@ -1030,6 +1030,24 @@ async def fetch_app_environment_by_name_and_appid(
     return app_environment
 
 
+async def fetch_app_variant_revision_by_id(
+    variant_revision_id: str,
+) -> AppVariantRevisionsDB:
+    """Fetch an app variant revision using the provided variant revision id.
+
+    Args:
+        variant_revision_id (str): The ID of the variant revision
+
+    Returns:
+        AppVariantRevisionsDB: app variant revision object
+    """
+
+    app_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(variant_revision_id),
+    )
+    return app_revision
+
+
 async def fetch_environment_revisions_for_environment(
     environment: AppEnvironmentDB, **kwargs: dict
 ) -> List[AppEnvironmentRevisionDB]:
@@ -1047,6 +1065,19 @@ async def fetch_environment_revisions_for_environment(
         AppEnvironmentRevisionDB.environment.id == environment.id, fetch_links=True
     ).to_list()
     return environment_revisions
+
+
+async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevisionDB:
+    """Fetch an app environment revision using the provided revision_id.
+
+    Args:
+        revision_id (str): The ID of the revision
+    """
+
+    environment_revision = await AppEnvironmentRevisionDB.find_one(
+        AppEnvironmentRevisionDB.id == ObjectId(revision_id)
+    )
+    return environment_revision
 
 
 async def list_environments(app_id: str, **kwargs: dict) -> List[AppEnvironmentDB]:
