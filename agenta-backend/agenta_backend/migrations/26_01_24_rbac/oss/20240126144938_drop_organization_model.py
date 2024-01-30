@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
-from beanie import Document, PydanticObjectId, free_fall_migration, Session
+from beanie import Document, PydanticObjectId, free_fall_migration
 
 class InvitationDB(BaseModel):
     token: str = Field(unique=True)
@@ -27,7 +27,7 @@ class OldOrganizationDB(Document):
 class Forward:
 
     @free_fall_migration(document_models=[OldOrganizationDB])
-    async def drop_old_organization_db(self, session: Session):
+    async def drop_old_organization_db(self, session):
         # Wrap deletion loop in a with_transaction context for potential rollback
         async with session.start_transaction():
             async for old_organization in OldOrganizationDB.find_all():
