@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback} from "react"
+import {useState, useEffect, useCallback, useMemo} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {
@@ -6,6 +6,7 @@ import {
     Card,
     Col,
     Form,
+    Input,
     Radio,
     Row,
     Space,
@@ -35,6 +36,7 @@ const {Title} = Typography
 interface EvaluationTableProps {
     evaluation: Evaluation
     evaluationScenarios: SingleModelEvaluationRow[]
+    isLoading: boolean
 }
 
 export type SingleModelEvaluationRow = EvaluationScenario & {
@@ -98,6 +100,22 @@ const useStyles = createUseStyles({
         top: 36,
         zIndex: 1,
     },
+    sideBar: {
+        marginTop: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+        border: "1px solid #d9d9d9",
+        borderRadius: 6,
+        padding: "1rem",
+        alignSelf: "flex-start",
+        "&>h4.ant-typography": {
+            margin: 0,
+        },
+        flex: 0.35,
+        minWidth: 240,
+        maxWidth: 500,
+    },
 })
 
 export const ParamsFormWithRun = ({
@@ -153,6 +171,7 @@ export const ParamsFormWithRun = ({
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
+    isLoading,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -165,6 +184,13 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
     const [accuracy, setAccuracy] = useState<number>(0)
+
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>, scenarioId) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
+        [evaluationScenarios],
+    )
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -402,31 +428,81 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
             },
         },
+        {
+            title: "Expected Output",
+            dataIndex: "expectedOutput",
+            key: "expectedOutput",
+            width: "25%",
+            render: (text: any, record: any, rowIndex: number) => {
+                let correctAnswer =
+                    record.correctAnswer || evaluation.testset.csvdata[rowIndex].correct_answer
+
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={correctAnswer}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario(
+                                    {
+                                        correctAnswer: e.target.value,
+                                    },
+                                    record.id,
+                                )
+                            }
+                            key={record.id}
+                        />
+                    </>
+                )
+            },
+        },
         ...dynamicColumns,
         {
-            title: "Evaluate",
-            dataIndex: "evaluate",
-            key: "evaluate",
-            width: 200,
-            // fixed: 'right',
+            title: "Score",
+            dataIndex: "score",
+            key: "score",
             render: (text: any, record: any, rowIndex: number) => {
                 return (
-                    <EvaluationVotePanel
-                        type="numeric"
-                        value={[
-                            {
-                                variantId: variants[0].variantId,
-                                score: record.score as number,
-                            },
-                        ]}
-                        variants={variants}
-                        onChange={(val) =>
-                            depouncedHandleScoreChange(record.id, val[0].score as number)
+                    <>
+                        {
+                            <EvaluationVotePanel
+                                type="numeric"
+                                value={[
+                                    {
+                                        variantId: variants[0].variantId,
+                                        score: record.score as number,
+                                    },
+                                ]}
+                                variants={variants}
+                                onChange={(val) =>
+                                    depouncedHandleScoreChange(record.id, val[0].score as number)
+                                }
+                                loading={record.score === "loading"}
+                                showVariantName={false}
+                                key={record.id}
+                                outputs={record.outputs}
+                            />
                         }
-                        loading={record.score === "loading"}
-                        showVariantName={false}
-                        key={record.id}
-                    />
+                    </>
+                )
+            },
+        },
+        {
+            title: "Additional Note",
+            dataIndex: "additionalNote",
+            key: "additionalNote",
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <>
+                        <Input.TextArea
+                            defaultValue={record?.note || ""}
+                            autoSize={{minRows: 3, maxRows: 5}}
+                            onChange={(e) =>
+                                depouncedUpdateEvaluationScenario({note: e.target.value}, record.id)
+                            }
+                            key={record.id}
+                        />
+                    </>
                 )
             },
         },
@@ -448,8 +524,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportSingleModelEvaluationData(evaluation, rows)}
-                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                                onClick={() =>
+                                    exportSingleModelEvaluationData(
+                                        evaluation,
+                                        evaluationScenarios,
+                                        rows,
+                                    )
+                                }
+                                disabled={false}
                             >
                                 Export results
                             </SecondaryButton>
@@ -500,6 +582,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
                     variantData={variantData}
+                    isLoading={isLoading}
                 />
             )}
         </div>

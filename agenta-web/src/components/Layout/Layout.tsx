@@ -17,6 +17,7 @@ import Image from "next/image"
 import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
+import {ThemeProvider} from "react-jss"
 
 const {Content, Footer} = Layout
 
@@ -124,6 +125,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
+    const {token} = theme.useToken()
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -210,11 +212,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
-                <ConfigProvider
-                    theme={{
-                        algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                    }}
-                >
+                <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
                         <Layout className={classes.layout}>
@@ -310,7 +308,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </Footer>
                         </Layout>
                     </Layout>
-                </ConfigProvider>
+                </ThemeProvider>
             )}
         </NoSSRWrapper>
     )

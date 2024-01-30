@@ -1,4 +1,9 @@
-import {deleteEvaluations, fetchData} from "@/lib/services/api"
+import {
+    deleteEvaluations,
+    fetchData,
+    fetchEvaluationResults,
+    loadEvaluations,
+} from "@/lib/services/api"
 import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -10,7 +15,7 @@ import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {EvaluationTypeLabels, getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -30,6 +35,10 @@ export interface HumanEvaluationListTableDataType {
         nb_of_rows: number
         variants: string[]
         flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        positive_votes: {
             number_of_votes: number
             percentage: number
         }
@@ -79,6 +88,16 @@ const useStyles = createUseStyles({
             color: "#1677ff",
         },
     },
+    statGood: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+    },
 })
 
 const {Title} = Typography
@@ -98,11 +117,11 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(`${getAgentaApiUrl()}/api/evaluations/?app_id=${app_id}`)
+                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${getAgentaApiUrl()}/api/evaluations/${item.id}/results/`,
+                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
@@ -153,7 +172,7 @@ export default function HumanEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
         }
     }
 
@@ -205,10 +224,28 @@ export default function HumanEvaluationResult() {
             },
         },
         {
+            title: "Both are good",
+            dataIndex: "positive",
+            key: "positive",
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
+                let percentage = record.votesData.positive_votes.percentage
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.statGood}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
+        },
+        {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
-            render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>
@@ -286,9 +323,7 @@ export default function HumanEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>
-                        {EvaluationTypeLabels.human_a_b_testing} Evaluation Results
-                    </Title>
+                    <Title level={3}>A/B Test Results</Title>
                 </div>
             ),
             children: (

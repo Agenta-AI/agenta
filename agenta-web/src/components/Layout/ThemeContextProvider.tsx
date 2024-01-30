@@ -1,3 +1,4 @@
+import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 
@@ -53,15 +54,24 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         setAppTheme(getAppTheme(themeMode))
     }, [themeMode])
 
+    const val = appTheme || ThemeMode.Light
+
     return (
         <ThemeContext.Provider
             value={{
-                appTheme: appTheme || ThemeMode.Light,
+                appTheme: val,
                 toggleAppTheme: (themeType) => setThemeMode(themeType as ThemeMode),
                 themeMode,
             }}
         >
-            {children}
+            <ConfigProvider
+                theme={{
+                    algorithm:
+                        val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                }}
+            >
+                {children}
+            </ConfigProvider>
         </ThemeContext.Provider>
     )
 }

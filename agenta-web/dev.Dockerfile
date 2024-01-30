@@ -19,7 +19,7 @@ COPY tsconfig.json .
 COPY postcss.config.js .
 COPY .env .
 RUN if [ -f .env.local ]; then cp .env.local .; fi
-# used in cloud 
+# # used in cloud
 COPY sentry.* .
 # Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line to disable telemetry at run time
