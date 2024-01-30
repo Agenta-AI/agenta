@@ -251,6 +251,7 @@ export interface AppTemplate {
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
+    organization_id?: string
 }
 
 export type GenericObject = Record<string, any>
