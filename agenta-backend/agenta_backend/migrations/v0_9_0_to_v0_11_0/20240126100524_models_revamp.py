@@ -9,17 +9,25 @@ from beanie import Document, Link, PydanticObjectId
 from beanie import iterative_migration
 
 
-# Common Models (BaseModels)
-class ConfigVersionDB(BaseModel):
-    version: int
-    parameters: Dict[str, Any]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+# Common Models
+class ConfigDB(BaseModel):
+    config_name: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
 
 
 class Result(BaseModel):
     type: str
-    value: Any
+    value: Optional[Any] = None
+    error: Optional[Error] = None
+
+
+class InvokationResult(BaseModel):
+    result: Result
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -39,8 +47,7 @@ class EvaluationScenarioInputDB(BaseModel):
 
 
 class EvaluationScenarioOutputDB(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -83,6 +90,22 @@ class Feedback(BaseModel):
     meta: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime = Field(default=datetime.utcnow())
+
+
+class TemplateDB(Document):
+    type: Optional[str] = Field(default="image")
+    template_uri: Optional[str]
+    tag_id: Optional[int]
+    name: str = Field(unique=True)  # tag name of image
+    repo_name: Optional[str]
+    title: str
+    description: str
+    size: Optional[int]
+    digest: Optional[str]  # sha256 hash of image digest
+    last_pushed: Optional[datetime]
+
+    class Settings:
+        name = "templates"
 
 
 
@@ -180,21 +203,10 @@ class OldVariantBaseDB(Document):
         name = "bases"
 
 
-class ConfigDB(Document):
-    config_name: str
-    current_version: int = Field(default=1)
-    parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[ConfigVersionDB] = Field(default=[])
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "configs"
-
-
 class OldAppVariantDB(Document):
     app: Link[OldAppDB]
     variant_name: str
+    revision: int
     image: Link[OldImageDB]
     user: Link[OldUserDB]
     organization: Link[OldOrganizationDB]
@@ -203,7 +215,7 @@ class OldAppVariantDB(Document):
     base_name: Optional[str]
     base: Link[OldVariantBaseDB]
     config_name: Optional[str]
-    config: Link[ConfigDB]
+    config: ConfigDB
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -215,12 +227,26 @@ class OldAppVariantDB(Document):
         name = "app_variants"
 
 
+class OldAppVariantRevisionsDB(Document):
+    variant: Link[OldAppVariantDB]
+    revision: int
+    modified_by: Link[OldUserDB]
+    base: Link[OldVariantBaseDB]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_variant_revisions"
+
+
 class OldAppEnvironmentDB(Document):
     app: Link[OldAppDB]
     name: str
     user: Link[OldUserDB]
     organization: Link[OldOrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[OldAppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -278,6 +304,7 @@ class OldHumanEvaluationDB(Document):
     status: str
     evaluation_type: str
     variants: List[PydanticObjectId]
+    variants_revisions: List[PydanticObjectId]
     testset: Link[OldTestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -308,9 +335,10 @@ class OldEvaluationDB(Document):
     app: Link[OldAppDB]
     organization: Link[OldOrganizationDB]
     user: Link[OldUserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[OldTestSetDB]
     variant: PydanticObjectId
+    variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
@@ -337,26 +365,6 @@ class OldEvaluationScenarioDB(Document):
 
     class Settings:
         name = "new_evaluation_scenarios"
-
-
-class TraceDB(Document):
-    app_id: Optional[str]
-    variant_id: str
-    spans: List[PydanticObjectId]
-    start_time: datetime
-    end_time: datetime = Field(default=datetime.utcnow())
-    cost: Optional[float]
-    latency: float
-    status: str  # initiated, completed, stopped, cancelled, failed
-    token_consumption: Optional[int]
-    user: Link[OldUserDB]
-    tags: Optional[List[str]]
-    feedbacks: Optional[List[Feedback]]
-
-    class Settings:
-        name = "traces"
-
-
 
 
 
@@ -427,21 +435,10 @@ class NewVariantBaseDB(Document):
         name = "bases"
 
 
-class ConfigDB(Document):
-    config_name: str
-    current_version: int = Field(default=1)
-    parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[ConfigVersionDB] = Field(default=[])
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "configs"
-
-
 class NewAppVariantDB(Document):
     app: Link[NewAppDB]
     variant_name: str
+    revision: int
     image: Link[NewImageDB]
     user: Link[NewUserDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
@@ -449,7 +446,7 @@ class NewAppVariantDB(Document):
     base_name: Optional[str]
     base: Link[NewVariantBaseDB]
     config_name: Optional[str]
-    config: Link[ConfigDB]
+    config: ConfigDB
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -461,32 +458,30 @@ class NewAppVariantDB(Document):
         name = "app_variants"
 
 
+class NewAppVariantRevisionsDB(Document):
+    variant: Link[NewAppVariantDB]
+    revision: int
+    modified_by: Link[NewUserDB]
+    base: Link[NewVariantBaseDB]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_variant_revisions"
+
+
 class NewAppEnvironmentDB(Document):
     app: Link[NewAppDB]
     name: str
     user: Link[NewUserDB]
     deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[NewAppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
         name = "environments"
-
-
-class TemplateDB(Document):
-    type: Optional[str] = Field(default="image")
-    template_uri: Optional[str]
-    tag_id: Optional[int]
-    name: str = Field(unique=True)  # tag name of image
-    repo_name: Optional[str]
-    title: str
-    description: str
-    size: Optional[int]
-    digest: Optional[str]  # sha256 hash of image digest
-    last_pushed: Optional[datetime]
-
-    class Settings:
-        name = "templates"
 
 
 class NewTestSetDB(Document):
@@ -520,6 +515,7 @@ class NewHumanEvaluationDB(Document):
     status: str
     evaluation_type: str
     variants: List[PydanticObjectId]
+    variants_revisions: List[PydanticObjectId]
     testset: Link[NewTestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -548,9 +544,10 @@ class NewHumanEvaluationScenarioDB(Document):
 class NewEvaluationDB(Document):
     app: Link[NewAppDB]
     user: Link[NewUserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[NewTestSetDB]
     variant: PydanticObjectId
+    variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
@@ -577,23 +574,6 @@ class NewEvaluationScenarioDB(Document):
     class Settings:
         name = "new_evaluation_scenarios"
 
-
-class TraceDB(Document):
-    app_id: Optional[str]
-    variant_id: str
-    spans: List[PydanticObjectId]
-    start_time: datetime
-    end_time: datetime = Field(default=datetime.utcnow())
-    cost: Optional[float]
-    latency: float
-    status: str  # initiated, completed, stopped, cancelled, failed
-    token_consumption: Optional[int]
-    user: Link[NewUserDB]
-    tags: Optional[List[str]]
-    feedbacks: Optional[List[Feedback]]
-
-    class Settings:
-        name = "traces"
 
 
 
