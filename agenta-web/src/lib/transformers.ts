@@ -63,6 +63,7 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         evaluation.evaluationType === EvaluationType.auto_exact_match ||
         evaluation.evaluationType === EvaluationType.auto_similarity_match ||
         evaluation.evaluationType === EvaluationType.auto_regex_test ||
+        evaluation.evaluationType === EvaluationType.field_match_test ||
         evaluation.evaluationType === EvaluationType.auto_webhook_test ||
         evaluation.evaluationType === EvaluationType.auto_ai_critique ||
         evaluation.evaluationType === EvaluationType.single_model_test
