@@ -451,13 +451,10 @@ class Forward:
             app_variant_revision = await NewAppVariantRevisionsDB.find_one(
                 NewAppVariantRevisionsDB.variant.id == app_variant.id
             )
-            print("AVR: ", app_variant_revision)
-
             if app_variant_revision is not None:
                 output_document.deployed_app_variant_revision = app_variant_revision
             else:
                 output_document.deployed_app_variant_revision = None
-            print("ODDAVR: ", output_document.deployed_app_variant_revision)
 
 
 class Backward:
