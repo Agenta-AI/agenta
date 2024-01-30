@@ -36,6 +36,7 @@ const evaluatorIconsMap = {
     auto_exact_match: exactMatchImg,
     auto_similarity_match: similarityImg,
     auto_regex_test: regexImg,
+    field_match_test: exactMatchImg,
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
@@ -120,6 +121,7 @@ export type CreateEvaluationData = {
     evaluators_configs: string[]
     rate_limit: LLMRunRateLimit
     lm_providers_keys: KeyValuePair
+    correct_answer_column: string
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
     return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
