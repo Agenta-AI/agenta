@@ -4,7 +4,7 @@ import {
     removeSingleLlmProviderKey,
     getAllProviderLlmKeys,
     LlmProvider,
-} from "@/lib/helpers/utils"
+} from "@/lib/helpers/llmProviders"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
 import {createUseStyles} from "react-jss"

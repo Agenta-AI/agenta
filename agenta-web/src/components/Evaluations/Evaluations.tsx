@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getAgentaApiUrl, getApikeys, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -42,6 +42,7 @@ import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import {getApikeys} from "@/lib/helpers/llmProviders"
 
 type StyleProps = {
     themeMode: "dark" | "light"

@@ -5,35 +5,6 @@ import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 
-const llmAvailableProvidersToken = "llmAvailableProvidersToken"
-
-export type LlmProvider = {
-    title: string
-    key: string
-}
-
-export const llmAvailableProviders: LlmProvider[] = [
-    {title: "OpenAI", key: ""},
-    {title: "Replicate", key: ""},
-    {title: "Hugging Face", key: ""},
-    {title: "Cohere", key: ""},
-    {title: "Anthropic", key: ""},
-    {title: "Azure", key: ""},
-    {title: "TogetherAI", key: ""},
-]
-
-export const getAllLlmProviderKeysAsEnvVariable = () => {
-    return {
-        OPENAI_API_KEY: getLlmProviderKey("OpenAI"),
-        REPLICATE_API_KEY: getLlmProviderKey("Replicate"),
-        HUGGING_FACE_API_KEY: getLlmProviderKey("Hugging Face"),
-        COHERE_API_KEY: getLlmProviderKey("Cohere"),
-        ANTHROPIC_API_KEY: getLlmProviderKey("Anthropic"),
-        AZURE_API_KEY: getLlmProviderKey("Azure"),
-        TOGETHERAI_API_KEY: getLlmProviderKey("TogetherAI"),
-    }
-}
-
 export const renameVariables = (name: string) => {
     if (name === "inputs") {
         return "Prompt Variables"
@@ -60,67 +31,6 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_regex_test]: "Regex Test",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
-}
-
-export const getApikeys = () => {
-    if (typeof window !== "undefined") {
-        const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
-
-        if (llmAvailableProvidersTokenString !== null) {
-            const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
-
-            if (
-                Array.isArray(llmAvailableProvidersTokenArray) &&
-                llmAvailableProvidersTokenArray.length > 0
-            ) {
-                for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
-                    if (llmAvailableProvidersTokenArray[i].key !== "") {
-                        return llmAvailableProvidersTokenArray[i].key
-                    }
-                }
-            }
-        }
-        return ""
-    }
-}
-
-export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
-    if (typeof window !== "undefined") {
-        // TODO: add encryption here
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = keyValue
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
-}
-
-export const getLlmProviderKey = (providerName: string) =>
-    getAllProviderLlmKeys().find((item: LlmProvider) => item.title === providerName)
-
-export const getAllProviderLlmKeys = () => {
-    if (typeof window !== "undefined") {
-        const inStorage = localStorage.getItem(llmAvailableProvidersToken)
-        if (inStorage) {
-            return JSON.parse(inStorage)
-        }
-        // if doesn't have the localStorage variable
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
-    }
-
-    return llmAvailableProviders
-}
-
-export const removeSingleLlmProviderKey = (providerIdx: number) => {
-    if (typeof window !== "undefined") {
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = ""
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
-}
-
-export const removeLlmProviderKey = () => {
-    if (typeof window !== "undefined") {
-        localStorage.removeItem(llmAvailableProvidersToken)
-    }
 }
 
 export const capitalize = (s: string) => {
