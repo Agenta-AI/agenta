@@ -54,6 +54,7 @@ def evaluate(
     evaluation_id: str,
     rate_limit_config: Dict[str, int],
     lm_providers_keys: Dict[str, Any],
+    correct_answer_column: str,
 ):
     """
     Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
@@ -65,6 +66,7 @@ def evaluate(
         evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
         testset_id (str): The ID of the testset.
         rate_limit_config (Dict[str,int]): See LLMRunRateLimit
+        correct_answer_column (str): The name of the column in the testset that contains the correct answer.
 
     Returns:
         None
@@ -122,6 +124,7 @@ def evaluate(
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
+
             inputs = [
                 EvaluationScenarioInputDB(
                     name=input_item["name"],
@@ -155,6 +158,11 @@ def evaluate(
                     )
                     for evaluator_config_db in evaluator_config_dbs
                 ]
+                correct_answer = (
+                    data_point[correct_answer_column]
+                    if correct_answer_column in data_point
+                    else ""
+                )
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
                         user=app.user,
@@ -165,7 +173,7 @@ def evaluate(
                         inputs=inputs,
                         is_pinned=False,
                         note="",
-                        correct_answer=data_point["correct_answer"],
+                        correct_answer=correct_answer,
                         outputs=[
                             EvaluationScenarioOutputDB(
                                 result=Result(
@@ -187,15 +195,24 @@ def evaluate(
             evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
-                result = evaluators_service.evaluate(
-                    evaluator_key=evaluator_config_db.evaluator_key,
-                    output=app_output.result.value,
-                    correct_answer=data_point["correct_answer"],
-                    settings_values=evaluator_config_db.settings_values,
-                    app_params=app_variant_parameters,
-                    inputs=data_point,
-                    lm_providers_keys=lm_providers_keys,
-                )
+                if correct_answer_column in data_point:
+                    result = evaluators_service.evaluate(
+                        evaluator_key=evaluator_config_db.evaluator_key,
+                        output=app_output.result.value,
+                        correct_answer=data_point[correct_answer_column],
+                        settings_values=evaluator_config_db.settings_values,
+                        app_params=app_variant_parameters,
+                        inputs=data_point,
+                        lm_providers_keys=lm_providers_keys,
+                    )
+                else:
+                    result = Result(
+                        type="error",
+                        value=None,
+                        error=Error(
+                            message=f"No {correct_answer_column} column in test set"
+                        ),
+                    )
 
                 # Update evaluators aggregated data
                 evaluator_results: List[Result] = evaluators_aggregated_data[
@@ -211,6 +228,11 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             # 4. We save the result of the eval scenario in the db
+            correct_answer = (
+                data_point[correct_answer_column]
+                if correct_answer_column in data_point
+                else ""
+            )
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
@@ -221,7 +243,7 @@ def evaluate(
                     inputs=inputs,
                     is_pinned=False,
                     note="",
-                    correct_answer=data_point["correct_answer"],
+                    correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
                             result=Result(type="text", value=app_output.result.value)
