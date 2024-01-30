@@ -451,7 +451,8 @@ class Forward:
             # Update fields
             if input_document.deployed_app_variant is not None:
                 output_document.deployed_app_variant = input_document.deployed_app_variant
-            output_document.deployed_app_variant_revision = app_variant_revision
+            if app_variant_revision is not None:
+                output_document.deployed_app_variant_revision = app_variant_revision
 
 
 class Backward:
