@@ -71,6 +71,11 @@ async def create_evaluation(
             return response
 
         evaluations = []
+        correct_answer_column = (
+            "correct_answer"
+            if payload.correct_answer_column is None
+            else payload.correct_answer_column
+        )
 
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
@@ -88,6 +93,7 @@ async def create_evaluation(
                 evaluation_id=evaluation.id,
                 rate_limit_config=payload.rate_limit.dict(),
                 lm_providers_keys=payload.lm_providers_keys,
+                correct_answer_column=correct_answer_column,
             )
             evaluations.append(evaluation)
 
