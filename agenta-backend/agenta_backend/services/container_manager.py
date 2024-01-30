@@ -100,7 +100,7 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
-        if isCloud:
+        if isCloud():
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"

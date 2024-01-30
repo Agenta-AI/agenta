@@ -8,9 +8,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationStatusEnum,
 )
 from agenta_backend.models.db_engine import DBEngine
-<<<<<<< HEAD
 from agenta_backend.services import evaluators_service, llm_apps_service
-=======
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
@@ -26,7 +24,6 @@ from agenta_backend.services import (
     llm_apps_service,
     deployment_manager,
 )
->>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     fetch_app_by_id,

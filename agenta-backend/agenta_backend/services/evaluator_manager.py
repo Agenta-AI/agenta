@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -15,11 +15,8 @@ if isCloudEE:
 else:
     from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
-<<<<<<< HEAD
-from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
-=======
 from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
->>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
+from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 
 
 def get_evaluators() -> Optional[List[Evaluator]]:
@@ -86,9 +83,9 @@ async def create_evaluator_config(
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa,
-        workspace=app.workspace if isCloudEE else None,  # noqa,
+        workspace=app.workspace if isCloudEE() else None,  # noqa,
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
@@ -155,10 +152,10 @@ async def create_ready_to_use_evaluators(app: AppDB):
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa,
             workspace=app.workspace
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa,
             user=app.user,
             name=evaluator["name"],

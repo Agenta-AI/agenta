@@ -24,7 +24,7 @@ from agenta_backend.models.api.evaluation_model import (
     NewHumanEvaluation,
 )
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -46,12 +46,7 @@ else:
 from agenta_backend.models.db_models import (
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
-<<<<<<< HEAD
-=======
     Result,
-    UserDB,
-    AppDB,
->>>>>>> 3b0014c466d7909a1d10cfe1731e42c4269eb2ee
 )
 
 logger = logging.getLogger(__name__)
@@ -169,7 +164,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             outputs=[],
         )
         
-        if isCloudEE:
+        if isCloudEE():
             eval_scenario_instance.organization = app.organization
             eval_scenario_instance.workspace = app.workspace
         
@@ -572,7 +567,7 @@ async def create_new_human_evaluation(
         updated_at=current_time,
     )
     
-    if isCloudEE:
+    if isCloudEE():
         eval_instance.organization = app.organization
         eval_instance.workspace = app.workspace
     
@@ -630,8 +625,8 @@ async def create_new_evaluation(
         variant=variant_id,
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
-        organization=app.organization if isCloudEE else None,
-        workspace=app.workspace if isCloudEE else None,
+        organization=app.organization if isCloudEE() else None,
+        workspace=app.workspace if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
