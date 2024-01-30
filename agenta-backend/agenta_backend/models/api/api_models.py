@@ -116,6 +116,7 @@ class EnvironmentOutput(BaseModel):
 
 
 class EnvironmentRevision(BaseModel):
+    id: str
     revision: int
     modified_by: str
     deployed_app_variant_revision: Optional[str]
