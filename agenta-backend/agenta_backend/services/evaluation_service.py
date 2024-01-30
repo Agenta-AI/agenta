@@ -28,7 +28,6 @@ if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
-        AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
@@ -38,7 +37,6 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
-        AppVariantDB,
         EvaluationDB,
         HumanEvaluationDB,
         EvaluationScenarioDB,

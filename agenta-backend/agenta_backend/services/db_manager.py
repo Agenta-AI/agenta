@@ -34,11 +34,11 @@ from agenta_backend.models.db_models import (
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
     from agenta_backend.commons.services import db_manager_ee
-    from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_rbac_permission
     from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
 
     from agenta_backend.commons.models.db_models import (
+        Permission,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,

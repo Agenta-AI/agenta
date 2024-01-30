@@ -26,15 +26,12 @@ from agenta_backend.models.api.testset_model import (
 
 FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.utils.permissions import (
-        check_action_access,
-    )  # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
         Permission,
-    )  # noqa pylint: disable-all
-    from agenta_backend.commons.models.db_models import (
         TestSetDB_ as TestSetDB,
     )  # noqa pylint: disable-all
+
 else:
     from agenta_backend.models.db_models import TestSetDB
 
