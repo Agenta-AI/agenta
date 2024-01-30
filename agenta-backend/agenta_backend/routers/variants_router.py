@@ -35,8 +35,15 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     VariantAction,
     VariantActionEnum,
+<<<<<<< HEAD
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
+=======
+    AppVariantOutputExtended,
+)
+from agenta_backend.utils.common import (
+    check_access_to_app,
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 )
 
 router = APIRouter()
@@ -294,6 +301,7 @@ async def start_variant(
             )
 
     logger.debug("Starting variant %s", variant_id)
+<<<<<<< HEAD
 
     # Inject env vars to docker container
     if isCloudEE:
@@ -307,8 +315,59 @@ async def start_variant(
         }
     else:
         envvars = {} if env_vars is None else env_vars.env_vars
+=======
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    envvars = {} if env_vars is None else env_vars.env_vars
+    # Inject env vars to docker container
+    if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+        if envvars.get("OPENAI_API_KEY", "") == "":
+            if not os.environ["OPENAI_API_KEY"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if action.action == VariantActionEnum.START:
         url: URI = await app_manager.start_variant(app_variant_db, envvars)
     return url
+
+
+@router.get(
+    "/{variant_id}/",
+    operation_id="get_variant",
+    response_model=AppVariantOutputExtended,
+)
+async def get_variant(
+    variant_id: str,
+    request: Request,
+):
+    logger.debug("getting variant " + variant_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    try:
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+
+        access = await check_access_to_variant(
+            user_org_data=user_org_data, variant_id=variant_id
+        )
+        if not access:
+            error_msg = f"You do not have access to this variant: {variant_id}"
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        app_variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id
+        )
+        app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
+            app_variant=app_variant
+        )
+        return await converters.app_variant_db_and_revision_to_extended_output(
+            app_variant, app_variant_revisions
+        )
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

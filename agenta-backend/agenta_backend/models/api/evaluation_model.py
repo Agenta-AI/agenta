@@ -63,6 +63,8 @@ class Evaluation(BaseModel):
     user_username: str
     variant_ids: List[str]
     variant_names: List[str]
+    variant_revision_ids: List[str]
+    revisions: List[str]
     testset_id: str
     testset_name: str
     status: str
@@ -117,6 +119,8 @@ class HumanEvaluation(BaseModel):
     evaluation_type: str
     variant_ids: List[str]
     variant_names: List[str]
+    variants_revision_ids: List[str]
+    revisions: List[str]  # the revision / version of each of the variants
     testset_id: str
     testset_name: str
     status: str

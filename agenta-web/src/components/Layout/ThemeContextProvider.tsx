@@ -68,6 +68,17 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 theme={{
                     algorithm:
                         val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                    token: {
+                        // Seed Token
+                        colorPrimary: "#4AA081",
+                        borderRadius: 8,
+                    },
+                    components: {
+                        Button: {
+                            colorPrimary: "#4AA081",
+                            colorErrorText: "#ef4146",
+                        },
+                    },
                 }}
             >
                 {children}

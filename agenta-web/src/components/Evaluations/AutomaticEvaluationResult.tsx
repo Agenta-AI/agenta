@@ -10,6 +10,7 @@ import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
+import Link from "next/link"
 
 interface EvaluationListTableDataType {
     key: string
@@ -32,6 +33,8 @@ interface EvaluationListTableDataType {
     custom_code_eval_id: string
     resultsData: {[key: string]: number}
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 type StyleProps = {
@@ -104,6 +107,8 @@ export default function AutomaticEvaluationResult() {
                             custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
                             resultsData: result.results_data,
                             avgScore: result.avg_score,
+                            revisions: item.revisions,
+                            variant_revision_ids: item.variant_revision_ids,
                         }
                     }
                 })
@@ -126,6 +131,10 @@ export default function AutomaticEvaluationResult() {
         fetchEvaluations()
     }, [app_id])
 
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${app_id}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
         const evaluationType =
@@ -141,10 +150,13 @@ export default function AutomaticEvaluationResult() {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value) => {
+            render: (value, record: EvaluationListTableDataType) => {
                 return (
-                    <div>
-                        <span>{value[0].variantName}</span>
+                    <div
+                        onClick={() => handleNavigation(value[0].variantName, record.revisions[0])}
+                        style={{cursor: "pointer"}}
+                    >
+                        <span>{`${value[0].variantName} #${record.revisions[0]}`}</span>
                     </div>
                 )
             },

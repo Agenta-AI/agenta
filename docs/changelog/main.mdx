@@ -2,9 +2,38 @@
 title: "Changelog"
 ---
 
+## v0.8.0 - Revamping evaluation
+*22th January 2024*
+
+We've spent the past month re-engineering our evaluation workflow. Here's what's new:
+
+**Running Evaluations**
+
+1. Simultaneous Evaluations: You can now run multiple evaluations for different app variants and evaluators concurrently.
+    
+<img height="600" src="/images/changelog/eval_1.png" />
+
+2. Rate Limit Parameters: Specify these during evaluations and reattempts to ensure reliable results without exceeding open AI rate limits.
+    
+<img height="600" src="/images/changelog/eval_2.png" />
+    
+3. Reusable Evaluators: Configure evaluators such as similarity match, regex match, or AI critique and use them across multiple evaluations.
+    
+<img height="600" src="/images/changelog/eval_3.png" />
+    
+**Evaluation Reports**
+
+1. Dashboard Improvements: We've upgraded our dashboard interface to better display evaluation results. You can now filter and sort results by evaluator, test set, and outcomes.
+    
+<img height="600" src="/images/changelog/eval_4.png" />
+    
+2. Comparative Analysis: Select multiple evaluation runs and view the results of various LLM applications side-by-side.
+    
+<img height="600" src="/images/changelog/eval_5.png" />
+    
 ## v0.7.1 - Adding Cost and Token Usage to the Playground
 
-*12th January 2023*
+*12th January 2024*
 <Warning> This change requires you to pull the latest version of the agenta platform if you're using the self-serve version.</Warning>
 
 <img height="600" src="/images/changelog/screenshot_cost_and_token_usage.png" />

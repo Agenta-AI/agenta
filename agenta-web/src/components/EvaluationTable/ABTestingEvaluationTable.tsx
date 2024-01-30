@@ -328,7 +328,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span>Variant: </span>
                         <VariantAlphabet index={ix} width={24} />
                         <span className={classes.appVariant} style={{color: VARIANT_COLORS[ix]}}>
-                            {variants ? variant.variantName : ""}
+                            {variants ? `${variant.variantName} #${evaluation.revisions[ix]}` : ""}
                         </span>
                     </div>
                 ),
@@ -478,7 +478,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 }
                                 disabled={false}
                             >
-                                Export results
+                                Export Results
                             </SecondaryButton>
                         </Space>
                     </Col>

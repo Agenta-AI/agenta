@@ -2694,8 +2694,7 @@
                     "user_id",
                     "base_name",
                     "base_id",
-                    "config_name",
-                    "config_id"
+                    "config_name"
                 ],
                 "type": "object",
                 "properties": {
@@ -2741,10 +2740,6 @@
                     },
                     "config_name": {
                         "title": "Config Name",
-                        "type": "string"
-                    },
-                    "config_id": {
-                        "title": "Config Id",
                         "type": "string"
                     },
                     "uri": {

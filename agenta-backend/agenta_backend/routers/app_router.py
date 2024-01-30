@@ -114,6 +114,7 @@ async def list_app_variants(
         ]
 
     except Exception as e:
+<<<<<<< HEAD
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -175,6 +176,9 @@ async def get_variant_by_env(
         raise e
     except Exception as e:
         # Handle all other exceptions and return 500 status code
+=======
+        logger.exception(f"An error occurred: {str(e)}")
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -261,6 +265,7 @@ async def create_app(
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -294,7 +299,7 @@ async def list_apps(
         )
         return apps
     except Exception as e:
-        logger.error(f"list_apps exception ===> {e}")
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -369,6 +374,7 @@ async def add_variant_from_image(
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -400,9 +406,11 @@ async def remove_app(app_id: str, request: Request):
             await app_manager.remove_app(app)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
+        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
 
 
@@ -508,10 +516,23 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
+<<<<<<< HEAD
             docker_id_or_template_uri=template_db.template_uri
             if isCloudEE
             else template_db.digest,
             tags=f"{image_name}" if not isCloudEE else None,
+=======
+            docker_id_or_template_uri=(
+                template_db.template_uri
+                if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+                else template_db.digest
+            ),
+            tags=(
+                f"{image_name}"
+                if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
+                else None
+            ),
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
             base_name="app",
             config_name="default",
             is_template_image=True,
@@ -539,6 +560,7 @@ async def create_app_and_variant_from_template(
         )
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
+<<<<<<< HEAD
         logger.debug(
             "Step 10: Starting variant and injecting environment variables"
             if isCloudEE
@@ -557,6 +579,19 @@ async def create_app_and_variant_from_template(
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
+=======
+        logger.debug("Step 9: Starting variant and injecting environment variables")
+
+        envvars = {} if payload.env_vars is None else payload.env_vars
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+            if envvars.get("OPENAI_API_KEY", "") == "":
+                if not os.environ["OPENAI_API_KEY"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                    )
+                envvars["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
 
         await app_manager.start_variant(app_variant_db, envvars)
 
@@ -564,10 +599,14 @@ async def create_app_and_variant_from_template(
         return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
+<<<<<<< HEAD
         import traceback
 
         traceback.print_exc()
         logger.debug(f"Error: Exception caught - {str(e)}")
+=======
+        logger.exception(f"Error: Exception caught - {str(e)}")
+>>>>>>> 3427160dec4847b53e1561f12abe5e5cae762ec9
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -613,4 +652,5 @@ async def list_environments(
             await converters.environment_db_to_output(env) for env in environments_db
         ]
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
