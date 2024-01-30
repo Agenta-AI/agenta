@@ -13,6 +13,7 @@ import {
     GenericObject,
     Environment,
     DeploymentRevisions,
+    DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
@@ -669,6 +670,17 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
     }
 
     const data: Environment[] = await response.json()
+    return data
+}
+
+export const fetchDeploymentRevisionConfig = async (deploymentRevisionId: string): Promise<DeploymentRevisionConfig> => {
+    const response = await fetch(`${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`)
+
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch deployment revision configuration")
+    }
+
+    const data = await response.json() as DeploymentRevisionConfig;
     return data
 }
 

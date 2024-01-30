@@ -177,6 +177,12 @@ export interface Parameters {
     top_p: number
 }
 
+export interface DeploymentRevisionConfig {
+    config_name: string
+    current_version: number
+    parameters: Parameters
+}
+
 export interface IPromptRevisions {
     config: {
         config_name: string
