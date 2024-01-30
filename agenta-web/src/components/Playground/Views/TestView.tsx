@@ -282,7 +282,7 @@ const App: React.FC<TestViewProps> = ({
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
-    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isLLMProviderMissingModalOpen, setIsLLMProviderMissingModalOpen] = useState(false)
 
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
@@ -407,7 +407,7 @@ const App: React.FC<TestViewProps> = ({
                     index,
                 )
                 if (e.response.status === 401) {
-                    setIsModalOpen(true)
+                    setIsLLMProviderMissingModalOpen(true)
                 }
             } else {
                 setResultForIndex("", index)
@@ -571,9 +571,9 @@ const App: React.FC<TestViewProps> = ({
             <Modal
                 centered
                 title="Incorrect LLM key provided"
-                open={isModalOpen}
+                open={isLLMProviderMissingModalOpen}
                 onOk={() => router.push("/settings?tab=secrets")}
-                onCancel={() => setIsModalOpen(false)}
+                onCancel={() => setIsLLMProviderMissingModalOpen(false)}
                 okText={"View LLM Keys"}
             >
                 <p>
