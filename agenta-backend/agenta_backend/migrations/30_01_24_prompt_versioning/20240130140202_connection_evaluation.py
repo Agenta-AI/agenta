@@ -301,7 +301,7 @@ class EvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[TestSetDB]
     variant: PydanticObjectId
     variant_revision: Optional[PydanticObjectId]
