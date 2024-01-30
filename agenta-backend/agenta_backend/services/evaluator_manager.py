@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional, List, Tuple
 from fastapi.responses import JSONResponse
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isCloudEE()
 
-if isCloudEE:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -92,9 +92,9 @@ async def create_evaluator_config(
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization
-        if isCloudEE
+        if isCloudEE()
         else None,  # noqa,
-        workspace=app.workspace if isCloudEE else None,  # noqa,
+        workspace=app.workspace if isCloudEE() else None,  # noqa,
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
@@ -161,10 +161,10 @@ async def create_ready_to_use_evaluators(app: AppDB):
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa,
             workspace=app.workspace
-            if isCloudEE
+            if isCloudEE()
             else None,  # noqa,
             user=app.user,
             name=evaluator["name"],
