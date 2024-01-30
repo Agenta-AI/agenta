@@ -272,15 +272,23 @@ class Forward:
                         EvaluationScenarioResult(
                             evaluator_config=PydanticObjectId(evaluator_config),
                             result=Result(
-                                type="number"
-                                if isinstance(old_scenario.score, int)
-                                else "number"
-                                if isinstance(old_scenario.score, float)
-                                else "string"
-                                if isinstance(old_scenario.score, str)
-                                else "boolean"
-                                if isinstance(old_scenario.score, bool)
-                                else "any",
+                                type=(
+                                    "number"
+                                    if isinstance(old_scenario.score, int)
+                                    else (
+                                        "number"
+                                        if isinstance(old_scenario.score, float)
+                                        else (
+                                            "string"
+                                            if isinstance(old_scenario.score, str)
+                                            else (
+                                                "boolean"
+                                                if isinstance(old_scenario.score, bool)
+                                                else "any"
+                                            )
+                                        )
+                                    )
+                                ),
                                 value=old_scenario.score,
                             ),
                         )
