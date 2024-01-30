@@ -10,10 +10,10 @@ from beanie import PydanticObjectId as ObjectId
 from agenta_backend.config import settings
 from agenta_backend.models import converters
 from agenta_backend.utils.common import (
-    isEE(),
-    isCloud(), 
+    isEE,
+    isCloud, 
     APIRouter, 
-    isCloudEE(), 
+    isCloudEE, 
 )
 
 from agenta_backend.services import (

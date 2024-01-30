@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter, isCloudEE()
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,

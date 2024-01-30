@@ -4,7 +4,7 @@ import json
 import logging
 from typing import List
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import isCloudEE()
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
 
 from agenta_backend.models.api.observability_models import (

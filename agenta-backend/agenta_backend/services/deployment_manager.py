@@ -3,7 +3,7 @@ import os
 from typing import Dict
 
 from agenta_backend.config import settings
-from agenta_backend.utils.common import isCloudEE()
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.api_models import Image
 from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
 from agenta_backend.services import db_manager, docker_utils

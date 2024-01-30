@@ -18,7 +18,7 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from agenta_backend.utils.common import isCloudEE()
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.open_api import open_api_tags_metadata
 

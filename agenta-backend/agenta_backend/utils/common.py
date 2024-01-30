@@ -74,14 +74,14 @@ async def check_action_access(
 
     return True
 
-def isCloudEE()():
+def isCloudEE():
     return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
 
-def isCloud()():
+def isCloud():
     return os.environ["FEATURE_FLAG"] == "cloud"
 
-def isEE()():
+def isEE():
     return os.environ["FEATURE_FLAG"] == "ee"
 
-def isOssEE()():
+def isOssEE():
     return os.environ["FEATURE_FLAG"] in ["oss", "ee"]

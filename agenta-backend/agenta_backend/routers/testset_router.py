@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
 from agenta_backend.services.db_manager import get_user
-from agenta_backend.utils.common import APIRouter, isCloudEE()
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, UploadFile, File, Form, Request
 from agenta_backend.models.converters import testset_db_to_pydantic
 

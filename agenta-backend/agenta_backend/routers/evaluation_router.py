@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response
 
 from agenta_backend.tasks.evaluations import evaluate
-from agenta_backend.utils.common import APIRouter, isCloudEE()
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluation_service, db_manager
 
 from agenta_backend.models.api.evaluation_model import (
