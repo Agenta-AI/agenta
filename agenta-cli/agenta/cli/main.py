@@ -80,8 +80,8 @@ def cli():
 @click.command()
 @click.option("--app_name", default="")
 @click.option("--backend_host", default="")
-@click.option("--init_option", default="")
-def init(app_name: str, backend_host: str, init_option: str):
+def init(app_name: str, backend_host: str):
+    init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
     if not app_name:
         while True:
