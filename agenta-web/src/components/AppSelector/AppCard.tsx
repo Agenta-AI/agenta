@@ -20,7 +20,7 @@ const useStyles = createUseStyles({
         overflow: "hidden",
         boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
         "& svg": {
-            color: "hsl(0, 60%, 50%)",
+            color: "#ef4146",
         },
         "& .ant-card-meta": {
             height: "110%",
