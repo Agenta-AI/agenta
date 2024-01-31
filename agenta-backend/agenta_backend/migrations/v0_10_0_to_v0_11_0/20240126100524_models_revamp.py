@@ -205,6 +205,7 @@ class OldAppVariantDB(Document):
     revision: int
     image: Link[OldImageDB]
     user: Link[OldUserDB]
+    modified_by: Link[OldUserDB]
     organization: Link[OldOrganizationDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
@@ -434,6 +435,7 @@ class NewAppVariantDB(Document):
     revision: int
     image: Link[NewImageDB]
     user: Link[NewUserDB]
+    modified_by: Link[NewUserDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
