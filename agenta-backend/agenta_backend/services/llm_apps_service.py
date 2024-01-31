@@ -181,7 +181,22 @@ async def batch_invoke(
     list_of_app_outputs: List[InvokationResult] = (
         []
     )  # Outputs after running all batches
-    openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
+    try:
+        openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
+    except Exception as e:
+        logger.traceback.print_exc()
+        for _ in testset_data:
+            list_of_app_outputs.append(
+                InvokationResult(
+                    result=Result(
+                        type="error",
+                        error=Error(
+                            message="An error occurred while invoking the LLM App",
+                            stacktrace=str(e),
+                        ),
+                    )
+                )
+            )
 
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
@@ -261,9 +276,14 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
 
 async def _get_openai_json_from_uri(uri):
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(uri)
-        timeout = httpx.Timeout(timeout=5, read=None, write=5)
-        resp = await client.get(uri, timeout=timeout)
-        json_data = json.loads(resp.text)
-        return json_data
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(uri)
+            timeout = httpx.Timeout(timeout=5, read=None, write=5)
+            resp = await client.get(uri, timeout=timeout)
+            json_data = json.loads(resp.text)
+            return json_data
+    except Exception as e:
+        print(f"Error retrieving JSON from URI: {uri}")
+        print(f"Exception: {e}")
+        raise e
