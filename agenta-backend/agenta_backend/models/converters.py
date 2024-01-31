@@ -69,6 +69,7 @@ from agenta_backend.models.db_models import (
     TraceDB,
     TemplateDB,
     AggregatedResult,
+    AppVariantRevisionsDB,
     Feedback as FeedbackDB,
     EvaluationScenarioResult,
 )
@@ -79,6 +80,8 @@ from agenta_backend.models.api.api_models import (
     TestSetOutput,
     TemplateImageInfo,
     EnvironmentOutput,
+    AppVariantRevision,
+    AppVariantOutputExtended,
 )
 
 logger = logging.getLogger(__name__)
@@ -287,7 +290,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
 
 async def app_variant_db_and_revision_to_extended_output(
     app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
-) -> AppVariantOutput:
+) -> AppVariantResponse:
     if app_variant_db.base.deployment:
         deployment = await db_manager.get_deployment_by_objectid(
             app_variant_db.base.deployment
