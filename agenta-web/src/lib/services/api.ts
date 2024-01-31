@@ -695,6 +695,16 @@ export const fetchDeploymentRevisions = async (appId: string, environmentName: s
     return data
 }
 
+export const revertDeploymentRevision = async (
+    deploymentRevisionId: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert/`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
 
 export const publishVariant = async (variantId: string, environmentName: string) => {
     await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/`, {
