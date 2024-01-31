@@ -11,13 +11,11 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class CustomEvaluationDetail(pydantic.BaseModel):
-    id: str
-    app_id: str
-    evaluation_name: str
-    python_code: str
-    created_at: dt.datetime
-    updated_at: dt.datetime
+class LlmRunRateLimit(pydantic.BaseModel):
+    batch_size: int
+    max_retries: int
+    retry_delay: int
+    delay_between_batches: int
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
