@@ -457,11 +457,17 @@ async def list_app_environment_revisions(request: Request, app_id: str, environm
         app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
             app_id, environment_name, **user_org_data
         )
+        if app_environment is None:
+            return JSONResponse({"detail": "App environment not found"}, status_code=404)
+
         app_environment_revisions = (
             await db_manager.fetch_environment_revisions_for_environment(
                 app_environment, **user_org_data
             )
         )
+        if app_environment_revisions is None:
+            return JSONResponse({"detail": "No revisions found for app environment"}, status_code=404)
+
         return await converters.environment_db_and_revision_to_extended_output(
             app_environment, app_environment_revisions
         )
