@@ -9,7 +9,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     AppVariantDB,
     EvaluationDB,
-    AppVariantDB,
     DeploymentDB,
     EvaluationScenarioDB,
 )
@@ -52,7 +51,7 @@ async def test_get_evaluators_endpoint():
         timeout=timeout,
     )
     assert response.status_code == 200
-    assert len(response.json()) == 8  # currently we have 8 evaluators
+    assert len(response.json()) == 9  # currently we have 9 evaluators
 
 
 @pytest.mark.asyncio
@@ -193,7 +192,7 @@ async def test_create_evaluation():
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
+    assert response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_STARTED
     assert response_data is not None
 
 
@@ -206,14 +205,14 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 5  # seconds
+    intervals = 3  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
             timeout=timeout,
         )
         response_data = response.json()
-        if response_data["status"] == EvaluationStatusEnum.EVALUATION_FINISHED:
+        if response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_FINISHED:
             assert True
             return
         await asyncio.sleep(intervals)

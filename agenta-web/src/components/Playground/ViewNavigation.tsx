@@ -52,7 +52,7 @@ const ViewNavigation: React.FC<Props> = ({
     const appId = router.query.app_id as unknown as string
     const {
         inputParams,
-        optParams,
+        promptOptParams,
         refetch,
         isError,
         error,
@@ -60,6 +60,11 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
         isChatVariant,
+        promptRevisions,
+        historyStatus,
+        setPromptOptParams,
+        setPromptRevisions,
+        setHistoryStatus,
     } = useVariant(appId, variant)
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
@@ -68,6 +73,7 @@ const ViewNavigation: React.FC<Props> = ({
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -224,7 +230,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <ParametersView
                         compareMode={compareMode}
                         variant={variant}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
@@ -236,6 +242,9 @@ const ViewNavigation: React.FC<Props> = ({
                         getHelpers={getHelpers}
                         onStateChange={onStateChange}
                         tabID={tabID}
+                        setHistoryStatus={setHistoryStatus}
+                        setIsDrawerOpen={setIsDrawerOpen}
+                        setPromptRevisions={setPromptRevisions}
                     />
                 </Col>
             </Row>
@@ -245,10 +254,17 @@ const ViewNavigation: React.FC<Props> = ({
                 <Col span={24}>
                     <TestView
                         inputParams={inputParams}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
+                        onStateChange={onStateChange}
+                        promptRevisions={promptRevisions}
+                        historyStatus={historyStatus}
+                        setPromptOptParams={setPromptOptParams}
+                        promptOptParams={promptOptParams}
+                        isDrawerOpen={isDrawerOpen}
+                        setIsDrawerOpen={setIsDrawerOpen}
                     />
                 </Col>
             </Row>

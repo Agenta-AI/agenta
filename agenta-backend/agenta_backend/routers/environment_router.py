@@ -61,4 +61,5 @@ async def deploy_to_environment(
                 **user_org_data,
             )
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

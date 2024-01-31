@@ -51,7 +51,6 @@ export async function fetchVariants(
                 variantId: variant.variant_id,
                 baseId: variant.base_id,
                 baseName: variant.base_name,
-                configId: variant.config_id,
                 configName: variant.config_name,
             }
             return v
@@ -683,4 +682,12 @@ export const publishVariant = async (variantId: string, environmentName: string)
         environment_name: environmentName,
         variant_id: variantId,
     })
+}
+
+export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
 }

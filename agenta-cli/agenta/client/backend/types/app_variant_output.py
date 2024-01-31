@@ -23,7 +23,6 @@ class AppVariantOutput(pydantic.BaseModel):
     base_name: str
     base_id: str
     config_name: str
-    config_id: str
     uri: typing.Optional[str]
 
     def json(self, **kwargs: typing.Any) -> str:

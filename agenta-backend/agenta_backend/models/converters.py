@@ -7,6 +7,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    AppVariantRevisionsDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
     HumanEvaluationDB,
@@ -27,6 +28,8 @@ from agenta_backend.models.db_models import (
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
+    AppVariantRevision,
+    AppVariantOutputExtended,
     ImageExtended,
     Template,
     TemplateImageInfo,
@@ -77,7 +80,10 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant)
     )
     variant_name = variant.variant_name if variant else str(evaluation_db.variant)
-
+    variant_revision = await db_manager.get_app_variant_revision_by_id(
+        str(evaluation_db.variant_revision)
+    )
+    revision = str(variant_revision.revision)
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -85,6 +91,8 @@ async def evaluation_db_to_pydantic(
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
         variant_ids=[str(evaluation_db.variant)],
+        variant_revision_ids=[str(evaluation_db.variant_revision)],
+        revisions=[revision],
         variant_names=[variant_name],
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
@@ -104,6 +112,13 @@ async def human_evaluation_db_to_pydantic(
         variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
         variant_name = variant.variant_name if variant else str(variant_id)
         variant_names.append(str(variant_name))
+    revisions = []
+    for variant_revision_id in evaluation_db.variants_revisions:
+        variant_revision = await db_manager.get_app_variant_revision_by_id(
+            str(variant_revision_id)
+        )
+        revision = variant_revision.revision
+        revisions.append(str(revision))
 
     return HumanEvaluation(
         id=str(evaluation_db.id),
@@ -114,6 +129,11 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
+        variants_revision_ids=[
+            str(variant_revision)
+            for variant_revision in evaluation_db.variants_revisions
+        ],
+        revisions=revisions,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
@@ -227,8 +247,48 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         base_name=app_variant_db.base_name,
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
-        config_id=str(app_variant_db.config.id),
         uri=uri,
+    )
+
+
+async def app_variant_db_and_revision_to_extended_output(
+    app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
+) -> AppVariantOutput:
+    if app_variant_db.base.deployment:
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        uri = deployment.uri
+    else:
+        deployment = None
+        uri = None
+
+    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+    app_variant_revisions = []
+    for app_variant_revision_db in app_variant_revisions_db:
+        app_variant_revisions.append(
+            AppVariantRevision(
+                revision=app_variant_revision_db.revision,
+                modified_by=app_variant_revision_db.modified_by.username,
+                config=app_variant_revision_db.config,
+                created_at=app_variant_revision_db.created_at,
+            )
+        )
+    return AppVariantOutputExtended(
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
+        variant_name=app_variant_db.variant_name,
+        variant_id=str(app_variant_db.id),
+        user_id=str(app_variant_db.user.id),
+        organization_id=str(app_variant_db.organization.id),
+        parameters=app_variant_db.config.parameters,
+        previous_variant_name=app_variant_db.previous_variant_name,
+        base_name=app_variant_db.base_name,
+        base_id=str(app_variant_db.base.id),
+        config_name=app_variant_db.config_name,
+        uri=uri,
+        revision=app_variant_db.revision,
+        revisions=app_variant_revisions,
     )
 
 
@@ -241,16 +301,24 @@ async def environment_db_to_output(
         else None
     )
     if deployed_app_variant_id:
-        deployed_variant_name = (
-            await db_manager.get_app_variant_instance_by_id(deployed_app_variant_id)
-        ).variant_name
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+        revision = deployed_app_variant.revision
     else:
         deployed_variant_name = None
+        revision = None
+
     return EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
+        deployed_app_variant_revision_id=str(
+            environment_db.deployed_app_variant_revision
+        ),
+        revision=str(revision),
     )
 
 

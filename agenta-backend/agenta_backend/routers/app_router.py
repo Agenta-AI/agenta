@@ -93,54 +93,7 @@ async def list_app_variants(
         ]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get(
-    "/get_variant_by_env/",
-    response_model=AppVariantOutput,
-    operation_id="get_variant_by_env",
-)
-async def get_variant_by_env(
-    app_id: str,
-    environment: str,
-    request: Request,
-):
-    """
-    Retrieve the app variant based on the provided app_id and environment.
-
-    Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The environment of the app variant to retrieve.
-        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
-
-    Raises:
-        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
-
-    Returns:
-        AppVariantOutput: The retrieved app variant.
-    """
-    try:
-        # Retrieve the user and organization ID based on the session token
-        user_org_data = await get_user_and_org_id(request.state.user_id)
-        await check_access_to_app(user_org_data, app_id=app_id)
-
-        # Fetch the app variant using the provided app_id and environment
-        app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
-            app_id=app_id, environment=environment, **user_org_data
-        )
-
-        # Check if the fetched app variant is None and raise exception if it is
-        if app_variant_db is None:
-            raise HTTPException(status_code=500, detail="App Variant not found")
-        return await converters.app_variant_db_to_output(app_variant_db)
-    except ValueError as e:
-        # Handle ValueErrors and return 400 status code
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        # Handle all other exceptions and return 500 status code
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -187,6 +140,7 @@ async def create_app(
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -215,7 +169,7 @@ async def list_apps(
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
     except Exception as e:
-        logger.error(f"list_apps exception ===> {e}")
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -283,6 +237,7 @@ async def add_variant_from_image(
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -310,9 +265,11 @@ async def remove_app(app_id: str, request: Request):
             await app_manager.remove_app(app_id=app_id, **user_org_data)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
+        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
 
 
@@ -424,7 +381,7 @@ async def create_app_and_variant_from_template(
         return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
-        logger.debug(f"Error: Exception caught - {str(e)}")
+        logger.exception(f"Error: Exception caught - {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -474,4 +431,5 @@ async def list_environments(
                 for env in environments_db
             ]
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
