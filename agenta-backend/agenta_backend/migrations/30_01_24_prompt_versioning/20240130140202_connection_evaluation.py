@@ -208,9 +208,15 @@ class EvaluatorConfigDB(Document):
         name = "evaluators_configs"
 
 
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
 class Result(BaseModel):
     type: str
-    value: Any
+    value: Optional[Any] = None
+    error: Optional[Error] = None
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -279,7 +285,7 @@ class OldEvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[TestSetDB]
     variant: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
@@ -295,7 +301,7 @@ class EvaluationDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[TestSetDB]
     variant: PydanticObjectId
     variant_revision: Optional[PydanticObjectId]
