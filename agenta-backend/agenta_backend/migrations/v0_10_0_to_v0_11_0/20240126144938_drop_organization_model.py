@@ -34,9 +34,6 @@ class Forward:
             async for old_organization in OldOrganizationDB.find_all():
                 await old_organization.delete()
 
-        # Commit the transaction if everything succeeds
-        await session.commit()
-
 
 class Backward:
     pass
