@@ -10,7 +10,7 @@ import {
     Parameter,
     Variant,
 } from "@/lib/Types"
-import {batchExecute, dynamicComponent, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -29,6 +29,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 const PromptVersioningDrawer: any = dynamicComponent(
     `PromptVersioningDrawer/PromptVersioningDrawer`,
