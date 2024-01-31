@@ -18,7 +18,7 @@ describe("App Navigation without errors", () => {
         cy.location("pathname").should("include", "/playground")
         cy.get('[data-cy="playground-header"]').within(() => {
             cy.get("h2").should("contain.text", "1. Modify Parameters")
-            cy.get("button").should("have.length", 3)
+            cy.get("button").should("have.length", 4)
         })
     })
 
