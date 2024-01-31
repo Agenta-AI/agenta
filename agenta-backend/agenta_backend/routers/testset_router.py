@@ -87,7 +87,7 @@ async def upload_file(
         "app": app,
         "csvdata": [],
     }
-    
+
     if isCloudEE():
         document["organization"] = app.organization
         document["workspace"] = app.workspace
@@ -180,7 +180,7 @@ async def import_testset(
             "app": app,
             "csvdata": [],
         }
-        
+
         if isCloudEE():
             document["organization"] = app.organization
             document["workspace"] = app.workspace
@@ -260,7 +260,7 @@ async def create_testset(
         "csvdata": csvdata.csvdata,
         "user": user,
     }
-    
+
     if isCloudEE():
         testset["organization"] = app.organization
         testset["workspace"] = app.workspace

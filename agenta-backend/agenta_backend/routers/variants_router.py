@@ -242,7 +242,9 @@ async def update_variant_image(
                     status_code=403,
                 )
 
-        await app_manager.update_variant_image(db_app_variant, image, request.state.user_id)
+        await app_manager.update_variant_image(
+            db_app_variant, image, request.state.user_id
+        )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
