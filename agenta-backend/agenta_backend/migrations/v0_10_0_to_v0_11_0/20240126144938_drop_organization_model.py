@@ -4,11 +4,13 @@ from pydantic import BaseModel, Field
 
 from beanie import Document, PydanticObjectId, free_fall_migration
 
+
 class InvitationDB(BaseModel):
     token: str = Field(unique=True)
     email: str
     expiration_date: datetime = Field(default="0")
     used: bool = False
+
 
 class OldOrganizationDB(Document):
     name: str = Field(default="agenta")
@@ -25,7 +27,6 @@ class OldOrganizationDB(Document):
 
 
 class Forward:
-
     @free_fall_migration(document_models=[OldOrganizationDB])
     async def drop_old_organization_db(self, session):
         # Wrap deletion loop in a with_transaction context for potential rollback
@@ -35,7 +36,6 @@ class Forward:
 
         # Commit the transaction if everything succeeds
         await session.commit()
-
 
 
 class Backward:
