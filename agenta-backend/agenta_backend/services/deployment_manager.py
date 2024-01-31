@@ -61,9 +61,7 @@ async def start_service(
         container_id=container_id,
         uri=uri,
         status="running",
-        organization=app_variant_db.organization
-        if isCloudEE()
-        else None,
+        organization=app_variant_db.organization if isCloudEE() else None,
         workspace=app_variant_db.workspace if isCloudEE() else None,
     )
     return deployment

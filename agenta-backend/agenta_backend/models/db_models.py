@@ -82,6 +82,7 @@ class AppVariantDB(Document):
     revision: int
     image: Link[ImageDB]
     user: Link[UserDB]
+    modified_by: Link[UserDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]

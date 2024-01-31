@@ -48,6 +48,7 @@ from agenta_backend.models.db_models import (
     SpanDB,
     TraceDB,
     TemplateDB,
+    AppVariantRevisionsDB,
 )
 
 # Define Document Models
@@ -67,6 +68,7 @@ document_models: List[Document] = [
     EvaluatorConfigDB,
     HumanEvaluationDB,
     EvaluationScenarioDB,
+    AppVariantRevisionsDB,
     HumanEvaluationScenarioDB,
 ]
 

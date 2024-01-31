@@ -70,8 +70,8 @@ async def start_variant(
         RuntimeError: If there is an error starting the Docker container.
     """
     try:
-        print(
-            "Starting variant %s with image name %s and tags %s and app_name %s and organization %s",
+        logger.debug(
+            "Starting variant %s with image name %s and tags %s and app_name %s and organization %s and workspace %s",
             db_app_variant.variant_name,
             db_app_variant.image.docker_id,
             db_app_variant.image.tags,
@@ -118,7 +118,7 @@ async def start_variant(
     return URI(uri=deployment.uri)
 
 
-async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
+async def update_variant_image(app_variant_db: AppVariantDB, image: Image, user_uid: str):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -147,18 +147,14 @@ async def update_variant_image(app_variant_db: AppVariantDB, image: Image):
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=app_variant_db.organization
-        if isCloudEE()
-        else None,  # noqa
-        workspace=app_variant_db.workspace
-        if isCloudEE()
-        else None,  # noqa
+        organization=app_variant_db.organization if isCloudEE() else None,  # noqa
+        workspace=app_variant_db.workspace if isCloudEE() else None,  # noqa
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
     # Update variant to remove configuration
     await db_manager.update_variant_parameters(
-        app_variant_db=app_variant_db, parameters={}, **user_org_data
+        app_variant_db=app_variant_db, parameters={}, user_uid=user_uid
     )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
@@ -331,11 +327,13 @@ async def remove_app(app: AppDB):
         raise e from None
 
 
-async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any]):
+async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any], user_uid: str):
     """Updates the parameters for app variant in the database.
 
     Arguments:
         app_variant -- the app variant to update
+        parameters -- the parameters to update
+        user_uid -- the user uid
     """
     assert app_variant_id is not None, "app_variant_id must be provided"
     assert parameters is not None, "parameters must be provided"
@@ -346,7 +344,7 @@ async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, A
         raise ValueError(error_msg)
     try:
         await db_manager.update_variant_parameters(
-            app_variant_db=app_variant_db, parameters=parameters
+            app_variant_db=app_variant_db, parameters=parameters, user_uid=user_uid
         )
     except Exception as e:
         logger.error(
@@ -418,22 +416,14 @@ async def add_variant_based_on_image(
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
             template_uri=docker_id_or_template_uri,
-            organization_id=str(app.organization.id)
-            if isCloudEE()
-            else None,  # noqa
-            workspace_id=str(app.workspace.id)
-            if isCloudEE()
-            else None,  # noqa
+            organization_id=str(app.organization.id) if isCloudEE() else None,  # noqa
+            workspace_id=str(app.workspace.id) if isCloudEE() else None,  # noqa
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
             docker_id=docker_id_or_template_uri,
-            organization_id=str(app.organization.id)
-            if isCloudEE()
-            else None,  # noqa
-            workspace_id=str(app.workspace.id)
-            if isCloudEE()
-            else None,  # noqa
+            organization_id=str(app.organization.id) if isCloudEE() else None,  # noqa
+            workspace_id=str(app.workspace.id) if isCloudEE() else None,  # noqa
         )
 
     # Create new image if not exists
@@ -445,12 +435,8 @@ async def add_variant_based_on_image(
                 template_uri=docker_id_or_template_uri,
                 deletable=not (is_template_image),
                 user=user_instance,
-                organization=app.organization
-                if isCloudEE()
-                else None,  # noqa
-                workspace=app.workspace
-                if isCloudEE()
-                else None,  # noqa
+                organization=app.organization if isCloudEE() else None,  # noqa
+                workspace=app.workspace if isCloudEE() else None,  # noqa
             )
         else:
             docker_id = docker_id_or_template_uri
@@ -460,12 +446,8 @@ async def add_variant_based_on_image(
                 tags=tags,
                 deletable=not (is_template_image),
                 user=user_instance,
-                organization=app.organization
-                if isCloudEE()
-                else None,  # noqa
-                workspace=app.workspace
-                if isCloudEE()
-                else None,  # noqa
+                organization=app.organization if isCloudEE() else None,  # noqa
+                workspace=app.workspace if isCloudEE() else None,  # noqa
             )
 
     # Create config
@@ -482,9 +464,7 @@ async def add_variant_based_on_image(
         ]  # TODO: Change this in SDK2 to directly use base_name
     db_base = await db_manager.create_new_variant_base(
         app=app,
-        organization=app.organization
-        if isCloudEE()
-        else None,  # noqa
+        organization=app.organization if isCloudEE() else None,  # noqa
         workspace=app.workspace if isCloudEE() else None,  # noqa
         user=user_instance,
         base_name=base_name,  # the first variant always has default base
@@ -498,9 +478,7 @@ async def add_variant_based_on_image(
         variant_name=variant_name,
         image=db_image,
         user=user_instance,
-        organization=app.organization
-        if isCloudEE()
-        else None,  # noqa
+        organization=app.organization if isCloudEE() else None,  # noqa
         workspace=app.workspace if isCloudEE() else None,  # noqa
         parameters={},
         base_name=base_name,

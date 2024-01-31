@@ -180,6 +180,32 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
+async def fetch_app_variant_revision_by_variant(
+    app_variant_id: str, revision: int
+) -> AppVariantRevisionsDB:
+    """Fetches app variant revision by variant id and revision
+
+    Args:
+        app_variant_id: str
+        revision: str
+
+    Returns:
+        AppVariantRevisionDB
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    assert revision is not None, "revision cannot be None"
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+        AppVariantRevisionsDB.revision == revision,
+    )
+
+    if app_variant_revision is None:
+        raise Exception(
+            f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
+        )
+    return app_variant_revision
+
+
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.
@@ -771,6 +797,8 @@ async def add_variant_from_base_and_config(
         variant_name=new_variant_name,
         image=base_db.image,
         user=user_db,
+        modified_by=user_db,
+        revision=1,
         parameters=parameters,
         previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
         base_name=base_db.base_name,
@@ -907,7 +935,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     return count_variants == 1
 
 
-async def remove_deployment(deployment_db: DeploymentDB, **kwargs: dict):
+async def remove_deployment(deployment_db: DeploymentDB):
     """Remove a deployment from the db
 
     Arguments:
@@ -937,7 +965,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
         await environment.save()
 
     app_variant_revisions = await list_app_variant_revisions_by_variant(
-        app_variant_db, **kwargs
+        app_variant_db
     )
     for app_variant_revision in app_variant_revisions:
         await app_variant_revision.delete()
@@ -952,7 +980,6 @@ async def deploy_to_environment(environment_name: str, variant_id: str):
     Args:
         environment_name (str): The name of the environment to deploy the app variant to.
         variant_id (str): The ID of the app variant to deploy.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
@@ -994,7 +1021,6 @@ async def list_environments(app_id: str) -> List[AppEnvironmentDB]:
 
     Args:
         app_id (str): The ID of the app to list environments for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
@@ -1017,7 +1043,6 @@ async def initialize_environments(app_db: AppDB) -> List[AppEnvironmentDB]:
 
     Args:
         app_db (AppDB): The database for the app.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of the initialized environments.
@@ -1036,7 +1061,6 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
     Args:
         name (str): The name of the environment.
         app_db (AppDB): The AppDB object representing the app that the environment belongs to.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         AppEnvironmentDB: The newly created AppEnvironmentDB object.
@@ -1052,13 +1076,12 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
 
 
 async def list_app_variant_revisions_by_variant(
-    app_variant: AppVariantDB, **kwargs: dict
+    app_variant: AppVariantDB
 ) -> List[AppVariantRevisionsDB]:
     """Returns list of app variant revision for the given app variant
 
     Args:
         app_variant (AppVariantDB): The app variant to retrieve environments for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
@@ -1077,7 +1100,6 @@ async def list_environments_by_variant(
 
     Args:
         app_variant (AppVariantDB): The app variant to retrieve environments for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects.
@@ -1095,7 +1117,6 @@ async def remove_image(image: ImageDB):
 
     Args:
         image (ImageDB): The image to remove from the database.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         ValueError: If the image is None.
@@ -1114,7 +1135,6 @@ async def remove_environment(environment_db: AppEnvironmentDB):
 
     Args:
         environment_db (AppEnvironmentDB): The environment to remove from the database.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         AssertionError: If environment_db is None.
@@ -1163,7 +1183,6 @@ async def remove_base_from_db(base: VariantBaseDB):
 
     Args:
         base (VariantBaseDB): The base to be removed from the database.
-        **kwargs: Additional keyword arguments.
 
     Raises:
         ValueError: If the base is None.
@@ -1204,7 +1223,7 @@ async def update_variant_parameters(
     Args:
         app_variant_db (AppVariantDB): The app variant to update.
         parameters (Dict[str, Any]): The new parameters to set for the app variant.
-        **kwargs (dict): Additional keyword arguments.
+        user_uid (str): The UID of the user that is updating the app variant.
 
     Raises:
         ValueError: If there is an issue updating the variant parameters.

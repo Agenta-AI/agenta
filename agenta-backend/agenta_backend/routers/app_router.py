@@ -11,9 +11,9 @@ from agenta_backend.config import settings
 from agenta_backend.models import converters
 from agenta_backend.utils.common import (
     isEE,
-    isCloud, 
-    APIRouter, 
-    isCloudEE, 
+    isCloud,
+    APIRouter,
+    isCloudEE,
 )
 
 from agenta_backend.services import (
@@ -337,11 +337,11 @@ async def add_variant_from_image(
 
     try:
         app = await db_manager.fetch_app_by_id(app_id)
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object = app,
+                object=app,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -384,11 +384,11 @@ async def remove_app(app_id: str, request: Request):
     """
     try:
         app = await db_manager.fetch_app_by_id(app_id)
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object = app,
+                object=app,
                 permission=Permission.DELETE_APPLICATION,
             )
             logger.debug(f"User has Permission to delete app: {has_permission}")
@@ -442,7 +442,9 @@ async def create_app_and_variant_from_template(
                 request.state.user_id
             )
 
-            logger.debug("Step 2: Checking that workspace ID and organization ID are provided")
+            logger.debug(
+                "Step 2: Checking that workspace ID and organization ID are provided"
+            )
             if payload.organization_id is None or payload.workspace_id is None:
                 raise Exception(
                     "Organization ID and Workspace ID must be provided to create app from template",

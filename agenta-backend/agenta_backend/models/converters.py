@@ -42,6 +42,7 @@ if isCloudEE():
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
+        AppVariantOutputExtended_ as AppVariantOutputExtended,
     )
 else:
     from agenta_backend.models.db_models import (
@@ -62,6 +63,7 @@ else:
         AppVariant,
         ImageExtended,
         AppVariantResponse,
+        AppVariantOutputExtended,
     )
 
 from agenta_backend.models.db_models import (
@@ -81,7 +83,6 @@ from agenta_backend.models.api.api_models import (
     TemplateImageInfo,
     EnvironmentOutput,
     AppVariantRevision,
-    AppVariantOutputExtended,
 )
 
 logger = logging.getLogger(__name__)
@@ -311,13 +312,12 @@ async def app_variant_db_and_revision_to_extended_output(
                 created_at=app_variant_revision_db.created_at,
             )
         )
-    return AppVariantOutputExtended(
+    variant_extended = AppVariantOutputExtended(
         app_id=str(app_variant_db.app.id),
         app_name=str(app_variant_db.app.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user.id),
-        organization_id=str(app_variant_db.organization.id),
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
@@ -327,6 +327,12 @@ async def app_variant_db_and_revision_to_extended_output(
         revision=app_variant_db.revision,
         revisions=app_variant_revisions,
     )
+    
+    if isCloudEE():
+        variant_extended.organization_id = str(app_variant_db.organization.id)
+        variant_extended.workspace_id = str(app_variant_db.workspace.id)
+        
+    return variant_extended
 
 
 async def environment_db_to_output(

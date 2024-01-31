@@ -53,11 +53,14 @@ class APIRouter(FastAPIRouter):
 def isCloudEE():
     return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
 
+
 def isCloud():
     return os.environ["FEATURE_FLAG"] == "cloud"
 
+
 def isEE():
     return os.environ["FEATURE_FLAG"] == "ee"
+
 
 def isOssEE():
     return os.environ["FEATURE_FLAG"] in ["oss", "ee"]

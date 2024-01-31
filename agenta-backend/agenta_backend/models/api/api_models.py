@@ -99,7 +99,6 @@ class AppVariantOutputExtended(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    organization_id: str
     user_id: str
     base_name: str
     base_id: str

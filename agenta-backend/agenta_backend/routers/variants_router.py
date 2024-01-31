@@ -23,11 +23,13 @@ if isCloudEE():
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         AppVariantResponse_ as AppVariantResponse,
+        AppVariantOutputExtended_ as AppVariantOutputExtended,
     )
 else:
     from agenta_backend.models.api.api_models import (
         Image,
         AppVariantResponse,
+        AppVariantOutputExtended,
     )
 
 from agenta_backend.models.api.api_models import (
@@ -37,7 +39,6 @@ from agenta_backend.models.api.api_models import (
     VariantActionEnum,
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
-    AppVariantOutputExtended,
 )
 
 router = APIRouter()
@@ -66,7 +67,7 @@ async def add_variant_from_base_and_config(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
-        
+
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
         # Check user has permission to add variant
@@ -190,6 +191,7 @@ async def update_variant_parameters(
         await app_manager.update_variant_parameters(
             app_variant_id=variant_id,
             parameters=payload.parameters,
+            user_uid=request.state.user_id,
         )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -222,7 +224,7 @@ async def update_variant_image(
         db_app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -240,7 +242,7 @@ async def update_variant_image(
                     status_code=403,
                 )
 
-        await app_manager.update_variant_image(db_app_variant, image)
+        await app_manager.update_variant_image(db_app_variant, image, request.state.user_id)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -326,7 +328,7 @@ async def get_variant(
         app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -341,7 +343,7 @@ async def get_variant(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
             app_variant=app_variant
         )
