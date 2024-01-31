@@ -1075,9 +1075,42 @@ async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevi
     """
 
     environment_revision = await AppEnvironmentRevisionDB.find_one(
-        AppEnvironmentRevisionDB.id == ObjectId(revision_id)
+        AppEnvironmentRevisionDB.id == ObjectId(revision_id), fetch_links=True
     )
     return environment_revision
+
+
+async def update_app_environment(
+    app_environment: AppEnvironmentDB, values_to_update: dict
+):
+    """Updates an app environment with the provided values to update.
+
+    Args:
+        app_environment (AppEnvironmentDB): the app environment object
+        values_to_update (dict): the values to update with
+    """
+
+    await app_environment.update({"$set": values_to_update})
+
+
+async def update_app_environment_deployed_variant_revision(
+    app_environment: AppEnvironmentDB, deployed_variant_revision: str
+):
+    """Updates the deployed variant revision for an app environment
+
+    Args:
+        app_environment (AppEnvironment): the app environment object
+        deployed_variant_revision (str): the ID of the deployed variant revision
+    """
+
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(deployed_variant_revision)
+    )
+    if app_variant_revision is None:
+        raise Exception(f"App variant revision {deployed_variant_revision} not found")
+
+    app_environment.deployed_app_variant_revision = app_variant_revision
+    await app_environment.save()
 
 
 async def list_environments(app_id: str, **kwargs: dict) -> List[AppEnvironmentDB]:
