@@ -118,7 +118,9 @@ async def start_variant(
     return URI(uri=deployment.uri)
 
 
-async def update_variant_image(app_variant_db: AppVariantDB, image: Image, user_uid: str):
+async def update_variant_image(
+    app_variant_db: AppVariantDB, image: Image, user_uid: str
+):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -327,7 +329,9 @@ async def remove_app(app: AppDB):
         raise e from None
 
 
-async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any], user_uid: str):
+async def update_variant_parameters(
+    app_variant_id: str, parameters: Dict[str, Any], user_uid: str
+):
     """Updates the parameters for app variant in the database.
 
     Arguments:

@@ -17,6 +17,7 @@ from agenta_backend.models.api.api_models import (
     App,
     Template,
 )
+
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.utils.permissions import check_rbac_permission
@@ -964,9 +965,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
         environment.deployed_app_variant = None
         await environment.save()
 
-    app_variant_revisions = await list_app_variant_revisions_by_variant(
-        app_variant_db
-    )
+    app_variant_revisions = await list_app_variant_revisions_by_variant(app_variant_db)
     for app_variant_revision in app_variant_revisions:
         await app_variant_revision.delete()
 
@@ -1076,7 +1075,7 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
 
 
 async def list_app_variant_revisions_by_variant(
-    app_variant: AppVariantDB
+    app_variant: AppVariantDB,
 ) -> List[AppVariantRevisionsDB]:
     """Returns list of app variant revision for the given app variant
 

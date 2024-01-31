@@ -327,11 +327,11 @@ async def app_variant_db_and_revision_to_extended_output(
         revision=app_variant_db.revision,
         revisions=app_variant_revisions,
     )
-    
+
     if isCloudEE():
         variant_extended.organization_id = str(app_variant_db.organization.id)
         variant_extended.workspace_id = str(app_variant_db.workspace.id)
-        
+
     return variant_extended
 
 
