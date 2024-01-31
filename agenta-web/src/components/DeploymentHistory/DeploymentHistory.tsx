@@ -3,12 +3,21 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {LoadingOutlined} from "@ant-design/icons"
-import {fetchDeploymentRevisions, fetchDeploymentRevisionConfig, revertDeploymentRevision} from "@/lib/services/api"
-import {IPromptRevisions, DeploymentRevisions, DeploymentRevisionConfig, IEnvironmentRevision, Environment} from "@/lib/Types"
+import {
+    fetchDeploymentRevisions,
+    fetchDeploymentRevisionConfig,
+    revertDeploymentRevision,
+} from "@/lib/services/api"
+import {
+    IPromptRevisions,
+    DeploymentRevisions,
+    DeploymentRevisionConfig,
+    IEnvironmentRevision,
+    Environment,
+} from "@/lib/Types"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
-
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -97,13 +106,13 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
         const fetchData = async () => {
             setIsLoading(true)
             try {
-                const data = await fetchDeploymentRevisions(selectedEnvironment?.app_id, selectedEnvironment?.name)
+                const data = await fetchDeploymentRevisions(
+                    selectedEnvironment?.app_id,
+                    selectedEnvironment?.name,
+                )
                 setDeploymentRevisions(data)
                 setFiltered(
-                    data?.revisions.filter(
-                        (item: IEnvironmentRevision) =>
-                            item.revision >= 1,
-                    ),
+                    data?.revisions.filter((item: IEnvironmentRevision) => item.revision >= 1),
                 )
             } catch (error) {
                 setIsLoading(false)
@@ -123,7 +132,9 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
     const handleShowDeployments = async (id: number, index: number) => {
         setActiveItem(index)
-        const findRevision = deploymentRevisions?.revisions.find((deploymentRevision) => deploymentRevision.revision === id)
+        const findRevision = deploymentRevisions?.revisions.find(
+            (deploymentRevision) => deploymentRevision.revision === id,
+        )
         setDeploymentRevisionId(findRevision.id)
 
         const revisionConfig = await fetchDeploymentRevisionConfig(findRevision.id)
@@ -142,7 +153,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                 })
                 setIsReverted(false)
             }
-        } catch(err) {
+        } catch (err) {
             setIsReverted(false)
         }
     }
@@ -164,8 +175,8 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                                 ? "#1668dc"
                                                 : "#b3e5fc"
                                             : appTheme === "dark"
-                                              ? "#1f1f1f"
-                                              : "#fff",
+                                            ? "#1f1f1f"
+                                            : "#fff",
                                     border:
                                         activeItem === index
                                             ? "1px solid #2196f3"
@@ -220,8 +231,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                             <Space direction="vertical">
                                 {showDeployment?.parameters?.temperature && (
                                     <Typography.Text>
-                                        Temperature:{" "}
-                                        {showDeployment?.parameters?.temperature}
+                                        Temperature: {showDeployment?.parameters?.temperature}
                                     </Typography.Text>
                                 )}
 

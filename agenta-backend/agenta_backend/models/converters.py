@@ -1,5 +1,6 @@
 """Converts db models to pydantic models
 """
+
 import json
 from typing import List
 from agenta_backend.services import db_manager
@@ -325,7 +326,8 @@ async def environment_db_to_output(
 
 
 async def environment_db_and_revision_to_extended_output(
-    environment_db: AppEnvironmentDB, app_environment_revisions_db: List[AppEnvironmentRevisionDB]
+    environment_db: AppEnvironmentDB,
+    app_environment_revisions_db: List[AppEnvironmentRevisionDB],
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant)
@@ -349,7 +351,9 @@ async def environment_db_and_revision_to_extended_output(
                 id=str(app_environment_revision.id),
                 revision=app_environment_revision.revision,
                 modified_by=app_environment_revision.modified_by.username,
-                deployed_app_variant_revision=str(app_environment_revision.deployed_app_variant_revision),
+                deployed_app_variant_revision=str(
+                    app_environment_revision.deployed_app_variant_revision
+                ),
                 deployment=str(app_environment_revision.deployment),
                 created_at=app_environment_revision.created_at,
             )
@@ -363,8 +367,9 @@ async def environment_db_and_revision_to_extended_output(
             environment_db.deployed_app_variant_revision.id
         ),
         revision=revision,
-        revisions=app_environment_revisions
+        revisions=app_environment_revisions,
     )
+
 
 def base_db_to_pydantic(base_db: VariantBaseDB) -> BaseOutput:
     return BaseOutput(base_id=str(base_db.id), base_name=base_db.base_name)

@@ -41,8 +41,8 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
             props.column.isSortAscending()
                 ? "asc"
                 : props.column.isSortDescending()
-                  ? "desc"
-                  : null,
+                ? "desc"
+                : null,
         )
     }
 

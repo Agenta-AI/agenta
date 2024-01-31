@@ -673,19 +673,28 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
     return data
 }
 
-export const fetchDeploymentRevisionConfig = async (deploymentRevisionId: string): Promise<DeploymentRevisionConfig> => {
-    const response = await fetch(`${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`)
+export const fetchDeploymentRevisionConfig = async (
+    deploymentRevisionId: string,
+): Promise<DeploymentRevisionConfig> => {
+    const response = await fetch(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`,
+    )
 
     if (response.status !== 200) {
         throw new Error("Failed to fetch deployment revision configuration")
     }
 
-    const data = await response.json() as DeploymentRevisionConfig;
+    const data = (await response.json()) as DeploymentRevisionConfig
     return data
 }
 
-export const fetchDeploymentRevisions = async (appId: string, environmentName: string): Promise<DeploymentRevisions[]> => {
-    const response = await fetch(`${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`)
+export const fetchDeploymentRevisions = async (
+    appId: string,
+    environmentName: string,
+): Promise<DeploymentRevisions[]> => {
+    const response = await fetch(
+        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
+    )
 
     if (response.status != 200) {
         throw new Error("Failed to fetch deployment revisions")
