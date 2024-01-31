@@ -336,12 +336,16 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_uri=template_db.template_uri
-            if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
-            else template_db.digest,
-            tags=f"{image_name}"
-            if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
-            else None,
+            docker_id_or_template_uri=(
+                template_db.template_uri
+                if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+                else template_db.digest
+            ),
+            tags=(
+                f"{image_name}"
+                if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
+                else None
+            ),
             base_name="app",
             config_name="default",
             is_template_image=True,
@@ -437,7 +441,9 @@ async def list_environments(
     operation_id="environment_revisions",
     response_model=EnvironmentOutputExtended,
 )
-async def list_app_environment_revisions(request: Request, app_id: str, environment_name):
+async def list_app_environment_revisions(
+    request: Request, app_id: str, environment_name
+):
     logger.debug("getting environment " + environment_name)
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     try:
@@ -458,7 +464,9 @@ async def list_app_environment_revisions(request: Request, app_id: str, environm
             app_id, environment_name, **user_org_data
         )
         if app_environment is None:
-            return JSONResponse({"detail": "App environment not found"}, status_code=404)
+            return JSONResponse(
+                {"detail": "App environment not found"}, status_code=404
+            )
 
         app_environment_revisions = (
             await db_manager.fetch_environment_revisions_for_environment(
@@ -466,7 +474,9 @@ async def list_app_environment_revisions(request: Request, app_id: str, environm
             )
         )
         if app_environment_revisions is None:
-            return JSONResponse({"detail": "No revisions found for app environment"}, status_code=404)
+            return JSONResponse(
+                {"detail": "No revisions found for app environment"}, status_code=404
+            )
 
         return await converters.environment_db_and_revision_to_extended_output(
             app_environment, app_environment_revisions

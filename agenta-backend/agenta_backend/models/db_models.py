@@ -173,7 +173,7 @@ class AppEnvironmentRevisionDB(Document):
     revision: int
     modified_by: Link[UserDB]
     deployed_app_variant_revision: Optional[PydanticObjectId]
-    deployment: Optional[PydanticObjectId] # reference to deployment
+    deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
