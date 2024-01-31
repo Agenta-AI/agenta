@@ -515,9 +515,9 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_uri=template_db.template_uri
-            if isCloudEE()
-            else template_db.digest,
+            docker_id_or_template_uri=(
+                template_db.template_uri if isCloudEE() else template_db.digest
+            ),
             tags=f"{image_name}" if not isCloudEE() else None,
             base_name="app",
             config_name="default",
