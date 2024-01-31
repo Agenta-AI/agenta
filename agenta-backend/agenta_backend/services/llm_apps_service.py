@@ -197,6 +197,7 @@ async def batch_invoke(
                     )
                 )
             )
+        return list_of_app_outputs
 
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
