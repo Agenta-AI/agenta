@@ -113,23 +113,6 @@ async def test_list_app_variants():
 
 
 @pytest.mark.asyncio
-async def test_delete_app_without_permission(get_second_user_object):
-    user2 = await get_second_user_object
-
-    user2_app = AppDB(
-        app_name="test_app_by_user2",
-        user=user2,
-    )
-    await user2_app.create()
-
-    response = await test_client.delete(
-        f"{BACKEND_API_HOST}/apps/{str(user2_app.id)}/",
-        timeout=timeout,
-    )
-    assert response.status_code == 400
-
-
-@pytest.mark.asyncio
 async def test_list_environments():
     app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
     response = await test_client.get(

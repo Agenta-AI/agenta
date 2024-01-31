@@ -75,9 +75,7 @@ async def get_first_user_app(get_first_user_object):
         parameters={},
     )
 
-    db_base = VariantBaseDB(
-        base_name="app", image=db_image, user=user, app=app
-    )
+    db_base = VariantBaseDB(base_name="app", image=db_image, user=user, app=app)
     await db_base.create()
 
     appvariant = AppVariantDB(
@@ -223,7 +221,6 @@ def app_from_template():
     return {
         "app_name": "string",
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "organization_id": "string",
         "template_id": "string",
     }
 
