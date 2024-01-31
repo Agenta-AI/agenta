@@ -51,7 +51,7 @@ async def test_get_evaluators_endpoint():
         timeout=timeout,
     )
     assert response.status_code == 200
-    assert len(response.json()) == 8  # currently we have 8 evaluators
+    assert len(response.json()) == 9  # currently we have 9 evaluators
 
 
 @pytest.mark.asyncio
@@ -192,7 +192,7 @@ async def test_create_evaluation():
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
+    assert response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_STARTED
     assert response_data is not None
 
 
@@ -212,7 +212,7 @@ async def test_fetch_evaluation_status():
             timeout=timeout,
         )
         response_data = response.json()
-        if response_data["status"] == EvaluationStatusEnum.EVALUATION_FINISHED:
+        if response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_FINISHED:
             assert True
             return
         await asyncio.sleep(intervals)
