@@ -73,7 +73,7 @@ async def get_evaluator_configs(app_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
         return evaluators_configs
     except Exception as e:
@@ -91,7 +91,9 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
     """
 
     try:
-        evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
+        evaluator_config_db = await db_manager.fetch_evaluator_config(
+            evaluator_config_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -106,7 +108,9 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
                     status_code=403,
                 )
 
-        evaluators_configs = await evaluator_manager.get_evaluator_config(evaluator_config_db)
+        evaluators_configs = await evaluator_manager.get_evaluator_config(
+            evaluator_config_db
+        )
         return evaluators_configs
     except Exception as e:
         raise HTTPException(
@@ -115,10 +119,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
-async def create_new_evaluator_config(
-    payload: NewEvaluatorConfig,
-    request: Request
-):
+async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Request):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -181,7 +182,7 @@ async def update_evaluator_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluators_configs = await evaluator_manager.update_evaluator_config(
             evaluator_config_id=evaluator_config_id, updates=payload
         )
@@ -217,7 +218,7 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success
     except Exception as e:

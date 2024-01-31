@@ -163,11 +163,11 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             inputs=list_of_scenario_input,
             outputs=[],
         )
-        
+
         if isCloudEE():
             eval_scenario_instance.organization = app.organization
             eval_scenario_instance.workspace = app.workspace
-        
+
         await eval_scenario_instance.create()
 
 
@@ -235,8 +235,7 @@ async def update_human_evaluation_service(
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str = None,
-    evaluation: EvaluationDB = None
+    evaluation_id: str = None, evaluation: EvaluationDB = None
 ) -> List[EvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
@@ -251,11 +250,13 @@ async def fetch_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    assert evaluation_id or evaluation, "Please provide either evaluation_id or evaluation"
-    
+    assert (
+        evaluation_id or evaluation
+    ), "Please provide either evaluation_id or evaluation"
+
     if not evaluation:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-    
+
     scenarios = await EvaluationScenarioDB.find(
         EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
     ).to_list()
@@ -267,7 +268,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
 
 
 async def fetch_human_evaluation_scenarios_for_evaluation(
-    human_evaluation: HumanEvaluationDB
+    human_evaluation: HumanEvaluationDB,
 ) -> List[HumanEvaluationScenario]:
     """
     Fetch evaluation scenarios for a given evaluation ID.
@@ -512,11 +513,11 @@ async def create_new_human_evaluation(
         created_at=current_time,
         updated_at=current_time,
     )
-    
+
     if isCloudEE():
         eval_instance.organization = app.organization
         eval_instance.workspace = app.workspace
-    
+
     newEvaluation = await eval_instance.create()
     if newEvaluation is None:
         raise HTTPException(
@@ -604,7 +605,9 @@ async def compare_evaluations_scenarios(
     all_scenarios = []
 
     for evaluation_id in evaluations_ids:
-        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(evaluation_id=evaluation_id)
+        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
+            evaluation_id=evaluation_id
+        )
         all_scenarios.append(eval_scenarios)
 
     grouped_scenarios_by_inputs = find_scenarios_by_input(

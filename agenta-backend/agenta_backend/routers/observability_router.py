@@ -70,7 +70,7 @@ async def create_span(
     payload: CreateSpan,
     request: Request,
 ):
-    spans_id = await create_trace_span(payload, request.state.user_id)
+    spans_id = await create_trace_span(payload)
     return spans_id
 
 

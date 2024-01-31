@@ -24,7 +24,9 @@ from agenta_backend.models.api.testset_model import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import (
+        check_action_access,
+    )  # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
         Permission,
         TestSetDB_ as TestSetDB,
@@ -83,10 +85,12 @@ async def upload_file(
         "created_at": datetime.now().isoformat(),
         "name": testset_name if testset_name else file.filename,
         "app": app,
-        "organization": app.organization,
-        "workspace": app.workspace,
         "csvdata": [],
     }
+    
+    if isCloudEE():
+        document["organization"] = app.organization
+        document["workspace"] = app.workspace
 
     if upload_type == "JSON":
         # Read and parse the JSON file
@@ -161,7 +165,6 @@ async def import_testset(
                 status_code=403,
             )
 
-
     try:
         response = requests.get(endpoint, timeout=10)
 
@@ -175,10 +178,12 @@ async def import_testset(
             "created_at": datetime.now().isoformat(),
             "name": testset_name,
             "app": app,
-            "organization": app.organization,
-            "workspace": app.workspace,
             "csvdata": [],
         }
+        
+        if isCloudEE():
+            document["organization"] = app.organization
+            document["workspace"] = app.workspace
 
         # Populate the document with column names and values
         json_response = response.json()
@@ -252,11 +257,13 @@ async def create_testset(
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
         "app": app,
-        "organization": app.organization,
-        "workspace": app.workspace,
         "csvdata": csvdata.csvdata,
         "user": user,
     }
+    
+    if isCloudEE():
+        testset["organization"] = app.organization
+        testset["workspace"] = app.workspace
 
     try:
         testset_instance = TestSetDB(**testset)
@@ -358,7 +365,6 @@ async def get_testsets(
                 {"detail": error_msg},
                 status_code=403,
             )
-
 
     if app is None:
         raise HTTPException(status_code=404, detail="App not found")

@@ -81,9 +81,7 @@ async def create_evaluator_config(
     app = await db_manager.fetch_app_by_id(app_id)
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
-        organization=app.organization
-        if isCloudEE()
-        else None,  # noqa,
+        organization=app.organization if isCloudEE() else None,  # noqa,
         workspace=app.workspace if isCloudEE() else None,  # noqa,
         user=app.user,
         name=name,
@@ -150,12 +148,8 @@ async def create_ready_to_use_evaluators(app: AppDB):
     for evaluator in direct_use_evaluators:
         await db_manager.create_evaluator_config(
             app=app,
-            organization=app.organization
-            if isCloudEE()
-            else None,  # noqa,
-            workspace=app.workspace
-            if isCloudEE()
-            else None,  # noqa,
+            organization=app.organization if isCloudEE() else None,  # noqa,
+            workspace=app.workspace if isCloudEE() else None,  # noqa,
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],

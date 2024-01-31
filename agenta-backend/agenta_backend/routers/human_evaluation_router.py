@@ -27,8 +27,12 @@ from agenta_backend.services.evaluation_service import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission  # noqa pylint: disable-all
-    from agenta_backend.commons.utils.permissions import check_action_access # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import (
+        Permission,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.utils.permissions import (
+        check_action_access,
+    )  # noqa pylint: disable-all
 
 router = APIRouter()
 
@@ -50,7 +54,7 @@ async def create_evaluation(
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -128,7 +132,7 @@ async def fetch_human_evaluation(
         human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -171,7 +175,9 @@ async def fetch_evaluation_scenarios(
 
     try:
         if isCloudEE():
-            human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+            human_evaluation = await db_manager.fetch_human_evaluation_by_id(
+                evaluation_id
+            )
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -186,7 +192,9 @@ async def fetch_evaluation_scenarios(
                 )
 
         eval_scenarios = (
-            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(human_evaluation)
+            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
+                human_evaluation
+            )
         )
 
         return eval_scenarios
@@ -210,10 +218,12 @@ async def update_human_evaluation(
     """
     try:
         if isCloudEE():
-            human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+            human_evaluation = await db_manager.fetch_human_evaluation_by_id(
+                evaluation_id
+            )
             if not human_evaluation:
                 raise HTTPException(status_code=404, detail="Evaluation not found")
-            
+
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object=human_evaluation,
@@ -255,7 +265,9 @@ async def update_evaluation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        evaluation_scenario_db = db_manager.fetch_human_evaluation_scenario_by_id(evaluation_scenario_id)
+        evaluation_scenario_db = db_manager.fetch_human_evaluation_scenario_by_id(
+            evaluation_scenario_id
+        )
         if evaluation_scenario is None:
             raise HTTPException(
                 status_code=404,
@@ -307,13 +319,15 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     try:
-        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(evaluation_scenario_id)
+        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
+            evaluation_scenario_id
+        )
         if evaluation_scenario is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
             )
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -350,13 +364,15 @@ async def update_evaluation_scenario_score_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(evaluation_scenario_id)
+        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
+            evaluation_scenario_id
+        )
         if evaluation_scenario is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
             )
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -372,7 +388,7 @@ async def update_evaluation_scenario_score_router(
 
         evaluation_scenario.score = payload.score
         await evaluation_scenario.save()
-        
+
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -400,10 +416,10 @@ async def fetch_results(
                     status_code=404,
                     detail=f"Evaluation with id {evaluation_id} not found",
                 )
-            
+
             if not evaluation:
                 raise HTTPException(status_code=404, detail="Evaluation not found")
-            
+
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object=evaluation,

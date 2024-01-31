@@ -31,11 +31,11 @@ async def save_config(
 ):
     try:
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object = base_db,
+                object=base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -58,6 +58,7 @@ async def save_config(
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
+                    user_uid=request.state.user_id,
                 )
             else:
                 raise HTTPException(
@@ -91,12 +92,12 @@ async def get_config(
 ):
     try:
         base_db = await db_manager.fetch_base_by_id(base_id)
-        
+
         # detemine whether the user has access to the base
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object = base_db,
+                object=base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:

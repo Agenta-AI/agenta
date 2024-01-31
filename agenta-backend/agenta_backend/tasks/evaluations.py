@@ -41,6 +41,7 @@ from agenta_backend.services.db_manager import (
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
+
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
@@ -263,12 +264,8 @@ def evaluate(
                         )
                     ],
                     results=evaluators_results,
-                    organization=app.organization
-                    if isCloudEE()
-                    else None,
-                    workspace=app.workspace
-                    if isCloudEE()
-                    else None,
+                    organization=app.organization if isCloudEE() else None,
+                    workspace=app.workspace if isCloudEE() else None,
                 )
             )
 

@@ -47,7 +47,7 @@ async def create_evaluation(
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
-        
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -170,8 +170,10 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-            
-        results = await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
+
+        results = await converters.aggregated_result_to_pydantic(
+            evaluation.aggregated_results
+        )
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
