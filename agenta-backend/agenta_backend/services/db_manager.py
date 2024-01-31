@@ -5,73 +5,18 @@ import traceback
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
-from typing import Any, Dict, List, Optional
-
-from agenta_backend.models.api.api_models import (
-    App,
-    AppVariant,
-    ImageExtended,
-    Template,
-)
-from agenta_backend.models.converters import (
-    app_db_to_pydantic,
-    image_db_to_pydantic,
-    templates_db_to_pydantic,
-)
-from agenta_backend.services.json_importer_helper import get_json
-from agenta_backend.models.db_models import (
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    Result,
-    AggregatedResult,
-    AppDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    ConfigDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-    EvaluationScenarioResult,
-    EvaluatorConfigDB,
-    VariantBaseDB,
-    AppEnvironmentDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    ImageDB,
-    OrganizationDB,
-    DeploymentDB,
-    TemplateDB,
-    TestSetDB,
-    UserDB,
-)
-from agenta_backend.utils.common import check_user_org_access
-from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
+from typing import Any, Dict, List, Optional
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.services.json_importer_helper import get_json
-from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 
 from agenta_backend.models.api.api_models import (
     App,
     Template,
 )
-
-
-from agenta_backend.models.db_models import (
-    Result,
-    ConfigDB,
-    TemplateDB,
-    ConfigVersionDB,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-)
-
-
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.utils.permissions import check_rbac_permission
@@ -110,6 +55,15 @@ else:
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
+from agenta_backend.models.db_models import (
+    ConfigDB,
+    TemplateDB,
+    AggregatedResult,
+    AppVariantRevisionsDB,
+    EvaluationScenarioResult,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
+)
 
 from beanie.operators import In
 from beanie import PydanticObjectId as ObjectId

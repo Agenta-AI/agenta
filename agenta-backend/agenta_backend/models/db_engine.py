@@ -47,7 +47,6 @@ else:
 from agenta_backend.models.db_models import (
     SpanDB,
     TraceDB,
-    ConfigDB,
     TemplateDB,
 )
 
@@ -58,7 +57,6 @@ document_models: List[Document] = [
     SpanDB,
     TraceDB,
     ImageDB,
-    ConfigDB,
     TestSetDB,
     TemplateDB,
     AppVariantDB,

@@ -22,8 +22,6 @@ from agenta_backend.models.api.evaluation_model import (
 
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
-    get_evaluation_scenario_score_service,
-    update_evaluation_scenario_score_service,
     update_human_evaluation_scenario,
     update_human_evaluation_service,
 )
