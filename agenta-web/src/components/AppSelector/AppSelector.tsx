@@ -280,7 +280,7 @@ const AppSelector: React.FC = () => {
                                         }}
                                     >
                                         <Card.Meta
-                                            data-cy="create-new-ap`p-button"
+                                            data-cy="create-new-app-button"
                                             className={classes.createCardMeta}
                                             title={<div>Create new app</div>}
                                             avatar={<PlusOutlined size={24} />}

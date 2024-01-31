@@ -76,7 +76,6 @@ async def test_create_app_variant(get_first_user_object):
         config_name="default",
         parameters={},
     )
-    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app",
@@ -96,6 +95,8 @@ async def test_create_app_variant(get_first_user_object):
         parameters={},
         base_name="app",
         config_name="default",
+        revision=0,
+        modified_by=user,
         base=db_base,
         config=db_config,
     )
