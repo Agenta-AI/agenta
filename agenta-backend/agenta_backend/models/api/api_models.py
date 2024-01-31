@@ -6,9 +6,15 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
 class Result(BaseModel):
     type: str
-    value: Any
+    value: Optional[Any] = None
+    error: Optional[Error] = None
 
 
 class GetConfigResponse(BaseModel):

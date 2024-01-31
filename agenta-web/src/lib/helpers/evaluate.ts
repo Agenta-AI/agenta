@@ -6,6 +6,7 @@ import {
     Variant,
     _Evaluation,
     EvaluationScenario,
+    EvaluationError,
 } from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
 import {capitalize, round} from "lodash"
@@ -232,7 +233,10 @@ export const getVotesPercentage = (record: HumanEvaluationListTableDataType, ind
 }
 
 export function getTypedValue(res?: TypedValue) {
-    const {value, type} = res || {}
+    const {value, type, error} = res || {}
+    if (type === "error") {
+        return error?.message
+    }
     return type === "number"
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
@@ -268,15 +272,29 @@ export function getFilterParams(type: "number" | "text" | "date") {
             type === "number"
                 ? "agNumberColumnFilter"
                 : type === "date"
-                ? "agDateColumnFilter"
-                : "agTextColumnFilter",
-        cellDataType: type,
+                  ? "agDateColumnFilter"
+                  : "agTextColumnFilter",
+        cellDataType: type === "number" ? "text" : type,
         filterParams,
+        comparator: customComparator,
     }
 }
 
 export const calcEvalDuration = (evaluation: _Evaluation) => {
     return dayjs(
-        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
+        runningStatuses.includes(evaluation.status.value) ? Date.now() : evaluation.updated_at,
     ).diff(dayjs(evaluation.created_at), "milliseconds")
+}
+
+function customComparator(valueA: string, valueB: string) {
+    if (valueA === "-" && valueB === "-") {
+        return 0
+    }
+    if (valueA === "-") {
+        return 1
+    }
+    if (valueB === "-") {
+        return -1
+    }
+    return parseFloat(valueA) - parseFloat(valueB)
 }
