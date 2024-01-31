@@ -38,7 +38,6 @@ export interface Variant {
     variantId: string
     baseId: string
     baseName: string
-    configId: string
     configName: string
 }
 
@@ -83,6 +82,8 @@ export interface Evaluation {
         llmAppPromptTemplate?: string
         evaluationPromptTemplate?: string
     }
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface EvaluationScenario {
@@ -168,6 +169,45 @@ export interface Parameter {
     maximum?: number
 }
 
+export interface Parameters {
+    frequence_penalty: number
+    inputs: [{}]
+    max_tokens: number
+    model: string
+    presence_penalty: number
+    prompt_system: string
+    prompt_user: string
+    temperature: number
+    top_p: number
+}
+
+export interface IPromptRevisions {
+    config: {
+        config_name: string
+        parameters: Parameters
+    }
+    created_at: string
+    modified_by: string
+    revision: number
+}
+
+export interface IPromptVersioning {
+    app_id: string
+    app_name: string
+    base_id: string
+    base_name: string
+    config_name: string
+    organization_id: string
+    parameters: Parameters
+    previous_variant_name: string | null
+    revision: number
+    revisions: [IPromptRevisions]
+    uri: string
+    user_id: string
+    variant_id: string
+    variant_name: string
+}
+
 export interface EvaluationResponseType {
     id: string
     variant_ids: string[]
@@ -182,6 +222,8 @@ export interface EvaluationResponseType {
     app_id: string
     status: string
     evaluation_type: string
+    variants_revision_ids: string[]
+    revisions: string[] // The revision number
     evaluation_type_settings: {
         similarity_threshold: number
         regex_pattern: string
@@ -265,6 +307,8 @@ export interface Environment {
     app_id: string
     deployed_app_variant_id: string | null
     deployed_variant_name: string | null
+    deployed_app_variant_revision_id: string | null
+    revision: string | null
 }
 
 export interface CustomEvaluation {
@@ -388,6 +432,8 @@ export interface _Evaluation {
     created_at?: string
     updated_at?: string
     duration?: number
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface _EvaluationScenario {

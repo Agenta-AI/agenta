@@ -9,7 +9,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     AppVariantDB,
     EvaluationDB,
-    AppVariantDB,
     DeploymentDB,
     EvaluationScenarioDB,
 )
@@ -206,7 +205,7 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 5  # seconds
+    intervals = 3  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
