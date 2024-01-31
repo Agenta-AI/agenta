@@ -335,7 +335,7 @@ class OldEvaluationDB(Document):
     status: Result
     testset: Link[OldTestSetDB]
     variant: PydanticObjectId
-    variant_revision: PydanticObjectId
+    variant_revision: Optional[PydanticObjectId] = None
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
@@ -542,7 +542,7 @@ class NewEvaluationDB(Document):
     status: Result
     testset: Link[NewTestSetDB]
     variant: PydanticObjectId
-    variant_revision: PydanticObjectId
+    variant_revision: Optional[PydanticObjectId] = None
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
