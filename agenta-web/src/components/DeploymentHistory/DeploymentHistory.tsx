@@ -1,9 +1,9 @@
-import {Button, Card, Divider, Result, Space, Typography} from "antd"
+import {Button, Card, Divider, Result, Space, Typography, notification} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {LoadingOutlined} from "@ant-design/icons"
-import {fetchDeploymentRevisions, fetchDeploymentRevisionConfig} from "@/lib/services/api"
+import {fetchDeploymentRevisions, fetchDeploymentRevisionConfig, revertDeploymentRevision} from "@/lib/services/api"
 import {IPromptRevisions, DeploymentRevisions, DeploymentRevisionConfig, IEnvironmentRevision, Environment} from "@/lib/Types"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -87,8 +87,10 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
     const [activeItem, setActiveItem] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
+    const [isReverting, setIsReverted] = useState(false)
     const [filtered, setFiltered] = useState<IEnvironmentRevision[]>()
-    const [showDeployments, setShowDeployments] = useState<DeploymentRevisionConfig>()
+    const [showDeployment, setShowDeployment] = useState<DeploymentRevisionConfig>()
+    const [deploymentRevisionId, setDeploymentRevisionId] = useState<string>("")
     const [deploymentRevisions, setDeploymentRevisions] = useState<DeploymentRevisions>()
 
     useEffect(() => {
@@ -115,19 +117,35 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
     useEffect(() => {
         if (filtered && filtered.length) {
-            setShowDeployments(filtered[0])
+            setShowDeployment(filtered[0])
         }
     }, [filtered])
 
     const handleShowDeployments = async (id: number, index: number) => {
         setActiveItem(index)
         const findRevision = deploymentRevisions?.revisions.find((deploymentRevision) => deploymentRevision.revision === id)
+        setDeploymentRevisionId(findRevision.id)
 
         const revisionConfig = await fetchDeploymentRevisionConfig(findRevision.id)
-        setShowDeployments(revisionConfig)
+        setShowDeployment(revisionConfig)
     }
 
-    const handleRevert = (id: number) => {}
+    const handleRevert = async (deploymentRevisionId: string) => {
+        setIsReverted(true)
+        try {
+            const response = await revertDeploymentRevision(deploymentRevisionId)
+            if (response.status && response.status == 200) {
+                notification.success({
+                    message: "Environment Revision",
+                    description: response?.data,
+                    duration: 3,
+                })
+                setIsReverted(false)
+            }
+        } catch(err) {
+            setIsReverted(false)
+        }
+    }
 
     return (
         <>
@@ -185,60 +203,61 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
                             <Button
                                 type="primary"
-                                onClick={() => handleRevert(showDeployments?.revision!)}
+                                loading={isReverting}
+                                onClick={() => handleRevert(deploymentRevisionId)}
                             >
                                 Revert
                             </Button>
                         </div>
 
-                        <div>{dayjs(showDeployments?.created_at).format("DD-MM-YYYY mm:ss")}</div>
+                        <div>{dayjs(showDeployment?.created_at).format("DD-MM-YYYY mm:ss")}</div>
 
                         <Card title="Prompt System" className={classes.promptHistoryCard}>
-                            <div>{showDeployments?.parameters?.prompt_system}</div>
+                            <div>{showDeployment?.parameters?.prompt_system}</div>
                         </Card>
 
                         <Card title="Model Parameters" className={classes.promptHistoryCard}>
                             <Space direction="vertical">
-                                {showDeployments?.parameters?.temperature && (
+                                {showDeployment?.parameters?.temperature && (
                                     <Typography.Text>
                                         Temperature:{" "}
-                                        {showDeployments?.parameters?.temperature}
+                                        {showDeployment?.parameters?.temperature}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.parameters?.model && (
+                                {showDeployment?.parameters?.model && (
                                     <Typography.Text>
-                                        Model: {showDeployments?.parameters?.model}
+                                        Model: {showDeployment?.parameters?.model}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.parameters?.max_tokens && (
+                                {showDeployment?.parameters?.max_tokens && (
                                     <Typography.Text>
-                                        Max tokens: {showDeployments?.parameters?.max_tokens}
+                                        Max tokens: {showDeployment?.parameters?.max_tokens}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.parameters?.top_p && (
+                                {showDeployment?.parameters?.top_p && (
                                     <Typography.Text>
-                                        Top p: {showDeployments?.parameters?.top_p}
+                                        Top p: {showDeployment?.parameters?.top_p}
                                     </Typography.Text>
                                 )}
 
-                                {showDeployments?.parameters?.frequence_penalty ||
-                                showDeployments?.parameters?.frequence_penalty == 0 ? (
+                                {showDeployment?.parameters?.frequence_penalty ||
+                                showDeployment?.parameters?.frequence_penalty == 0 ? (
                                     <Typography.Text>
                                         Frequence penalty:{" "}
-                                        {showDeployments?.parameters?.frequence_penalty}
+                                        {showDeployment?.parameters?.frequence_penalty}
                                     </Typography.Text>
                                 ) : (
                                     ""
                                 )}
 
-                                {showDeployments?.parameters?.presence_penalty ||
-                                showDeployments?.parameters?.presence_penalty == 0 ? (
+                                {showDeployment?.parameters?.presence_penalty ||
+                                showDeployment?.parameters?.presence_penalty == 0 ? (
                                     <Typography.Text>
                                         Presence penalty:{" "}
-                                        {showDeployments?.parameters?.presence_penalty}
+                                        {showDeployment?.parameters?.presence_penalty}
                                     </Typography.Text>
                                 ) : (
                                     ""
