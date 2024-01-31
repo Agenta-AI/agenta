@@ -167,3 +167,30 @@ async def get_config_deployment_revision(request: Request, deployment_revision_i
         **variant_revision.config.dict(),
         current_version=environment_revision.revision,
     )
+
+
+@router.post(
+    "/deployment/{deployment_revision_id}/revert/",
+    operation_id="revert_deployment_revision",
+)
+async def revert_deployment_revision(request: Request, deployment_revision_id: str):
+    environment_revision = await db_manager.fetch_app_environment_revision(
+        deployment_revision_id
+    )
+    if environment_revision is None:
+        raise HTTPException(
+            404,
+            f"No environment revision found for deployment revision {deployment_revision_id}",
+        )
+
+    if environment_revision.deployed_app_variant_revision is None:
+        raise HTTPException(
+            404,
+            f"No deployed app variant found for deployment revision: {deployment_revision_id}",
+        )
+
+    await db_manager.update_app_environment_deployed_variant_revision(
+        environment_revision.environment,
+        environment_revision.deployed_app_variant_revision,
+    )
+    return "Environment was reverted to deployment revision successful"
