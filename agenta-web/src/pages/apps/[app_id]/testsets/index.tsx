@@ -86,13 +86,13 @@ export default function Testsets() {
                             data-cy="testset-new-upload-link"
                             href={`/apps/${appId}/testsets/new/upload`}
                         >
-                            <Button>Upload a test set</Button>
+                            <Button type="primary">Upload Test Set</Button>
                         </Link>
                         <Link
                             data-cy="testset-new-manual-link"
                             href={`/apps/${appId}/testsets/new/manual`}
                         >
-                            <Button>Create a test set with UI</Button>
+                            <Button>Create Test Set in UI</Button>
                         </Link>
                         <Link
                             data-cy="testset-new-api-link"

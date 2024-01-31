@@ -127,7 +127,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         )}
                                         {param.type === "array" && (
                                             <Select
-                                                defaultValue={param.default}
+                                                value={param.default}
                                                 onChange={(value) =>
                                                     handleParamChange(param.name, value)
                                                 }
@@ -197,7 +197,7 @@ export const StringParameters: React.FC<StringParametersProps> = ({
                         <Card className={classes.card} title={renameVariables(param.name)}>
                             <Input.TextArea
                                 rows={5}
-                                defaultValue={param.default}
+                                value={param.default}
                                 onChange={(e) => handleParamChange(param.name, e.target.value)}
                                 bordered={false}
                                 className={classes.textarea}
@@ -242,7 +242,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                 .map((param, index) => (
                     <Row gutter={0} className={classes.row1} key={index}>
                         <Card className={classes.card} title={renameVariables(param.name)}>
-                            {param.default.map((val: Parameter, index: number) => (
+                            {param.default?.map((val: Parameter, index: number) => (
                                 <Row key={index} className={classes.row2ObjParams}>
                                     <Col span={4}>
                                         <Input.TextArea

@@ -74,7 +74,6 @@ const Playground: React.FC = () => {
             baseId: templateVariant.baseId,
             baseName: templateVariant.baseName || newTemplateVariantName,
             configName: newVariantName,
-            configId: templateVariant.configId,
         }
 
         setVariants((prevState: any) => [...prevState, newVariant])
@@ -300,6 +299,7 @@ const Playground: React.FC = () => {
                             setIsLoading(true)
                             fetchData()
                         }}
+                        ghost
                     >
                         Refresh
                     </Button>
