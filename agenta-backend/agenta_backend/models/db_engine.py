@@ -87,8 +87,6 @@ class DBEngine:
         if mode in ("test", "default", "v2"):
             return f"agenta_{mode}"
 
-        if not mode.isalnum():
-            raise ValueError("Mode of database needs to be alphanumeric.")
         return f"agenta_{mode}"
 
     def remove_db(self) -> None:

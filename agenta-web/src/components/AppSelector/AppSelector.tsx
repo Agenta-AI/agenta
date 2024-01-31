@@ -8,7 +8,13 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {
+    getAllProviderLlmKeys,
+    getApikeys,
+    isAppNameInputValid,
+    isDemo,
+    redirectIfNoLLMKeys,
+} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -125,6 +131,10 @@ const AppSelector: React.FC = () => {
         appId: undefined,
     })
 
+    useEffect(() => {
+        getAllProviderLlmKeys()
+    }, [])
+
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -198,7 +208,10 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            providerKey: isDemo() && (!apiKey || apiKey === "") ? "" : apiKey,
+            providerKey:
+                isDemo() && apiKey?.length === 0
+                    ? []
+                    : (apiKey as {title: string; key: string; name: string}[]),
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))

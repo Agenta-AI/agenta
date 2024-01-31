@@ -159,7 +159,7 @@ async def test_create_evaluation():
         "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
         "testset_id": str(testset.id),
-        "lm_providers_keys": {"openai": OPEN_AI_KEY},
+        "lm_providers_keys": {"OPENAI_API_KEY": OPEN_AI_KEY},
         "rate_limit": {
             "batch_size": 10,
             "max_retries": 3,

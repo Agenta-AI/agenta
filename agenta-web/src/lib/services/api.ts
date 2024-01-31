@@ -612,7 +612,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
     orgId: string
     timeout?: number
@@ -622,6 +622,14 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
         onStatusChange?.("creating_app")
         let app
@@ -630,9 +638,7 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
+                    env_vars: apiKeys,
                     organization_id: orgId,
                 },
                 true,
