@@ -199,7 +199,7 @@ export interface IPromptRevisions {
 
 export interface IEnvironmentRevision {
     revision: number
-    modified_by: str
+    modified_by: string
     created_at: string
 }
 
@@ -324,7 +324,14 @@ export interface Environment {
 }
 
 export interface DeploymentRevisions extends Environment {
-    revisions: string[]
+    revisions: {
+        created_at: string
+        deployed_app_variant_revision: string
+        deployment: string
+        id: string
+        modified_by: string
+        revision: number
+    }[]
 }
 
 export interface CustomEvaluation {
