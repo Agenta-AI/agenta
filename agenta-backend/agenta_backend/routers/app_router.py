@@ -1,13 +1,20 @@
 import os
 import logging
+
 from typing import List, Optional
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
-from agenta_backend.config import settings
 from fastapi import HTTPException, Request
-from agenta_backend.models import converters
 from beanie import PydanticObjectId as ObjectId
-from agenta_backend.utils.common import APIRouter
+
+from agenta_backend.config import settings
+from agenta_backend.models import converters
+from agenta_backend.utils.common import (
+    isEE,
+    isCloud,
+    APIRouter,
+    isCloudEE,
+)
 
 from agenta_backend.services import (
     db_manager,
@@ -21,8 +28,7 @@ from agenta_backend.models.api.api_models import (
     AddVariantFromImagePayload,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         CreateApp_ as CreateApp,
@@ -36,7 +42,7 @@ else:
         AppVariantResponse,
         CreateAppVariant,
     )
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.services.selectors import (
         get_user_own_org,
@@ -47,14 +53,14 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         check_action_access,
         check_rbac_permission,
     )
-    from agenta_backend.commons.models.db_models import Permission, WorkspaceRole
+    from agenta_backend.commons.models.db_models import Permission
 
 
-if FEATURE_FLAG in ["cloud"]:
+if isCloud():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
-elif FEATURE_FLAG in ["ee"]:
+elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,
     )  # noqa pylint: disable-all
@@ -86,7 +92,7 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -136,7 +142,7 @@ async def get_variant_by_env(
         AppVariantResponse: The retrieved app variant.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -169,6 +175,7 @@ async def get_variant_by_env(
         raise e
     except Exception as e:
         # Handle all other exceptions and return 500 status code
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -191,7 +198,7 @@ async def create_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
                     request.state.user_id
@@ -250,11 +257,12 @@ async def create_app(
         app_db = await db_manager.create_app_and_envs(
             payload.app_name,
             request.state.user_id,
-            organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-            workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            organization_id if isCloudEE() else None,
+            workspace_id if isCloudEE() else None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -288,7 +296,7 @@ async def list_apps(
         )
         return apps
     except Exception as e:
-        logger.error(f"list_apps exception ===> {e}")
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -313,7 +321,7 @@ async def add_variant_from_image(
         dict: The newly added variant.
     """
 
-    if FEATURE_FLAG not in ["cloud", "ee"]:
+    if not isCloudEE():
         image = Image(
             type="image",
             docker_id=payload.docker_id,
@@ -328,11 +336,12 @@ async def add_variant_from_image(
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        app = await db_manager.fetch_app_by_id(app_id)
+
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                object=app,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -344,8 +353,6 @@ async def add_variant_from_image(
                     {"detail": error_msg},
                     status_code=403,
                 )
-
-        app = await db_manager.fetch_app_by_id(app_id)
 
         variant_db = await app_manager.add_variant_based_on_image(
             app=app,
@@ -364,6 +371,7 @@ async def add_variant_from_image(
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -375,11 +383,12 @@ async def remove_app(app_id: str, request: Request):
         app -- App to remove
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        app = await db_manager.fetch_app_by_id(app_id)
+
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                object=app,
                 permission=Permission.DELETE_APPLICATION,
             )
             logger.debug(f"User has Permission to delete app: {has_permission}")
@@ -391,15 +400,14 @@ async def remove_app(app_id: str, request: Request):
                 )
 
         else:
-            await app_manager.remove_app(app_id=app_id)
+            await app_manager.remove_app(app)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
+        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
 
 
@@ -427,33 +435,26 @@ async def create_app_and_variant_from_template(
     try:
         logger.debug("Start: Creating app and variant from template")
 
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             # Get user and org id
             logger.debug("Step 1: Getting user and organization ID")
             user_org_workspace_data: dict = await get_user_org_and_workspace_id(
                 request.state.user_id
             )
 
-            logger.debug("Step 2: Setting organization ID")
-            if payload.organization_id is None:
-                organization = await get_user_own_org(user_org_workspace_data["uid"])
-                organization_id = str(organization.id)
-            else:
-                organization_id = payload.organization_id
-                organization = await db_manager_ee.get_organization(organization_id)
+            logger.debug(
+                "Step 2: Checking that workspace ID and organization ID are provided"
+            )
+            if payload.organization_id is None or payload.workspace_id is None:
+                raise Exception(
+                    "Organization ID and Workspace ID must be provided to create app from template",
+                )
 
-            logger.debug("Step 3: Setting workspace ID")
-            if payload.workspace_id is None:
-                workspace = await get_org_default_workspace(organization)
-                workspace_id = str(workspace.id)
-            else:
-                workspace_id = payload.workspace_id
-
-            logger.debug("Step 4: Checking user has permission to create app")
+            logger.debug("Step 3: Checking user has permission to create app")
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
-                workspace=workspace,
-                organization=organization,
+                workspace_id=payload.workspace_id,
+                organization_id=payload.organization_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -468,16 +469,16 @@ async def create_app_and_variant_from_template(
                 )
 
         logger.debug(
-            f"Step 5: Checking if app {payload.app_name} already exists"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            f"Step 4: Checking if app {payload.app_name} already exists"
+            if isCloudEE()
             else f"Step 1: Checking if app {payload.app_name} already exists"
         )
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_parameters(
             app_name,
             request.state.user_id,
-            organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-            workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            payload.organization_id if isCloudEE() else None,
+            payload.workspace_id if isCloudEE() else None,
         )
         if app is not None:
             raise Exception(
@@ -485,21 +486,21 @@ async def create_app_and_variant_from_template(
             )
 
         logger.debug(
-            "Step 6: Creating new app and initializing environments"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 5: Creating new app and initializing environments"
+            if isCloudEE()
             else "Step 2: Creating new app and initializing environments"
         )
         if app is None:
             app = await db_manager.create_app_and_envs(
                 app_name,
                 request.state.user_id,
-                organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-                workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+                payload.organization_id if isCloudEE() else None,
+                payload.workspace_id if isCloudEE() else None,
             )
 
         logger.debug(
-            "Step 7: Retrieve template from db"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 6: Retrieve template from db"
+            if isCloudEE()
             else "Step 3: Retrieve template from db"
         )
         template_db = await db_manager.get_template(payload.template_id)
@@ -507,17 +508,17 @@ async def create_app_and_variant_from_template(
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
-            "Step 8: Creating image instance and adding variant based on image"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 7: Creating image instance and adding variant based on image"
+            if isCloudEE()
             else "Step 4: Creating image instance and adding variant based on image"
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_uri=template_db.template_uri
-            if FEATURE_FLAG in ["cloud", "ee"]
-            else template_db.digest,
-            tags=f"{image_name}" if FEATURE_FLAG not in ["cloud", "ee"] else None,
+            docker_id_or_template_uri=(
+                template_db.template_uri if isCloudEE() else template_db.digest
+            ),
+            tags=f"{image_name}" if not isCloudEE() else None,
             base_name="app",
             config_name="default",
             is_template_image=True,
@@ -525,32 +526,32 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug(
-            "Step 9: Creating testset for app variant"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 8: Creating testset for app variant"
+            if isCloudEE()
             else "Step 5: Creating testset for app variant"
         )
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
-            org_id=organization_id if FEATURE_FLAG in ["cloud", "ee"] else None,
-            workspace_id=workspace_id if FEATURE_FLAG in ["cloud", "ee"] else None,
+            org_id=payload.organization_id if isCloudEE() else None,
+            workspace_id=payload.workspace_id if isCloudEE() else None,
             template_name=template_db.name,
             app_name=app.app_name,
             user_uid=request.state.user_id,
         )
 
         logger.debug(
-            "Step 10: We create ready-to use evaluators"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 9: We create ready-to use evaluators"
+            if isCloudEE()
             else "Step 6: We create ready-to use evaluators"
         )
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
-            "Step 11: Starting variant and injecting environment variables"
-            if FEATURE_FLAG in ["cloud", "ee"]
+            "Step 10: Starting variant and injecting environment variables"
+            if isCloudEE()
             else "Step 7: Starting variant and injecting environment variables"
         )
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             if not os.environ["OPENAI_API_KEY"]:
                 raise Exception(
                     "Unable to start app container. Please file an issue by clicking on the button below.",
@@ -563,17 +564,13 @@ async def create_app_and_variant_from_template(
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
-
         await app_manager.start_variant(app_variant_db, envvars)
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.debug(f"Error: Exception caught - {str(e)}")
+        logger.exception(f"Error: Exception caught - {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -598,7 +595,7 @@ async def list_environments(
     """
     logger.debug(f"Listing environments for app: {app_id}")
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -619,4 +616,5 @@ async def list_environments(
             await converters.environment_db_to_output(env) for env in environments_db
         ]
     except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

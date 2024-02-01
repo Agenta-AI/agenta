@@ -5,40 +5,26 @@ import traceback
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
-from typing import Any, Dict, List, Optional
-
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
+from typing import Any, Dict, List, Optional
 
+from agenta_backend.models import converters
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.services.json_importer_helper import get_json
-from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 
 from agenta_backend.models.api.api_models import (
     App,
     Template,
 )
 
-from agenta_backend.models import converters
-
-from agenta_backend.models.db_models import (
-    Result,
-    ConfigDB,
-    TemplateDB,
-    ConfigVersionDB,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-)
-
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
-    from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_rbac_permission
     from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
 
     from agenta_backend.commons.models.db_models import (
+        Permission,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
@@ -70,6 +56,15 @@ else:
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
+from agenta_backend.models.db_models import (
+    ConfigDB,
+    TemplateDB,
+    AggregatedResult,
+    AppVariantRevisionsDB,
+    EvaluationScenarioResult,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
+)
 
 from beanie.operators import In
 from beanie import PydanticObjectId as ObjectId
@@ -124,7 +119,7 @@ async def add_testset_to_app_variant(
                 user=user_db,
             )
 
-            if FEATURE_FLAG in ["cloud", "ee"]:
+            if isCloudEE():
                 # assert that if organization is provided, workspace_id is also provided, and vice versa
                 assert (
                     org_id is not None and workspace_id is not None
@@ -184,6 +179,32 @@ async def fetch_app_variant_by_id(
         AppVariantDB.id == ObjectId(app_variant_id), fetch_links=True
     )
     return app_variant
+
+
+async def fetch_app_variant_revision_by_variant(
+    app_variant_id: str, revision: int
+) -> AppVariantRevisionsDB:
+    """Fetches app variant revision by variant id and revision
+
+    Args:
+        app_variant_id: str
+        revision: str
+
+    Returns:
+        AppVariantRevisionDB
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    assert revision is not None, "revision cannot be None"
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant.id == ObjectId(app_variant_id),
+        AppVariantRevisionsDB.revision == revision,
+    )
+
+    if app_variant_revision is None:
+        raise Exception(
+            f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
+        )
+    return app_variant_revision
 
 
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
@@ -253,7 +274,7 @@ async def create_new_variant_base(
         image=image,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -280,14 +301,7 @@ async def create_new_config(
     config_db = ConfigDB(
         config_name=config_name,
         parameters=parameters,
-        current_version=1,
-        version_history=[
-            ConfigVersionDB(
-                version=1, parameters=parameters, created_at=datetime.utcnow()
-            )
-        ],
     )
-    await config_db.create()
     return config_db
 
 
@@ -313,9 +327,14 @@ async def create_new_app_variant(
     Returns:
         AppVariantDB: The created variant.
     """
+    assert (
+        parameters == {}
+    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
     variant = AppVariantDB(
         app=app,
         user=user,
+        modified_by=user,
+        revision=0,
         variant_name=variant_name,
         image=image,
         base=base,
@@ -325,7 +344,7 @@ async def create_new_app_variant(
         parameters=parameters,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -335,6 +354,16 @@ async def create_new_app_variant(
         variant.workspace = workspace
 
     await variant.create()
+
+    variant_revision = AppVariantRevisionsDB(
+        variant=variant,
+        revision=0,
+        modified_by=user,
+        base=base,
+        config=config,
+    )
+    await variant_revision.create()
+
     return variant
 
 
@@ -388,7 +417,7 @@ async def create_image(
         image.tags = tags
         image.docker_id = docker_id
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -434,7 +463,7 @@ async def create_deployment(
             status=status,
         )
 
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             deployment.organization = organization
             deployment.workspace = workspace
 
@@ -478,7 +507,7 @@ async def create_app_and_envs(
 
     app = AppDB(app_name=app_name, user=user_instance)
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization_id is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -572,7 +601,7 @@ async def get_user(user_uid: str) -> UserDB:
 
     user = await UserDB.find_one(UserDB.uid == user_uid)
     if user is None:
-        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+        if not isCloudEE():
             # create user
             user_db = UserDB(uid="0")
             user = await user_db.create()
@@ -661,7 +690,7 @@ async def get_orga_image_instance_by_docker_id(
 
     query_expression = {"docker_id": docker_id}
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -697,7 +726,7 @@ async def get_orga_image_instance_by_uri(
 
     query_expression = {"template_uri": template_uri}
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -763,19 +792,14 @@ async def add_variant_from_base_and_config(
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
-        current_version=1,
-        version_history=[
-            ConfigVersionDB(
-                version=1, parameters=parameters, created_at=datetime.utcnow()
-            )
-        ],
     )
-    await config_db.create()
     db_app_variant = AppVariantDB(
         app=previous_app_variant_db.app,
         variant_name=new_variant_name,
         image=base_db.image,
         user=user_db,
+        modified_by=user_db,
+        revision=1,
         parameters=parameters,
         previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
         base_name=base_db.base_name,
@@ -785,11 +809,20 @@ async def add_variant_from_base_and_config(
         is_deleted=False,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         db_app_variant.organization = previous_app_variant_db.organization
         db_app_variant.workspace = previous_app_variant_db.workspace
 
     await db_app_variant.create()
+    variant_revision = AppVariantRevisionsDB(
+        variant=db_app_variant,
+        revision=1,
+        modified_by=user_db,
+        base=base_db,
+        config=config_db,
+    )
+    await variant_revision.create()
+
     return db_app_variant
 
 
@@ -822,7 +855,7 @@ async def list_apps(
         return [converters.app_db_to_pydantic(app_db)]
 
     elif (org_id is not None) or (workspace_id is not None):
-        if not FEATURE_FLAG in ["cloud", "ee"]:
+        if not isCloudEE():
             return JSONResponse(
                 {
                     "error": "organization and/or workspace is only available in Cloud and EE"
@@ -891,7 +924,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
 
     query_expression = {"base.id": db_app_variant.base.id}
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         query_expression.update(
             {
                 "organization.id": db_app_variant.organization.id,
@@ -903,7 +936,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     return count_variants == 1
 
 
-async def remove_deployment(deployment_db: DeploymentDB, **kwargs: dict):
+async def remove_deployment(deployment_db: DeploymentDB):
     """Remove a deployment from the db
 
     Arguments:
@@ -931,9 +964,10 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
     for environment in environments:
         environment.deployed_app_variant = None
         await environment.save()
-    # removing the config
-    config = app_variant_db.config
-    await config.delete()
+
+    app_variant_revisions = await list_app_variant_revisions_by_variant(app_variant_db)
+    for app_variant_revision in app_variant_revisions:
+        await app_variant_revision.delete()
 
     await app_variant_db.delete()
 
@@ -945,7 +979,6 @@ async def deploy_to_environment(environment_name: str, variant_id: str):
     Args:
         environment_name (str): The name of the environment to deploy the app variant to.
         variant_id (str): The ID of the app variant to deploy.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
@@ -955,6 +988,9 @@ async def deploy_to_environment(environment_name: str, variant_id: str):
         None
     """
     app_variant_db = await fetch_app_variant_by_id(variant_id)
+    app_variant_revision_db = await fetch_app_variant_revision_by_variant(
+        app_variant_id=variant_id, revision=app_variant_db.revision
+    )
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
@@ -966,13 +1002,15 @@ async def deploy_to_environment(environment_name: str, variant_id: str):
 
     if environment_db is None:
         raise ValueError(f"Environment {environment_name} not found")
-    if environment_db.deployed_app_variant == app_variant_db.id:
-        raise ValueError(
-            f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
-        )
+    # TODO: Modify below to add logic to disable redployment of the same variant revision here and in frontend
+    # if environment_db.deployed_app_variant_ == app_variant_db.id:
+    #     raise ValueError(
+    #         f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
+    #     )
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = app_variant_db.id
+    environment_db.deployed_app_variant_revision = app_variant_revision_db
     await environment_db.save()
 
 
@@ -982,7 +1020,6 @@ async def list_environments(app_id: str) -> List[AppEnvironmentDB]:
 
     Args:
         app_id (str): The ID of the app to list environments for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
@@ -1005,7 +1042,6 @@ async def initialize_environments(app_db: AppDB) -> List[AppEnvironmentDB]:
 
     Args:
         app_db (AppDB): The database for the app.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of the initialized environments.
@@ -1024,19 +1060,35 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
     Args:
         name (str): The name of the environment.
         app_db (AppDB): The AppDB object representing the app that the environment belongs to.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         AppEnvironmentDB: The newly created AppEnvironmentDB object.
     """
     environment_db = AppEnvironmentDB(app=app_db, name=name, user=app_db.user)
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         environment_db.organization = app_db.organization
         environment_db.workspace = app_db.workspace
 
     await environment_db.create()
     return environment_db
+
+
+async def list_app_variant_revisions_by_variant(
+    app_variant: AppVariantDB,
+) -> List[AppVariantRevisionsDB]:
+    """Returns list of app variant revision for the given app variant
+
+    Args:
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
+
+    Returns:
+        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
+    """
+    app_variant_revision = await AppVariantRevisionsDB.find(
+        AppVariantRevisionsDB.variant.id == app_variant.id, fetch_links=True
+    ).to_list()
+    return app_variant_revision
 
 
 async def list_environments_by_variant(
@@ -1047,7 +1099,6 @@ async def list_environments_by_variant(
 
     Args:
         app_variant (AppVariantDB): The app variant to retrieve environments for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects.
@@ -1065,7 +1116,6 @@ async def remove_image(image: ImageDB):
 
     Args:
         image (ImageDB): The image to remove from the database.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         ValueError: If the image is None.
@@ -1084,7 +1134,6 @@ async def remove_environment(environment_db: AppEnvironmentDB):
 
     Args:
         environment_db (AppEnvironmentDB): The environment to remove from the database.
-        **kwargs (dict): Additional keyword arguments.
 
     Raises:
         AssertionError: If environment_db is None.
@@ -1133,7 +1182,6 @@ async def remove_base_from_db(base: VariantBaseDB):
 
     Args:
         base (VariantBaseDB): The base to be removed from the database.
-        **kwargs: Additional keyword arguments.
 
     Raises:
         ValueError: If the base is None.
@@ -1166,7 +1214,7 @@ async def remove_app_by_id(app_id: str):
 
 
 async def update_variant_parameters(
-    app_variant_db: AppVariantDB, parameters: Dict[str, Any]
+    app_variant_db: AppVariantDB, parameters: Dict[str, Any], user_uid: str
 ) -> None:
     """
     Update the parameters of an app variant in the database.
@@ -1174,7 +1222,7 @@ async def update_variant_parameters(
     Args:
         app_variant_db (AppVariantDB): The app variant to update.
         parameters (Dict[str, Any]): The new parameters to set for the app variant.
-        **kwargs (dict): Additional keyword arguments.
+        user_uid (str): The UID of the user that is updating the app variant.
 
     Raises:
         ValueError: If there is an issue updating the variant parameters.
@@ -1184,66 +1232,31 @@ async def update_variant_parameters(
 
     try:
         logging.debug("Updating variant parameters")
-
+        user = await get_user(user_uid)
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
-        new_version = config_db.current_version + 1
-        config_db.version_history.append(
-            ConfigVersionDB(
-                version=new_version,
-                parameters=config_db.parameters,
-                created_at=datetime.utcnow(),
-            )
-        )
-        config_db.current_version = new_version
         config_db.parameters = parameters
+        app_variant_db.revision = app_variant_db.revision + 1
+        app_variant_db.modified_by = user
 
         # Save updated ConfigDB
-        await config_db.save()
+        await app_variant_db.save()
+
+        variant_revision = AppVariantRevisionsDB(
+            variant=app_variant_db,
+            revision=app_variant_db.revision,
+            modified_by=user,
+            base=app_variant_db.base,
+            config=config_db,
+        )
+        await variant_revision.save()
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
         raise ValueError("Issue updating variant parameters")
 
 
-async def get_app_variant_by_app_name_and_environment(
-    app_id: str, environment: str, **kwargs: dict
-) -> Optional[AppVariantDB]:
-    """
-    Retrieve the deployed app variant for a given app and environment.
-
-    Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The name of the environment to retrieve the variant for.
-        **kwargs (dict): Additional keyword arguments to pass to the function.
-
-    Returns:
-        Optional[AppVariantDB]: The deployed app variant for the given app and environment, or None if not found.
-    """
-
-    # Construct query filters for finding the environment in the database
-    query_expressions = (
-        AppEnvironmentDB.name == environment,
-        AppEnvironmentDB.app.id == ObjectId(app_id),
-    )
-
-    # Perform the database query to find the environment
-    environment_db = await AppEnvironmentDB.find_one(query_expressions)
-
-    if not environment_db:
-        logger.info(f"Environment {environment} not found")
-        return None
-    if environment_db.deployed_app_variant is None:
-        logger.info(f"No variant deployed to environment {environment}")
-        return None
-
-    app_variant_db = await get_app_variant_instance_by_id(
-        str(environment_db.deployed_app_variant)
-    )
-    return app_variant_db
-
-
-async def get_app_variant_instance_by_id(variant_id: str):
+async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     """Get the app variant object from the database with the provided id.
 
     Arguments:
@@ -1257,6 +1270,25 @@ async def get_app_variant_instance_by_id(variant_id: str):
         AppVariantDB.id == ObjectId(variant_id), fetch_links=True
     )
     return app_variant_db
+
+
+async def get_app_variant_revision_by_id(
+    variant_revision_id: str, fetch_links=False
+) -> AppVariantRevisionsDB:
+    """Get the app variant revision object from the database with the provided id.
+
+    Arguments:
+        variant_revision_id (str): The app variant revision unique identifier
+
+    Returns:
+        AppVariantDB: instance of app variant object
+    """
+
+    variant_revision_db = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(variant_revision_id),
+        fetch_links=fetch_links,
+    )
+    return variant_revision_db
 
 
 async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
@@ -1544,7 +1576,7 @@ async def fetch_app_by_name_and_parameters(
 
     query_expression = {"app_name": app_name}
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
         assert (
             organization_id is not None and workspace_id is not None
@@ -1573,7 +1605,8 @@ async def create_new_evaluation(
     user: UserDB,
     testset: TestSetDB,
     status: str,
-    variant: AppVariantDB,
+    variant: str,
+    variant_revision: str,
     evaluators_configs: List[str],
     organization=None,
     workspace=None,
@@ -1588,13 +1621,14 @@ async def create_new_evaluation(
         testset=testset,
         status=status,
         variant=variant,
+        variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -1640,7 +1674,7 @@ async def create_new_evaluation_scenario(
         updated_at=datetime.utcnow(),
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -1661,7 +1695,6 @@ async def update_evaluation_with_aggregated_results(
     if not evaluation:
         raise ValueError("Evaluation not found")
 
-    evaluation.status = EvaluationStatusEnum.EVALUATION_FINISHED
     evaluation.aggregated_results = aggregated_results
     evaluation.updated_at = datetime.utcnow().isoformat()
 
@@ -1770,7 +1803,7 @@ async def create_evaluator_config(
         settings_values=settings_values,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
@@ -1846,3 +1879,17 @@ async def update_evaluation(
             setattr(evaluation, key, value)
     await evaluation.save()
     return evaluation
+
+
+async def check_if_evaluation_contains_failed_evaluation_scenarios(
+    evaluation_id: str,
+) -> bool:
+    query = EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id),
+        {"results": {"$elemMatch": {"result.type": "error"}}},
+    )
+
+    count = await query.count()
+    if count > 0:
+        return True
+    return False

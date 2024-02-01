@@ -72,7 +72,6 @@ async def test_create_app_variant(get_first_user_object):
         config_name="default",
         parameters={},
     )
-    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app",
@@ -90,6 +89,8 @@ async def test_create_app_variant(get_first_user_object):
         parameters={},
         base_name="app",
         config_name="default",
+        revision=0,
+        modified_by=user,
         base=db_base,
         config=db_config,
     )
@@ -109,23 +110,6 @@ async def test_list_app_variants():
 
     assert response.status_code == 200
     assert len(response.json()) == 1
-
-
-@pytest.mark.asyncio
-async def test_delete_app_without_permission(get_second_user_object):
-    user2 = await get_second_user_object
-
-    user2_app = AppDB(
-        app_name="test_app_by_user2",
-        user=user2,
-    )
-    await user2_app.create()
-
-    response = await test_client.delete(
-        f"{BACKEND_API_HOST}/apps/{str(user2_app.id)}/",
-        timeout=timeout,
-    )
-    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

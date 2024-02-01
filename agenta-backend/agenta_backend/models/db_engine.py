@@ -6,7 +6,9 @@ from pymongo import MongoClient
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -45,8 +47,8 @@ else:
 from agenta_backend.models.db_models import (
     SpanDB,
     TraceDB,
-    ConfigDB,
     TemplateDB,
+    AppVariantRevisionsDB,
 )
 
 # Define Document Models
@@ -56,7 +58,6 @@ document_models: List[Document] = [
     SpanDB,
     TraceDB,
     ImageDB,
-    ConfigDB,
     TestSetDB,
     TemplateDB,
     AppVariantDB,
@@ -67,10 +68,11 @@ document_models: List[Document] = [
     EvaluatorConfigDB,
     HumanEvaluationDB,
     EvaluationScenarioDB,
+    AppVariantRevisionsDB,
     HumanEvaluationScenarioDB,
 ]
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
 
 
@@ -108,8 +110,6 @@ class DBEngine:
         if mode in ("test", "default", "v2"):
             return f"agenta_{mode}"
 
-        if not mode.isalnum():
-            raise ValueError("Mode of database needs to be alphanumeric.")
         return f"agenta_{mode}"
 
     def remove_db(self) -> None:

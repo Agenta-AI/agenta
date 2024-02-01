@@ -71,36 +71,24 @@ class VariantBaseDB(Document):
         name = "bases"
 
 
-class ConfigVersionDB(BaseModel):
-    version: int
-    parameters: Dict[str, Any]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-
-class ConfigDB(Document):
+class ConfigDB(BaseModel):
     config_name: str
-    current_version: int = Field(default=1)
-    parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[ConfigVersionDB] = Field(default=[])
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "configs"
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AppVariantDB(Document):
     app: Link[AppDB]
     variant_name: str
+    revision: int
     image: Link[ImageDB]
     user: Link[UserDB]
+    modified_by: Link[UserDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: Link[VariantBaseDB]
     config_name: Optional[str]
-    config: Link[ConfigDB]
+    config: ConfigDB
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -112,11 +100,25 @@ class AppVariantDB(Document):
         name = "app_variants"
 
 
+class AppVariantRevisionsDB(Document):
+    variant: Link[AppVariantDB]
+    revision: int
+    modified_by: Link[UserDB]
+    base: Link[VariantBaseDB]
+    config: ConfigDB
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "app_variant_revisions"
+
+
 class AppEnvironmentDB(Document):
     app: Link[AppDB]
     name: str
     user: Link[UserDB]
     deployed_app_variant: Optional[PydanticObjectId]
+    deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -165,9 +167,19 @@ class EvaluatorConfigDB(Document):
         name = "evaluators_configs"
 
 
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
 class Result(BaseModel):
     type: str
-    value: Any
+    value: Optional[Any] = None
+    error: Optional[Error] = None
+
+
+class InvokationResult(BaseModel):
+    result: Result
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -187,8 +199,7 @@ class EvaluationScenarioInputDB(BaseModel):
 
 
 class EvaluationScenarioOutputDB(BaseModel):
-    type: str
-    value: Any
+    result: Result
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -207,6 +218,7 @@ class HumanEvaluationDB(Document):
     status: str
     evaluation_type: str
     variants: List[PydanticObjectId]
+    variants_revisions: List[PydanticObjectId]
     testset: Link[TestSetDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -235,9 +247,10 @@ class HumanEvaluationScenarioDB(Document):
 class EvaluationDB(Document):
     app: Link[AppDB]
     user: Link[UserDB]
-    status: str = Field(default="EVALUATION_INITIALIZED")
+    status: Result
     testset: Link[TestSetDB]
     variant: PydanticObjectId
+    variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())

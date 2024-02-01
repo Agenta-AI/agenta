@@ -1,4 +1,3 @@
-import os
 import logging
 
 from typing import List, Optional, Union
@@ -6,20 +5,19 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE, isCloud, isEE
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
-    from agenta_backend.commons.models.db_models import WorkspaceRole, Permission
+if isCloudEE():
+    from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.commons.models.api.api_models import Image_ as Image
 else:
     from agenta_backend.models.api.api_models import Image
 
 
-if FEATURE_FLAG in ["cloud"]:
+if isCloud():
     from agenta_backend.cloud.services import container_manager
-elif FEATURE_FLAG in ["ee"]:
+elif isEE():
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
@@ -57,31 +55,33 @@ async def build_image(
     Returns:
         Image: The Docker image that was built.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
-            permission=Permission.CREATE_APPLICATION,
-        )
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+    try:
+        app_db = await db_manager.fetch_app_by_id(app_id)
+
+        # Check app access
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app_db,
+                permission=Permission.CREATE_APPLICATION,
             )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
-    # Check app access
-    app_db = await db_manager.fetch_app_by_id(app_id)
+        image_result = await container_manager.build_image(
+            app_db=app_db,
+            base_name=base_name,
+            tar_file=tar_file,
+        )
 
-    image_result = await container_manager.build_image(
-        app_db=app_db,
-        base_name=base_name,
-        tar_file=tar_file,
-    )
-
-    return image_result
+        return image_result
+    except Exception as ex:
+        return JSONResponse({"message": str(ex)}, status_code=500)
 
 
 @router.post("/restart_container/", operation_id="restart_container")
@@ -142,7 +142,7 @@ async def construct_app_container_url(
     Args:
         base_id (Optional[str]): The ID of the base to use for the app container.
         variant_id (Optional[str]): The ID of the variant to use for the app container.
-        stoken_session (SessionContainer): The session container for the user.
+        request (Request): The request object.
 
     Returns:
         URI: The URI for the app container.
@@ -153,43 +153,26 @@ async def construct_app_container_url(
     # assert that one of base_id or variant_id is provided
     assert base_id or variant_id, "Please provide either base_id or variant_id"
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if base_id:
+        object_db = await db_manager.fetch_base_by_id(base_id)
+    else:
+        object_db = await db_manager.fetch_app_variant_by_id(variant_id)
+
+    # Check app access
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=base_id if base_id else variant_id,
-            object_type="base" if base_id else "app_variant",
-            permission=Permission.VIEW_APPLICATION,
+            object=object_db,
+            permission=Permission.READ_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
             logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
+            raise HTTPException(status_code=403, detail=error_msg)
 
-    if base_id:
-        base_db = await db_manager.fetch_base_by_id(base_id)
-        # TODO: Add status check if base_db.status == "running"
-        if base_db.deployment:
-            deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
-            uri = deployment.uri
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Base {base_id} does not have a deployment",
-            )
-
-        return URI(uri=uri)
-    elif variant_id:
-        variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
-        deployment = await db_manager.get_deployment_by_objectid(
-            variant_db.base.deployment
-        )
+    try:
+        deployment = await db_manager.get_deployment_by_objectid(object_db.deployment)
         assert deployment and deployment.uri, "Deployment not found"
         return URI(uri=deployment.uri)
-    else:
-        return JSONResponse(
-            {"detail": "Please provide either base_id or variant_id"},
-            status_code=400,
-        )
+    except Exception as e:
+        return JSONResponse({"message": str(e)}, status_code=500)

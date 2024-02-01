@@ -1,10 +1,9 @@
+import os
 import logging
 from typing import Any, Callable
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-
-from agenta_backend.services import db_manager  # To fix circular import
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -49,3 +48,19 @@ class APIRouter(FastAPIRouter):
             return add_path(func)
 
         return decorator
+
+
+def isCloudEE():
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+
+
+def isCloud():
+    return os.environ["FEATURE_FLAG"] == "cloud"
+
+
+def isEE():
+    return os.environ["FEATURE_FLAG"] == "ee"
+
+
+def isOssEE():
+    return os.environ["FEATURE_FLAG"] in ["oss", "ee"]

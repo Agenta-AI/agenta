@@ -1,13 +1,11 @@
-import os
-import json
 import logging
-from typing import List
 
+from typing import List
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from agenta_backend.utils.common import APIRouter
-from agenta_backend.services import evaluator_manager
+from agenta_backend.utils.common import APIRouter, isCloudEE
+from agenta_backend.services import evaluator_manager, db_manager
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
@@ -16,8 +14,7 @@ from agenta_backend.models.api.evaluation_model import (
     UpdateEvaluatorConfig,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -62,7 +59,7 @@ async def get_evaluator_configs(app_id: str, request: Request):
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,
@@ -76,7 +73,7 @@ async def get_evaluator_configs(app_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
         return evaluators_configs
     except Exception as e:
@@ -94,11 +91,13 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        evaluator_config_db = await db_manager.fetch_evaluator_config(
+            evaluator_config_id
+        )
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                object_id=evaluator_config_db.app,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -110,7 +109,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
                 )
 
         evaluators_configs = await evaluator_manager.get_evaluator_config(
-            evaluator_config_id
+            evaluator_config_db
         )
         return evaluators_configs
     except Exception as e:
@@ -120,10 +119,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
-async def create_new_evaluator_config(
-    payload: NewEvaluatorConfig,
-    request: Request
-):
+async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Request):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -133,7 +129,7 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=payload.app_id,
@@ -172,7 +168,7 @@ async def update_evaluator_config(
     """
 
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluator_config_id,
@@ -186,7 +182,7 @@ async def update_evaluator_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         evaluators_configs = await evaluator_manager.update_evaluator_config(
             evaluator_config_id=evaluator_config_id, updates=payload
         )
@@ -208,7 +204,7 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
         bool: True if deletion was successful, False otherwise.
     """
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluator_config_id,
@@ -222,7 +218,7 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
-        
+
         success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success
     except Exception as e:

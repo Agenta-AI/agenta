@@ -24,6 +24,7 @@ import {
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
+import {dynamicContext} from "../helpers/dynamic"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -49,7 +50,6 @@ export async function fetchVariants(
                 variantId: variant.variant_id,
                 baseId: variant.base_id,
                 baseName: variant.base_name,
-                configId: variant.config_id,
                 configName: variant.config_name,
             }
             return v
@@ -587,7 +587,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
     timeout?: number
     onStatusChange?: (
@@ -596,7 +596,21 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
+        const {getOrgValues} = await dynamicContext("org.context", {
+            getOrgValues: () => ({
+                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
+            }),
+        })
+        const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
         try {
@@ -604,9 +618,9 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
+                    organization_id: selectedOrg.id,
+                    workspace_id: selectedOrg.default_workspace.id,
+                    env_vars: apiKeys,
                 },
                 true,
             )
@@ -651,4 +665,12 @@ export const publishVariant = async (variantId: string, environmentName: string)
         environment_name: environmentName,
         variant_id: variantId,
     })
+}
+
+export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
 }

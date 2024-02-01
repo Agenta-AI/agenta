@@ -9,7 +9,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     AppVariantDB,
     EvaluationDB,
-    AppVariantDB,
     DeploymentDB,
     EvaluationScenarioDB,
 )
@@ -22,6 +21,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 # Set global variables
 APP_NAME = "evaluation_in_backend"
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
+OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
 if ENVIRONMENT == "development":
     BACKEND_API_HOST = "http://host.docker.internal/api"
 elif ENVIRONMENT == "github":
@@ -30,12 +30,10 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_app_from_template(
-    app_from_template, fetch_user, fetch_single_prompt_template
+    app_from_template, fetch_single_prompt_template
 ):
-    user = await fetch_user
     payload = app_from_template
     payload["app_name"] = APP_NAME
-    payload["organization_id"] = str(user.organizations[0])
     payload["template_id"] = fetch_single_prompt_template["id"]
 
     response = httpx.post(
@@ -51,7 +49,7 @@ async def test_get_evaluators_endpoint():
         timeout=timeout,
     )
     assert response.status_code == 200
-    assert len(response.json()) == 8  # currently we have 8 evaluators
+    assert len(response.json()) == 9  # currently we have 9 evaluators
 
 
 @pytest.mark.asyncio
@@ -147,24 +145,6 @@ async def test_get_evaluator_configs():
 
 
 @pytest.mark.asyncio
-async def test_update_app_variant_parameters(update_app_variant_parameters):
-    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
-    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
-    app_variant = await AppVariantDB.find_one(
-        AppVariantDB.app.id == app.id, AppVariantDB.variant_name == "app.default"
-    )
-
-    parameters = update_app_variant_parameters
-    parameters["inputs"] = [{"name": list(testset.csvdata[0].keys())[0]}]
-    payload = {"parameters": parameters}
-
-    response = await test_client.put(
-        f"{BACKEND_API_HOST}/variants/{str(app_variant.id)}/parameters/", json=payload
-    )
-    assert response.status_code == 200
-
-
-@pytest.mark.asyncio
 async def test_create_evaluation():
     # Fetch app, app_variant and testset
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
@@ -177,6 +157,7 @@ async def test_create_evaluation():
         "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
         "testset_id": str(testset.id),
+        "lm_providers_keys": {"OPENAI_API_KEY": OPEN_AI_KEY},
         "rate_limit": {
             "batch_size": 10,
             "max_retries": 3,
@@ -198,6 +179,9 @@ async def test_create_evaluation():
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
 
+    # Sleep for 10 seconds (to allow the llm app container start completely)
+    await asyncio.sleep(10)
+
     # Make request to create evaluation
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
@@ -206,7 +190,10 @@ async def test_create_evaluation():
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
+    assert (
+        response_data["status"]["value"]
+        == EvaluationStatusEnum.EVALUATION_STARTED.value
+    )
     assert response_data is not None
 
 
@@ -219,14 +206,14 @@ async def test_fetch_evaluation_status():
 
     # Prepare and start short-polling request
     max_attempts = 10
-    intervals = 3  # seconds
+    intervals = 6  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
             timeout=timeout,
         )
         response_data = response.json()
-        if response_data["status"] == EvaluationStatusEnum.EVALUATION_FINISHED:
+        if response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_FINISHED:
             assert True
             return
         await asyncio.sleep(intervals)
@@ -250,7 +237,7 @@ async def test_fetch_evaluation_results():
 
     assert response.status_code == 200
     assert response_data["evaluation_id"] == str(evaluation.id)
-    assert len(response_data["results"]) == 5
+    assert len(response_data["results"]) == 6
 
 
 @pytest.mark.asyncio

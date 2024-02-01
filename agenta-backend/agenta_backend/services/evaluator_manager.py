@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional, List, Tuple
 from fastapi.responses import JSONResponse
 
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloudEE
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
@@ -15,6 +15,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
 else:
     from agenta_backend.models.db_models import AppDB, EvaluatorConfigDB
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 
 
@@ -26,17 +27,7 @@ def get_evaluators() -> Optional[List[Evaluator]]:
         Optional[List[Evaluator]]: A list of evaluator objects or None if an error occurs.
     """
 
-    file_path = "agenta_backend/resources/evaluators/evaluators.json"
-
-    if not os.path.exists(file_path):
-        return None
-
-    try:
-        with open(file_path, "r") as file:
-            evaluators = json.load(file)
-        return evaluators
-    except Exception:
-        return None
+    return get_all_evaluators()
 
 
 async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
@@ -56,18 +47,17 @@ async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
     ]
 
 
-async def get_evaluator_config(evaluator_config_id: str) -> EvaluatorConfig:
+async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorConfig:
     """
     Get an evaluator configuration by its ID.
 
     Args:
-        evaluator_config_id (str): The ID of the evaluator configuration.
+        evaluator_config: The evaluator configuration object.
 
     Returns:
         EvaluatorConfig: The evaluator configuration object.
     """
-    evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
-    return evaluator_config_db_to_pydantic(evaluator_config_db)
+    return evaluator_config_db_to_pydantic(evaluator_config)
 
 
 async def create_evaluator_config(
@@ -91,10 +81,8 @@ async def create_evaluator_config(
     app = await db_manager.fetch_app_by_id(app_id)
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
-        organization=app.organization
-        if FEATURE_FLAG in ["cloud", "ee"]
-        else None,  # noqa,
-        workspace=app.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,  # noqa,
+        organization=app.organization if isCloudEE() else None,  # noqa,
+        workspace=app.workspace if isCloudEE() else None,  # noqa,
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
@@ -160,12 +148,8 @@ async def create_ready_to_use_evaluators(app: AppDB):
     for evaluator in direct_use_evaluators:
         await db_manager.create_evaluator_config(
             app=app,
-            organization=app.organization
-            if FEATURE_FLAG in ["cloud", "ee"]
-            else None,  # noqa,
-            workspace=app.workspace
-            if FEATURE_FLAG in ["cloud", "ee"]
-            else None,  # noqa,
+            organization=app.organization if isCloudEE() else None,  # noqa,
+            workspace=app.workspace if isCloudEE() else None,  # noqa,
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],

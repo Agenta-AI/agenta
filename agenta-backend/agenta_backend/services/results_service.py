@@ -1,7 +1,10 @@
-import os
+from beanie import PydanticObjectId as ObjectId
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.api.evaluation_model import EvaluationType
+
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
@@ -13,10 +16,6 @@ else:
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
-from agenta_backend.services import db_manager
-from agenta_backend.models.api.evaluation_model import EvaluationType
-
-from beanie import PydanticObjectId as ObjectId
 
 
 async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
@@ -57,10 +56,23 @@ async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: 
     results = {}
     results["variants_votes_data"] = {}
     results["flag_votes"] = {}
+    results["positive_votes"] = {}
 
     flag_votes_nb = [
         scenario for scenario in evaluation_scenarios if scenario.vote == "0"
     ]
+
+    positive_votes_nb = [
+        scenario for scenario in evaluation_scenarios if scenario.vote == "1"
+    ]
+
+    results["positive_votes"]["number_of_votes"] = len(positive_votes_nb)
+    results["positive_votes"]["percentage"] = (
+        round(len(positive_votes_nb) / len(evaluation_scenarios) * 100, 2)
+        if len(evaluation_scenarios)
+        else 0
+    )
+
     results["flag_votes"]["number_of_votes"] = len(flag_votes_nb)
     results["flag_votes"]["percentage"] = (
         round(len(flag_votes_nb) / len(evaluation_scenarios) * 100, 2)

@@ -1,12 +1,12 @@
 """Converts db models to pydantic models
 """
-import os
+
 import json
 import logging
 from typing import List
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
-
 from agenta_backend.models.api.observability_models import (
     Span,
     Trace,
@@ -23,8 +23,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioOutput,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -43,6 +42,7 @@ if FEATURE_FLAG in ["cloud", "ee"]:
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
+        AppVariantOutputExtended_ as AppVariantOutputExtended,
     )
 else:
     from agenta_backend.models.db_models import (
@@ -63,6 +63,7 @@ else:
         AppVariant,
         ImageExtended,
         AppVariantResponse,
+        AppVariantOutputExtended,
     )
 
 from agenta_backend.models.db_models import (
@@ -70,6 +71,7 @@ from agenta_backend.models.db_models import (
     TraceDB,
     TemplateDB,
     AggregatedResult,
+    AppVariantRevisionsDB,
     Feedback as FeedbackDB,
     EvaluationScenarioResult,
 )
@@ -80,6 +82,7 @@ from agenta_backend.models.api.api_models import (
     TestSetOutput,
     TemplateImageInfo,
     EnvironmentOutput,
+    AppVariantRevision,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,7 +108,10 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant)
     )
     variant_name = variant.variant_name if variant else str(evaluation_db.variant)
-
+    variant_revision = await db_manager.get_app_variant_revision_by_id(
+        str(evaluation_db.variant_revision)
+    )
+    revision = str(variant_revision.revision)
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -113,6 +119,8 @@ async def evaluation_db_to_pydantic(
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
         variant_ids=[str(evaluation_db.variant)],
+        variant_revision_ids=[str(evaluation_db.variant_revision)],
+        revisions=[revision],
         variant_names=[variant_name],
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
@@ -132,6 +140,13 @@ async def human_evaluation_db_to_pydantic(
         variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
         variant_name = variant.variant_name if variant else str(variant_id)
         variant_names.append(str(variant_name))
+    revisions = []
+    for variant_revision_id in evaluation_db.variants_revisions:
+        variant_revision = await db_manager.get_app_variant_revision_by_id(
+            str(variant_revision_id)
+        )
+        revision = variant_revision.revision
+        revisions.append(str(revision))
 
     return HumanEvaluation(
         id=str(evaluation_db.id),
@@ -142,6 +157,11 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
+        variants_revision_ids=[
+            str(variant_revision)
+            for variant_revision in evaluation_db.variants_revisions
+        ],
+        revisions=revisions,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
@@ -231,7 +251,7 @@ def app_variant_db_to_pydantic(
         config_name=app_variant_db.config_name,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         app_variant.organization_id = str(app_variant_db.organization.id)
         app_variant.workspace_id = str(app_variant_db.workspace.id)
 
@@ -259,15 +279,60 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         base_name=app_variant_db.base_name,
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
-        config_id=str(app_variant_db.config.id),
         uri=uri,
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         variant_response.organization_id = str(app_variant_db.organization.id)
         variant_response.workspace_id = str(app_variant_db.workspace.id)
 
     return variant_response
+
+
+async def app_variant_db_and_revision_to_extended_output(
+    app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
+) -> AppVariantResponse:
+    if app_variant_db.base.deployment:
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        uri = deployment.uri
+    else:
+        deployment = None
+        uri = None
+
+    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+    app_variant_revisions = []
+    for app_variant_revision_db in app_variant_revisions_db:
+        app_variant_revisions.append(
+            AppVariantRevision(
+                revision=app_variant_revision_db.revision,
+                modified_by=app_variant_revision_db.modified_by.username,
+                config=app_variant_revision_db.config,
+                created_at=app_variant_revision_db.created_at,
+            )
+        )
+    variant_extended = AppVariantOutputExtended(
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
+        variant_name=app_variant_db.variant_name,
+        variant_id=str(app_variant_db.id),
+        user_id=str(app_variant_db.user.id),
+        parameters=app_variant_db.config.parameters,
+        previous_variant_name=app_variant_db.previous_variant_name,
+        base_name=app_variant_db.base_name,
+        base_id=str(app_variant_db.base.id),
+        config_name=app_variant_db.config_name,
+        uri=uri,
+        revision=app_variant_db.revision,
+        revisions=app_variant_revisions,
+    )
+
+    if isCloudEE():
+        variant_extended.organization_id = str(app_variant_db.organization.id)
+        variant_extended.workspace_id = str(app_variant_db.workspace.id)
+
+    return variant_extended
 
 
 async def environment_db_to_output(
@@ -279,16 +344,24 @@ async def environment_db_to_output(
         else None
     )
     if deployed_app_variant_id:
-        deployed_variant_name = (
-            await db_manager.get_app_variant_instance_by_id(deployed_app_variant_id)
-        ).variant_name
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+        revision = deployed_app_variant.revision
     else:
         deployed_variant_name = None
+        revision = None
+
     return EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
+        deployed_app_variant_revision_id=str(
+            environment_db.deployed_app_variant_revision
+        ),
+        revision=str(revision),
     )
 
 
@@ -307,7 +380,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
         id=str(image_db.id),
     )
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         image.organization_id = str(image_db.organization.id)
         image.workspace_id = str(image_db.workspace.id)
 

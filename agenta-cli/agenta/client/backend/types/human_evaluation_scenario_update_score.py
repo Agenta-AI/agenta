@@ -2,4 +2,4 @@
 
 import typing
 
-EvaluationScenarioScore = typing.Union[int, str]
+HumanEvaluationScenarioUpdateScore = typing.Union[str, int]

@@ -1,10 +1,9 @@
-import os
 import logging
 
 from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
@@ -15,8 +14,7 @@ from agenta_backend.services import (
     app_manager,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -32,11 +30,12 @@ async def save_config(
     request: Request,
 ):
     try:
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        base_db = await db_manager.fetch_base_by_id(payload.base_id)
+
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.base_id,
-                object_type="base",
+                object=base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -47,7 +46,6 @@ async def save_config(
                     status_code=403,
                 )
 
-        base_db = await db_manager.fetch_base_by_id(payload.base_id)
         variants_db = await db_manager.list_variants_for_base(base_db)
         variant_to_overwrite = None
         for variant_db in variants_db:
@@ -60,6 +58,7 @@ async def save_config(
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
+                    user_uid=request.state.user_id,
                 )
             else:
                 raise HTTPException(
@@ -92,12 +91,13 @@ async def get_config(
     environment_name: Optional[str] = None,
 ):
     try:
+        base_db = await db_manager.fetch_base_by_id(base_id)
+
         # detemine whether the user has access to the base
-        if FEATURE_FLAG in ["cloud", "ee"]:
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=base_id,
-                object_type="base",
+                object=base_db,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -108,30 +108,29 @@ async def get_config(
                     status_code=403,
                 )
 
-        base_db = await db_manager.fetch_base_by_id(base_id)
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
                 app_id=str(base_db.app.id)
             )
             found_variant = None
-            for app_environments in app_environments:
-                if app_environments.name == environment_name:
-                    found_variant = await db_manager.get_app_variant_instance_by_id(
-                        str(app_environments.deployed_app_variant)
+            for app_environment in app_environments:
+                if app_environment.name == environment_name:
+                    found_variant_revision = (
+                        app_environment.deployed_app_variant_revision
                     )
                     break
-            if not found_variant:
+            if not found_variant_revision:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment name {environment_name} not found for base {base_id}",
                 )
-            if str(found_variant.base.id) != base_id:
+            if str(found_variant_revision.base.id) != base_id:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment {environment_name} does not deploy base {base_id}",
                 )
-            config = found_variant.config
+            config = found_variant_revision.config
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = None
@@ -145,11 +144,15 @@ async def get_config(
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
             config = found_variant.config
-        print(config.parameters)
+        logger.debug(config.parameters)
         return GetConfigReponse(
-            config_id=str(config.id),
+            config_id=str(
+                0
+            ),  # TODO: Remove from the model and regenerate the SDK client
             config_name=config.config_name,
-            current_version=config.current_version,
+            current_version=str(
+                0
+            ),  # TODO: remove from teh model and regenerate the SDK client
             parameters=config.parameters,
         )
     except HTTPException as e:

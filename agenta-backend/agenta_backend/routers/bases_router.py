@@ -1,4 +1,3 @@
-import os
 import logging
 
 from typing import List, Optional
@@ -7,11 +6,10 @@ from fastapi import Request, HTTPException
 
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import BaseOutput
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
@@ -42,7 +40,7 @@ async def list_bases(
         HTTPException: If there was an error retrieving the bases.
     """
     try:
-        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"] and app_id is not None:
+        if isCloudEE() and app_id is not None:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=app_id,

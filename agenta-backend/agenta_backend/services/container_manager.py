@@ -20,10 +20,9 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import docker_utils
+from agenta_backend.utils.common import isCloud
 
 client = docker.from_env()
-
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -101,7 +100,7 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
-        if os.environ["FEATURE_FLAG"] in ["cloud"]:
+        if isCloud():
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"

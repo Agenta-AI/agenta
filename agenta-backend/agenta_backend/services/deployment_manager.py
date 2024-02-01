@@ -3,6 +3,7 @@ import os
 from typing import Dict
 
 from agenta_backend.config import settings
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.api_models import Image
 from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
 from agenta_backend.services import db_manager, docker_utils
@@ -10,8 +11,6 @@ from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
 
 
 async def start_service(
@@ -28,7 +27,7 @@ async def start_service(
         True if successful, False otherwise.
     """
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    if isCloudEE():
         uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
         container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
     else:
@@ -62,10 +61,8 @@ async def start_service(
         container_id=container_id,
         uri=uri,
         status="running",
-        organization=app_variant_db.organization
-        if FEATURE_FLAG in ["cloud", "ee"]
-        else None,
-        workspace=app_variant_db.workspace if FEATURE_FLAG in ["cloud", "ee"] else None,
+        organization=app_variant_db.organization if isCloudEE() else None,
+        workspace=app_variant_db.workspace if isCloudEE() else None,
     )
     return deployment
 
@@ -81,7 +78,7 @@ async def remove_image(image: Image):
         None
     """
     try:
-        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"] and image.deletable:
+        if not isCloudEE() and image.deletable:
             docker_utils.delete_image(image.docker_id)
         logger.info(f"Image {image.docker_id} deleted")
     except RuntimeError as e:
@@ -145,3 +142,7 @@ async def validate_image(image: Image) -> bool:
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
     return True
+
+
+def get_deployment_uri(deployment: DeploymentDB) -> str:
+    return deployment.uri.replace("http://localhost", "http://host.docker.internal")

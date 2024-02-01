@@ -1,5 +1,4 @@
 import io
-import os
 import csv
 import json
 import logging
@@ -11,8 +10,8 @@ from typing import Optional, List
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter
 from agenta_backend.services.db_manager import get_user
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, UploadFile, File, Form, Request
 from agenta_backend.models.converters import testset_db_to_pydantic
 
@@ -24,17 +23,15 @@ from agenta_backend.models.api.testset_model import (
     TestSetOutputResponse,
 )
 
-FEATURE_FLAG = os.environ["FEATURE_FLAG"]
-if FEATURE_FLAG in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
         Permission,
-    )  # noqa pylint: disable-all
-    from agenta_backend.commons.models.db_models import (
         TestSetDB_ as TestSetDB,
     )  # noqa pylint: disable-all
+
 else:
     from agenta_backend.models.db_models import TestSetDB
 
@@ -67,11 +64,11 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
+            object=app,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to upload Testset: {has_permission}")
@@ -83,16 +80,17 @@ async def upload_file(
                 status_code=403,
             )
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
         "created_at": datetime.now().isoformat(),
         "name": testset_name if testset_name else file.filename,
         "app": app,
-        "organization": app.organization,
-        "workspace": app.workspace,
         "csvdata": [],
     }
+
+    if isCloudEE():
+        document["organization"] = app.organization
+        document["workspace"] = app.workspace
 
     if upload_type == "JSON":
         # Read and parse the JSON file
@@ -151,11 +149,11 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
+            object=app,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to import Testset: {has_permission}")
@@ -166,8 +164,6 @@ async def import_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
-
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
         response = requests.get(endpoint, timeout=10)
@@ -182,10 +178,12 @@ async def import_testset(
             "created_at": datetime.now().isoformat(),
             "name": testset_name,
             "app": app,
-            "organization": app.organization,
-            "workspace": app.workspace,
             "csvdata": [],
         }
+
+        if isCloudEE():
+            document["organization"] = app.organization
+            document["workspace"] = app.workspace
 
         # Populate the document with column names and values
         json_response = response.json()
@@ -238,11 +236,11 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
+            object=app,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to create Testset: {has_permission}")
@@ -255,16 +253,17 @@ async def create_testset(
             )
 
     user = await get_user(request.state.user_id)
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
         "app": app,
-        "organization": app.organization,
-        "workspace": app.workspace,
         "csvdata": csvdata.csvdata,
         "user": user,
     }
+
+    if isCloudEE():
+        testset["organization"] = app.organization
+        testset["workspace"] = app.workspace
 
     try:
         testset_instance = TestSetDB(**testset)
@@ -297,11 +296,11 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=testset_id,
-            object_type="testset",
+            object=test_set,
             permission=Permission.EDIT_TESTSET,
         )
         logger.debug(f"User has Permission to update Testset: {has_permission}")
@@ -319,7 +318,6 @@ async def update_testset(
         "updated_at": datetime.now().isoformat(),
     }
 
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
 
@@ -352,11 +350,11 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=app_id,
-            object_type="app",
+            object=app,
             permission=Permission.VIEW_TESTSET,
         )
         logger.debug(f"User has Permission to view Testsets: {has_permission}")
@@ -367,8 +365,6 @@ async def get_testsets(
                 {"detail": error_msg},
                 status_code=403,
             )
-
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     if app is None:
         raise HTTPException(status_code=404, detail="App not found")
@@ -398,11 +394,11 @@ async def get_single_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=testset_id,
-            object_type="testset",
+            object=test_set,
             permission=Permission.VIEW_TESTSET,
         )
         logger.debug(f"User has Permission to view Testset: {has_permission}")
@@ -414,7 +410,6 @@ async def get_single_testset(
                 status_code=403,
             )
 
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
 
@@ -435,28 +430,27 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    if FEATURE_FLAG in ["cloud", "ee"]:
-        for testset_id in delete_testsets.testset_ids:
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                object_id=testset_id,
-                object_type="testset",
-                permission=Permission.DELETE_TESTSET,
-            )
-            logger.debug(f"User has Permission to delete Testset: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
     deleted_ids = []
     for testset_id in delete_testsets.testset_ids:
         test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")
+
+        if isCloudEE():
+            for testset_id in delete_testsets.testset_ids:
+                has_permission = await check_action_access(
+                    user_uid=request.state.user_id,
+                    object=test_set,
+                    permission=Permission.DELETE_TESTSET,
+                )
+                logger.debug(f"User has Permission to delete Testset: {has_permission}")
+                if not has_permission:
+                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                    logger.error(error_msg)
+                    return JSONResponse(
+                        {"detail": error_msg},
+                        status_code=403,
+                    )
 
         await test_set.delete()
         deleted_ids.append(testset_id)

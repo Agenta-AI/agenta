@@ -2,13 +2,14 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {ChatMessage, Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
 import {
     LeftOutlined,
+    LoadingOutlined,
     PlayCircleOutlined,
     PushpinFilled,
     PushpinOutlined,
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Button, Empty, Form, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
@@ -26,6 +27,7 @@ import {useVariants} from "@/lib/hooks/useVariant"
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
     "#F6D167", //"#13c2c2",
+    "#4caf50",
 ]
 
 const useStyles = createUseStyles({
@@ -122,6 +124,11 @@ const useStyles = createUseStyles({
         minWidth: 240,
         maxWidth: 500,
     },
+    centeredItem: {
+        display: "grid",
+        placeItems: "center",
+        width: "100%",
+    },
 })
 
 interface Props {
@@ -133,6 +140,7 @@ interface Props {
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
     variantData: ReturnType<typeof useVariants>
+    isLoading: boolean
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -144,6 +152,7 @@ const EvaluationCardView: React.FC<Props> = ({
     updateEvaluationScenarioData,
     evaluation,
     variantData,
+    isLoading,
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -161,6 +170,8 @@ const EvaluationCardView: React.FC<Props> = ({
         )
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
+
+    // console.log(evaluationScenarios, isLoading)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
@@ -211,10 +222,6 @@ const EvaluationCardView: React.FC<Props> = ({
                             <code>b</code> for 2nd Variant and <code>x</code> if both are bad.
                         </li>
                     )}
-                    <li>
-                        Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
-                        <PushpinOutlined style={{color: token.colorError}} /> button on the right.
-                    </li>
                     <li>
                         Add a note to an evaluation from the <b>Additional Notes</b> input section{" "}
                         in the right sidebar.
@@ -315,7 +322,9 @@ const EvaluationCardView: React.FC<Props> = ({
 
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
-            {scenario ? (
+            {isLoading ? (
+                <Result className={classes.centeredItem} icon={<LoadingOutlined />} />
+            ) : scenario ? (
                 <>
                     <div className={classes.evaluation}>
                         <div className={classes.heading}>
@@ -372,35 +381,12 @@ const EvaluationCardView: React.FC<Props> = ({
                             <Tooltip title="Instructions">
                                 <QuestionCircleOutlined
                                     onClick={showInstructions}
-                                    style={{color: token.colorPrimary}}
+                                    style={{fontSize: 24}}
                                 />
                             </Tooltip>
-                            {scenario.isPinned ? (
-                                <Tooltip title="Unpin">
-                                    <PushpinFilled
-                                        style={{color: token.colorErrorActive}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: false,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            ) : (
-                                <Tooltip title="Pin">
-                                    <PushpinOutlined
-                                        style={{color: token.colorError}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: true,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            )}
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
-                                    style={{color: token.colorSuccessActive}}
+                                    style={{color: token.colorSuccessActive, fontSize: 24}}
                                     onClick={form.submit}
                                 />
                             </Tooltip>
@@ -418,6 +404,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                 variants={variants}
                                 evaluationScenario={scenario}
                                 showVariantName={isAbTesting}
+                                evaluation={evaluation}
                             />
                         </div>
                     </div>
@@ -441,6 +428,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.vote === "loading"}
                                             vertical
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     ) : (
                                         <EvaluationVotePanel
@@ -456,6 +444,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                             loading={scenario.score === "loading"}
                                             showVariantName={false}
                                             key={scenarioId}
+                                            outputs={scenario.outputs}
                                         />
                                     )}
                                 </Space>
@@ -489,7 +478,7 @@ const EvaluationCardView: React.FC<Props> = ({
                     </div>
                 </>
             ) : (
-                <Empty description="Evaluation not found" />
+                <Empty description="Evaluation not found" className={classes.centeredItem} />
             )}
         </div>
     )

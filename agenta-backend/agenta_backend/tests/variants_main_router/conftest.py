@@ -74,11 +74,8 @@ async def get_first_user_app(get_first_user_object):
         config_name="default",
         parameters={},
     )
-    await db_config.create()
 
-    db_base = VariantBaseDB(
-        base_name="app", image=db_image, user=user, app=app
-    )
+    db_base = VariantBaseDB(base_name="app", image=db_image, user=user, app=app)
     await db_base.create()
 
     appvariant = AppVariantDB(
@@ -90,6 +87,8 @@ async def get_first_user_app(get_first_user_object):
         base_name="app",
         config_name="default",
         base=db_base,
+        revision=0,
+        modified_by=user,
         config=db_config,
     )
     await appvariant.create()
@@ -211,7 +210,10 @@ def use_open_ai_key():
 
 @pytest.fixture(scope="session")
 def fetch_single_prompt_template(fetch_templates):
-    return fetch_templates[1]
+    return next(
+        (temp for temp in fetch_templates if temp["image"]["name"] == "chat_openai"),
+        None,
+    )
 
 
 @pytest.fixture()
@@ -219,7 +221,6 @@ def app_from_template():
     return {
         "app_name": "string",
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "organization_id": "string",
         "template_id": "string",
     }
 
@@ -299,8 +300,6 @@ def auto_ai_critique_evaluator_config():
         "settings_values": {
             "open_ai_key": OPEN_AI_KEY,
             "temperature": 0.9,
-            "evaluation_prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
-            "llm_app_prompt_template": "",
-            "llm_app_inputs": [{"input_name": "country", "input_value": "tunisia"}],
+            "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
         },
     }
