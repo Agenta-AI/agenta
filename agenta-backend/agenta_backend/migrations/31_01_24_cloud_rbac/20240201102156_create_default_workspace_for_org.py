@@ -237,14 +237,15 @@ class UserDB(Document):
         name = "users"
 
 
-
 class Forward:
 
     @free_fall_migration(document_models=[OrganizationDB, WorkspaceDB, UserDB])
     async def create_default_workspaces(self, session):
         async for organization in OrganizationDB.find_all():
-            
-            owner = await UserDB.find_one(UserDB.id == PydanticObjectId(organization.owner))
+
+            owner = await UserDB.find_one(
+                UserDB.id == PydanticObjectId(organization.owner)
+            )
             workspace = WorkspaceDB(
                 name=owner.username,
                 type="default",
@@ -266,7 +267,6 @@ class Forward:
             organization.workspaces = [workspace.id]
             await organization.update({"$set": organization.dict(exclude_unset=True)})
 
-
     @free_fall_migration(document_models=[OrganizationDB, WorkspaceDB, UserDB])
     async def move_existing_members_to_default_workspace(self, session):
         async for organization in OrganizationDB.find_all():
@@ -282,7 +282,9 @@ class Forward:
                     roles=[
                         WorkspacePermissionDB(
                             role_name=WorkspaceRole.EDITOR,
-                            permissions=Permission.default_permissions(WorkspaceRole.EDITOR),
+                            permissions=Permission.default_permissions(
+                                WorkspaceRole.EDITOR
+                            ),
                         )
                     ],
                 )
@@ -290,7 +292,7 @@ class Forward:
                 default_workspace.members.append(workspace_member)
 
             await default_workspace.save()
-    
+
     @free_fall_migration(document_models=[OrganizationDB])
     async def update_organization_invitations(self, session):
         async for organization in OrganizationDB.find_all():
@@ -299,6 +301,7 @@ class Forward:
                 invitation.workspace_id = str(organization.workspaces[0])
                 invitation.workspace_roles = [WorkspaceRole.EDITOR]
                 await invitation.save()
+
 
 class Backward:
     pass

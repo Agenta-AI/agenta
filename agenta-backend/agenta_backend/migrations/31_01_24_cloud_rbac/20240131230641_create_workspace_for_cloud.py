@@ -126,6 +126,7 @@ class WorkspaceMemberDB(BaseModel):
     user_id: PydanticObjectId
     roles: List[WorkspacePermissionDB]
 
+
 class InvitationDB(BaseModel):
     token: str = Field(unique=True)
     email: str
@@ -222,12 +223,12 @@ class WorkspaceDB(Document):
         name = "workspaces"
 
 
-
 class Forward:
 
     @free_fall_migration(document_models=[WorkspaceDB])
     async def create_workspace_db(self, session):
         pass
+
 
 class Backward:
     pass

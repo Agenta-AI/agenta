@@ -328,85 +328,73 @@ class Forward:
         async for user in UserDB.find_all():
             user.workspaces = []
             await user.save()
-    
-    
+
     @free_fall_migration(document_models=[ImageDB])
     async def add_workspace_field_to_image_db(self, session):
         async for image in ImageDB.find_all():
             image.workspace = None
             await image.save()
-    
-    
+
     @free_fall_migration(document_models=[AppDB])
     async def add_workspace_field_to_app_db(self, session):
         async for app in AppDB.find_all():
             app.workspace = None
             await app.save()
-    
-    
+
     @free_fall_migration(document_models=[DeploymentDB])
     async def add_workspace_field_to_deployment_db(self, session):
         async for deployment in DeploymentDB.find_all():
             deployment.workspace = None
             await deployment.save()
-    
-    
+
     @free_fall_migration(document_models=[VariantBaseDB])
     async def add_workspace_field_to_variant_base_db(self, session):
         async for base in VariantBaseDB.find_all():
             base.workspace = None
             await base.save()
-    
-    
+
     @free_fall_migration(document_models=[AppVariantDB])
     async def add_workspace_field_to_app_variant_db(self, session):
         async for variant in AppVariantDB.find_all():
             variant.workspace = None
             await variant.save()
-    
-    
+
     @free_fall_migration(document_models=[AppEnvironmentDB])
     async def add_workspace_field_to_app_environment_db(self, session):
         async for environment in AppEnvironmentDB.find_all():
             environment.workspace = None
             await environment.save()
-    
-    
+
     @free_fall_migration(document_models=[TestSetDB])
     async def add_workspace_field_to_testset_db(self, session):
         async for testset in TestSetDB.find_all():
             testset.workspace = None
             await testset.save()
-    
-    
+
     @free_fall_migration(document_models=[EvaluatorConfigDB])
     async def add_workspace_field_to_evaluator_config_db(self, session):
         async for evaluator_config in EvaluatorConfigDB.find_all():
             evaluator_config.workspace = None
             await evaluator_config.save()
-    
-    
+
     @free_fall_migration(document_models=[HumanEvaluationDB])
     async def add_workspace_field_to_human_evaluation_db(self, session):
         async for human_evaluation in HumanEvaluationDB.find_all():
             human_evaluation.workspace = None
             await human_evaluation.save()
-    
-    
+
     @free_fall_migration(document_models=[HumanEvaluationScenarioDB])
     async def add_workspace_field_to_human_evaluation_scenario_db(self, session):
         async for human_evaluation_scenario in HumanEvaluationScenarioDB.find_all():
             human_evaluation_scenario.workspace = None
             await human_evaluation_scenario.save()
-    
-    
+
     @free_fall_migration(document_models=[EvaluationDB])
     async def add_workspace_field_to_evaluation_db(self, session):
         async for evaluation in EvaluationDB.find_all():
             evaluation.workspace = None
             await evaluation.save()
-    
-    
+
     @free_fall_migration(document_models=[EvaluationScenarioDB])
     async def add_workspace_field_to_evaluation_scenario_db(self, session):
         async for evaluation_scenario in EvaluationScenarioDB.find_all():
