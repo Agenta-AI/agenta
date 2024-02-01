@@ -8,13 +8,7 @@ import {
     fetchDeploymentRevisionConfig,
     revertDeploymentRevision,
 } from "@/lib/services/api"
-import {
-    IPromptRevisions,
-    DeploymentRevisions,
-    DeploymentRevisionConfig,
-    IEnvironmentRevision,
-    Environment,
-} from "@/lib/Types"
+import {DeploymentRevisions, DeploymentRevisionConfig, Environment} from "@/lib/Types"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -97,9 +91,8 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
     const [activeItem, setActiveItem] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
     const [isReverting, setIsReverted] = useState(false)
-    const [filtered, setFiltered] = useState<IEnvironmentRevision[]>()
     const [showDeployment, setShowDeployment] = useState<DeploymentRevisionConfig>()
-    const [deploymentRevisionId, setDeploymentRevisionId] = useState<string>("")
+    const [deploymentRevisionId, setDeploymentRevisionId] = useState("")
     const [deploymentRevisions, setDeploymentRevisions] = useState<DeploymentRevisions>()
 
     useEffect(() => {
@@ -111,9 +104,6 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                     selectedEnvironment?.name,
                 )
                 setDeploymentRevisions(data)
-                setFiltered(
-                    data?.revisions.filter((item: IEnvironmentRevision) => item.revision >= 1),
-                )
             } catch (error) {
                 setIsLoading(false)
             } finally {
@@ -125,36 +115,54 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
     }, [selectedEnvironment.app_id, selectedEnvironment.name])
 
     useEffect(() => {
-        if (filtered && filtered.length) {
-            setShowDeployment(filtered[0])
+        const fetch = async () => {
+            try {
+                if (deploymentRevisions && deploymentRevisions.revisions.length) {
+                    setActiveItem(0)
+                    const revisionConfig = await fetchDeploymentRevisionConfig(
+                        deploymentRevisions.revisions[0].id,
+                    )
+                    setShowDeployment(revisionConfig)
+                }
+            } catch (error) {
+                console.log(error)
+            }
         }
-    }, [filtered])
 
-    const handleShowDeployments = async (id: number, index: number) => {
-        setActiveItem(index)
+        fetch()
+    }, [deploymentRevisions])
+
+    const handleShowDeployments = async (revision: number, index: number) => {
         const findRevision = deploymentRevisions?.revisions.find(
-            (deploymentRevision) => deploymentRevision.revision === id,
+            (deploymentRevision) => deploymentRevision.revision === revision,
         )
+
+        if (!findRevision) return
+
+        setActiveItem(index)
         setDeploymentRevisionId(findRevision.id)
 
-        const revisionConfig = await fetchDeploymentRevisionConfig(findRevision.id)
-        setShowDeployment(revisionConfig)
+        try {
+            const revisionConfig = await fetchDeploymentRevisionConfig(findRevision.id)
+            setShowDeployment(revisionConfig)
+        } catch (error) {
+            console.log(error)
+        }
     }
 
     const handleRevert = async (deploymentRevisionId: string) => {
         setIsReverted(true)
         try {
             const response = await revertDeploymentRevision(deploymentRevisionId)
-            if (response.status && response.status == 200) {
-                notification.success({
-                    message: "Environment Revision",
-                    description: response?.data,
-                    duration: 3,
-                })
-                setIsReverted(false)
-            }
+            notification.success({
+                message: "Environment Revision",
+                description: response?.data,
+                duration: 3,
+            })
+            setIsReverted(false)
         } catch (err) {
             setIsReverted(false)
+            console.log(err)
         }
     }
 
@@ -162,10 +170,10 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
         <>
             {isLoading ? (
                 <Result icon={<LoadingOutlined />} subTitle="Loading..." />
-            ) : !!filtered?.length ? (
+            ) : !!deploymentRevisions?.revisions?.length ? (
                 <div className={classes.container}>
                     <div className={classes.historyItemsContainer}>
-                        {filtered?.map((item, index) => (
+                        {deploymentRevisions?.revisions?.map((item, index) => (
                             <div
                                 key={item.revision}
                                 style={{
@@ -175,8 +183,8 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                                 ? "#1668dc"
                                                 : "#b3e5fc"
                                             : appTheme === "dark"
-                                            ? "#1f1f1f"
-                                            : "#fff",
+                                              ? "#1f1f1f"
+                                              : "#fff",
                                     border:
                                         activeItem === index
                                             ? "1px solid #2196f3"
@@ -220,8 +228,6 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                 Revert
                             </Button>
                         </div>
-
-                        <div>{dayjs(showDeployment?.created_at).format("DD-MM-YYYY mm:ss")}</div>
 
                         <Card title="Prompt System" className={classes.promptHistoryCard}>
                             <div>{showDeployment?.parameters?.prompt_system}</div>

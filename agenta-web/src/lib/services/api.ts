@@ -697,16 +697,14 @@ export const fetchDeploymentRevisionConfig = async (
 export const fetchDeploymentRevisions = async (
     appId: string,
     environmentName: string,
-): Promise<DeploymentRevisions[]> => {
-    const response = await fetch(
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
         `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
     )
-
-    if (response.status != 200) {
-        throw new Error("Failed to fetch deployment revisions")
-    }
-
-    const data: DeploymentRevisions[] = await response.json()
     return data
 }
 
