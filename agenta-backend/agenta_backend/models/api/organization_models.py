@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class TimestampModel(BaseModel):
-    created_at: datetime = Field(datetime.utcnow())
-    updated_at: datetime = Field(datetime.utcnow())
+    created_at: datetime = Field(datetime.now())
+    updated_at: datetime = Field(datetime.now())
 
 
 class Organization(BaseModel):
