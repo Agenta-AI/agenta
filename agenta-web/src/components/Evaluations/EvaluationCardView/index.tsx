@@ -178,7 +178,10 @@ const EvaluationCardView: React.FC<Props> = ({
     useEffect(() => {
         setEvaluationsState((prevEvaluationsState) => ({
             ...prevEvaluationsState,
-            [evaluation.id]: {lastVisitedScenario: scenarioId},
+            [evaluation.id]: {
+                ...(prevEvaluationsState[evaluation.id] || {}),
+                lastVisitedScenario: scenarioId,
+            },
         }))
     }, [scenarioId])
 
