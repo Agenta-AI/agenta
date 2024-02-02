@@ -1721,8 +1721,6 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
     )
     await evaluation_scenario.create()
     return evaluation_scenario
