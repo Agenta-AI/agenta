@@ -576,10 +576,21 @@ async def list_bases_for_app_id(
     app_id: str, base_name: Optional[str] = None, **kwargs: dict
 ) -> List[VariantBaseDB]:
     assert app_id is not None, "app_id cannot be None"
-    query_expressions = VariantBaseDB.app.id == ObjectId(app_id)
     if base_name:
-        query_expressions += query_expressions(VariantBaseDB.base_name == base_name)
-    bases_db = await VariantBaseDB.find(query_expressions).sort("base_name").to_list()
+        bases_db = (
+            await VariantBaseDB.find(
+                VariantBaseDB.app.id == ObjectId(app_id),
+                VariantBaseDB.base_name == base_name,
+            )
+            .sort("base_name")
+            .to_list()
+        )
+    else:
+        bases_db = (
+            await VariantBaseDB.find(VariantBaseDB.app.id == ObjectId(app_id))
+            .sort("base_name")
+            .to_list()
+        )
     return bases_db
 
 
@@ -1710,8 +1721,8 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
     )
     await evaluation_scenario.create()
     return evaluation_scenario
@@ -1726,7 +1737,7 @@ async def update_evaluation_with_aggregated_results(
         raise ValueError("Evaluation not found")
 
     evaluation.aggregated_results = aggregated_results
-    evaluation.updated_at = datetime.utcnow().isoformat()
+    evaluation.updated_at = datetime.now().isoformat()
 
     await evaluation.save()
     return evaluation
