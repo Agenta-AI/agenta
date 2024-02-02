@@ -76,14 +76,19 @@ class AgentaSingleton:
             else:
                 try:
                     apps = client.list_apps(app_name=app_name)
-                    app_id = apps[0].app_id
+                    if len(apps) == 0:
+                        raise APIRequestError(f"App with name {app_name} not found")
 
+                    app_id = apps[0].app_id
                     if not app_id:
                         raise APIRequestError(
                             f"App with name {app_name} does not exist on the server."
                         )
 
                     bases = client.list_bases(app_id=app_id, base_name=base_name)
+                    if len(bases) == 0:
+                        raise APIRequestError(f"No base was found for the app {app_id}")
+
                     base_id = bases[0].base_id
                 except Exception as ex:
                     raise APIRequestError(
