@@ -339,10 +339,8 @@ async def environment_db_and_revision_to_extended_output(
             deployed_app_variant_id
         )
         deployed_variant_name = deployed_app_variant.variant_name
-        revision = deployed_app_variant.revision
     else:
         deployed_variant_name = None
-        revision = None
 
     app_environment_revisions = []
     for app_environment_revision in app_environment_revisions_db:
@@ -366,7 +364,7 @@ async def environment_db_and_revision_to_extended_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision.id
         ),
-        revision=revision,
+        revision=environment_db.revision,
         revisions=app_environment_revisions,
     )
 
