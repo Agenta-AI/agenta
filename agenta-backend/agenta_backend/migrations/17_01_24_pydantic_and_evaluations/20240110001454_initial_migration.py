@@ -13,8 +13,8 @@ class OrganizationDB(Document):
     type: Optional[str]
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "organizations"
@@ -25,8 +25,8 @@ class UserDB(Document):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "users"
@@ -42,8 +42,8 @@ class ImageDB(Document):
     deletable: bool = Field(default=True)
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "docker_images"
@@ -53,8 +53,8 @@ class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "app_db"
@@ -67,8 +67,8 @@ class VariantBaseDB(Document):
     base_name: str
     image: Link[ImageDB]
     deployment: Optional[PydanticObjectId]  # Link to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "bases"
@@ -77,8 +77,8 @@ class VariantBaseDB(Document):
 class ConfigVersionDB(BaseModel):
     version: int
     parameters: Dict[str, Any]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
 
 class ConfigDB(Document):
@@ -86,8 +86,8 @@ class ConfigDB(Document):
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
     version_history: List[ConfigVersionDB] = Field(default=[])
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "configs"
@@ -105,8 +105,8 @@ class AppVariantDB(Document):
     base: Link[VariantBaseDB]
     config_name: Optional[str]
     config: Link[ConfigDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
@@ -128,8 +128,8 @@ class OldAppVariantDB(Document):
     bases: Link[VariantBaseDB]
     config_name: Optional[str]
     configs: Link[ConfigDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
@@ -145,8 +145,8 @@ class TestSetDB(Document):
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "testsets"
@@ -171,8 +171,8 @@ class OldEvaluationDB(Document):
     evaluation_type_settings: Optional[OldEvaluationTypeSettings]
     variants: Optional[List[PydanticObjectId]]
     testsets: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "evaluations"
@@ -187,8 +187,8 @@ class EvaluationDB(Document):
     evaluation_type_settings: Optional[OldEvaluationTypeSettings]
     variants: Optional[List[PydanticObjectId]]
     testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "evaluations"
@@ -213,8 +213,8 @@ class OldEvaluationScenarioDB(Document):
     vote: Optional[str]
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
     is_pinned: Optional[bool]
     note: Optional[str]
 
@@ -231,8 +231,8 @@ class EvaluationScenarioDB(Document):
     vote: Optional[str]
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
     is_pinned: Optional[bool]
     note: Optional[str]
 
