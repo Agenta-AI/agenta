@@ -575,22 +575,21 @@ async def list_app_variants_for_app_id(
 async def list_bases_for_app_id(
     app_id: str, base_name: Optional[str] = None, **kwargs: dict
 ) -> List[VariantBaseDB]:
+    """List all the bases for the specified app_id
+
+    Args:
+        app_id (str): The ID of the app
+        base_name (str): The name of the base
+
+    Returns:
+        List[VariantBaseDB]: list of VariantBase objects
+    """
+
     assert app_id is not None, "app_id cannot be None"
+    base_query = VariantBaseDB.find(VariantBaseDB.app.id == ObjectId(app_id))
     if base_name:
-        bases_db = (
-            await VariantBaseDB.find(
-                VariantBaseDB.app.id == ObjectId(app_id),
-                VariantBaseDB.base_name == base_name,
-            )
-            .sort("base_name")
-            .to_list()
-        )
-    else:
-        bases_db = (
-            await VariantBaseDB.find(VariantBaseDB.app.id == ObjectId(app_id))
-            .sort("base_name")
-            .to_list()
-        )
+        base_query = base_query.find(VariantBaseDB.base_name == base_name)
+    bases_db = await base_query.sort("base_name").to_list()
     return bases_db
 
 
@@ -605,9 +604,10 @@ async def list_variants_for_base(
         List[AppVariant]: List of AppVariant objects
     """
     assert base is not None, "base cannot be None"
-    query_expressions = AppVariantDB.base.id == ObjectId(base.id)
     app_variants_db = (
-        await AppVariantDB.find(query_expressions, fetch_links=True)
+        await AppVariantDB.find(
+            AppVariantDB.base.id == ObjectId(base.id), fetch_links=True
+        )
         .sort("variant_name")
         .to_list()
     )
