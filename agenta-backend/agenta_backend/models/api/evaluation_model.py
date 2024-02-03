@@ -229,6 +229,13 @@ class LLMRunRateLimit(BaseModel):
 
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
+    replicate = "REPLICATE_API_KEY"
+    cohere = "COHERE_API_KEY"
+    hugging_face = "HUGGING_FACE_API_KEY"
+    anthropic = "ANTHROPIC_API_KEY"
+    azure_base = "AZURE_API_BASE"
+    azure_key = "AZURE_API_KEY"
+    togetherai = "TOGETHERAI_API_KEY"
 
 
 class NewEvaluation(BaseModel):

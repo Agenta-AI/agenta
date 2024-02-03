@@ -103,10 +103,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 8.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -121,10 +121,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 13.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -139,10 +139,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 18.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -160,8 +160,8 @@ def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -170,8 +170,8 @@ def app_variant_create_data():
     return {
         "variant_name": "v1",
         "parameters": {},
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -183,8 +183,8 @@ def trace_create_data():
         "status": "completed",
         "token_consumption": 638,
         "tags": ["string"],
-        "start_time": str(datetime.utcnow()),
-        "end_time": str(datetime.utcnow()),
+        "start_time": str(datetime.now()),
+        "end_time": str(datetime.now()),
     }
 
 

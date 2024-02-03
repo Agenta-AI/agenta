@@ -1670,8 +1670,8 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
     )
 
     if isCloudEE():
@@ -1696,7 +1696,7 @@ async def update_evaluation_with_aggregated_results(
         raise ValueError("Evaluation not found")
 
     evaluation.aggregated_results = aggregated_results
-    evaluation.updated_at = datetime.utcnow().isoformat()
+    evaluation.updated_at = datetime.now().isoformat()
 
     await evaluation.save()
     return evaluation
