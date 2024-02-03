@@ -580,8 +580,7 @@ class Forward:
     async def remove_organization_from_user_model(
         self, input_document: OldUserDB, output_document: NewUserDB
     ):
-        data = input_document.dict(exclude={"organizations"})
-        new_document = NewUserDB(**data)
+        input_document.dict(exclude={"organizations"})
 
     @iterative_migration(
         document_models=[
@@ -592,8 +591,7 @@ class Forward:
     async def remove_organization_from_app_model(
         self, input_document: OldAppDB, output_document: NewAppDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewAppDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -604,8 +602,7 @@ class Forward:
     async def remove_organization_from_image_model(
         self, input_document: OldImageDB, output_document: NewImageDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewImageDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -616,8 +613,7 @@ class Forward:
     async def remove_organization_from_testset_model(
         self, input_document: OldTestSetDB, output_document: NewTestSetDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewTestSetDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -628,8 +624,7 @@ class Forward:
     async def remove_organization_from_variant_base_model(
         self, input_document: OldVariantBaseDB, output_document: NewVariantBaseDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewVariantBaseDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -640,8 +635,7 @@ class Forward:
     async def remove_organization_from_app_variant_model(
         self, input_document: OldAppVariantDB, output_document: NewAppVariantDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewAppVariantDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -652,8 +646,7 @@ class Forward:
     async def remove_organization_from_evaluation_model(
         self, input_document: OldEvaluationDB, output_document: NewEvaluationDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewEvaluationDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -664,8 +657,7 @@ class Forward:
     async def remove_organization_from_deployment_model(
         self, input_document: OldDeploymentDB, output_document: NewDeploymentDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewDeploymentDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -676,8 +668,7 @@ class Forward:
     async def remove_organization_from_app_environment_model(
         self, input_document: OldAppEnvironmentDB, output_document: NewAppEnvironmentDB
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewAppEnvironmentDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -690,8 +681,7 @@ class Forward:
         input_document: OldEvaluatorConfigDB,
         output_document: NewEvaluatorConfigDB,
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewEvaluatorConfigDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -704,8 +694,7 @@ class Forward:
         input_document: OldHumanEvaluationDB,
         output_document: NewHumanEvaluationDB,
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewHumanEvaluationDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -718,8 +707,7 @@ class Forward:
         input_document: OldEvaluationScenarioDB,
         output_document: NewEvaluationScenarioDB,
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewEvaluationScenarioDB(**data)
+        input_document.dict(exclude={"organization"})
 
     @iterative_migration(
         document_models=[
@@ -732,8 +720,7 @@ class Forward:
         input_document: OldHumanEvaluationScenarioDB,
         output_document: NewHumanEvaluationScenarioDB,
     ):
-        data = input_document.dict(exclude={"organization"})
-        new_document = NewHumanEvaluationScenarioDB(**data)
+        input_document.dict(exclude={"organization"})
 
 
 class Backward:
