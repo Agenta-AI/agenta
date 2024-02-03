@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {
@@ -351,6 +351,8 @@ const App: React.FC<TestViewProps> = ({
     const filteredRevisions = promptRevisions?.revisions.filter((item) => item.revision !== 0)
 
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [isLLMProviderMissingModalOpen, setIsLLMProviderMissingModalOpen] = useState(false)
+
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
             cost: number | null
@@ -512,6 +514,9 @@ const App: React.FC<TestViewProps> = ({
                     `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
                     index,
                 )
+                if (e.response.status === 401) {
+                    setIsLLMProviderMissingModalOpen(true)
+                }
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
@@ -666,6 +671,19 @@ const App: React.FC<TestViewProps> = ({
                 isChatVariant={!!isChatVariant}
             />
 
+            <Modal
+                centered
+                title="Incorrect LLM key provided"
+                open={isLLMProviderMissingModalOpen}
+                onOk={() => router.push("/settings?tab=secrets")}
+                onCancel={() => setIsLLMProviderMissingModalOpen(false)}
+                okText={"View LLM Keys"}
+            >
+                <p>
+                    The API key for the LLM is either incorrect or missing. Please ensure that you
+                    have a valid API key for the model you are using.
+                </p>
+            </Modal>
             <PromptVersioningDrawer
                 setIsDrawerOpen={setIsDrawerOpen}
                 setRevisionNum={setRevisionNum}
