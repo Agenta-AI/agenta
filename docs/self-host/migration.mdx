@@ -13,6 +13,21 @@ docker compose -f docker-compose.gh.yml up -d --pull always
 
 This command instructs Docker to fetch and use the latest version of the Agenta image.
 
+### Migrating from Version 0.9 to 0.11
+
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/v0_10_0_to_v0_11_0/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
+
+### Migrating from Version 0.8 to 0.9
+
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/30_01_24_prompt_versioning/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
 
 ### Migrating from Version 0.8 to 0.9
 
