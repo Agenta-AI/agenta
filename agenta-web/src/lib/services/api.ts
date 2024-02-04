@@ -12,6 +12,8 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
+    DeploymentRevisions,
+    DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
@@ -675,6 +677,46 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
 
     const data: Environment[] = await response.json()
     return data
+}
+
+export const fetchDeploymentRevisionConfig = async (
+    deploymentRevisionId: string,
+): Promise<DeploymentRevisionConfig> => {
+    const response = await fetch(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`,
+    )
+
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch deployment revision configuration")
+    }
+
+    const data = (await response.json()) as DeploymentRevisionConfig
+    return data
+}
+
+export const fetchDeploymentRevisions = async (
+    appId: string,
+    environmentName: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return data
+}
+
+export const revertDeploymentRevision = async (
+    deploymentRevisionId: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert/`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
 }
 
 export const publishVariant = async (variantId: string, environmentName: string) => {

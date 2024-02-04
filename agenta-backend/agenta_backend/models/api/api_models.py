@@ -17,8 +17,8 @@ class Result(BaseModel):
     error: Optional[Error] = None
 
 
-class GetConfigReponse(BaseModel):
-    config_id: str
+class GetConfigResponse(BaseModel):
+    config_id: Optional[str]
     config_name: str
     current_version: int
     parameters: Dict[str, Any]
@@ -118,7 +118,20 @@ class EnvironmentOutput(BaseModel):
     deployed_app_variant_id: Optional[str]
     deployed_variant_name: Optional[str]
     deployed_app_variant_revision_id: Optional[str]
-    revision: Optional[str]
+    revision: Optional[int]
+
+
+class EnvironmentRevision(BaseModel):
+    id: str
+    revision: int
+    modified_by: str
+    deployed_app_variant_revision: Optional[str]
+    deployment: Optional[str]
+    created_at: datetime
+
+
+class EnvironmentOutputExtended(EnvironmentOutput):
+    revisions: List[EnvironmentRevision]
 
 
 class AddVariantFromPreviousPayload(BaseModel):

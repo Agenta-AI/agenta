@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from agenta_backend.models.db_models import (
     APIKeyDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     OrganizationDB,
     UserDB,
     ImageDB,
@@ -36,6 +37,7 @@ logger.setLevel(logging.INFO)
 document_models: List[Document] = [
     APIKeyDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     OrganizationDB,
     UserDB,
     ImageDB,
