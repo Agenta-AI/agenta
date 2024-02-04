@@ -1,3 +1,5 @@
+import {isDemo} from "@/lib/helpers/utils"
+
 export default function pythonCode(uri: string, appId: string): string {
     return `import requests
 
@@ -9,7 +11,9 @@ appId = '${appId}'
 with open(file_path, 'rb') as file:
     files = {'file': file}
     data = {'testset_name': testset_name, 'app_id': appId}
-    response = requests.post(url, files=files, data=data)
+    response = requests.post(url, files=files, data=data${
+        !isDemo() ? "" : ", headers={'Authorization': 'your_api_key'}"
+    })
 
 print(response.status_code)
 print(response.json())

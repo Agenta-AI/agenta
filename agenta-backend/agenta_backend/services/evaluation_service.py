@@ -182,8 +182,8 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
         evaluation_scenario_payload = {
             **{
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
             },
             **_extend_with_evaluation(evaluation_type),
             **_extend_with_correct_answer(evaluation_type, datum),
@@ -235,8 +235,8 @@ async def create_evaluation_scenario(
         is_pinned=False,
         note="",
         **_extend_with_evaluation(evaluation.evaluation_type),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
     )
 
     await new_eval_scenario.create()
@@ -356,7 +356,7 @@ async def update_human_evaluation_scenario(
     )
 
     updated_data = evaluation_scenario_data.dict()
-    updated_data["updated_at"] = datetime.utcnow()
+    updated_data["updated_at"] = datetime.now()
     new_eval_set = {}
 
     if updated_data["score"] is not None and evaluation_type in [
@@ -612,7 +612,7 @@ async def create_new_human_evaluation(
     """
     user = await get_user(user_uid=user_org_data["uid"])
 
-    current_time = datetime.utcnow()
+    current_time = datetime.now()
 
     # Fetch app
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
