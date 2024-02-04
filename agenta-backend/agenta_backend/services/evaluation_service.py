@@ -458,7 +458,7 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
 
 def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
-    if row["correct_answer"]:
+    if row.get("correct_answer") is not None:
         correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
