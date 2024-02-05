@@ -1,9 +1,16 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
-import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
-import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
+import {
+    ChatMessage,
+    ChatRole,
+    GenericObject,
+    IPromptVersioning,
+    Parameter,
+    Variant,
+} from "@/lib/Types"
+import {batchExecute, dynamicComponent, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -18,6 +25,21 @@ import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
+import duration from "dayjs/plugin/duration"
+import {useQueryParam} from "@/hooks/useQuery"
+
+const PromptVersioningDrawer: any = dynamicComponent(
+    `PromptVersioningDrawer/PromptVersioningDrawer`,
+)
+
+dayjs.extend(relativeTime)
+dayjs.extend(duration)
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -84,6 +106,33 @@ const useStylesApp = createUseStyles({
         marginBottom: "24px",
         marginLeft: "12px",
     },
+    historyContainer: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        flexDirection: "column",
+        padding: "10px 20px 20px",
+        margin: "20px 0",
+        borderRadius: 10,
+        backgroundColor: themeMode === "dark" ? "#1f1f1f" : "#fff",
+        color: themeMode === "dark" ? "#fff" : "#000",
+        borderColor: themeMode === "dark" ? "#333" : "#eceff1",
+        border: "1px solid",
+        boxShadow: `0px 4px 8px ${
+            themeMode === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"
+        }`,
+    }),
+    tagText: {
+        color: "#656d76",
+        fontSize: 12,
+    },
+    revisionText: {
+        fontWeight: "bold",
+    },
+    emptyContainer: {
+        marginTop: "4rem",
+    },
+    divider: {
+        margin: "15px 0",
+    },
 })
 
 interface TestViewProps {
@@ -92,6 +141,16 @@ interface TestViewProps {
     optParams: Parameter[] | null
     isChatVariant?: boolean
     compareMode: boolean
+    onStateChange: (isDirty: boolean) => void
+    promptRevisions: IPromptVersioning | undefined
+    historyStatus: {
+        loading: boolean
+        error: boolean
+    }
+    setPromptOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
+    promptOptParams: Parameter[] | null
+    setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
+    isDrawerOpen: boolean
 }
 
 interface BoxComponentProps {
@@ -268,6 +327,12 @@ const App: React.FC<TestViewProps> = ({
     variant,
     isChatVariant,
     compareMode,
+    onStateChange,
+    setPromptOptParams,
+    promptRevisions,
+    historyStatus,
+    isDrawerOpen,
+    setIsDrawerOpen,
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
@@ -277,11 +342,16 @@ const App: React.FC<TestViewProps> = ({
         isRunning,
         setIsRunning,
     } = useContext(TestContext)
+    const {appTheme} = useAppTheme()
     const [testList, setTestList] = useState<GenericObject[]>(_testList)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
-    const classes = useStylesApp()
+    const classes = useStylesApp({themeMode: appTheme} as StyleProps)
+    const filteredRevisions = promptRevisions?.revisions.filter((item) => item.revision !== 0)
+
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [isLLMProviderMissingModalOpen, setIsLLMProviderMissingModalOpen] = useState(false)
+
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
             cost: number | null
@@ -289,6 +359,45 @@ const App: React.FC<TestViewProps> = ({
             usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
+    const [revisionNum, setRevisionNum] = useQueryParam("revision")
+
+    useEffect(() => {
+        if (!revisionNum) return
+
+        const revision = filteredRevisions?.find((rev) => rev.revision === parseInt(revisionNum))
+
+        if (!revision) return
+
+        setPromptOptParams((prevState: Parameter[] | null) => {
+            if (!prevState) {
+                return prevState
+            }
+
+            const parameterNames = [
+                "temperature",
+                "model",
+                "max_tokens",
+                "prompt_system",
+                "prompt_user",
+                "top_p",
+                "frequence_penalty",
+                "presence_penalty",
+                "inputs",
+            ]
+
+            return prevState.map((param: Parameter) => {
+                if (parameterNames.includes(param.name)) {
+                    const newValue = (revision?.config.parameters as Record<string, any>)[
+                        param.name
+                    ]
+                    if (newValue !== undefined) {
+                        param.default = newValue
+                    }
+                }
+                return param
+            })
+        })
+    }, [revisionNum])
 
     const abortControllersRef = useRef<AbortController[]>([])
     const [isRunningAll, setIsRunningAll] = useState(false)
@@ -404,6 +513,9 @@ const App: React.FC<TestViewProps> = ({
                     `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
                     index,
                 )
+                if (e.response.status === 401) {
+                    setIsLLMProviderMissingModalOpen(true)
+                }
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
@@ -501,12 +613,7 @@ const App: React.FC<TestViewProps> = ({
                     <LoadTestsModal onLoad={onLoadTests} />
 
                     {!isRunningAll ? (
-                        <Button
-                            type="primary"
-                            size="middle"
-                            className={classes.runAllBtn}
-                            onClick={handleRunAll}
-                        >
+                        <Button type="primary" size="middle" onClick={handleRunAll}>
                             Run all
                         </Button>
                     ) : (
@@ -561,6 +668,28 @@ const App: React.FC<TestViewProps> = ({
                 destroyOnClose
                 params={params || {}}
                 isChatVariant={!!isChatVariant}
+            />
+
+            <Modal
+                centered
+                title="Incorrect LLM key provided"
+                open={isLLMProviderMissingModalOpen}
+                onOk={() => router.push("/settings?tab=secrets")}
+                onCancel={() => setIsLLMProviderMissingModalOpen(false)}
+                okText={"View LLM Keys"}
+            >
+                <p>
+                    The API key for the LLM is either incorrect or missing. Please ensure that you
+                    have a valid API key for the model you are using.
+                </p>
+            </Modal>
+            <PromptVersioningDrawer
+                setIsDrawerOpen={setIsDrawerOpen}
+                setRevisionNum={setRevisionNum}
+                isDrawerOpen={isDrawerOpen}
+                historyStatus={historyStatus}
+                promptRevisions={filteredRevisions}
+                onStateChange={onStateChange}
             />
         </div>
     )

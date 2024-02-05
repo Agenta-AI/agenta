@@ -90,7 +90,6 @@ async def get_first_user_app(get_first_user_object):
         config_name="default",
         parameters={},
     )
-    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app", image=db_image, organization=organization, user=user, app=app
@@ -107,6 +106,8 @@ async def get_first_user_app(get_first_user_object):
         base_name="app",
         config_name="default",
         base=db_base,
+        revision=0,
+        modified_by=user,
         config=db_config,
     )
     await appvariant.create()
@@ -121,10 +122,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 8.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -139,10 +140,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 13.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -157,10 +158,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 18.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -178,8 +179,8 @@ def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -188,8 +189,8 @@ def app_variant_create_data():
     return {
         "variant_name": "v1",
         "parameters": {},
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -201,8 +202,8 @@ def trace_create_data():
         "status": "completed",
         "token_consumption": 638,
         "tags": ["string"],
-        "start_time": str(datetime.utcnow()),
-        "end_time": str(datetime.utcnow()),
+        "start_time": str(datetime.now()),
+        "end_time": str(datetime.now()),
     }
 
 
@@ -271,6 +272,23 @@ def update_app_variant_parameters():
 
 
 @pytest.fixture()
+def app_variant_parameters_updated():
+    return {
+        "parameters": {
+            "temperature": 1.43,
+            "model": "gpt-3.5-turbo",
+            "max_tokens": 1182,
+            "prompt_system": "You are an expert in geography. Answer in Japanese.",
+            "prompt_user": "What is the capital of {country}?",
+            "top_p": 1,
+            "frequence_penalty": 1.4,
+            "presence_penalty": 1.25,
+            "force_json": 0,
+        }
+    }
+
+
+@pytest.fixture()
 def auto_exact_match_evaluator_config():
     return {
         "app_id": "string",
@@ -328,3 +346,8 @@ def auto_ai_critique_evaluator_config():
             "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
         },
     }
+
+
+@pytest.fixture()
+def deploy_to_environment_payload():
+    return {"environment_name": "string", "variant_id": "string"}

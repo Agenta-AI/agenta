@@ -75,16 +75,21 @@ class AgentaSingleton:
                 )
             else:
                 try:
-                    get_app_id = client.list_apps(app_name=app_name)
-                    app_id = get_app_id.app_id
+                    apps = client.list_apps(app_name=app_name)
+                    if len(apps) == 0:
+                        raise APIRequestError(f"App with name {app_name} not found")
 
+                    app_id = apps[0].app_id
                     if not app_id:
                         raise APIRequestError(
                             f"App with name {app_name} does not exist on the server."
                         )
 
-                    get_base_id = client.list_bases(app_id=app_id, base_name=base_name)
-                    base_id = get_base_id.base_id
+                    bases = client.list_bases(app_id=app_id, base_name=base_name)
+                    if len(bases) == 0:
+                        raise APIRequestError(f"No base was found for the app {app_id}")
+
+                    base_id = bases[0].base_id
                 except Exception as ex:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
@@ -171,7 +176,7 @@ class Config:
                     + str(ex)
                 )
         try:
-            self.set(**config["parameters"])
+            self.set(**config.parameters)
         except Exception as ex:
             logger.warning("Failed to set the configuration with error: " + str(ex))
 

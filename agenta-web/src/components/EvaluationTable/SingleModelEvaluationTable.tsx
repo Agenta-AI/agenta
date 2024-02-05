@@ -377,7 +377,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <div>
                         <span>App Variant: </span>
                         <span className={classes.appVariant}>
-                            {variants ? variant.variantName : ""}
+                            {variants ? `${variant.variantName} #${evaluation.revisions[0]}` : ""}
                         </span>
                     </div>
                 ),
@@ -535,7 +535,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 }
                                 disabled={false}
                             >
-                                Export results
+                                Export Results
                             </SecondaryButton>
                             <Button
                                 type="default"

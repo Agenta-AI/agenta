@@ -156,9 +156,13 @@ const EvaluationCardView: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
+    const [evaluationsState, setEvaluationsState] = useLocalStorage<{
+        [key: string]: {lastVisitedScenario: string}
+    }>("evaluationsState", {})
+
     const [scenarioId, setScenarioId] = useQueryParam(
         "evaluationScenario",
-        evaluationScenarios[0]?.id || "",
+        evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || "",
     )
     const [instructionsShown, setInstructionsShown] = useLocalStorage(
         "evalInstructionsShown",
@@ -171,7 +175,15 @@ const EvaluationCardView: React.FC<Props> = ({
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
 
-    // console.log(evaluationScenarios, isLoading)
+    useEffect(() => {
+        setEvaluationsState((prevEvaluationsState) => ({
+            ...prevEvaluationsState,
+            [evaluation.id]: {
+                ...(prevEvaluationsState[evaluation.id] || {}),
+                lastVisitedScenario: scenarioId,
+            },
+        }))
+    }, [scenarioId])
 
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
@@ -222,10 +234,6 @@ const EvaluationCardView: React.FC<Props> = ({
                             <code>b</code> for 2nd Variant and <code>x</code> if both are bad.
                         </li>
                     )}
-                    <li>
-                        Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
-                        <PushpinOutlined style={{color: token.colorError}} /> button on the right.
-                    </li>
                     <li>
                         Add a note to an evaluation from the <b>Additional Notes</b> input section{" "}
                         in the right sidebar.
@@ -385,35 +393,12 @@ const EvaluationCardView: React.FC<Props> = ({
                             <Tooltip title="Instructions">
                                 <QuestionCircleOutlined
                                     onClick={showInstructions}
-                                    style={{color: token.colorPrimary}}
+                                    style={{fontSize: 24}}
                                 />
                             </Tooltip>
-                            {scenario.isPinned ? (
-                                <Tooltip title="Unpin">
-                                    <PushpinFilled
-                                        style={{color: token.colorErrorActive}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: false,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            ) : (
-                                <Tooltip title="Pin">
-                                    <PushpinOutlined
-                                        style={{color: token.colorError}}
-                                        onClick={() =>
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                isPinned: true,
-                                            })
-                                        }
-                                    />
-                                </Tooltip>
-                            )}
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
-                                    style={{color: token.colorSuccessActive}}
+                                    style={{color: token.colorSuccessActive, fontSize: 24}}
                                     onClick={form.submit}
                                 />
                             </Tooltip>
@@ -431,6 +416,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                 variants={variants}
                                 evaluationScenario={scenario}
                                 showVariantName={isAbTesting}
+                                evaluation={evaluation}
                             />
                         </div>
                     </div>
