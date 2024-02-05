@@ -12,6 +12,7 @@ import {
     LogoutOutlined,
     ApartmentOutlined,
     FormOutlined,
+    BarChartOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme, Avatar} from "antd"
 
@@ -70,6 +71,9 @@ const useStyles = createUseStyles({
     },
     menuContainer: {
         borderRight: "0 !important",
+        maxHeight: 312,
+        overflowY: "auto",
+        position: "relative",
     },
     menuContainer2: {
         borderRight: "0 !important",
@@ -291,6 +295,70 @@ const Sidebar: React.FC = () => {
                                                     {collapsed
                                                         ? "Use human feedback to score and compare variants."
                                                         : "Annotations"}
+                                                </Link>
+                                            </Menu.Item>
+                                        </Tooltip>
+
+                                        <Tooltip
+                                            placement="right"
+                                            title={
+                                                !isDemo()
+                                                    ? "Observability and monitoring of your applications is available in the Cloud/Enterprise editions only"
+                                                    : !collapsed
+                                                      ? "Observability and monitoring of your app"
+                                                      : ""
+                                            }
+                                            key="observability"
+                                        >
+                                            <Menu.Item
+                                                icon={<BarChartOutlined />}
+                                                disabled={!isDemo()}
+                                            >
+                                                <Link
+                                                    data-cy="app-observability-link"
+                                                    href={getNavigationPath("observability")}
+                                                    className={classes.menuLinks}
+                                                >
+                                                    <Space>
+                                                        <span>
+                                                            {collapsed
+                                                                ? "Observability and monitoring of your app"
+                                                                : "Observability"}
+                                                        </span>
+                                                    </Space>
+                                                </Link>
+                                            </Menu.Item>
+                                        </Tooltip>
+
+                                        <Tooltip
+                                            placement="right"
+                                            title={
+                                                !isDemo()
+                                                    ? "Generations of your app are available in the Cloud/Enterprise editions only"
+                                                    : !collapsed
+                                                      ? "Generations of your app"
+                                                      : ""
+                                            }
+                                            key="requests"
+                                        >
+                                            <Menu.Item
+                                                icon={<BarChartOutlined />}
+                                                disabled={!isDemo()}
+                                            >
+                                                <Link
+                                                    data-cy="app-requests-link"
+                                                    href={getNavigationPath(
+                                                        "observability/generations",
+                                                    )}
+                                                    className={classes.menuLinks}
+                                                >
+                                                    <Space>
+                                                        <span>
+                                                            {collapsed
+                                                                ? "Generations of your app"
+                                                                : "Generations"}
+                                                        </span>
+                                                    </Space>
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>

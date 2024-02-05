@@ -6,6 +6,17 @@ type Method = "push" | "replace"
 function getUpdateQuery(router: NextRouter, method: Method) {
     return (queryObj: ParsedUrlQuery) => {
         const query = parse(window.location.search.replace("?", ""))
+
+        //do not update query if the value is the same
+        let changed = false
+        for (const key in queryObj) {
+            if (query[key]?.toString() !== queryObj[key]?.toString()) {
+                changed = true
+                break
+            }
+        }
+        if (!changed) return
+
         const newQuery = {
             ...query,
             ...queryObj,

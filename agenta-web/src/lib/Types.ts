@@ -487,3 +487,21 @@ export type ComparisonResultRow = {
     }[]
     id: string
 }
+
+export type RequestMetadata = {
+    cost: number
+    latency: number
+    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+}
+
+export type WithPagination<T> = {
+    data: T[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+export type PaginationQuery = {
+    page: number
+    pageSize: number
+}
