@@ -6,7 +6,7 @@ import logging
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
-    GetConfigReponse,
+    GetConfigResponse,
 )
 from agenta_backend.services import (
     db_manager,
@@ -74,7 +74,7 @@ async def save_config(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/", response_model=GetConfigReponse, operation_id="get_config")
+@router.get("/", response_model=GetConfigResponse, operation_id="get_config")
 async def get_config(
     request: Request,
     base_id: str,
@@ -124,7 +124,7 @@ async def get_config(
                 )
             config = found_variant.config
         logger.debug(config.parameters)
-        return GetConfigReponse(
+        return GetConfigResponse(
             config_id=str(
                 0
             ),  # TODO: Remove from the model and regenerate the SDK client
@@ -140,3 +140,57 @@ async def get_config(
     except Exception as e:
         logger.error(f"get_config exception: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get(
+    "/deployment/{deployment_revision_id}/",
+    operation_id="get_config_deployment_revision",
+)
+async def get_config_deployment_revision(request: Request, deployment_revision_id: str):
+    environment_revision = await db_manager.fetch_app_environment_revision(
+        deployment_revision_id
+    )
+    if environment_revision is None:
+        raise HTTPException(
+            404, f"No environment revision found for {deployment_revision_id}"
+        )
+
+    variant_revision = await db_manager.fetch_app_variant_revision_by_id(
+        str(environment_revision.deployed_app_variant_revision)
+    )
+    if not variant_revision:
+        raise HTTPException(
+            404,
+            f"No configuration found for deployment revision {deployment_revision_id}",
+        )
+    return GetConfigResponse(
+        **variant_revision.config.dict(),
+        current_version=environment_revision.revision,
+    )
+
+
+@router.post(
+    "/deployment/{deployment_revision_id}/revert/",
+    operation_id="revert_deployment_revision",
+)
+async def revert_deployment_revision(request: Request, deployment_revision_id: str):
+    environment_revision = await db_manager.fetch_app_environment_revision(
+        deployment_revision_id
+    )
+    if environment_revision is None:
+        raise HTTPException(
+            404,
+            f"No environment revision found for deployment revision {deployment_revision_id}",
+        )
+
+    if environment_revision.deployed_app_variant_revision is None:
+        raise HTTPException(
+            404,
+            f"No deployed app variant found for deployment revision: {deployment_revision_id}",
+        )
+
+    await db_manager.update_app_environment_deployed_variant_revision(
+        environment_revision.environment,
+        environment_revision.deployed_app_variant_revision,
+    )
+    return "Environment was reverted to deployment revision successful"
