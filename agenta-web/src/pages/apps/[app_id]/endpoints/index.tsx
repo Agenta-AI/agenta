@@ -1,15 +1,13 @@
 import cURLCode from "@/code_snippets/endpoints/curl"
 import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
-import DeploymentHistory from "@/components/DeploymentHistory/DeploymentHistory"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {useQueryParam} from "@/hooks/useQuery"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
-import {ApiOutlined, AppstoreOutlined, DownOutlined, HistoryOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Empty, Space, Tabs, Typography} from "antd"
+import {ApiOutlined, DownOutlined} from "@ant-design/icons"
+import {Alert, Button, Dropdown, Empty, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -28,7 +26,6 @@ export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [tab, setTab] = useQueryParam("tab", "overview")
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -184,25 +181,6 @@ export default function VariantEndpoint() {
             </div>
 
             {selectedEnvironment?.deployed_app_variant_id ? (
-                // <Tabs
-                //     destroyInactiveTabPane
-                //     defaultActiveKey={tab}
-                //     items={[
-                //         {
-                //             key: "overview",
-                //             label: "Overview",
-                //             icon: <AppstoreOutlined />,
-                //             children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
-                //         },
-                //         {
-                //             key: "history",
-                //             label: "History",
-                //             icon: <HistoryOutlined />,
-                //             children: <DeploymentHistory variant={variant} />,
-                //         },
-                //     ]}
-                //     onChange={setTab}
-                // />
                 <DynamicCodeBlock codeSnippets={codeSnippets} />
             ) : (
                 <Alert
