@@ -30,6 +30,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {debounce} from "lodash"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
 
 const {Title} = Typography
 
@@ -184,6 +185,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
     const [accuracy, setAccuracy] = useState<number>(0)
+    const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 
     const depouncedUpdateEvaluationScenario = useCallback(
         debounce((data: Partial<EvaluationScenario>, scenarioId) => {
@@ -535,6 +537,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             >
                                 Export results
                             </SecondaryButton>
+                            <Button
+                                type="default"
+                                size="large"
+                                onClick={() => setIsTestsetModalOpen(true)}
+                                disabled={false}
+                            >
+                                Save Testset
+                            </Button>
                         </Space>
                     </Col>
 
@@ -564,6 +574,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     optionType="button"
                 />
             </div>
+
+            <SaveTestsetModal
+                setIsTestsetModalOpen={setIsTestsetModalOpen}
+                isTestsetModalOpen={isTestsetModalOpen}
+                appId={appId}
+                rows={rows}
+                evaluation={evaluation}
+            />
 
             {viewMode === "tabular" ? (
                 <Table
