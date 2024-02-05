@@ -182,8 +182,8 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
         evaluation_scenario_payload = {
             **{
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
             },
             **_extend_with_evaluation(evaluation_type),
             **_extend_with_correct_answer(evaluation_type, datum),
@@ -235,8 +235,8 @@ async def create_evaluation_scenario(
         is_pinned=False,
         note="",
         **_extend_with_evaluation(evaluation.evaluation_type),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
     )
 
     await new_eval_scenario.create()
@@ -356,7 +356,7 @@ async def update_human_evaluation_scenario(
     )
 
     updated_data = evaluation_scenario_data.dict()
-    updated_data["updated_at"] = datetime.utcnow()
+    updated_data["updated_at"] = datetime.now()
     new_eval_set = {}
 
     if updated_data["score"] is not None and evaluation_type in [
@@ -457,8 +457,8 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
 
 
 def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
-    correct_answer = {}
-    if row["correct_answer"]:
+    correct_answer = {"correct_answer": ""}
+    if row.get("correct_answer") is not None:
         correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
@@ -612,7 +612,7 @@ async def create_new_human_evaluation(
     """
     user = await get_user(user_uid=user_org_data["uid"])
 
-    current_time = datetime.utcnow()
+    current_time = datetime.now()
 
     # Fetch app
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
@@ -623,9 +623,19 @@ async def create_new_human_evaluation(
         )
 
     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+    variant_dbs = [
+        await db_manager.fetch_app_variant_by_id(variant_id)
+        for variant_id in payload.variant_ids
+    ]
 
     testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
+    variants_revisions = [
+        await db_manager.fetch_app_variant_revision_by_variant(
+            str(variant_db.id), int(variant_db.revision)
+        )
+        for variant_db in variant_dbs
+    ]
     eval_instance = HumanEvaluationDB(
         app=app,
         organization=app.organization,  # Assuming user has an organization_id attribute
@@ -633,6 +643,10 @@ async def create_new_human_evaluation(
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         variants=variants,
+        variants_revisions=[
+            ObjectId(str(variant_revision.id))
+            for variant_revision in variants_revisions
+        ],
         testset=testset,
         created_at=current_time,
         updated_at=current_time,
@@ -676,6 +690,10 @@ async def create_new_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     testset = await db_manager.fetch_testset_by_id(testset_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id)
+    variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
+        variant_id, variant_db.revision
+    )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -686,6 +704,7 @@ async def create_new_evaluation(
             value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
         ),
         variant=variant_id,
+        variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)

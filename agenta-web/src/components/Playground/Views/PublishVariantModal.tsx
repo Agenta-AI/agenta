@@ -85,17 +85,6 @@ const PublishVariantModal: React.FC<Props> = ({
                 </Checkbox>
             )
         }
-        if (env.deployed_app_variant_id === variant.variantId) {
-            return (
-                <Checkbox key={env.name} indeterminate disabled>
-                    {env.name} (already published in{" "}
-                    <Text strong disabled>
-                        {variant.variantName}
-                    </Text>{" "}
-                    environment)
-                </Checkbox>
-            )
-        }
         return (
             <Checkbox
                 key={env.name}
@@ -103,8 +92,11 @@ const PublishVariantModal: React.FC<Props> = ({
                 checked={selectedEnvs.includes(env.name)}
                 onChange={handleChange}
             >
-                {env.name} (already published in <Text strong>{env.deployed_variant_name}</Text>{" "}
-                environment)
+                {env.name} (
+                <Text strong>
+                    {env.deployed_variant_name}#{env.revision}
+                </Text>{" "}
+                is published in this environment)
             </Checkbox>
         )
     }

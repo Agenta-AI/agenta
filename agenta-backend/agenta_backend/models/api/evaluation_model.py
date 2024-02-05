@@ -64,6 +64,8 @@ class Evaluation(BaseModel):
     user_username: str
     variant_ids: List[str]
     variant_names: List[str]
+    variant_revision_ids: List[str]
+    revisions: List[str]
     testset_id: str
     testset_name: str
     status: Result
@@ -117,6 +119,8 @@ class HumanEvaluation(BaseModel):
     evaluation_type: str
     variant_ids: List[str]
     variant_names: List[str]
+    variants_revision_ids: List[str]
+    revisions: List[str]  # the revision / version of each of the variants
     testset_id: str
     testset_name: str
     status: str
@@ -225,6 +229,13 @@ class LLMRunRateLimit(BaseModel):
 
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
+    replicate = "REPLICATE_API_KEY"
+    cohere = "COHERE_API_KEY"
+    hugging_face = "HUGGING_FACE_API_KEY"
+    anthropic = "ANTHROPIC_API_KEY"
+    azure_base = "AZURE_API_BASE"
+    azure_key = "AZURE_API_KEY"
+    togetherai = "TOGETHERAI_API_KEY"
 
 
 class NewEvaluation(BaseModel):

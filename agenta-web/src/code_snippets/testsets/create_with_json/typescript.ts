@@ -1,3 +1,4 @@
+import {isDemo} from "@/lib/helpers/utils"
 import {js as beautify} from "js-beautify"
 
 export default function tsCode(uri: string, params: string): string {
@@ -12,7 +13,7 @@ const data = {
     ]
 };
 
-axios.post(url, data)
+axios.post(url, data${!isDemo() ? "" : ", {headers: {Authorization: 'your_api_key'}}"})
     .then((response) => {
         console.log(response.status);
         console.log(response.data);

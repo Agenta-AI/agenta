@@ -1,4 +1,4 @@
-import {ChatRole, Variant} from "@/lib/Types"
+import {ChatRole, Evaluation, Variant} from "@/lib/Types"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
@@ -19,6 +19,7 @@ type Props = {
     outputText?: string
     index?: number
     showVariantName?: boolean
+    evaluation: Evaluation
 }
 
 const EvaluationChatResponse: React.FC<Props> = ({
@@ -26,6 +27,7 @@ const EvaluationChatResponse: React.FC<Props> = ({
     outputText,
     index = 0,
     showVariantName = true,
+    evaluation,
 }) => {
     const classes = useStyles()
     const color = VARIANT_COLORS[index]
@@ -36,7 +38,10 @@ const EvaluationChatResponse: React.FC<Props> = ({
                 <Space>
                     <VariantAlphabet index={index} width={28} />
                     <Typography.Text style={{color}} className={classes.title}>
-                        {variant.variantName}
+                        {variant.variantName}{" "}
+                        <span style={{color: "#656d76", fontSize: 14}}>
+                            #{evaluation.revisions[index]}
+                        </span>
                     </Typography.Text>
                 </Space>
             )}

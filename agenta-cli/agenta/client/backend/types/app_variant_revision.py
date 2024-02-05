@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .config_db import ConfigDb
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -11,14 +12,11 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class EvaluationTypeSettings(pydantic.BaseModel):
-    similarity_threshold: typing.Optional[float]
-    regex_pattern: typing.Optional[str]
-    regex_should_match: typing.Optional[bool]
-    webhook_url: typing.Optional[str]
-    custom_code_evaluation_id: typing.Optional[str]
-    llm_app_prompt_template: typing.Optional[str]
-    evaluation_prompt_template: typing.Optional[str]
+class AppVariantRevision(pydantic.BaseModel):
+    revision: int
+    modified_by: str
+    config: ConfigDb
+    created_at: dt.datetime
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

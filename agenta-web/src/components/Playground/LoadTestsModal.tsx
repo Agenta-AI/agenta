@@ -80,7 +80,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
             </Modal>
 
             <Button
-                type="primary"
+                type="default"
                 size="middle"
                 onClick={() => setIsOpen(true)}
                 loading={isTestsetsLoading}
