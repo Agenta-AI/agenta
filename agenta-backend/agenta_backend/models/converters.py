@@ -16,6 +16,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     AppDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     TestSetDB,
     SpanDB,
     TraceDB,
@@ -36,6 +37,8 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     App,
     EnvironmentOutput,
+    EnvironmentRevision,
+    EnvironmentOutputExtended,
     TestSetOutput,
     BaseOutput,
 )
@@ -318,7 +321,51 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision
         ),
-        revision=str(revision),
+        revision=revision,
+    )
+
+
+async def environment_db_and_revision_to_extended_output(
+    environment_db: AppEnvironmentDB,
+    app_environment_revisions_db: List[AppEnvironmentRevisionDB],
+) -> EnvironmentOutput:
+    deployed_app_variant_id = (
+        str(environment_db.deployed_app_variant)
+        if environment_db.deployed_app_variant
+        else None
+    )
+    if deployed_app_variant_id:
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+    else:
+        deployed_variant_name = None
+
+    app_environment_revisions = []
+    for app_environment_revision in app_environment_revisions_db:
+        app_environment_revisions.append(
+            EnvironmentRevision(
+                id=str(app_environment_revision.id),
+                revision=app_environment_revision.revision,
+                modified_by=app_environment_revision.modified_by.username,
+                deployed_app_variant_revision=str(
+                    app_environment_revision.deployed_app_variant_revision
+                ),
+                deployment=str(app_environment_revision.deployment),
+                created_at=app_environment_revision.created_at,
+            )
+        )
+    return EnvironmentOutputExtended(
+        name=environment_db.name,
+        app_id=str(environment_db.app.id),
+        deployed_app_variant_id=deployed_app_variant_id,
+        deployed_variant_name=deployed_variant_name,
+        deployed_app_variant_revision_id=str(
+            environment_db.deployed_app_variant_revision.id
+        ),
+        revision=environment_db.revision,
+        revisions=app_environment_revisions,
     )
 
 
