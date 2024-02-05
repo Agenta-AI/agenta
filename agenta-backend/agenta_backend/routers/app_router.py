@@ -18,13 +18,14 @@ from agenta_backend.utils.common import (
 )
 from agenta_backend.models.api.api_models import (
     App,
+    Image,
     CreateApp,
     CreateAppOutput,
     CreateAppVariant,
     AppVariantOutput,
     AddVariantFromImagePayload,
     EnvironmentOutput,
-    Image,
+    EnvironmentOutputExtended,
 )
 from agenta_backend.models import converters
 
@@ -430,6 +431,56 @@ async def list_environments(
                 await converters.environment_db_to_output(env)
                 for env in environments_db
             ]
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{app_id}/revisions/{environment_name}/",
+    operation_id="environment_revisions",
+    response_model=EnvironmentOutputExtended,
+)
+async def list_app_environment_revisions(
+    request: Request, app_id: str, environment_name
+):
+    logger.debug("getting environment " + environment_name)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    try:
+        logger.debug("check_access_to_app")
+        access_app = await check_access_to_app(
+            user_org_data=user_org_data, app_id=app_id
+        )
+        logger.debug(f"access_app: {access_app}")
+
+        if not access_app:
+            error_msg = f"You do not have access to this app: {app_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+
+        app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
+            app_id, environment_name, **user_org_data
+        )
+        if app_environment is None:
+            return JSONResponse(
+                {"detail": "App environment not found"}, status_code=404
+            )
+
+        app_environment_revisions = (
+            await db_manager.fetch_environment_revisions_for_environment(
+                app_environment, **user_org_data
+            )
+        )
+        if app_environment_revisions is None:
+            return JSONResponse(
+                {"detail": "No revisions found for app environment"}, status_code=404
+            )
+
+        return await converters.environment_db_and_revision_to_extended_output(
+            app_environment, app_environment_revisions
+        )
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
