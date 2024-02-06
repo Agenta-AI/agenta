@@ -9,42 +9,39 @@ To upgrade to the latest version of Agenta, execute the following command:
 
 ```
 docker compose -f docker-compose.gh.yml up -d --pull always
-
 ```
 
 This command instructs Docker to fetch and use the latest version of the Agenta image.
 
-## Database Migration with Beanie
+### Migrating from Version 0.9 to 0.11
 
-This guide offers detailed steps for performing database migrations in the Agenta backend system, using Beanie, a MongoDB ODM (Object Document Mapper) for Python. You can learn more about Beanie [here](https://github.com/roman-right/beanie).
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/v0_10_0_to_v0_11_0/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
 
-### Setting Up Beanie
+### Migrating from Version 0.8 to 0.9
 
-To install a custom version of Beanie:
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/30_01_24_prompt_versioning/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
 
-```
-git clone <https://github.com/mmabrouk/beanie>
-cd beanie
-pip install .
+### Migrating from Version 0.8 to 0.9
 
-```
+1. **Executing the Beanie Migration**: Run the migration script as follows:
+    
+    ```
+    docker compose exec -w /app/agenta_backend/migrations/24_01_24_error_and_result/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```
 
 ### Migrating from Version 0.7 to 0.8
 
-1. **Accessing the Migration Directory**: First, navigate to the migration directory:
+1. **Executing the Beanie Migration**: Run the migration script as follows:
     
     ```
-    cd agenta_backend/migrations/17_01_24_pydantic_and_evaluations
-    
+    docker compose exec -w /app/agenta_backend/migrations/17_01_24_pydantic_and_evaluations/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
     ```
-    
-2. **Executing the Beanie Migration**: Run the migration script as follows:
-    
-    ```
-    beanie migrate --no-use-transaction -uri 'mongodb://username:password@localhost' -db 'agenta_v2' -p .
-    
-    ```
-    
-    <Warning>
-    Make sure to replace `username`, `password`, and other relevant placeholders with your actual credentials, unless you're using default settings.
-    </Warning>
+

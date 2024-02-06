@@ -12,6 +12,8 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
+    DeploymentRevisions,
+    DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
@@ -51,7 +53,6 @@ export async function fetchVariants(
                 variantId: variant.variant_id,
                 baseId: variant.base_id,
                 baseName: variant.base_name,
-                configId: variant.config_id,
                 configName: variant.config_name,
             }
             return v
@@ -611,7 +612,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
     orgId: string
     timeout?: number
@@ -621,6 +622,14 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
         onStatusChange?.("creating_app")
         let app
@@ -629,9 +638,7 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
+                    env_vars: apiKeys,
                     organization_id: orgId,
                 },
                 true,
@@ -672,9 +679,57 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
     return data
 }
 
+export const fetchDeploymentRevisionConfig = async (
+    deploymentRevisionId: string,
+): Promise<DeploymentRevisionConfig> => {
+    const response = await fetch(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`,
+    )
+
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch deployment revision configuration")
+    }
+
+    const data = (await response.json()) as DeploymentRevisionConfig
+    return data
+}
+
+export const fetchDeploymentRevisions = async (
+    appId: string,
+    environmentName: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return data
+}
+
+export const revertDeploymentRevision = async (
+    deploymentRevisionId: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert/`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
 export const publishVariant = async (variantId: string, environmentName: string) => {
     await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/`, {
         environment_name: environmentName,
         variant_id: variantId,
     })
+}
+
+export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
 }

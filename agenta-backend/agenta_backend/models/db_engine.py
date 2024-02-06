@@ -9,13 +9,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from agenta_backend.models.db_models import (
     APIKeyDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     OrganizationDB,
     UserDB,
     ImageDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
-    ConfigDB,
+    AppVariantRevisionsDB,
     AppVariantDB,
     TemplateDB,
     TestSetDB,
@@ -36,14 +37,15 @@ logger.setLevel(logging.INFO)
 document_models: List[Document] = [
     APIKeyDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     OrganizationDB,
     UserDB,
     ImageDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
-    ConfigDB,
     AppVariantDB,
+    AppVariantRevisionsDB,
     TemplateDB,
     TestSetDB,
     EvaluatorConfigDB,
@@ -85,8 +87,6 @@ class DBEngine:
         if mode in ("test", "default", "v2"):
             return f"agenta_{mode}"
 
-        if not mode.isalnum():
-            raise ValueError("Mode of database needs to be alphanumeric.")
         return f"agenta_{mode}"
 
     def remove_db(self) -> None:

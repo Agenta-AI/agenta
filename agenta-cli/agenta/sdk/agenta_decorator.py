@@ -1,4 +1,5 @@
 """The code for the Agenta SDK"""
+
 import os
 import sys
 import time
@@ -184,9 +185,10 @@ async def execute_function(
 def handle_exception(e: Exception) -> JSONResponse:
     """Handle exceptions and return a JSONResponse."""
 
+    status_code: int = e.status_code if hasattr(e, "status_code") else 500
     traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)
     return JSONResponse(
-        status_code=500,
+        status_code=status_code,
         content={"error": str(e), "traceback": "".join(traceback_str)},
     )
 

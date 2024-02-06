@@ -135,8 +135,6 @@ def add_variant(
         if tar_path.exists():
             tar_path.unlink()
 
-        # docker_image: DockerImage = build_and_upload_docker_image(
-        #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg="red"))
         return None
