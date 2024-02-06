@@ -1,12 +1,7 @@
-import {
-    deleteEvaluations,
-    fetchData,
-    fetchEvaluationResults,
-    loadEvaluations,
-} from "@/lib/services/api"
+import {deleteEvaluations, fetchData} from "@/lib/services/api"
 import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
+import {useContext, useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
 import {EvaluationResponseType} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -16,6 +11,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import Link from "next/link"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -38,9 +34,16 @@ export interface HumanEvaluationListTableDataType {
             number_of_votes: number
             percentage: number
         }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
         variants_votes_data: Record<string, VariantVotesData>
     }
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+    variantNames: string[]
 }
 
 type StyleProps = {
@@ -82,6 +85,16 @@ const useStyles = createUseStyles({
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
             color: "#1677ff",
+        },
+    },
+    statGood: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#3f8600",
         },
     },
 })
@@ -128,6 +141,8 @@ export default function HumanEvaluationResult() {
                                                     _id: item.testset_id,
                                                     name: item.testset_name,
                                                 },
+                                                revisions: item.revisions,
+                                                variant_revision_ids: item.variants_revision_ids,
                                             }
                                         }
                                     }
@@ -162,6 +177,10 @@ export default function HumanEvaluationResult() {
         }
     }
 
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${app_id}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
     const columns: ColumnsType<HumanEvaluationListTableDataType> = [
         {
             title: "Test set",
@@ -185,7 +204,12 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[0]})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[0], record.revisions[0])}
+                        >
+                            ({`${value[0]} #${record.revisions[0]}`})
+                        </div>
                     </div>
                 )
             },
@@ -204,8 +228,31 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[1]})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[1], record.revisions[1])}
+                        >
+                            ({`${value[1]} #${record.revisions[1]}`})
+                        </div>
                     </div>
+                )
+            },
+        },
+        {
+            title: "Both are good",
+            dataIndex: "positive",
+            key: "positive",
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
+                let percentage = record.votesData.positive_votes.percentage
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.statGood}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                    </span>
                 )
             },
         },
@@ -213,7 +260,7 @@ export default function HumanEvaluationResult() {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
-            render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>

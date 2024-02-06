@@ -1,13 +1,14 @@
-import {Environment, Parameter, Variant} from "@/lib/Types"
+import {Environment, IPromptVersioning, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useEffect, useState} from "react"
+import React, {useContext, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import {removeVariant} from "@/lib/services/api"
-import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
+import {promptVersioning, removeVariant} from "@/lib/services/api"
+import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface Props {
     variant: Variant
@@ -29,6 +30,14 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
+    setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setPromptRevisions: React.Dispatch<React.SetStateAction<IPromptVersioning | undefined>>
+    setHistoryStatus: React.Dispatch<
+        React.SetStateAction<{
+            loading: boolean
+            error: boolean
+        }>
+    >
 }
 
 const useStyles = createUseStyles({
@@ -67,6 +76,9 @@ const ParametersView: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
+    setHistoryStatus,
+    setIsDrawerOpen,
+    setPromptRevisions,
 }) => {
     const classes = useStyles()
     const posthog = usePostHogAg()
@@ -126,6 +138,21 @@ const ParametersView: React.FC<Props> = ({
         })
     }, [getHelpers, onSave, handleDelete])
 
+    const handleHistoryBtn = async () => {
+        setHistoryStatus({loading: true, error: false})
+        setIsDrawerOpen(true)
+        try {
+            if (variant.variantId && isDemo()) {
+                const revisions = await promptVersioning(variant.variantId)
+                setPromptRevisions(revisions)
+            }
+            setHistoryStatus({loading: false, error: false})
+        } catch (error) {
+            setHistoryStatus({loading: false, error: true})
+            console.log(error)
+        }
+    }
+
     const items: CollapseProps["items"] = [
         {
             key: "1",
@@ -137,6 +164,30 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col>
                             <Space>
+                                {isDemo() ? (
+                                    <Tooltip title="View History: Revert to previous configurations">
+                                        <Button
+                                            onClick={handleHistoryBtn}
+                                            data-cy="history-button"
+                                            type="text"
+                                            icon={compareMode && <HistoryOutlined />}
+                                        >
+                                            {compareMode ? null : "History"}
+                                        </Button>
+                                    </Tooltip>
+                                ) : (
+                                    <Tooltip title="Versioning configuration available in Cloud/Enterprise editions only">
+                                        <Button
+                                            data-cy="history-button"
+                                            type="text"
+                                            icon={compareMode && <HistoryOutlined />}
+                                            disabled
+                                        >
+                                            {compareMode ? null : "History"}
+                                        </Button>
+                                    </Tooltip>
+                                )}
+
                                 {isVariantExisting && (
                                     <Tooltip
                                         placement="bottom"
@@ -151,6 +202,19 @@ const ParametersView: React.FC<Props> = ({
                                         </Button>
                                     </Tooltip>
                                 )}
+                                <Tooltip placement="bottom" title="Delete the variant permanently">
+                                    <Button
+                                        danger
+                                        onClick={() => {
+                                            handleDelete()
+                                            tabID.current = variant.variantId
+                                        }}
+                                        data-cy="playground-delete-variant-button"
+                                        icon={compareMode && <DeleteOutlined />}
+                                    >
+                                        {compareMode ? null : "Delete"}
+                                    </Button>
+                                </Tooltip>
 
                                 <Tooltip
                                     placement="bottom"
@@ -163,22 +227,7 @@ const ParametersView: React.FC<Props> = ({
                                         data-cy="playground-save-changes-button"
                                         icon={compareMode && <SaveOutlined />}
                                     >
-                                        {compareMode ? null : "Save changes"}
-                                    </Button>
-                                </Tooltip>
-
-                                <Tooltip placement="bottom" title="Delete the variant permanently">
-                                    <Button
-                                        type="primary"
-                                        danger
-                                        onClick={() => {
-                                            handleDelete()
-                                            tabID.current = variant.variantId
-                                        }}
-                                        data-cy="playground-delete-variant-button"
-                                        icon={compareMode && <DeleteOutlined />}
-                                    >
-                                        {compareMode ? null : "Delete Variant"}
+                                        {compareMode ? null : "Save"}
                                     </Button>
                                 </Tooltip>
                             </Space>

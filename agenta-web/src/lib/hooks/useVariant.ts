@@ -1,7 +1,8 @@
-import {useState, useEffect} from "react"
-import {saveNewVariant, updateVariantParams} from "@/lib/services/api"
-import {Variant, Parameter} from "@/lib/Types"
+import {useState, useEffect, useContext} from "react"
+import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
+import {Variant, Parameter, IPromptVersioning} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
+import {isDemo} from "../helpers/utils"
 
 /**
  * Hook for using the variant.
@@ -11,7 +12,9 @@ import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantH
  * @returns
  */
 export function useVariant(appId: string, variant: Variant) {
-    const [optParams, setOptParams] = useState<Parameter[] | null>(null)
+    const [promptRevisions, setPromptRevisions] = useState<IPromptVersioning>()
+    const [historyStatus, setHistoryStatus] = useState({loading: false, error: false})
+    const [promptOptParams, setPromptOptParams] = useState<Parameter[] | null>(null)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -23,21 +26,29 @@ export function useVariant(appId: string, variant: Variant) {
     const fetchParameters = async () => {
         setIsLoading(true)
         setIsError(false)
+        setHistoryStatus({loading: true, error: false})
         try {
             const {parameters, inputs, URIPath, isChatVariant} = await getAllVariantParameters(
                 appId,
                 variant,
             )
-            setOptParams(parameters)
+            setPromptOptParams(parameters)
+            if (variant.variantId && isDemo()) {
+                const revisions = await promptVersioning(variant.variantId)
+                setPromptRevisions(revisions)
+            }
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
+            setHistoryStatus({loading: false, error: true})
         } catch (error: any) {
             console.log(error)
             setIsError(true)
             setError(error)
+            setHistoryStatus({loading: false, error: true})
         } finally {
             setIsLoading(false)
+            setHistoryStatus({loading: false, error: false})
         }
     }
 
@@ -46,9 +57,9 @@ export function useVariant(appId: string, variant: Variant) {
     }, [variant?.variantName])
 
     useEffect(() => {
-        const updatedInputParams = updateInputParams(optParams, inputParams || [])
+        const updatedInputParams = updateInputParams(promptOptParams, inputParams || [])
         setInputParams(updatedInputParams)
-    }, [optParams])
+    }, [promptOptParams])
 
     /**
      * Saves new values for the optional parameters of the variant.
@@ -80,7 +91,7 @@ export function useVariant(appId: string, variant: Variant) {
                     return {...acc, [param.name]: param.default}
                 }, {})
             }
-            setOptParams(updatedOptParams)
+            setPromptOptParams(updatedOptParams)
         } catch (error) {
             setIsError(true)
         } finally {
@@ -90,7 +101,7 @@ export function useVariant(appId: string, variant: Variant) {
 
     return {
         inputParams,
-        optParams,
+        promptOptParams,
         URIPath,
         isLoading,
         isError,
@@ -99,6 +110,11 @@ export function useVariant(appId: string, variant: Variant) {
         saveOptParams,
         refetch: fetchParameters,
         isChatVariant,
+        promptRevisions,
+        historyStatus,
+        setPromptOptParams,
+        setPromptRevisions,
+        setHistoryStatus,
     }
 }
 

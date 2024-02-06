@@ -262,7 +262,13 @@ export const checkIfResourceValidForDeletion = async (
 }
 
 export function getTypedValue(res?: TypedValue) {
-    const {value, type} = res || {}
+    const {value, type, error} = res || {}
+    if (type === "error") {
+        return error?.message
+    }
+
+    if (value === undefined) return "-"
+
     return type === "number"
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
@@ -270,7 +276,8 @@ export function getTypedValue(res?: TypedValue) {
           : value?.toString()
 }
 
-export function getFilterParams(type: "number" | "text" | "date") {
+type CellDataType = "number" | "text" | "date"
+export function getFilterParams(type: CellDataType) {
     const filterParams: GenericObject = {}
     if (type == "date") {
         filterParams.comparator = function (
@@ -300,13 +307,25 @@ export function getFilterParams(type: "number" | "text" | "date") {
                 : type === "date"
                   ? "agDateColumnFilter"
                   : "agTextColumnFilter",
-        cellDataType: type,
+        cellDataType: type === "number" ? "text" : type,
         filterParams,
+        comparator: getCustomComparator(type),
     }
 }
 
 export const calcEvalDuration = (evaluation: _Evaluation) => {
     return dayjs(
-        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
+        runningStatuses.includes(evaluation.status.value) ? Date.now() : evaluation.updated_at,
     ).diff(dayjs(evaluation.created_at), "milliseconds")
+}
+
+const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: string) => {
+    const getNumber = (val: string) => {
+        const num = parseFloat(val || "0")
+        return isNaN(num) ? 0 : num
+    }
+    if (type === "date") return dayjs(valueA).diff(dayjs(valueB))
+    if (type === "text") return valueA.localeCompare(valueB)
+    if (type === "number") return getNumber(valueA) - getNumber(valueB)
+    return 0
 }

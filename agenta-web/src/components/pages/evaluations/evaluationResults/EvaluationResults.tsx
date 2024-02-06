@@ -29,6 +29,7 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
+import Link from "next/link"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -66,7 +67,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const runningEvaluationIds = useMemo(
         () =>
             evaluations
-                .filter((item) => runningStatuses.includes(item.status))
+                .filter((item) => runningStatuses.includes(item.status.value))
                 .map((item) => item.id),
         [evaluations],
     )
@@ -112,7 +113,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         newEvals[index].duration = calcEvalDuration(newEvals[index])
                                     }
                                 })
-                                if (res.some((item) => !runningStatuses.includes(item.status)))
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                )
                                     fetcher()
                                 return newEvals
                             })
@@ -150,7 +153,8 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    item.status !== EvaluationStatus.FINISHED ||
+                    item.status.value === EvaluationStatus.STARTED ||
+                    item.status.value === EvaluationStatus.INITIALIZED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],
@@ -166,13 +170,18 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerCheckboxSelection: true,
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
-                cellRenderer: (params: any) => (
-                    <LinkCellRenderer
-                        {...params}
-                        href={`/apps/${appId}/playground/?variant=${params.value}`}
-                    />
-                ),
-                valueGetter: (params) => params.data?.variants[0].variantName,
+                cellRenderer: (params: any) => {
+                    const {revisions, variants} = params.data
+                    return (
+                        <Link
+                            href={`/apps/${appId}/playground?variant=${variants[0].variantName}&revision=${revisions[0]}`}
+                        >
+                            {params.value}
+                        </Link>
+                    )
+                },
+                valueGetter: (params) =>
+                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),
@@ -233,7 +242,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 185,
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status as EvaluationStatus].label,
+                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
                 cellRenderer: StatusRenderer,
             },
             {
@@ -327,7 +336,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                         )
                                     )
                                         return
-                                    EvaluationStatus.FINISHED === params.data?.status &&
+                                    ;(EvaluationStatus.FINISHED === params.data?.status.value ||
+                                        EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value) &&
                                         router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                                 }}
                                 rowSelection="multiple"

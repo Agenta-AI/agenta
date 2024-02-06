@@ -179,7 +179,7 @@ async def add_feedback_to_trace(
         user_id=str(user.id),
         feedback=payload.feedback,
         score=payload.score,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
     )
 
     trace = await TraceDB.find_one(TraceDB.id == ObjectId(trace_id), fetch_links=True)
