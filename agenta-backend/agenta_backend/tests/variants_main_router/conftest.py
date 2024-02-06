@@ -246,6 +246,23 @@ def update_app_variant_parameters():
 
 
 @pytest.fixture()
+def app_variant_parameters_updated():
+    return {
+        "parameters": {
+            "temperature": 1.43,
+            "model": "gpt-3.5-turbo",
+            "max_tokens": 1182,
+            "prompt_system": "You are an expert in geography. Answer in Japanese.",
+            "prompt_user": "What is the capital of {country}?",
+            "top_p": 1,
+            "frequence_penalty": 1.4,
+            "presence_penalty": 1.25,
+            "force_json": 0,
+        }
+    }
+
+
+@pytest.fixture()
 def auto_exact_match_evaluator_config():
     return {
         "app_id": "string",
@@ -303,3 +320,8 @@ def auto_ai_critique_evaluator_config():
             "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
         },
     }
+
+
+@pytest.fixture()
+def deploy_to_environment_payload():
+    return {"environment_name": "string", "variant_id": "string"}

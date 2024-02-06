@@ -23,9 +23,12 @@ from agenta_backend.services import (
 )
 from agenta_backend.models.api.api_models import (
     App,
+    Image,
+    CreateApp,
     CreateAppOutput,
     EnvironmentOutput,
     AddVariantFromImagePayload,
+    EnvironmentOutputExtended,
 )
 
 if isCloudEE():
@@ -614,6 +617,60 @@ async def list_environments(
         return [
             await converters.environment_db_to_output(env) for env in environments_db
         ]
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{app_id}/revisions/{environment_name}/",
+    operation_id="environment_revisions",
+    response_model=EnvironmentOutputExtended,
+)
+async def list_app_environment_revisions(
+    request: Request, app_id: str, environment_name
+):
+    logger.debug("getting environment " + environment_name)
+    user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+        request.state.user_id
+    )
+    try:
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=app_id,
+                object_type="app",
+                permission=Permission.VIEW_APPLICATION,
+            )
+            logger.debug(f"User has Permission to list environments: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
+            app_id, environment_name, **user_org_workspace_data
+        )
+        if app_environment is None:
+            return JSONResponse(
+                {"detail": "App environment not found"}, status_code=404
+            )
+
+        app_environment_revisions = (
+            await db_manager.fetch_environment_revisions_for_environment(
+                app_environment, **user_org_workspace_data
+            )
+        )
+        if app_environment_revisions is None:
+            return JSONResponse(
+                {"detail": "No revisions found for app environment"}, status_code=404
+            )
+
+        return await converters.environment_db_and_revision_to_extended_output(
+            app_environment, app_environment_revisions
+        )
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

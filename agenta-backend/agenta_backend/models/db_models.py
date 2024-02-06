@@ -117,6 +117,7 @@ class AppEnvironmentDB(Document):
     app: Link[AppDB]
     name: str
     user: Link[UserDB]
+    revision: int
     deployed_app_variant: Optional[PydanticObjectId]
     deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
@@ -124,6 +125,18 @@ class AppEnvironmentDB(Document):
 
     class Settings:
         name = "environments"
+
+
+class AppEnvironmentRevisionDB(Document):
+    environment: Link[AppEnvironmentDB]
+    revision: int
+    modified_by: Link[UserDB]
+    deployed_app_variant_revision: Optional[PydanticObjectId]
+    deployment: Optional[PydanticObjectId]  # reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "environments_revisions"
 
 
 class TemplateDB(Document):
