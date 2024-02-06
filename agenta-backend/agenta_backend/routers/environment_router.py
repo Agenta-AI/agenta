@@ -51,6 +51,7 @@ async def deploy_to_environment(
         await db_manager.deploy_to_environment(
             environment_name=payload.environment_name,
             variant_id=payload.variant_id,
+            user_uid=request.state.user_id,
         )
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
