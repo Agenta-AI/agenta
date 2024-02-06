@@ -1050,7 +1050,7 @@ async def deploy_to_environment(
     environment_db.deployment = deployment.id
 
     # Create revision for app environment
-    user = await get_user(user_uid=user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["user_uid"])
     await create_environment_revision(
         environment_db,
         user,
