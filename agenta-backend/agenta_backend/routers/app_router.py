@@ -399,8 +399,7 @@ async def remove_app(app_id: str, request: Request):
                     status_code=403,
                 )
 
-        else:
-            await app_manager.remove_app(app)
+        await app_manager.remove_app(app)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         logger.exception(f"Docker error while trying to remove the app: {str(e)}")
