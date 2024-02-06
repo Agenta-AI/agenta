@@ -418,6 +418,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const onSaveData = async () => {
         try {
             const afterSave = (response: AxiosResponse) => {
+                mssgModal("success", "Saving test set...")
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
