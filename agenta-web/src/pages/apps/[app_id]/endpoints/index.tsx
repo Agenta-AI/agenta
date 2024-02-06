@@ -17,7 +17,6 @@ import {createUseStyles} from "react-jss"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
 
-
 const {Text, Title} = Typography
 
 const useStyles = createUseStyles({
