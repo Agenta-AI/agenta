@@ -163,7 +163,7 @@ async def construct_app_container_url(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object=object_db,
-            permission=Permission.READ_APPLICATION,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
