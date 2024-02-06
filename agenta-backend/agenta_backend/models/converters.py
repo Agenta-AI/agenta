@@ -4,6 +4,7 @@
 import json
 import logging
 from typing import List
+
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
@@ -33,6 +34,7 @@ if isCloudEE():
         AppVariantDB_ as AppVariantDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
+        AppEnvironmentRevisionDB_ as AppEnvironmentRevisionDB,
         EvaluatorConfigDB_ as EvaluatorConfigDB,
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
@@ -43,6 +45,8 @@ if isCloudEE():
         ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
         AppVariantOutputExtended_ as AppVariantOutputExtended,
+        EnvironmentRevision_ as EnvironmentRevision,
+        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
 else:
     from agenta_backend.models.db_models import (
@@ -54,6 +58,7 @@ else:
         AppVariantDB,
         VariantBaseDB,
         AppEnvironmentDB,
+        AppEnvironmentRevisionDB,
         EvaluatorConfigDB,
         HumanEvaluationDB,
         EvaluationScenarioDB,
@@ -64,6 +69,8 @@ else:
         ImageExtended,
         AppVariantResponse,
         AppVariantOutputExtended,
+        EnvironmentRevision,
+        EnvironmentOutputExtended,
     )
 
 from agenta_backend.models.db_models import (
@@ -353,7 +360,7 @@ async def environment_db_to_output(
         deployed_variant_name = None
         revision = None
 
-    return EnvironmentOutput(
+    environment_output = EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
@@ -361,8 +368,62 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision
         ),
-        revision=str(revision),
+        revision=revision,
     )
+
+    if isCloudEE():
+        environment_output.organization_id = str(environment_db.organization.id)
+        environment_output.workspace_id = str(environment_db.workspace.id)
+    return environment_output
+
+
+async def environment_db_and_revision_to_extended_output(
+    environment_db: AppEnvironmentDB,
+    app_environment_revisions_db: List[AppEnvironmentRevisionDB],
+) -> EnvironmentOutput:
+    deployed_app_variant_id = (
+        str(environment_db.deployed_app_variant)
+        if environment_db.deployed_app_variant
+        else None
+    )
+    if deployed_app_variant_id:
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+    else:
+        deployed_variant_name = None
+
+    app_environment_revisions = []
+    for app_environment_revision in app_environment_revisions_db:
+        app_environment_revisions.append(
+            EnvironmentRevision(
+                id=str(app_environment_revision.id),
+                revision=app_environment_revision.revision,
+                modified_by=app_environment_revision.modified_by.username,
+                deployed_app_variant_revision=str(
+                    app_environment_revision.deployed_app_variant_revision
+                ),
+                deployment=str(app_environment_revision.deployment),
+                created_at=app_environment_revision.created_at,
+            )
+        )
+    environment_output_extended = EnvironmentOutputExtended(
+        name=environment_db.name,
+        app_id=str(environment_db.app.id),
+        deployed_app_variant_id=deployed_app_variant_id,
+        deployed_variant_name=deployed_variant_name,
+        deployed_app_variant_revision_id=str(
+            environment_db.deployed_app_variant_revision.id
+        ),
+        revision=environment_db.revision,
+        revisions=app_environment_revisions,
+    )
+
+    if isCloudEE():
+        environment_output_extended.organization_id = str(environment_db.organization.id)
+        environment_output_extended.workspace_id = str(environment_db.workspace.id)
+    return environment_output_extended
 
 
 def base_db_to_pydantic(base_db: VariantBaseDB) -> BaseOutput:
