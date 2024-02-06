@@ -5,7 +5,8 @@ import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {useQueryParam} from "@/hooks/useQuery"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
-import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
 import {ApiOutlined, AppstoreOutlined, DownOutlined, HistoryOutlined} from "@ant-design/icons"
@@ -15,6 +16,7 @@ import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
+
 
 const {Text, Title} = Typography
 
