@@ -1214,7 +1214,9 @@ async def create_environment(name: str, app_db: AppDB) -> AppEnvironmentDB:
     Returns:
         AppEnvironmentDB: The newly created AppEnvironmentDB object.
     """
-    environment_db = AppEnvironmentDB(app=app_db, name=name, user=app_db.user, revision=0)
+    environment_db = AppEnvironmentDB(
+        app=app_db, name=name, user=app_db.user, revision=0
+    )
 
     if isCloudEE():
         environment_db.organization = app_db.organization

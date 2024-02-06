@@ -421,7 +421,9 @@ async def environment_db_and_revision_to_extended_output(
     )
 
     if isCloudEE():
-        environment_output_extended.organization_id = str(environment_db.organization.id)
+        environment_output_extended.organization_id = str(
+            environment_db.organization.id
+        )
         environment_output_extended.workspace_id = str(environment_db.workspace.id)
     return environment_output_extended
 
