@@ -174,9 +174,7 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id
-        )
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if human_evaluation is None:
             raise HTTPException(
                 status_code=404,
@@ -222,9 +220,7 @@ async def update_human_evaluation(
         None: A 204 No Content status code, indicating that the update was successful.
     """
     try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id
-        )
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
 
@@ -300,6 +296,7 @@ async def update_evaluation_scenario_router(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except UpdateEvaluationScenarioError as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
