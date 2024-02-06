@@ -63,7 +63,7 @@ async def create_evaluation(
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -104,7 +104,7 @@ async def fetch_list_human_evaluations(
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -141,7 +141,7 @@ async def fetch_human_evaluation(
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -174,10 +174,15 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        if isCloudEE():
-            human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-                evaluation_id
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
+            evaluation_id
+        )
+        if human_evaluation is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation with id {evaluation_id} not found",
             )
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object_id=evaluation_id,
@@ -185,7 +190,7 @@ async def fetch_evaluation_scenarios(
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -217,20 +222,20 @@ async def update_human_evaluation(
         None: A 204 No Content status code, indicating that the update was successful.
     """
     try:
-        if isCloudEE():
-            human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-                evaluation_id
-            )
-            if not human_evaluation:
-                raise HTTPException(status_code=404, detail="Evaluation not found")
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
+            evaluation_id
+        )
+        if not human_evaluation:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
 
+        if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object=human_evaluation,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -265,19 +270,13 @@ async def update_evaluation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        evaluation_scenario_db = db_manager.fetch_human_evaluation_scenario_by_id(
+        evaluation_scenario_db = await db_manager.fetch_human_evaluation_scenario_by_id(
             evaluation_scenario_id
         )
-        if evaluation_scenario is None:
+        if evaluation_scenario_db is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
-            )
-        evaluation = evaluation_scenario.evaluation
-        if evaluation is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
             )
 
         if isCloudEE():
@@ -287,7 +286,7 @@ async def update_evaluation_scenario_router(
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -300,6 +299,8 @@ async def update_evaluation_scenario_router(
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except UpdateEvaluationScenarioError as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -335,7 +336,7 @@ async def get_evaluation_scenario_score_router(
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -380,7 +381,7 @@ async def update_evaluation_scenario_score_router(
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -409,24 +410,20 @@ async def fetch_results(
     """
 
     try:
+        evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+        if evaluation is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation with id {evaluation_id} not found",
+            )
         if isCloudEE():
-            evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
-            if evaluation is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Evaluation with id {evaluation_id} not found",
-                )
-
-            if not evaluation:
-                raise HTTPException(status_code=404, detail="Evaluation not found")
-
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object=evaluation,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -470,7 +467,7 @@ async def delete_evaluations(
                     permission=Permission.DELETE_EVALUATION,
                 )
                 if not has_permission:
-                    error_msg = f"You do not have permissiom to perform this action. Please contact your Organization Admin."
+                    error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
                     return JSONResponse(
                         {"detail": error_msg},
                         status_code=403,
