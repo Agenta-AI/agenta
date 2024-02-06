@@ -155,7 +155,7 @@ async def construct_app_container_url(
 
     if base_id:
         object_db = await db_manager.fetch_base_by_id(base_id)
-    else:
+    elif variant_id:
         object_db = await db_manager.fetch_app_variant_by_id(variant_id)
 
     # Check app access
@@ -171,8 +171,17 @@ async def construct_app_container_url(
             raise HTTPException(status_code=403, detail=error_msg)
 
     try:
-        deployment = await db_manager.get_deployment_by_objectid(object_db.deployment)
-        assert deployment and deployment.uri, "Deployment not found"
+        if getattr(object_db, "deployment", None): # this is a base
+            deployment = await db_manager.get_deployment_by_objectid(object_db.deployment)
+        elif getattr(object_db.base, "deployment", None): # this is a variant
+            deployment = await db_manager.get_deployment_by_objectid(
+                object_db.base.deployment
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Deployment not found",
+            )
         return URI(uri=deployment.uri)
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
