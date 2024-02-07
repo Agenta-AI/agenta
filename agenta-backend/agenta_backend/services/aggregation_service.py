@@ -37,8 +37,8 @@ def aggregate_ai_critique(results: List[Result]) -> Result:
     )
 
 
-def aggregate_auto_regex(results: List[Result]) -> Result:
-    """Aggregates the results for the auto regex evaluation.
+def aggregate_binary(results: List[Result]) -> Result:
+    """Aggregates the results for the binary (auto regex) evaluation.
 
     Args:
         results (List[Result]): list of result objects
@@ -54,7 +54,7 @@ def aggregate_auto_regex(results: List[Result]) -> Result:
     return Result(type="number", value=average_value)
 
 
-def aggregate_evaluator(results: List[Result]) -> Result:
+def aggregate_float(results: List[Result]) -> Result:
     """Aggregates the results for evaluations aside from auto regex and ai critique.
 
     Args:

@@ -313,15 +313,27 @@ async def aggregate_evaluator_results(
 
         if not results:
             result = Result(type="error", value=None, error=Error(message="-"))
+            continue
 
         if evaluator_key == "auto_ai_critique":
             result = aggregation_service.aggregate_ai_critique(results)
 
-        if evaluator_key == "auto_regex_test":
-            result = aggregation_service.aggregate_auto_regex(results)
+        elif evaluator_key == "auto_regex_test":
+            result = aggregation_service.aggregate_binary(results)
 
-        if evaluator_key not in ["auto_ai_critique", "auto_regex_test"]:
-            result = aggregation_service.aggregate_evaluator(results)
+        elif evaluator_key not in ["auto_ai_critique", "auto_regex_test"]:
+            result = aggregation_service.aggregate_float(results)
+
+        elif evaluator_key not in [
+            "auto_exact_match",
+            "auto_similarity_match",
+            "auto_regex_test",
+            "field_match_test",
+            "auto_webhook_test",
+            "auto_custom_code_run",
+            "auto_ai_critique",
+        ]:
+            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
