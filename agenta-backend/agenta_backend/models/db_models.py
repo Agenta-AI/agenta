@@ -36,6 +36,7 @@ class OrganizationDB(Document):
     invitations: Optional[List[InvitationDB]] = []
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
+    is_paying: Optional[bool] = Field(default=False)
 
     class Settings:
         name = "organizations"
