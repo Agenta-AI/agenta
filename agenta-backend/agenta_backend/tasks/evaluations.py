@@ -338,8 +338,13 @@ async def aggregate_evaluator_results(
                 )
 
             else:
-                # Handle boolean values for auto_regex_test and other evaluators
-                if all(isinstance(result.value, bool) for result in results):
+                if evaluator_key == "auto_regex_test" and all(
+                    isinstance(result.value, bool) for result in results
+                ):
+                    average_value = sum(result.value for result in results) / len(
+                        results
+                    )
+                elif evaluator_key not in ["auto_ai_critique", "auto_regex_test"]:
                     average_value = sum(result.value for result in results) / len(
                         results
                     )
