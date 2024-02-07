@@ -17,6 +17,7 @@ class Organization(BaseModel):
     owner: str
     members: Optional[List[str]]
     invitations: Optional[List]
+    is_paying: Optional[bool]
 
 
 class OrganizationUpdate(BaseModel):
