@@ -472,22 +472,27 @@ export interface _EvaluationScenario {
     results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
 }
 
-export interface Annotation {
+export interface _Annotation {
     id: string
     app_id: string
-    variants: {variantId: string; variantName: string}[]
-    annotation_name: "flag" | "score"
-    testset: {
-        id: string
-        name: string
-    }
-    aggregated_results: string[]
+    user_id: string
+    user_username: string
+    evaluation_type: string
+    variant_ids: string[]
+    variant_names: string[]
+    variants_revision_ids: string[]
+    revisions: string[]
+    testset_id: string
+    testset_name: string
+    status: string
+    created_at: string
+    updated_at: string
 }
 
 export interface AnnotationScenario {
     id: string
     annotation_id: string
-    annotation: Annotation
+    annotation: _Annotation
     inputs: (TypedValue & {name: string})[]
     outputs: TypedValue[]
     is_pinned?: boolean
