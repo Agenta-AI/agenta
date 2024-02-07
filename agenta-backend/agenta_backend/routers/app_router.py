@@ -23,12 +23,8 @@ from agenta_backend.services import (
 )
 from agenta_backend.models.api.api_models import (
     App,
-    Image,
-    CreateApp,
     CreateAppOutput,
-    EnvironmentOutput,
     AddVariantFromImagePayload,
-    EnvironmentOutputExtended,
 )
 
 if isCloudEE():
@@ -37,6 +33,8 @@ if isCloudEE():
         CreateApp_ as CreateApp,
         AppVariantResponse_ as AppVariantResponse,
         CreateAppVariant_ as CreateAppVariant,
+        EnvironmentOutput_ as EnvironmentOutput,
+        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
 else:
     from agenta_backend.models.api.api_models import (
@@ -44,6 +42,8 @@ else:
         CreateApp,
         AppVariantResponse,
         CreateAppVariant,
+        EnvironmentOutput,
+        EnvironmentOutputExtended,
     )
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee

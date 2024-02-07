@@ -46,6 +46,7 @@ if isCloudEE():
         AppVariantResponse_ as AppVariantResponse,
         AppVariantOutputExtended_ as AppVariantOutputExtended,
         EnvironmentRevision_ as EnvironmentRevision,
+        EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
 else:
@@ -70,6 +71,7 @@ else:
         AppVariantResponse,
         AppVariantOutputExtended,
         EnvironmentRevision,
+        EnvironmentOutput,
         EnvironmentOutputExtended,
     )
 
@@ -88,7 +90,6 @@ from agenta_backend.models.api.api_models import (
     BaseOutput,
     TestSetOutput,
     TemplateImageInfo,
-    EnvironmentOutput,
     AppVariantRevision,
 )
 
