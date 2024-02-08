@@ -54,6 +54,7 @@ async def list_organizations(
                 name=str(org.name),
                 description=str(org.description),
                 owner=str(org.owner),
+                is_paying=org.is_paying,
             ).dict(exclude_unset=True)
             for org in organizations_db
         ]
