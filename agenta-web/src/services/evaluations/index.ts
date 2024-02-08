@@ -207,7 +207,7 @@ export const updateAnnotationScenario = async (
 // Comparison
 export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
-    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation.testset.id)
+    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
     scenarioGroups.forEach((group) => {
