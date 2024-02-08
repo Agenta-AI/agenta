@@ -291,7 +291,7 @@ export const loadTestset = async (testsetId: string | null) => {
             name: "No Test Set Associated",
             created_at: "",
             updated_at: "",
-            csvdata: []
+            csvdata: [],
         }
     }
     const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`)
