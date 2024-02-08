@@ -101,14 +101,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
         })
         scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
-                headerName: config.name,
+                headerName: config?.name,
                 headerComponent: (props: any) => {
-                    const evaluator = evaluators.find((item) => item.key === config.evaluator_key)!
+                    const evaluator = evaluators.find((item) => item.key === config?.evaluator_key)!
                     return (
                         <AgCustomHeader {...props}>
                             <Space direction="vertical" style={{padding: "0.5rem 0"}}>
                                 <span>{config.name}</span>
-                                <Tag color={evaluator.color}>{evaluator.name}</Tag>
+                                <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
                             </Space>
                         </AgCustomHeader>
                     )
