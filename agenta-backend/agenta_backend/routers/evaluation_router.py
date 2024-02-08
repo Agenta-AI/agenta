@@ -329,7 +329,7 @@ async def delete_evaluations(
                     user_uid=request.state.user_id,
                     object_id=evaluation_id,
                     object_type="evaluation",
-                    permission=Permission.VIEW_EVALUATION,
+                    permission=Permission.DELETE_EVALUATION,
                 )
                 logger.debug(
                     f"User has permission to delete evaluation: {has_permission}"
