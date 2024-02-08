@@ -89,8 +89,8 @@ async def evaluation_db_to_pydantic(
     )
     revision = str(variant_revision.revision)
     aggregated_results = await aggregated_result_to_pydantic(
-            evaluation_db.aggregated_results
-        )
+        evaluation_db.aggregated_results
+    )
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
