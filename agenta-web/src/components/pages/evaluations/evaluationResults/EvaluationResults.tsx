@@ -330,28 +330,38 @@ const EvaluationResults: React.FC<Props> = () => {
                                 getRowId={(params) => params.data.id}
                                 onRowClicked={(params) => {
                                     // ignore clicks on the checkbox col
-                                    if (params.eventPath?.find((item: any) => item.ariaColIndex === "1")) {
-                                        return; // Early return if clicked on the checkbox column
+                                    if (
+                                        params.eventPath?.find(
+                                            (item: any) => item.ariaColIndex === "1",
+                                        )
+                                    ) {
+                                        return // Early return if clicked on the checkbox column
                                     }
 
                                     // Determine the status of the clicked row
-                                    const currentStatus = params.data?.status.value;
+                                    const currentStatus = params.data?.status.value
 
                                     // validStatuses to be able access evaluation scenarios
                                     const validStatuses = [
                                         EvaluationStatus.STARTED,
                                         EvaluationStatus.FINISHED,
-                                        EvaluationStatus.FINISHED_WITH_ERRORS
-                                    ];
+                                        EvaluationStatus.FINISHED_WITH_ERRORS,
+                                    ]
 
                                     // Navigate if the status is valid
-                                    if (validStatuses.includes(currentStatus)) {
-                                        router.push(`/apps/${appId}/evaluations/${params.data.id}`);
+                                    if (
+                                        currentStatus !== undefined &&
+                                        validStatuses.includes(currentStatus) &&
+                                        params.data !== undefined
+                                    ) {
+                                        router.push(`/apps/${appId}/evaluations/${params.data.id}`)
                                     }
                                 }}
                                 rowSelection="multiple"
                                 suppressRowClickSelection
-                                onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
+                                onSelectionChanged={(event) =>
+                                    setSelected(event.api.getSelectedRows())
+                                }
                                 tooltipShowDelay={0}
                             />
                         </div>
