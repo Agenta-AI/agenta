@@ -88,6 +88,9 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant_revision)
     )
     revision = str(variant_revision.revision)
+    aggregated_results = await aggregated_result_to_pydantic(
+            evaluation_db.aggregated_results
+        )
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -106,9 +109,7 @@ async def evaluation_db_to_pydantic(
             if type(evaluation_db.testset) is Link
             else str(evaluation_db.testset.name)
         ),
-        aggregated_results=await aggregated_result_to_pydantic(
-            evaluation_db.aggregated_results
-        ),
+        aggregated_results=aggregated_results,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -184,7 +185,11 @@ async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List
         )
         transformed_results.append(
             {
-                "evaluator_config": json.loads(evaluator_config_dict),
+                "evaluator_config": (
+                    {}
+                    if evaluator_config_dict is None
+                    else json.loads(evaluator_config_dict)
+                ),
                 "result": result.result.dict(),
             }
         )
