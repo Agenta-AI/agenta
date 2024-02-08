@@ -99,7 +99,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: LongTextCellRenderer,
             })
         })
-        scenarios[0]?.evaluators_configs.forEach((config) => {
+        scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
                 headerComponent: (props: any) => {
@@ -119,6 +119,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: ResultRenderer,
                 cellRendererParams: {
                     config,
+                },
+                valueGetter: (params) => {
+                    return params.data?.results[index].result.value
                 },
             })
         })
