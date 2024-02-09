@@ -204,6 +204,20 @@ async def revert_deployment_revision(request: Request, deployment_revision_id: s
             f"No environment revision found for deployment revision {deployment_revision_id}",
         )
 
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            object=environment_revision,
+            permission=Permission.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
     if environment_revision.deployed_app_variant_revision is None:
         raise HTTPException(
             404,
