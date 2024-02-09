@@ -23,7 +23,7 @@ function getUpdateQuery(router: NextRouter, method: Method) {
         }
         //delete keys with undefined values
         Object.keys(newQuery).forEach((key) => {
-            if (newQuery[key] === undefined) {
+            if (newQuery[key] === undefined || newQuery[key] === "") {
                 delete newQuery[key]
             }
         })
