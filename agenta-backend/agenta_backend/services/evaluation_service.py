@@ -75,30 +75,6 @@ async def _fetch_human_evaluation(evaluation_id: str) -> HumanEvaluationDB:
     return evaluation
 
 
-async def _fetch_human_evaluation_scenario(
-    evaluation_scenario_id: str,
-) -> HumanEvaluationDB:
-    # Fetch the evaluation by ID
-    evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
-        evaluation_scenario_id=evaluation_scenario_id
-    )
-    if evaluation_scenario is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
-        )
-    evaluation = evaluation_scenario.evaluation
-
-    # Check if the evaluation exists
-    if evaluation is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
-        )
-
-    return evaluation_scenario
-
-
 async def prepare_csvdata_and_create_evaluation_scenario(
     csvdata: List[Dict[str, str]],
     payload_inputs: List[str],
@@ -368,8 +344,8 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
 
 
 def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
-    correct_answer = {}
-    if row["correct_answer"]:
+    correct_answer = {"correct_answer": ""}
+    if row.get("correct_answer") is not None:
         correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
