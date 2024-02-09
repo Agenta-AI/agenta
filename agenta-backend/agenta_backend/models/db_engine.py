@@ -6,13 +6,20 @@ from pymongo import MongoClient
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isCloudEE, isCloud, isEE
 
-if isCloudEE():
+if isCloud():
+    from agenta_backend.cloud.models.db_models import (
+        OrganizationDB_C as OrganizationDB,
+    )
+elif isEE():
+    from agenta_backend.cloud.models.db_models import (
+        OrganizationDB_E as OrganizationDB,
+    )
+elif isCloudEE():
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
-        OrganizationDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
