@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect, ReactNode} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {createUseStyles} from "react-jss"
-import {Button, Input, Tooltip, Typography, message} from "antd"
+import {Button, Input, Tooltip, Typography, message, Spin} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, fetchVariants, loadTestset, updateTestset} from "@/lib/services/api"
@@ -419,31 +419,32 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         try {
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
+                    setLoading(false); 
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
-                    })
+                    });
                 }
-            }
-
-            if (mode === "create") {
-                if (!testsetName) {
-                    setIsModalOpen(true)
-                } else {
-                    const response = await createNewTestset(appId, testsetName, rowData)
-                    afterSave(response)
+            };
+    
+            if (!testsetName) {
+                setIsModalOpen(true);
+            } else {
+                setLoading(true); 
+                let response;
+                if (mode === "create") {
+                    response = await createNewTestset(appId, testsetName, rowData);
+                } else if (mode === "edit") {
+                    response = await updateTestset(testset_id as string, testsetName, rowData);
                 }
-            } else if (mode === "edit") {
-                if (!testsetName) {
-                    setIsModalOpen(true)
-                } else {
-                    const response = await updateTestset(testset_id as string, testsetName, rowData)
-                    afterSave(response)
-                }
+                afterSave(response);
             }
         } catch (error) {
-            console.error("Error saving test set:", error)
+            console.error("Error saving test set:", error);
+            setLoading(false); 
+        } finally {
+            setLoading(false);
         }
-    }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
@@ -494,83 +495,85 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const {appTheme} = useAppTheme()
 
     return (
-        <div>
-            {contextHolder}
-
-            <Typography.Title level={5} className={classes.title}>
-                Create a new Test Set
-            </Typography.Title>
-
-            <div className={classes.inputContainer}>
-                <Input
-                    value={testsetName}
-                    onChange={handleChange}
-                    placeholder="Test Set Name"
-                    data-cy="testset-name-input"
-                />
-                <Button data-cy="testset-save-button" onClick={() => onSaveData()} type="primary">
-                    Save Test Set
-                </Button>
-            </div>
-
-            <div className={classes.notes}>
-                <div>
-                    <Typography.Text italic>Notes:</Typography.Text>
-                </div>
-                <div>
-                    <Typography.Text italic>
-                        - Specify column names similar to the Input parameters.
-                    </Typography.Text>
-                </div>
-                <div>
-                    <Typography.Text italic>- A column with </Typography.Text>
-                    <Typography.Text strong>'correct_answer'</Typography.Text>
-                    <Typography.Text>
-                        {" "}
-                        name will be treated as a ground truth column and could be used in
-                        evaluations.
-                    </Typography.Text>
-                </div>
-            </div>
-
-            <div
-                className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
-                style={{height: 500}}
-            >
-                <AgGridReact
-                    onGridReady={(params) => (gridRef.current = params.api)}
-                    rowData={rowData}
-                    columnDefs={columnDefs}
-                    defaultColDef={defaultColDef}
-                    singleClickEdit={false}
-                    rowSelection={"multiple"}
-                    suppressRowClickSelection={true}
-                    onCellValueChanged={handleCellValueChanged}
-                    stopEditingWhenCellsLoseFocus={true}
-                    onRowSelected={onRowSelectedOrDeselected}
-                    onRowDataUpdated={onRowSelectedOrDeselected}
-                    className="ph-no-capture"
-                />
-            </div>
-            {selectedRow && (
-                <div className={classes.btnContainer}>
-                    <Button onClick={onAddRow}>Add Row</Button>
-                    <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
-                        Delete Row{selectedRow.length > 1 ? "s" : null}
+        <Spin spinning={loading} tip="Saving...">
+            <div>
+                {contextHolder}
+    
+                <Typography.Title level={5} className={classes.title}>
+                    Create a new Test Set
+                </Typography.Title>
+    
+                <div className={classes.inputContainer}>
+                    <Input
+                        value={testsetName}
+                        onChange={handleChange}
+                        placeholder="Test Set Name"
+                        data-cy="testset-name-input"
+                    />
+                    <Button data-cy="testset-save-button" onClick={onSaveData} type="primary">
+                        Save Test Set
                     </Button>
-                    <Button onClick={handleExportClick}>Export as CSV</Button>
                 </div>
-            )}
-
-            <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
-
-            <EditRowModal
-                onCancel={() => setFocusedRowData(undefined)}
-                data={focusedRowData}
-                onCellValueChanged={handleCellValueChanged}
-            />
-        </div>
-    )
+    
+                <div className={classes.notes}>
+                    <div>
+                        <Typography.Text italic>Notes:</Typography.Text>
+                    </div>
+                    <div>
+                        <Typography.Text italic>
+                            - Specify column names similar to the Input parameters.
+                        </Typography.Text>
+                    </div>
+                    <div>
+                        <Typography.Text italic>- A column with </Typography.Text>
+                        <Typography.Text strong>'correct_answer'</Typography.Text>
+                        <Typography.Text>
+                            {" "}
+                            name will be treated as a ground truth column and could be used in
+                            evaluations.
+                        </Typography.Text>
+                    </div>
+                </div>
+    
+                <div
+                    className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
+                    style={{height: 500}}
+                >
+                    <AgGridReact
+                        onGridReady={(params) => (gridRef.current = params.api)}
+                        rowData={rowData}
+                        columnDefs={columnDefs}
+                        defaultColDef={defaultColDef}
+                        singleClickEdit={false}
+                        rowSelection={"multiple"}
+                        suppressRowClickSelection={true}
+                        onCellValueChanged={handleCellValueChanged}
+                        stopEditingWhenCellsLoseFocus={true}
+                        onRowSelected={onRowSelectedOrDeselected}
+                        onRowDataUpdated={onRowSelectedOrDeselected}
+                        className="ph-no-capture"
+                    />
+                </div>
+                {selectedRow && (
+                    <div className={classes.btnContainer}>
+                        <Button onClick={onAddRow}>Add Row</Button>
+                        <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
+                            Delete Row{selectedRow.length > 1 ? "s" : null}
+                        </Button>
+                        <Button onClick={handleExportClick}>Export as CSV</Button>
+                    </div>
+                )}
+    
+                <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
+    
+                <EditRowModal
+                    onCancel={() => setFocusedRowData(undefined)}
+                    data={focusedRowData}
+                    onCellValueChanged={handleCellValueChanged}
+                />
+            </div>
+        </Spin>
+    );
 }
 
 export default TestsetTable
