@@ -249,7 +249,7 @@ async def create_app(
 
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    workspace_id=ObjectId(workspace_id),
+                    workspace_id=workspace.id,
                     organization=organization,
                     permission=Permission.CREATE_APPLICATION,
                 )
@@ -269,7 +269,7 @@ async def create_app(
             payload.app_name,
             request.state.user_id,
             organization_id if isCloudEE() else None,
-            workspace_id if isCloudEE() else None,
+            workspace.id if isCloudEE() else None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
