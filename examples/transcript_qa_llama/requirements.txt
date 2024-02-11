@@ -1,3 +1,3 @@
-llama_index==0.7.24.post1
+llama_index==0.9.36
 agenta
 python-dotenv
