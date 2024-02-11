@@ -55,6 +55,7 @@ if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
         check_rbac_permission,
+        check_apikey_action_access,
     )
     from agenta_backend.commons.models.db_models import Permission
 
@@ -202,6 +203,13 @@ async def create_app(
     """
     try:
         if isCloudEE():
+            api_key_from_headers = request.headers.get("Authorization")
+            if api_key_from_headers is not None:
+                await check_apikey_action_access(
+                    api_key_from_headers,
+                    request.state.user_id,
+                    Permission.CREATE_APPLICATION,
+                )
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
                     request.state.user_id
