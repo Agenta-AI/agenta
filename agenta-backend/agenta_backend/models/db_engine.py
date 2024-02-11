@@ -16,7 +16,7 @@ elif isEE():
     from agenta_backend.cloud.models.db_models import (
         OrganizationDB_E as OrganizationDB,
     )
-elif isCloudEE():
+if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
