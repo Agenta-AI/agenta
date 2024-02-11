@@ -2,4 +2,39 @@
 title: 'Automatic Evaluation'
 ---
 
-<Warning> This page is under construction. Please reach out to us on [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA) **#support** channel, [Book a call](https://cal.com/mahmoud-mabrouk-ogzgey/demo), through [email](mailto:team@agenta.ai) if you need help with using automatic evaluation.</Warning>
+<Note>Please refer [here](/basic_guides/custom_evaluator) on how to configure your evaluator</Note>
+
+Performing automatic evaluations in Agenta is a seamless process. Follow the steps below to initiate and set the configurations for your evaluations.
+
+## Begin Evaluation
+To initiate an evaluation, navigate to the Evaluations page and simply click on the "Begin Evaluation Now" button. This action will prompt a modal where you can fine-tune the evaluation based on your specific requirements.
+
+In the modal, you will need to specify the following parameters:
+
+- <b>Testset:</b> Choose the testset you want to use for evaluation.
+- <b>Variants:</b> Select one or more variants you wish to evaluate.
+- <b>Evaluators:</b> Choose one or more evaluators for the assessment.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/17_begin_evaluation_modal_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/17_begin_evaluation_modal_dark.png" />
+
+### Advanced Configuration
+Additional configurations for rate limits are available:
+- <b>Batch Size:</b> Set the number of testsets to include in each batch <b>(default is 10)</b>.
+- <b>Retry Delay:</b> Define the delay before retrying a failed language model call <b>(in seconds, default is 3)</b>.
+- <b>Max Retries:</b> Specify the maximum number of retries for a failed language model call <b>(default is 3)</b>.
+- <b>Delay Between Batches:</b> Set the delay between running batches <b>(in seconds, default is 5)</b>.
+- <b>Correct Answer Column:</b> Specify the column in the test set containing the correct/expected answer <b>(default is correct_answer)</b>.
+<img height="600" className="dark:hidden" src="/images/basic_guides/18_begin_evaluation_modal_advanced_config_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/18_begin_evaluation_modal_advanced_config_dark.png" />
+
+## View Evaluation Result
+To view an evaluation result, once you have clicked the "Create" button and the evaluation status is set to "completed", <b>Double-click</b> on the evaluation row to access the detailed evaluation results.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/19_view_evaluation_result_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/19_view_evaluation_result_dark.png" />
+
+## Compare Evaluations
+When the evaluation status is set to "completed", select two or more evaluations <b>from the same testset</b> to compare and click on the "compare" button. This action will navigate you to the Evaluation comparison view where you can compare two or more evaluations.
+<img height="600" className="dark:hidden" src="/images/basic_guides/20_evaluation_comparison_view_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/20_evaluation_comparison_view_dark.png" />
