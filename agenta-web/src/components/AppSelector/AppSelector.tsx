@@ -286,7 +286,6 @@ const AppSelector: React.FC = () => {
                                         onClick={() => {
                                             if (
                                                 isDemo() &&
-                                                selectedOrg?.is_paying == false &&
                                                 apps.length > 2
                                             ) {
                                                 showMaxAppError()
