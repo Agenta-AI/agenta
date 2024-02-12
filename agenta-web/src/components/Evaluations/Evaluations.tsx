@@ -30,6 +30,7 @@ import HumanEvaluationResult from "./HumanEvaluationResult"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -355,11 +356,13 @@ export default function Evaluations() {
             selectedCustomEvaluationID,
             testsetId: selectedTestset._id!,
         }).catch((err) => {
-            setError({
-                message: getErrorMessage(err),
-                btnText: "Go to Test sets",
-                endpoint: `/apps/${appId}/testsets`,
-            })
+            if (err.message !== PERMISSION_ERR_MSG) {
+                setError({
+                    message: getErrorMessage(err),
+                    btnText: "Go to Test sets",
+                    endpoint: `/apps/${appId}/testsets`,
+                })
+            }
         })
 
         if (!evaluationTableId) {
