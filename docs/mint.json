@@ -88,7 +88,8 @@
         "basic_guides/deployment",
         "basic_guides/team_management",
         "basic_guides/custom_evaluator",
-        "basic_guides/automatic_evaluation"
+        "basic_guides/automatic_evaluation",
+        "basic_guides/human_evaluation"
       ]
     },
     {
