@@ -910,7 +910,7 @@ async def list_apps(
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
-                status_code=400,
+                status_code=403,
             )
 
         apps: List[AppDB] = await AppDB.find(
