@@ -1,24 +1,21 @@
 import secrets
 import logging
-
 from typing import Any, List
+
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, status, Response
+from fastapi import HTTPException, Request, status, Response, Query
 
 from agenta_backend.models import converters
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluation_service, db_manager
-
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
-    LMProvidersEnum,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationWebhook,
 )
-
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
@@ -27,9 +24,61 @@ if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
+from beanie import PydanticObjectId as ObjectId
+
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+@router.get(
+    "/by_resource/",
+    response_model=List[ObjectId],
+)
+async def fetch_evaluation_ids(
+    app_id: str,
+    resource_type: str,
+    request: Request,
+    resource_ids: List[str] = Query(None),
+):
+    """Fetches evaluation ids for a given resource type and id.
+
+    Arguments:
+        app_id (str): The ID of the app for which to fetch evaluations.
+        resource_type (str): The type of resource for which to fetch evaluations.
+        resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
+
+    Raises:
+        HTTPException: If the resource_type is invalid or access is denied.
+
+    Returns:
+        List[str]: A list of evaluation ids.
+    """
+    try:
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=app_id,
+                object_type="app",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get single evaluation: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        evaluations = await evaluation_service.fetch_evaluations_by_resource(
+            resource_type, resource_ids
+        )
+        return list(map(lambda x: x.id, evaluations))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post("/", response_model=List[Evaluation], operation_id="create_evaluation")

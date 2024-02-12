@@ -28,6 +28,7 @@ from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
     deployment_manager,
+    aggregation_service,
 )
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -329,45 +330,25 @@ async def aggregate_evaluator_results(
 
         if not results:
             result = Result(type="error", value=None, error=Error(message="-"))
+            continue
+
+        if evaluator_key == "auto_ai_critique":
+            result = aggregation_service.aggregate_ai_critique(results)
+
+        elif evaluator_key == "auto_regex_test":
+            result = aggregation_service.aggregate_binary(results)
+
+        elif evaluator_key in [
+            "auto_exact_match",
+            "auto_similarity_match",
+            "field_match_test",
+            "auto_webhook_test",
+            "auto_custom_code_run",
+        ]:
+            result = aggregation_service.aggregate_float(results)
+
         else:
-            if evaluator_key == "auto_ai_critique":
-                numeric_scores = []
-                for result in results:
-                    # Extract the first number found in the result value
-                    match = re.search(r"\d+", result.value)
-                    if match:
-                        try:
-                            score = int(match.group())
-                            numeric_scores.append(score)
-                        except ValueError:
-                            # Ignore if the extracted value is not an integer
-                            continue
-
-                # Calculate the average of numeric scores if any are present
-                average_value = (
-                    sum(numeric_scores) / len(numeric_scores)
-                    if numeric_scores
-                    else None
-                )
-                result = Result(
-                    type="number",
-                    value=average_value,
-                )
-
-            else:
-                # Handle boolean values for auto_regex_test and other evaluators
-                if all(isinstance(result.value, bool) for result in results):
-                    average_value = sum(result.value for result in results) / len(
-                        results
-                    )
-                else:
-                    # Handle other data types or mixed results
-                    average_value = None
-
-                result = Result(
-                    type="number",
-                    value=average_value,
-                )
+            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
