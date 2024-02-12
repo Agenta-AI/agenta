@@ -94,7 +94,10 @@ async def start_variant(
         )
         if isCloudEE():
             api_key = await api_key_service.create_api_key(
-                str(db_app_variant.user.uid), expiration_date=None, hidden=True
+                str(db_app_variant.user.uid),
+                workspace_id=str(db_app_variant.workspace),
+                expiration_date=None,
+                hidden=True,
             )
             env_vars.update({"AGENTA_API_KEY": api_key})
         deployment = await deployment_manager.start_service(
