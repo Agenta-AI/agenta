@@ -19,6 +19,7 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@ant-design/charts": "^2.0.3",
         "@ant-design/colors": "^7.0.0",
         "@ant-design/icons": "^5.0.1",
         "@dnd-kit/core": "^6.1.0",
