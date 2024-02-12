@@ -31,7 +31,7 @@ const useApps = () => {
         })
     }, [])
 
-    const {selectedOrg} = useOrgData()
+    const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
         `${getAgentaApiUrl()}/api/apps/` +
             (isDemo()
@@ -42,7 +42,7 @@ const useApps = () => {
     return {
         data: (data || []) as ListAppsItem[],
         error,
-        isLoading,
+        isLoading: isLoading || loading,
         mutate,
     }
 }
