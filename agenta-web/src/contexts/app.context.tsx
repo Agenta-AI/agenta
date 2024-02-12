@@ -38,6 +38,9 @@ const useApps = () => {
                 ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
                 : ""),
         isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher,
+        {
+            shouldRetryOnError: false,
+        },
     )
     return {
         data: (data || []) as ListAppsItem[],
