@@ -299,28 +299,9 @@ async def list_apps(
         HTTPException: If there was an error retrieving the list of apps.
     """
     try:
-        if isCloudEE():
-            user_org_workspace_data = await get_user_org_and_workspace_id(
-                request.state.user_id
-            )
-            has_permission = await check_rbac_permission(
-                user_org_workspace_data=user_org_workspace_data,
-                workspace_id=workspace_id,
-                organization_id=org_id,
-                permission=Permission.READ_SYSTEM,
-            )
-            logger.debug(
-                f"User has Permission to Create Application: {has_permission}"
-            )
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
         apps = await db_manager.list_apps(
-            app_name=app_name,
             user_uid=request.state.user_id,
+            app_name=app_name,
             org_id=org_id,
             workspace_id=workspace_id,
         )
