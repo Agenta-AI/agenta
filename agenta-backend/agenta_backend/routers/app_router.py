@@ -307,7 +307,7 @@ async def list_apps(
                 user_org_workspace_data=user_org_workspace_data,
                 workspace_id=workspace_id,
                 organization_id=org_id,
-                permission=Permission.VIEW_APPLICATION,
+                permission=Permission.READ_SYSTEM,
             )
             logger.debug(
                 f"User has Permission to Create Application: {has_permission}"
