@@ -36,6 +36,7 @@ class OrganizationDB(Document):
     invitations: Optional[List[InvitationDB]] = []
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
+    is_paying: Optional[bool] = Field(default=False)
 
     class Settings:
         name = "organizations"
@@ -157,6 +158,7 @@ class AppEnvironmentDB(Document):
     app: Link[AppDB]
     name: str
     user: Link[UserDB]
+    revision: int
     organization: Link[OrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
     deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
@@ -165,6 +167,18 @@ class AppEnvironmentDB(Document):
 
     class Settings:
         name = "environments"
+
+
+class AppEnvironmentRevisionDB(Document):
+    environment: Link[AppEnvironmentDB]
+    revision: int
+    modified_by: Link[UserDB]
+    deployed_app_variant_revision: Optional[PydanticObjectId]
+    deployment: Optional[PydanticObjectId]  # reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Settings:
+        name = "environments_revisions"
 
 
 class TemplateDB(Document):

@@ -1,13 +1,15 @@
 import os
+import logging
 from typing import List
 
-from fastapi.responses import JSONResponse
-from agenta_backend.services import db_manager
 from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+
+from agenta_backend.models import converters
+from agenta_backend.services import db_manager
 from agenta_backend.utils.common import APIRouter
 from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
-    EnvironmentOutput,
     DeployToEnvironmentPayload,
 )
 
@@ -17,7 +19,6 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

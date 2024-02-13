@@ -181,6 +181,12 @@ export interface Parameters {
     top_p: number
 }
 
+export interface DeploymentRevisionConfig {
+    config_name: string
+    current_version: number
+    parameters: Parameters
+}
+
 export interface IPromptRevisions {
     config: {
         config_name: string
@@ -189,6 +195,12 @@ export interface IPromptRevisions {
     created_at: string
     modified_by: string
     revision: number
+}
+
+export interface IEnvironmentRevision {
+    revision: number
+    modified_by: string
+    created_at: string
 }
 
 export interface IPromptVersioning {
@@ -311,6 +323,17 @@ export interface Environment {
     revision: string | null
 }
 
+export interface DeploymentRevisions extends Environment {
+    revisions: {
+        created_at: string
+        deployed_app_variant_revision: string
+        deployment: string
+        id: string
+        modified_by: string
+        revision: number
+    }[]
+}
+
 export interface CustomEvaluation {
     id: string
     app_name: string
@@ -332,6 +355,7 @@ export interface Org {
     name: string
     description?: string
     owner: string
+    is_paying: boolean
 }
 
 export enum ChatRole {

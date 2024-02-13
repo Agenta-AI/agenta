@@ -16,6 +16,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     AppDB,
     AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
     TestSetDB,
     SpanDB,
     TraceDB,
@@ -36,6 +37,8 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     App,
     EnvironmentOutput,
+    EnvironmentRevision,
+    EnvironmentOutputExtended,
     TestSetOutput,
     BaseOutput,
 )
@@ -56,6 +59,7 @@ from agenta_backend.models.api.evaluation_model import (
 )
 
 import logging
+from beanie import Link
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -84,6 +88,9 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant_revision)
     )
     revision = str(variant_revision.revision)
+    aggregated_results = await aggregated_result_to_pydantic(
+        evaluation_db.aggregated_results
+    )
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -94,11 +101,15 @@ async def evaluation_db_to_pydantic(
         variant_revision_ids=[str(evaluation_db.variant_revision)],
         revisions=[revision],
         variant_names=[variant_name],
-        testset_id=str(evaluation_db.testset.id),
-        testset_name=evaluation_db.testset.name,
-        aggregated_results=await aggregated_result_to_pydantic(
-            evaluation_db.aggregated_results
+        testset_id=(
+            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
         ),
+        testset_name=(
+            ""
+            if type(evaluation_db.testset) is Link
+            else str(evaluation_db.testset.name)
+        ),
+        aggregated_results=aggregated_results,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -129,13 +140,19 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
+        testset_id=(
+            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
+        ),
+        testset_name=(
+            ""
+            if type(evaluation_db.testset) is Link
+            else str(evaluation_db.testset.name)
+        ),
         variants_revision_ids=[
             str(variant_revision)
             for variant_revision in evaluation_db.variants_revisions
         ],
         revisions=revisions,
-        testset_id=str(evaluation_db.testset.id),
-        testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -168,7 +185,11 @@ async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List
         )
         transformed_results.append(
             {
-                "evaluator_config": json.loads(evaluator_config_dict),
+                "evaluator_config": (
+                    {}
+                    if evaluator_config_dict is None
+                    else json.loads(evaluator_config_dict)
+                ),
                 "result": result.result.dict(),
             }
         )
@@ -318,7 +339,51 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision
         ),
-        revision=str(revision),
+        revision=revision,
+    )
+
+
+async def environment_db_and_revision_to_extended_output(
+    environment_db: AppEnvironmentDB,
+    app_environment_revisions_db: List[AppEnvironmentRevisionDB],
+) -> EnvironmentOutput:
+    deployed_app_variant_id = (
+        str(environment_db.deployed_app_variant)
+        if environment_db.deployed_app_variant
+        else None
+    )
+    if deployed_app_variant_id:
+        deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
+            deployed_app_variant_id
+        )
+        deployed_variant_name = deployed_app_variant.variant_name
+    else:
+        deployed_variant_name = None
+
+    app_environment_revisions = []
+    for app_environment_revision in app_environment_revisions_db:
+        app_environment_revisions.append(
+            EnvironmentRevision(
+                id=str(app_environment_revision.id),
+                revision=app_environment_revision.revision,
+                modified_by=app_environment_revision.modified_by.username,
+                deployed_app_variant_revision=str(
+                    app_environment_revision.deployed_app_variant_revision
+                ),
+                deployment=str(app_environment_revision.deployment),
+                created_at=app_environment_revision.created_at,
+            )
+        )
+    return EnvironmentOutputExtended(
+        name=environment_db.name,
+        app_id=str(environment_db.app.id),
+        deployed_app_variant_id=deployed_app_variant_id,
+        deployed_variant_name=deployed_variant_name,
+        deployed_app_variant_revision_id=str(
+            environment_db.deployed_app_variant_revision.id
+        ),
+        revision=environment_db.revision,
+        revisions=app_environment_revisions,
     )
 
 
