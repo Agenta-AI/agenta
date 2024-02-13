@@ -18,9 +18,10 @@ from agenta_backend.models.converters import (
 )
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
+    AppEnvironmentRevisionDB,
+    Result,
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
-    Result,
     AggregatedResult,
     AppDB,
     AppVariantDB,
@@ -37,6 +38,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     OrganizationDB,
     DeploymentDB,
+    AppEnvironmentRevisionDB,
     TemplateDB,
     TestSetDB,
     UserDB,
@@ -504,7 +506,7 @@ async def create_user_organization(user_uid: str) -> OrganizationDB:
 
 
 async def get_deployment_by_objectid(
-    deployment_id: ObjectId,
+    deployment_id: str,
 ) -> DeploymentDB:
     """Get the deployment object from the database with the provided id.
 
@@ -517,6 +519,23 @@ async def get_deployment_by_objectid(
 
     deployment = await DeploymentDB.find_one(
         DeploymentDB.id == ObjectId(deployment_id), fetch_links=True
+    )
+    logger.debug(f"deployment: {deployment}")
+    return deployment
+
+
+async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
+    """Get the deployment object from the database with the provided app id.
+
+    Arguments:
+        app_id (str): The app id
+
+    Returns:
+        DeploymentDB: instance of deployment object
+    """
+
+    deployment = await DeploymentDB.find_one(
+        DeploymentDB.app.id == ObjectId(app_id), fetch_links=True
     )
     logger.debug(f"deployment: {deployment}")
     return deployment
@@ -575,11 +594,21 @@ async def list_app_variants_for_app_id(
 async def list_bases_for_app_id(
     app_id: str, base_name: Optional[str] = None, **kwargs: dict
 ) -> List[VariantBaseDB]:
+    """List all the bases for the specified app_id
+
+    Args:
+        app_id (str): The ID of the app
+        base_name (str): The name of the base
+
+    Returns:
+        List[VariantBaseDB]: list of VariantBase objects
+    """
+
     assert app_id is not None, "app_id cannot be None"
-    query_expressions = VariantBaseDB.app.id == ObjectId(app_id)
+    base_query = VariantBaseDB.find(VariantBaseDB.app.id == ObjectId(app_id))
     if base_name:
-        query_expressions += query_expressions(VariantBaseDB.base_name == base_name)
-    bases_db = await VariantBaseDB.find(query_expressions).sort("base_name").to_list()
+        base_query = base_query.find(VariantBaseDB.base_name == base_name)
+    bases_db = await base_query.sort("base_name").to_list()
     return bases_db
 
 
@@ -594,9 +623,10 @@ async def list_variants_for_base(
         List[AppVariant]: List of AppVariant objects
     """
     assert base is not None, "base cannot be None"
-    query_expressions = AppVariantDB.base.id == ObjectId(base.id)
     app_variants_db = (
-        await AppVariantDB.find(query_expressions, fetch_links=True)
+        await AppVariantDB.find(
+            AppVariantDB.base.id == ObjectId(base.id), fetch_links=True
+        )
         .sort("variant_name")
         .to_list()
     )
@@ -931,7 +961,9 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dic
     await app_variant_db.delete()
 
 
-async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs: dict):
+async def deploy_to_environment(
+    environment_name: str, variant_id: str, **user_org_data: dict
+):
     """
     Deploys an app variant to a specified environment.
 
@@ -943,10 +975,10 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
                     deployed to the environment.
-
     Returns:
         None
     """
+
     app_variant_db = await fetch_app_variant_by_id(variant_id)
     app_variant_revision_db = await fetch_app_variant_revision_by_variant(
         app_variant_id=variant_id, revision=app_variant_db.revision
@@ -968,10 +1000,128 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     #         f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
     #     )
 
+    # Retrieve app deployment
+    deployment = await get_deployment_by_appid(str(app_variant_db.app.id))
+
     # Update the environment with the new variant name
+    environment_db.revision += 1
     environment_db.deployed_app_variant = app_variant_db.id
     environment_db.deployed_app_variant_revision = app_variant_revision_db
+    environment_db.deployment = deployment.id
+
+    # Create revision for app environment
+    user = await get_user(user_uid=user_org_data["uid"])
+    await create_environment_revision(
+        environment_db,
+        user,
+        deployed_app_variant_revision=app_variant_revision_db.id,
+        deployment=deployment.id,
+    )
     await environment_db.save()
+
+
+async def fetch_app_environment_by_name_and_appid(
+    app_id: str, environment_name: str, **kwargs: dict
+) -> AppEnvironmentDB:
+    """Fetch an app environment using the provided app id and environment name.
+
+    Args:
+        app_id (str): The Id of the app
+        environment_name (str): The name of the environment
+
+    Returns:
+        AppEnvironmentDB: app environment object
+    """
+
+    app_environment = await AppEnvironmentDB.find_one(
+        AppEnvironmentDB.app.id == ObjectId(app_id),
+        AppEnvironmentDB.name == environment_name,
+        fetch_links=True,
+    )
+    return app_environment
+
+
+async def fetch_app_variant_revision_by_id(
+    variant_revision_id: str,
+) -> AppVariantRevisionsDB:
+    """Fetch an app variant revision using the provided variant revision id.
+
+    Args:
+        variant_revision_id (str): The ID of the variant revision
+
+    Returns:
+        AppVariantRevisionsDB: app variant revision object
+    """
+
+    app_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(variant_revision_id),
+    )
+    return app_revision
+
+
+async def fetch_environment_revisions_for_environment(
+    environment: AppEnvironmentDB, **kwargs: dict
+) -> List[AppEnvironmentRevisionDB]:
+    """Returns list of app environment revision for the given environment.
+
+    Args:
+        environment (AppEnvironmentDB): The app environment to retrieve environments revisions for.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppEnvironmentRevisionDB]: A list of AppEnvironmentRevisionDB objects.
+    """
+
+    environment_revisions = await AppEnvironmentRevisionDB.find(
+        AppEnvironmentRevisionDB.environment.id == environment.id, fetch_links=True
+    ).to_list()
+    return environment_revisions
+
+
+async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevisionDB:
+    """Fetch an app environment revision using the provided revision_id.
+
+    Args:
+        revision_id (str): The ID of the revision
+    """
+
+    environment_revision = await AppEnvironmentRevisionDB.find_one(
+        AppEnvironmentRevisionDB.id == ObjectId(revision_id), fetch_links=True
+    )
+    return environment_revision
+
+
+async def update_app_environment(
+    app_environment: AppEnvironmentDB, values_to_update: dict
+):
+    """Updates an app environment with the provided values to update.
+
+    Args:
+        app_environment (AppEnvironmentDB): the app environment object
+        values_to_update (dict): the values to update with
+    """
+
+    await app_environment.update({"$set": values_to_update})
+
+
+async def update_app_environment_deployed_variant_revision(
+    app_environment: AppEnvironmentDB, deployed_variant_revision: str
+):
+    """Updates the deployed variant revision for an app environment
+
+    Args:
+        app_environment (AppEnvironment): the app environment object
+        deployed_variant_revision (str): the ID of the deployed variant revision
+    """
+
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.id == ObjectId(deployed_variant_revision)
+    )
+    if app_variant_revision is None:
+        raise Exception(f"App variant revision {deployed_variant_revision} not found")
+
+    app_environment.deployed_app_variant_revision = app_variant_revision
+    await app_environment.save()
 
 
 async def list_environments(app_id: str, **kwargs: dict) -> List[AppEnvironmentDB]:
@@ -1035,10 +1185,43 @@ async def create_environment(
         app=app_db,
         name=name,
         user=app_db.user,
+        revision=0,
         organization=app_db.organization,
     )
     await environment_db.create()
     return environment_db
+
+
+async def create_environment_revision(
+    environment: AppEnvironmentDB, user: UserDB, **kwargs: dict
+):
+    """Creates a new environment revision.
+
+    Args:
+        environment (AppEnvironmentDB): The environment to create a revision for.
+        user (UserDB): The user that made the deployment.
+    """
+
+    assert environment is not None, "environment cannot be None"
+    assert user is not None, "user cannot be None"
+
+    environment_revision = AppEnvironmentRevisionDB(
+        environment=environment,
+        revision=environment.revision,
+        modified_by=user,
+    )
+
+    if kwargs:
+        deployed_app_variant_revision = kwargs.get("deployed_app_variant_revision")
+        if deployed_app_variant_revision is not None:
+            environment_revision.deployed_app_variant_revision = (
+                deployed_app_variant_revision
+            )
+
+        deployment = kwargs.get("deployment")
+        if deployment is not None:
+            environment_revision.deployment = deployment
+    await environment_revision.create()
 
 
 async def list_app_variant_revisions_by_variant(
@@ -1710,8 +1893,6 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
     )
     await evaluation_scenario.create()
     return evaluation_scenario
