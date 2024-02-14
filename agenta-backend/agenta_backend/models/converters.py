@@ -317,7 +317,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
 
 
 async def app_variant_db_revisions_to_output(
-    app_variant_revisions_db: AppVariantRevisionsDB
+    app_variant_revisions_db: AppVariantRevisionsDB,
 ) -> AppVariantRevision:
     app_variant_revisions = []
     for app_variant_revision_db in app_variant_revisions_db:
@@ -330,6 +330,17 @@ async def app_variant_db_revisions_to_output(
             )
         )
     return app_variant_revisions
+
+
+async def app_variant_db_revision_to_output(
+    app_variant_revision_db: AppVariantRevisionsDB,
+) -> AppVariantRevision:
+    return AppVariantRevision(
+        revision=app_variant_revision_db.revision,
+        modified_by=app_variant_revision_db.modified_by.username,
+        config=app_variant_revision_db.config,
+        created_at=app_variant_revision_db.created_at,
+    )
 
 
 async def environment_db_to_output(
