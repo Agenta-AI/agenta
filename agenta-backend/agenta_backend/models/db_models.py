@@ -1,3 +1,4 @@
+from enum import Enum
 from uuid import uuid4
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -6,47 +7,10 @@ from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId
 
 
-class APIKeyDB(Document):
-    prefix: str
-    hashed_key: str
-    user_id: str
-    rate_limit: int = Field(default=0)
-    hidden: Optional[bool] = Field(default=False)
-    expiration_date: Optional[datetime]
-    created_at: Optional[datetime] = datetime.now()
-    updated_at: Optional[datetime]
-
-    class Settings:
-        name = "api_keys"
-
-
-class InvitationDB(BaseModel):
-    token: str = Field(unique=True)
-    email: str
-    expiration_date: datetime = Field(default="0")
-    used: bool = False
-
-
-class OrganizationDB(Document):
-    name: str = Field(default="agenta")
-    description: str = Field(default="")
-    type: Optional[str]
-    owner: str  # user id
-    members: Optional[List[PydanticObjectId]]
-    invitations: Optional[List[InvitationDB]] = []
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
-    is_paying: Optional[bool] = Field(default=False)
-
-    class Settings:
-        name = "organizations"
-
-
 class UserDB(Document):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organizations: Optional[List[PydanticObjectId]] = []
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
 
@@ -63,7 +27,6 @@ class ImageDB(Document):
     tags: Optional[str]
     deletable: bool = Field(default=True)
     user: Link[UserDB]
-    organization: Link[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
 
@@ -73,7 +36,6 @@ class ImageDB(Document):
 
 class AppDB(Document):
     app_name: str
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
@@ -84,7 +46,6 @@ class AppDB(Document):
 
 class DeploymentDB(Document):
     app: Link[AppDB]
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     container_name: Optional[str]
     container_id: Optional[str]
@@ -99,7 +60,6 @@ class DeploymentDB(Document):
 
 class VariantBaseDB(Document):
     app: Link[AppDB]
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     base_name: str
     image: Link[ImageDB]
@@ -123,7 +83,6 @@ class AppVariantDB(Document):
     image: Link[ImageDB]
     user: Link[UserDB]
     modified_by: Link[UserDB]
-    organization: Link[OrganizationDB]
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
@@ -159,7 +118,6 @@ class AppEnvironmentDB(Document):
     name: str
     user: Link[UserDB]
     revision: int
-    organization: Link[OrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
     deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
@@ -202,7 +160,6 @@ class TestSetDB(Document):
     app: Link[AppDB]
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
-    organization: Link[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
 
@@ -212,7 +169,6 @@ class TestSetDB(Document):
 
 class EvaluatorConfigDB(Document):
     app: Link[AppDB]
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     name: str
     evaluator_key: str
@@ -271,7 +227,6 @@ class HumanEvaluationScenarioOutput(BaseModel):
 
 class HumanEvaluationDB(Document):
     app: Link[AppDB]
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     status: str
     evaluation_type: str
@@ -287,7 +242,6 @@ class HumanEvaluationDB(Document):
 
 class HumanEvaluationScenarioDB(Document):
     user: Link[UserDB]
-    organization: Link[OrganizationDB]
     evaluation: Link[HumanEvaluationDB]
     inputs: List[HumanEvaluationScenarioInput]
     outputs: List[HumanEvaluationScenarioOutput]
@@ -305,7 +259,6 @@ class HumanEvaluationScenarioDB(Document):
 
 class EvaluationDB(Document):
     app: Link[AppDB]
-    organization: Link[OrganizationDB]
     user: Link[UserDB]
     status: Result
     testset: Link[TestSetDB]
@@ -322,7 +275,6 @@ class EvaluationDB(Document):
 
 class EvaluationScenarioDB(Document):
     user: Link[UserDB]
-    organization: Link[OrganizationDB]
     evaluation: Link[EvaluationDB]
     variant_id: PydanticObjectId
     inputs: List[EvaluationScenarioInputDB]

@@ -1,4 +1,9 @@
-from agenta_backend.models.db_models import UserDB
+import os
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.commons.models.db_models import UserDB_ as UserDB
+else:
+    from agenta_backend.models.db_models import UserDB
 from agenta_backend.models.api.user_models import User, UserUpdate
 
 

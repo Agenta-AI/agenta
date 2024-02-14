@@ -16,7 +16,6 @@ import {
     DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
-    ListAppsItem,
     AICritiqueCreate,
     ChatMessage,
     KeyValuePair,
@@ -26,13 +25,13 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay, getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
-import {useProfileData} from "@/contexts/profile.context"
+import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
+import {dynamicContext} from "../helpers/dynamic"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data)
+export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
 
 export async function fetchVariants(
     appId: string,
@@ -251,8 +250,8 @@ export async function removeVariant(variantId: string) {
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
-        fetcher,
-        {revalidateOnFocus: false},
+        axiosFetcher,
+        {revalidateOnFocus: false, shouldRetryOnError: false},
     )
 
     return {
@@ -536,29 +535,8 @@ export const updateEvaluationScenarioScore = async (
     return response
 }
 
-export const useApps = () => {
-    const {selectedOrg} = useProfileData()
-    const {data, error, isLoading, mutate} = useSWR(
-        `${getAgentaApiUrl()}/api/apps/?org_id=${selectedOrg?.id}`,
-        selectedOrg?.id ? fetcher : () => {}, //doon't fetch if org is not selected
-    )
-
-    return {
-        data: (data || []) as ListAppsItem[],
-        error,
-        isLoading: selectedOrg?.id ? isLoading : true,
-        mutate,
-    }
-}
-
 export const getProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-}
-
-export const getOrgsList = async (ignoreAxiosError: boolean = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/organizations/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -616,14 +594,12 @@ export const createAndStartTemplate = async ({
     appName,
     providerKey,
     templateId,
-    orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
     providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
-    orgId: string
     timeout?: number
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -640,6 +616,12 @@ export const createAndStartTemplate = async ({
     )
 
     try {
+        const {getOrgValues} = await dynamicContext("org.context", {
+            getOrgValues: () => ({
+                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
+            }),
+        })
+        const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
         try {
@@ -647,8 +629,9 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
+                    organization_id: selectedOrg.id,
+                    workspace_id: selectedOrg.default_workspace.id,
                     env_vars: apiKeys,
-                    organization_id: orgId,
                 },
                 true,
             )
