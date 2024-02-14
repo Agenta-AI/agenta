@@ -97,7 +97,7 @@ const ParametersView: React.FC<Props> = ({
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
     const [revisionNum, setRevisionNum] = useQueryParam("revision")
-    const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions>()
+    const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions[]>([])
 
     useEffect(() => {
         onStateChange(variant.persistent === false)
