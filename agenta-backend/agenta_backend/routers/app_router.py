@@ -36,6 +36,8 @@ if isCloudEE():
         EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
+    from agenta_backend.utils.exceptions import PaymentRequiredException
+
 else:
     from agenta_backend.models.api.api_models import (
         Image,
@@ -478,6 +480,11 @@ async def create_app_and_variant_from_template(
                     status_code=403,
                 )
 
+        if isCloud():
+            raise PaymentRequiredException(
+                "Free quota exceeded. Payment required to continue."
+            )
+
         logger.debug(
             f"Step 4: Checking if app {payload.app_name} already exists"
             if isCloudEE()
@@ -578,6 +585,10 @@ async def create_app_and_variant_from_template(
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
+
+    except PaymentRequiredException as e:
+        logger.error(f"Payment required: {str(e)}")
+        raise HTTPException(status_code=402, detail=str(e))
 
     except Exception as e:
         logger.exception(f"Error: Exception caught - {str(e)}")
