@@ -1,8 +1,9 @@
-import {useState, useEffect, useContext} from "react"
+import {useState, useEffect} from "react"
 import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
 import {Variant, Parameter, IPromptVersioning} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {isDemo} from "../helpers/utils"
+import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
 
 /**
  * Hook for using the variant.
@@ -42,10 +43,12 @@ export function useVariant(appId: string, variant: Variant) {
             setIsChatVariant(isChatVariant)
             setHistoryStatus({loading: false, error: true})
         } catch (error: any) {
-            console.log(error)
-            setIsError(true)
-            setError(error)
-            setHistoryStatus({loading: false, error: true})
+            if (error.message !== PERMISSION_ERR_MSG) {
+                console.log(error)
+                setIsError(true)
+                setError(error)
+                setHistoryStatus({loading: false, error: true})
+            }
         } finally {
             setIsLoading(false)
             setHistoryStatus({loading: false, error: false})
@@ -92,8 +95,10 @@ export function useVariant(appId: string, variant: Variant) {
                 }, {})
             }
             setPromptOptParams(updatedOptParams)
-        } catch (error) {
-            setIsError(true)
+        } catch (error: any) {
+            if (error.message !== PERMISSION_ERR_MSG) {
+                setIsError(true)
+            }
         } finally {
             setIsParamSaveLoading(false)
         }

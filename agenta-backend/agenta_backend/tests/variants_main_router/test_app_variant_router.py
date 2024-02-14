@@ -5,7 +5,7 @@ import logging
 from bson import ObjectId
 
 from agenta_backend.routers import app_router
-from agenta_backend.services import selectors, db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppDB,
     VariantBaseDB,
@@ -36,13 +36,11 @@ elif ENVIRONMENT == "github":
 @pytest.mark.asyncio
 async def test_create_app(get_first_user_object):
     user = await get_first_user_object
-    organization = await selectors.get_user_own_org(user.uid)
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/apps/",
         json={
             "app_name": "app_variant_test",
-            "organization_id": str(organization.id),
         },
         timeout=timeout,
     )
@@ -61,14 +59,12 @@ async def test_list_apps():
 @pytest.mark.asyncio
 async def test_create_app_variant(get_first_user_object):
     user = await get_first_user_object
-    organization = await selectors.get_user_own_org(user.uid)
     app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates_v2:local_test_prompt",
         user=user,
-        organization=organization,
     )
     await db_image.create()
 
@@ -80,7 +76,6 @@ async def test_create_app_variant(get_first_user_object):
     db_base = VariantBaseDB(
         base_name="app",
         app=app,
-        organization=organization,
         user=user,
         image=db_image,
     )
@@ -91,7 +86,6 @@ async def test_create_app_variant(get_first_user_object):
         variant_name="app",
         image=db_image,
         user=user,
-        organization=organization,
         parameters={},
         base_name="app",
         config_name="default",
@@ -119,25 +113,6 @@ async def test_list_app_variants():
 
 
 @pytest.mark.asyncio
-async def test_delete_app_without_permission(get_second_user_object):
-    user2 = await get_second_user_object
-    user2_organization = await selectors.get_user_own_org(user2.uid)
-
-    user2_app = AppDB(
-        app_name="test_app_by_user2",
-        organization=user2_organization,
-        user=user2,
-    )
-    await user2_app.create()
-
-    response = await test_client.delete(
-        f"{BACKEND_API_HOST}/apps/{str(user2_app.id)}/",
-        timeout=timeout,
-    )
-    assert response.status_code == 400
-
-
-@pytest.mark.asyncio
 async def test_list_environments():
     app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
     response = await test_client.get(
@@ -150,7 +125,7 @@ async def test_list_environments():
 
 @pytest.mark.asyncio
 async def test_get_variant_by_env(get_first_user_app):
-    _, _, _, app, _, _, _ = await get_first_user_app
+    _, _, app, _, _, _ = await get_first_user_app
     environments = await db_manager.list_environments(app_id=str(app.id))
 
     for environment in environments:

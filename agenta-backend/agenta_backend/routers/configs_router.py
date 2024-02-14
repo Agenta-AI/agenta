@@ -1,8 +1,9 @@
-import os
-from typing import Optional
-from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter
 import logging
+
+from typing import Optional
+from fastapi.responses import JSONResponse
+from fastapi import Request, HTTPException
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
@@ -13,18 +14,14 @@ from agenta_backend.services import (
     app_manager,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+if isCloudEE():
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @router.post("/", operation_id="save_config")
@@ -33,11 +30,23 @@ async def save_config(
     request: Request,
 ):
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        base_db = await db_manager.fetch_base_and_check_access(
-            payload.base_id, user_org_data
-        )
-        variants_db = await db_manager.list_variants_for_base(base_db, **user_org_data)
+        base_db = await db_manager.fetch_base_by_id(payload.base_id)
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=base_db,
+                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        variants_db = await db_manager.list_variants_for_base(base_db)
         variant_to_overwrite = None
         for variant_db in variants_db:
             if variant_db.config_name == payload.config_name:
@@ -49,7 +58,7 @@ async def save_config(
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
-                    **user_org_data,
+                    user_uid=request.state.user_id,
                 )
             else:
                 raise HTTPException(
@@ -64,7 +73,7 @@ async def save_config(
                 base_db=base_db,
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
-                **user_org_data,
+                user_uid=request.state.user_id,
             )
     except HTTPException as e:
         logger.error(f"save_config http exception ===> {e.detail}")
@@ -82,9 +91,23 @@ async def get_config(
     environment_name: Optional[str] = None,
 ):
     try:
+        base_db = await db_manager.fetch_base_by_id(base_id)
+
         # detemine whether the user has access to the base
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        base_db = await db_manager.fetch_base_and_check_access(base_id, user_org_data)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=base_db,
+                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
@@ -109,9 +132,7 @@ async def get_config(
                 )
             config = found_variant_revision.config
         elif config_name:
-            variants_db = await db_manager.list_variants_for_base(
-                base_db, **user_org_data
-            )
+            variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = None
             for variant_db in variants_db:
                 if variant_db.config_name == config_name:
@@ -182,6 +203,20 @@ async def revert_deployment_revision(request: Request, deployment_revision_id: s
             404,
             f"No environment revision found for deployment revision {deployment_revision_id}",
         )
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            object=environment_revision,
+            permission=Permission.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
     if environment_revision.deployed_app_variant_revision is None:
         raise HTTPException(
