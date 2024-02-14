@@ -728,7 +728,7 @@ export const promptVersioning = async (variantId: string, ignoreAxiosError: bool
 
 export const promptRevision = async (
     variantId: string,
-    revisionNumber: int,
+    revisionNumber: number,
     ignoreAxiosError: boolean = false,
 ) => {
     const {data} = await axios.get(
