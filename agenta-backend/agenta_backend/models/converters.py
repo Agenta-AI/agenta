@@ -44,7 +44,6 @@ if isCloudEE():
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
-        AppVariantOutputExtended_ as AppVariantOutputExtended,
         EnvironmentRevision_ as EnvironmentRevision,
         EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
@@ -69,7 +68,6 @@ else:
         AppVariant,
         ImageExtended,
         AppVariantResponse,
-        AppVariantOutputExtended,
         EnvironmentRevision,
         EnvironmentOutput,
         EnvironmentOutputExtended,
@@ -308,6 +306,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
         uri=uri,
+        revision=app_variant_db.revision,
     )
 
     if isCloudEE():
@@ -317,19 +316,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     return variant_response
 
 
-async def app_variant_db_and_revision_to_extended_output(
-    app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
-) -> AppVariantResponse:
-    if app_variant_db.base.deployment:
-        deployment = await db_manager.get_deployment_by_objectid(
-            app_variant_db.base.deployment
-        )
-        uri = deployment.uri
-    else:
-        deployment = None
-        uri = None
-
-    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+async def app_variant_db_revisions_to_output(
+    app_variant_revisions_db: AppVariantRevisionsDB
+) -> AppVariantRevision:
     app_variant_revisions = []
     for app_variant_revision_db in app_variant_revisions_db:
         app_variant_revisions.append(
@@ -340,27 +329,7 @@ async def app_variant_db_and_revision_to_extended_output(
                 created_at=app_variant_revision_db.created_at,
             )
         )
-    variant_extended = AppVariantOutputExtended(
-        app_id=str(app_variant_db.app.id),
-        app_name=str(app_variant_db.app.app_name),
-        variant_name=app_variant_db.variant_name,
-        variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user.id),
-        parameters=app_variant_db.config.parameters,
-        previous_variant_name=app_variant_db.previous_variant_name,
-        base_name=app_variant_db.base_name,
-        base_id=str(app_variant_db.base.id),
-        config_name=app_variant_db.config_name,
-        uri=uri,
-        revision=app_variant_db.revision,
-        revisions=app_variant_revisions,
-    )
-
-    if isCloudEE():
-        variant_extended.organization_id = str(app_variant_db.organization.id)
-        variant_extended.workspace_id = str(app_variant_db.workspace.id)
-
-    return variant_extended
+    return app_variant_revisions
 
 
 async def environment_db_to_output(
