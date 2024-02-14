@@ -31,7 +31,6 @@ import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 
-
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -349,16 +348,16 @@ const App: React.FC<TestViewProps> = ({
 
     useEffect(() => {
         if (!revisionNum) return
-    
+
         const fetchData = async () => {
             const revision = await promptRevision(variant.variantId, parseInt(revisionNum))
             if (!revision) return
-    
+
             setPromptOptParams((prevState: Parameter[] | null) => {
                 if (!prevState) {
                     return prevState
                 }
-    
+
                 const parameterNames = [
                     "temperature",
                     "model",
@@ -370,7 +369,7 @@ const App: React.FC<TestViewProps> = ({
                     "presence_penalty",
                     "inputs",
                 ]
-    
+
                 return prevState.map((param: Parameter) => {
                     if (parameterNames.includes(param.name)) {
                         const newValue = (revision?.config.parameters as Record<string, any>)[
@@ -384,10 +383,9 @@ const App: React.FC<TestViewProps> = ({
                 })
             })
         }
-    
+
         fetchData()
     }, [revisionNum])
-    
 
     const abortControllersRef = useRef<AbortController[]>([])
     const [isRunningAll, setIsRunningAll] = useState(false)
