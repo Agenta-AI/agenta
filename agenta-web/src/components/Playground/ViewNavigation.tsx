@@ -17,7 +17,7 @@ import {
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 
-interface PruseVariantops {
+interface Props {
     variant: Variant
     handlePersistVariant: (variantName: string) => void
     environments: Environment[]
