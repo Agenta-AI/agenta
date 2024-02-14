@@ -64,7 +64,7 @@ const ViewNavigation: React.FC<Props> = ({
         setPromptOptParams,
         setHistoryStatus,
     } = useVariant(appId, variant)
-    
+
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")

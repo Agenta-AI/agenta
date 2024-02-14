@@ -12,7 +12,6 @@ import {isDemo} from "@/lib/helpers/utils"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 
-
 const PromptVersioningDrawer: any = dynamicComponent(
     `PromptVersioningDrawer/PromptVersioningDrawer`,
 )
