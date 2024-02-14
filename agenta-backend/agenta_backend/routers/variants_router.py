@@ -417,12 +417,9 @@ async def get_variant_revision(variant_id: str, revision_number: int, request: R
                 )
 
         app_variant_revision = await db_manager.fetch_app_variant_revision(
-           variant_id, revision_number
+            variant_id, revision_number
         )
-        return await converters.app_variant_db_revision_to_output(
-            app_variant_revision
-        )
+        return await converters.app_variant_db_revision_to_output(app_variant_revision)
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
