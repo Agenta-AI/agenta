@@ -20,9 +20,9 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import docker_utils
+from agenta_backend.utils.common import isCloud
 
 client = docker.from_env()
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -30,7 +30,7 @@ logger.setLevel(logging.INFO)
 
 async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Image:
     app_name = app_db.app_name
-    organization_id = str(app_db.organization.id)
+    user_id = app_db.user.id
 
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
     # Get event loop
@@ -53,10 +53,10 @@ async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Im
         *(
             app_name,
             base_name,
-            organization_id,
             tar_path,
             image_name,
             temp_dir,
+            user_id,
         ),
     )
     image_result = await asyncio.wrap_future(future)
@@ -66,10 +66,10 @@ async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Im
 def build_image_job(
     app_name: str,
     base_name: str,
-    organization_id: str,
     tar_path: Path,
     image_name: str,
     temp_dir: Path,
+    user_id: str,
 ) -> Image:
     """Business logic for building a docker image from a tar file
 
@@ -80,13 +80,13 @@ def build_image_job(
         base_name --  The `base_name` parameter is a string that represents the variant of the \
             application. It could be a specific version, configuration, or any other distinguishing \
                 factor for the application
-        organization_id -- The id of the organization the app belongs to
         tar_path --  The `tar_path` parameter is the path to the tar file that contains the source code \
             or files needed to build the Docker image
         image_name --  The `image_name` parameter is a string that represents the name of the Docker \
             image that will be built. It is used as the tag for the image
         temp_dir --  The `temp_dir` parameter is a `Path` object that represents the temporary directory
             where the contents of the tar file will be extracted
+        user_id -- The id of the user that owns the app
 
     Raises:
         HTTPException: _description_
@@ -100,26 +100,28 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
-        if os.environ["FEATURE_FLAG"] in ["cloud"]:
+        if isCloud():
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
+            buildargs={"ROOT_PATH": f"/{user_id}/{app_name}/{base_name}"},
             rm=True,
             dockerfile=dockerfile,
             pull=True,
         )
         for line in build_log:
             logger.info(line)
-        return Image(
+        pydantic_image = Image(
             type="image",
             docker_id=image.id,
             tags=image.tags[0],
-            organization_id=organization_id,
         )
+
+        return pydantic_image
+
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"
