@@ -1,13 +1,13 @@
 import os
 import logging
+from typing import Any, Optional, Union, List
 
-from typing import Any, Optional, Union
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
-from agenta_backend.models import converters
 from fastapi import HTTPException, Request, Body
-from agenta_backend.utils.common import APIRouter, isCloudEE
 
+from agenta_backend.models import converters
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import (
     app_manager,
     db_manager,
@@ -23,13 +23,11 @@ if isCloudEE():
     from agenta_backend.commons.models.api.api_models import (
         Image_ as Image,
         AppVariantResponse_ as AppVariantResponse,
-        AppVariantOutputExtended_ as AppVariantOutputExtended,
     )
 else:
     from agenta_backend.models.api.api_models import (
         Image,
         AppVariantResponse,
-        AppVariantOutputExtended,
     )
 
 from agenta_backend.models.api.api_models import (
@@ -37,6 +35,7 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     VariantAction,
     VariantActionEnum,
+    AppVariantRevision,
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
 )
@@ -319,7 +318,7 @@ async def start_variant(
 @router.get(
     "/{variant_id}/",
     operation_id="get_variant",
-    response_model=AppVariantOutputExtended,
+    response_model=AppVariantResponse,
 )
 async def get_variant(
     variant_id: str,
@@ -346,11 +345,44 @@ async def get_variant(
                     status_code=403,
                 )
 
+        return await converters.app_variant_db_to_output(app_variant)
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{variant_id}/revisions/",
+    operation_id="get_variant_revisions",
+    response_model=List[AppVariantRevision],
+)
+async def get_variant_revisions(variant_id: str, request: Request):
+    logger.debug("getting variant revisions: ", variant_id)
+    try:
+        app_variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id
+        )
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app_variant,
+                permission=Permission.VIEW_APPLICATION,
+            )
+            logger.debug(f"User has Permission to get variant: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
         app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
             app_variant=app_variant
         )
-        return await converters.app_variant_db_and_revision_to_extended_output(
-            app_variant, app_variant_revisions
+        return await converters.app_variant_db_revisions_to_output(
+            app_variant_revisions
         )
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
