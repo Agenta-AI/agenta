@@ -1,0 +1,37 @@
+name: Publish a new release
+
+on:
+    workflow_dispatch:
+        inputs:
+            bump-type:
+                description: "Bump Type"
+                required: true
+                default: "Minor"
+                type: choice
+                options:
+                    - Patch
+                    - Minor
+                    - Major
+
+
+jobs:
+    migrate-db-schema-stage:
+        name: Bump version
+        continue-on-error: false
+        runs-on: ubuntu-latest
+        environment: stage.cloud
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.ref }}
+
+            - name: Bump
+              run: |
+                  cd agenta-web
+                  npm run patch
+                  cd agenta-cli
+                  poetry version patch
+                  cd agenta-backend
+                  poetry version patch
