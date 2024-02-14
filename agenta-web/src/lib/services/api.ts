@@ -251,7 +251,7 @@ export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
         axiosFetcher,
-        {revalidateOnFocus: false},
+        {revalidateOnFocus: false, shouldRetryOnError: false},
     )
 
     return {
@@ -283,7 +283,16 @@ export async function updateTestset(testsetId: String, testsetName: string, test
     return response
 }
 
-export const loadTestset = async (testsetId: string) => {
+export const loadTestset = async (testsetId: string | null) => {
+    if (!testsetId) {
+        return {
+            id: undefined,
+            name: "No Test Set Associated",
+            created_at: "",
+            updated_at: "",
+            csvdata: [],
+        }
+    }
     const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`)
     return response.data
 }

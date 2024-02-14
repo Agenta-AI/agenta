@@ -93,6 +93,9 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
 )
 
+from beanie import Link
+
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -120,6 +123,9 @@ async def evaluation_db_to_pydantic(
         str(evaluation_db.variant_revision)
     )
     revision = str(variant_revision.revision)
+    aggregated_results = await aggregated_result_to_pydantic(
+        evaluation_db.aggregated_results
+    )
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -130,11 +136,15 @@ async def evaluation_db_to_pydantic(
         variant_revision_ids=[str(evaluation_db.variant_revision)],
         revisions=[revision],
         variant_names=[variant_name],
-        testset_id=str(evaluation_db.testset.id),
-        testset_name=evaluation_db.testset.name,
-        aggregated_results=await aggregated_result_to_pydantic(
-            evaluation_db.aggregated_results
+        testset_id=(
+            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
         ),
+        testset_name=(
+            ""
+            if type(evaluation_db.testset) is Link
+            else str(evaluation_db.testset.name)
+        ),
+        aggregated_results=aggregated_results,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -165,13 +175,19 @@ async def human_evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
+        testset_id=(
+            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
+        ),
+        testset_name=(
+            ""
+            if type(evaluation_db.testset) is Link
+            else str(evaluation_db.testset.name)
+        ),
         variants_revision_ids=[
             str(variant_revision)
             for variant_revision in evaluation_db.variants_revisions
         ],
         revisions=revisions,
-        testset_id=str(evaluation_db.testset.id),
-        testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -204,7 +220,11 @@ async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List
         )
         transformed_results.append(
             {
-                "evaluator_config": json.loads(evaluator_config_dict),
+                "evaluator_config": (
+                    {}
+                    if evaluator_config_dict is None
+                    else json.loads(evaluator_config_dict)
+                ),
                 "result": result.result.dict(),
             }
         )

@@ -36,6 +36,8 @@ if isCloudEE():
         EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
+    from agenta_backend.utils.exceptions import PaymentRequiredException
+
 else:
     from agenta_backend.models.api.api_models import (
         Image,
@@ -55,6 +57,7 @@ if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
         check_rbac_permission,
+        check_apikey_action_access,
     )
     from agenta_backend.commons.models.db_models import Permission
 
@@ -202,6 +205,13 @@ async def create_app(
     """
     try:
         if isCloudEE():
+            api_key_from_headers = request.headers.get("Authorization")
+            if api_key_from_headers is not None:
+                await check_apikey_action_access(
+                    api_key_from_headers,
+                    request.state.user_id,
+                    Permission.CREATE_APPLICATION,
+                )
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
                     request.state.user_id
@@ -241,7 +251,7 @@ async def create_app(
 
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    workspace_id=ObjectId(workspace_id),
+                    workspace_id=workspace.id,
                     organization=organization,
                     permission=Permission.CREATE_APPLICATION,
                 )
@@ -261,7 +271,7 @@ async def create_app(
             payload.app_name,
             request.state.user_id,
             organization_id if isCloudEE() else None,
-            workspace_id if isCloudEE() else None,
+            workspace.id if isCloudEE() else None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -292,8 +302,8 @@ async def list_apps(
     """
     try:
         apps = await db_manager.list_apps(
-            app_name=app_name,
             user_uid=request.state.user_id,
+            app_name=app_name,
             org_id=org_id,
             workspace_id=workspace_id,
         )
@@ -470,6 +480,11 @@ async def create_app_and_variant_from_template(
                     status_code=403,
                 )
 
+        if isCloud():
+            raise PaymentRequiredException(
+                "Free quota exceeded. Payment required to continue."
+            )
+
         logger.debug(
             f"Step 4: Checking if app {payload.app_name} already exists"
             if isCloudEE()
@@ -570,6 +585,10 @@ async def create_app_and_variant_from_template(
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
+
+    except PaymentRequiredException as e:
+        logger.error(f"Payment required: {str(e)}")
+        raise HTTPException(status_code=402, detail=str(e))
 
     except Exception as e:
         logger.exception(f"Error: Exception caught - {str(e)}")

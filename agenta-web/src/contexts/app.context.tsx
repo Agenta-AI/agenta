@@ -31,18 +31,21 @@ const useApps = () => {
         })
     }, [])
 
-    const {selectedOrg} = useOrgData()
+    const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
         `${getAgentaApiUrl()}/api/apps/` +
             (isDemo()
                 ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
                 : ""),
         isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher,
+        {
+            shouldRetryOnError: false,
+        },
     )
     return {
         data: (data || []) as ListAppsItem[],
         error,
-        isLoading,
+        isLoading: isLoading || loading,
         mutate,
     }
 }

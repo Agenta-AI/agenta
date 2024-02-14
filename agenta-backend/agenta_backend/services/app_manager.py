@@ -43,6 +43,10 @@ else:
 if isCloudEE():
     from agenta_backend.commons.services import (
         api_key_service,
+        db_manager_ee,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.models.db_models import (
+        UsageCategory,
     )  # noqa pylint: disable-all
 
 logger = logging.getLogger(__name__)
@@ -94,7 +98,10 @@ async def start_variant(
         )
         if isCloudEE():
             api_key = await api_key_service.create_api_key(
-                str(db_app_variant.user.uid), expiration_date=None, hidden=True
+                str(db_app_variant.user.uid),
+                workspace_id=str(db_app_variant.workspace),
+                expiration_date=None,
+                hidden=True,
             )
             env_vars.update({"AGENTA_API_KEY": api_key})
         deployment = await deployment_manager.start_service(
@@ -104,6 +111,15 @@ async def start_variant(
             db_app_variant.base,
             deployment=deployment.id,
         )
+
+        if isCloudEE:
+            await db_manager_ee.update_usage(
+                organization_id=str(db_app_variant.organization.id),
+                workspace_id=str(db_app_variant.workspace.id),
+                usage_category=UsageCategory.apps.value,
+                amount=1,
+            )
+
     except Exception as e:
         import traceback
 
