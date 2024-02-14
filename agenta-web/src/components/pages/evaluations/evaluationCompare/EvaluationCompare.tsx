@@ -24,6 +24,7 @@ import Link from "next/link"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {diffWords} from "diff"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -81,6 +82,45 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         [evaluationIdsStr],
     )
 
+    const compareStrings = (variantOutput1: any, variantOutput2: any) => {
+        const results = diffWords(variantOutput1, variantOutput2)
+
+        const display = results.map((part, index) => {
+            if (part.removed) {
+                return (
+                    <span
+                        key={index}
+                        style={{
+                            color: "green",
+                        }}
+                    >
+                        {part.value}
+                    </span>
+                )
+            } else if (!part.added) {
+                return <span key={index}>{part.value}</span>
+            } else if (part.added) {
+                return (
+                    <>
+                        {" "}
+                        <span
+                            key={index}
+                            style={{
+                                color: "red",
+                                textDecoration: "line-through",
+                            }}
+                        >
+                            {part.value}
+                        </span>
+                    </>
+                )
+            }
+            return null
+        })
+
+        return <span>{display}</span>
+    }
+
     const colDefs = useMemo(() => {
         const colDefs: ColDef<ComparisonResultRow>[] = []
         const {inputs, variants} = rows[0] || {}
@@ -124,10 +164,17 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
                 valueGetter: (params) => {
-                    return getTypedValue(
-                        params.data?.variants.find(
-                            (item) => item.evaluationId === variant.evaluationId,
-                        )?.output?.result,
+                    return (
+                        <span>
+                            {compareStrings(
+                                getTypedValue(
+                                    params.data?.variants.find(
+                                        (item) => item.evaluationId === variant.evaluationId,
+                                    )?.output?.result,
+                                ),
+                                params.data?.correctAnswer,
+                            )}
+                        </span>
                     )
                 },
                 cellRenderer: LongTextCellRenderer,
