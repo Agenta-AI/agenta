@@ -1,4 +1,4 @@
-import {Environment, IPromptVersioning, Parameter, Variant} from "@/lib/Types"
+import {Environment, IPromptRevisions, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useContext, useEffect, useState} from "react"
