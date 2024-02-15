@@ -13,6 +13,7 @@ declare global {
             saveOpenAiKey(): Chainable<void>
             removeLlmProviderKey(): Chainable<void>
             addingOpenaiKey(): Chainable<void>
+            createNewEvaluation(): Chainable<void>
         }
     }
 }
