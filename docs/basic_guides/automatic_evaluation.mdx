@@ -1,15 +1,28 @@
 ---
-title: 'Automatic Evaluation'
+title: 'Evaluating LLM Apps'
+description: Systematically evaluate your LLM applications and compare their performance.
 ---
 
-<Note>Please refer [here](/basic_guides/custom_evaluator) on how to configure your evaluator</Note>
+The key to building production-ready LLM applications is to have a tight feedback loop of prompt engineering and evaluation. In this document, we will explain how to use agenta to quickly evaluate and compare the performance of your LLM applications.
+ 
+## Configuring Evaluators
 
-Performing automatic evaluations in Agenta is a seamless process. Follow the steps below to initiate and set the configurations for your evaluations.
+Agenta comes with a set of built-in evaluators that can be configured. We are continuously adding more evaluators over time. By default, each project includes the following evaluators:
+- Exact match: This evaluator checks if the generated answer is an exact match to the expected answer. The aggregated result is the percentage of correct answers.
+
+The following configurable evaluators are available and need to be added and configured before use. To add an evaluator, go to the Evaluators tab and click on the "Add Evaluator" button. A modal will appear where you can select the evaluator you want to add and configure it.
+
+- Regex match: This evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.
+- Webhook evaluator: This evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.
+- Similarity Match evaluator: This evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.
+- AI Critic evaluator: This evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).
+- Custom code evaluator: This evaluator allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator. More details can be found here.
+
 
 ## Begin Evaluation
-To initiate an evaluation, navigate to the Evaluations page and simply click on the "Begin Evaluation Now" button. This action will prompt a modal where you can fine-tune the evaluation based on your specific requirements.
+To start an evaluation, go to the Evaluations page and click on the "Begin Evaluation Now" button. A modal will appear where you can fine-tune the evaluation based on your specific requirements.
 
-In the modal, you will need to specify the following parameters:
+In the modal, you need to specify the following parameters:
 
 - <b>Testset:</b> Choose the testset you want to use for the evaluation.
 - <b>Variants:</b> Select one or more variants you wish to evaluate.
@@ -19,22 +32,28 @@ In the modal, you will need to specify the following parameters:
 <img height="600" className="hidden dark:block" src="/images/basic_guides/17_begin_evaluation_modal_dark.png" />
 
 ### Advanced Configuration
-Additional configurations for rate limits are available:
+Additional configurations for batching and retrying LLM calls are available in the advanced configuration section. You can specify the following parameters:
+
 - <b>Batch Size:</b> Set the number of testsets to include in each batch <b>(default is 10)</b>.
 - <b>Retry Delay:</b> Define the delay before retrying a failed language model call <b>(in seconds, default is 3)</b>.
 - <b>Max Retries:</b> Specify the maximum number of retries for a failed language model call <b>(default is 3)</b>.
 - <b>Delay Between Batches:</b> Set the delay between running batches <b>(in seconds, default is 5)</b>.
+
+In addition to the batching and retrying configurations, you can also specify the following parameters:
 - <b>Correct Answer Column:</b> Specify the column in the test set containing the correct/expected answer <b>(default is correct_answer)</b>.
+
 <img height="600" className="dark:hidden" src="/images/basic_guides/18_begin_evaluation_modal_advanced_config_light.png" />
 <img height="600" className="hidden dark:block" src="/images/basic_guides/18_begin_evaluation_modal_advanced_config_dark.png" />
 
 ## View Evaluation Result
-To view an evaluation result, once you have clicked the "Create" button and the evaluation status is set to "completed", <b>Double-click</b> on the evaluation row to access the detailed evaluation results.
+To view the result of an evaluation, double-click on the evaluation row once you have clicked the "Create" button and the evaluation status is set to "completed". This will give you access to the detailed evaluation results.
 
 <img height="600" className="dark:hidden" src="/images/basic_guides/19_view_evaluation_result_light.png" />
 <img height="600" className="hidden dark:block" src="/images/basic_guides/19_view_evaluation_result_dark.png" />
 
 ## Compare Evaluations
-When the evaluation status is set to "completed", select two or more evaluations <b>from the same testset</b> to compare and click on the "compare" button. This action will navigate you to the Evaluation comparison view where you can compare two or more evaluations.
+When the evaluation status is set to "completed", you can select two or more evaluations <b>from the same testset</b> to compare. Click on the "Compare" button, and you will be taken to the Evaluation comparison view where you can compare the output of two or more evaluations.
+
 <img height="600" className="dark:hidden" src="/images/basic_guides/20_evaluation_comparison_view_light.png" />
 <img height="600" className="hidden dark:block" src="/images/basic_guides/20_evaluation_comparison_view_dark.png" />
+
