@@ -24,7 +24,7 @@ import Link from "next/link"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {diffSentences} from "diff"
+import {diffWords} from "diff"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -84,7 +84,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     )
 
     const compareStrings = (variantOutput1: any, variantOutput2: any) => {
-        const results = diffSentences(variantOutput1, variantOutput2)
+        const results = diffWords(variantOutput1, variantOutput2)
 
         const display = results.map((part, index) => {
             if (part.removed) {
