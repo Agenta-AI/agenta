@@ -43,7 +43,7 @@ services:
                 "--log-level",
                 "info",
                 "--root-path",
-                "/api",
+                "/api"
             ]
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
@@ -132,6 +132,7 @@ services:
         depends_on:
             - rabbitmq
             - redis
+            - mongo
         extra_hosts:
             - host.docker.internal:host-gateway
         networks:
