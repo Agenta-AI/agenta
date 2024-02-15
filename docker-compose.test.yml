@@ -43,7 +43,7 @@ services:
                 "--log-level",
                 "info",
                 "--root-path",
-                "/api",
+                "/api"
             ]
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
