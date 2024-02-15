@@ -56,7 +56,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = "", setEvaluationIdsStr] = useQueryParam("evaluations")
-    const [showDiff, setShowDiff] = useState(false)
+    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
@@ -169,7 +169,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 valueGetter: (params) => {
                     return (
                         <>
-                            {showDiff ? (
+                            {showDiff === "show" ? (
                                 <span>
                                     {compareStrings(
                                         getTypedValue(
@@ -319,14 +319,17 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     </Spin>
                 </Space>
                 <Space size={10}>
-                    <Switch
-                        checkedChildren="Hide difference"
-                        unCheckedChildren="Show difference"
-                        value={showDiff}
-                        onClick={() => setShowDiff(!showDiff)}
-                    />
+                    <Space>
+                        <Typography.Text>Show Difference: </Typography.Text>
+                        <Switch
+                            value={showDiff === "show"}
+                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
+                        />
+                    </Space>
                     <Tooltip title="Export as CSV">
-                        <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
+                        <Button icon={<DownloadOutlined />} onClick={onExport}>
+                            Export
+                        </Button>
                     </Tooltip>
                 </Space>
             </div>
