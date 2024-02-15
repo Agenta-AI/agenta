@@ -96,6 +96,7 @@ def evaluate(
         loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
+        assert app_variant_db, f"App variant with id {variant_id} not found!"
         app_variant_parameters = app_variant_db.config.parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
