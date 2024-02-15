@@ -1,6 +1,6 @@
 {
-    "name": "dashboard",
-    "version": "0.1.0",
+    "name": "agenta",
+    "version": "0.12.0",
     "private": true,
     "engines": {
         "node": ">=18"
