@@ -16,21 +16,15 @@ Cypress.Commands.add("createVariant", () => {
 
     // Check if there are app variants present
     cy.request({
-        url: `${Cypress.env().baseApiURL}/organizations/`,
+        url: `${Cypress.env().baseApiURL}/apps`,
         method: "GET",
-    }).then((res) => {
-        cy.log(`Body: ${JSON.stringify(res.body) || "No body"}`)
-        cy.request({
-            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
-            method: "GET",
-        }).then((resp) => {
-            if (resp.body.length) {
-                cy.get('[data-cy="create-new-app-button"]').click()
-                cy.get('[data-cy="create-from-template"]').click()
-            } else {
-                cy.get('[data-cy="create-from-template__no-app"]').click()
-            }
-        })
+    }).then((resp) => {
+        if (resp.body.length) {
+            cy.get('[data-cy="create-new-app-button"]').click()
+            cy.get('[data-cy="create-from-template"]').click()
+        } else {
+            cy.get('[data-cy="create-from-template__no-app"]').click()
+        }
     })
 
     cy.contains("Single Prompt")
