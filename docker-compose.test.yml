@@ -22,7 +22,7 @@ services:
             - DOMAIN_NAME=http://localhost
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - DATABASE_MODE=test
+            - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
             - OPENAI_API_KEY=${OPENAI_API_KEY}
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
