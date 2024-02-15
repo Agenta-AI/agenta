@@ -85,17 +85,17 @@
         "basic_guides/creating_an_app",
         "basic_guides/prompt_engineering",
         "basic_guides/test_sets",
-        "basic_guides/deployment",
-        "basic_guides/team_management",
-        "basic_guides/custom_evaluator",
         "basic_guides/automatic_evaluation",
-        "basic_guides/human_evaluation"
+        "basic_guides/human_evaluation",
+        "basic_guides/deployment",
+        "basic_guides/team_management"
       ]
     },
     {
       "group": "Advanced Guides",
       "pages": [
         "advanced_guides/custom_applications",
+        "basic_guides/custom_evaluator",
         "advanced_guides/using_agenta_from_cli"
       ]
     },
@@ -117,7 +117,9 @@
     },
     {
       "group": "Introduction",
-      "pages": ["developer_guides/how_does_agenta_work"]
+      "pages": [
+        "developer_guides/how_does_agenta_work"
+      ]
     },
     {
       "group": "Tutorials",
@@ -245,11 +247,16 @@
     },
     {
       "group": "Changelog",
-      "pages": ["changelog/main"]
+      "pages": [
+        "changelog/main"
+      ]
     },
     {
       "group": "Cookbook",
-      "pages": ["cookbook/list_templates", "cookbook/extract_job_information"]
+      "pages": [
+        "cookbook/list_templates",
+        "cookbook/extract_job_information"
+      ]
     }
   ],
   "api": {
