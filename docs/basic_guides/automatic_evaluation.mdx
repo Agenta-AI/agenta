@@ -7,11 +7,22 @@ The key to building production-ready LLM applications is to have a tight feedbac
  
 ## Configuring Evaluators
 
-Agenta comes with a set of built-in evaluators that can be configured. We are continuously adding more evaluators over time. By default, each project includes the following evaluators:
+Agenta comes with a set of built-in evaluators that can be configured. 
+
+By default, each project includes the following evaluators (which do not require configuration):
 - Exact match: This evaluator checks if the generated answer is an exact match to the expected answer. The aggregated result is the percentage of correct answers.
 
-The following configurable evaluators are available and need to be added and configured before use. To add an evaluator, go to the Evaluators tab and click on the "Add Evaluator" button. A modal will appear where you can select the evaluator you want to add and configure it.
+Additionally, the following configurable evaluators are available but need to be explicitly configured  and added before use.
 
+To add an evaluator, go to the Evaluators tab and click on the "Add Evaluator" button. A modal will appear where you can select the evaluator you want to add and configure it.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/15_accessing_evaluator_page_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/15_accessing_evaluator_page_dark.png" />
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/16_new_evaluator_modal_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/16_new_evaluator_modal_dark.png" />
+
+**Configurable evaluators**
 - Regex match: This evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.
 - Webhook evaluator: This evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.
 - Similarity Match evaluator: This evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.

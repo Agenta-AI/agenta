@@ -2,40 +2,47 @@
 title: 'Human Evaluation'
 ---
 
-- <a href="/basic_guides/human_evaluation#a-b-test">A/B Test</a>
-- <a href="/basic_guides/human_evaluation#single-model-test">Single Model Test</a>
+Sometimes, you may need to evaluate the performance of your models using human judgment. This is where the Human Evaluation feature comes in. It allows you to conduct A/B tests and single model tests to evaluate the performance of your models using human judgment.
 
-## A/B Test
-To start a new evaluation with A/B Test, you need to:
-- Select two variants would you like to evaluate
-- Select a testset you want to use for the evaluation
+## Single Model Evaluation
+Single model test allows you to score the performance of a single LLM app manually. 
 
-### Invite Collaborators
-In A/B Test, you can invite members of your workspace to collaborate on the evaluation by sharing a link to the evaluation
-
-<Note>Please refer [here](/basic_guides/team_management) on how to add members to your workspace. </Note>
-
-Click on the "Start a new evaluation" button to commence the evaluation process.
-Once the evaluation is initiated, you will be directed to the A/B Test Evaluation view. Here, you can perform the following actions:
-
-- <b>Scoring between variants: </b> Evaluate and score the performance of each variant for the expected output.
-- <b>Additional Notes: </b> Add any relevant notes or comments to provide context or details about the evaluation.
-- <b>Export Results: </b> Utilize the "Export Results" functionality to save and export the results of the evaluation.
-
-<img height="600" className="dark:hidden" src="/images/basic_guides/21_ab_test_view_light.png" />
-<img height="600" className="hidden dark:block" src="/images/basic_guides/21_ab_test_view_dark.png" />
-
-## Single Model Test
 To start a new evaluation with the single model test, you need to:
 - Select a variant would you like to evaluate
 - Select a testset you want to use for the evaluation
 
-Click on the "Start a new evaluation" button to commence the evaluation process.
-Once the evaluation is initiated, you will be directed to the Single Model Test Evaluation view. Here, you can perform the following actions:
+To start a new evaluation with the single model test, follow these steps:
+
+1. Select the variant you would like to evaluate.
+2. Choose the testset you want to use for the evaluation.
+
+Click on the "Start a new evaluation" button to begin the evaluation process. Once the evaluation is initiated, you will be directed to the Single Model Test Evaluation view. Here, you can perform the following actions:
 
 - <b>Score: </b> Enter a numerical score to evaluate the performance of the chosen variant.
 - <b>Additional Notes: </b> Add any relevant notes or comments to provide context or details about the evaluation.
-- <b>Export Results: </b> Utilize the "Export Results" functionality to save and export the results of the evaluation.
+- <b>Export Results: </b> Use the "Export Results" functionality to save and export the evaluation results.
 
 <img height="600" className="dark:hidden" src="/images/basic_guides/22_single_model_test_view_light.png" />
 <img height="600" className="hidden dark:block" src="/images/basic_guides/22_single_model_test_view_dark.png" />
+
+## A/B Test
+A/B tests allow you to compare the performance of two different variants manually. For each data point you can select which variant is better, or if they are equally good or bad.
+
+To start a new evaluation with an A/B Test, follow these steps:
+
+1. Select two variants that you would like to evaluate.
+2. Choose the testset you want to use for the evaluation.
+
+### Invite Collaborators
+
+In an A/B Test, you can invite members of your workspace to collaborate on the evaluation by sharing a link to the evaluation. For information on how to add members to your workspace, please refer to this guide.
+
+Click on the "Start a new evaluation" button to begin the evaluation process. Once the evaluation is initiated, you will be directed to the A/B Test Evaluation view. Here, you can perform the following actions:
+
+- <b>Scoring between variants: </b> Evaluate and score the performance of each variant for the expected output.
+- <b>Additional Notes: </b> Add any relevant notes or comments to provide context or details about the evaluation.
+- <b>Export Results: </b> Use the "Export Results" functionality to save and export the evaluation results.
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/21_ab_test_view_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/21_ab_test_view_dark.png" />
+
