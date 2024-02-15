@@ -132,8 +132,7 @@ services:
         depends_on:
             - rabbitmq
             - redis
-            - mongo:
-                condition: service_healthy
+            - mongo
         extra_hosts:
             - host.docker.internal:host-gateway
         networks:
