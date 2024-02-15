@@ -61,6 +61,21 @@ services:
         networks:
             - agenta-network
 
+    mongo_express:
+        image: mongo-express:0.54.0
+        environment:
+            ME_CONFIG_MONGODB_ADMINUSERNAME: username
+            ME_CONFIG_MONGODB_ADMINPASSWORD: password
+            ME_CONFIG_MONGODB_SERVER: mongo
+        ports:
+            - "8081:8081"
+        networks:
+            - agenta-network
+        depends_on:
+            mongo:
+                condition: service_healthy
+        restart: always
+
     mongo:
         image: mongo:5.0
         container_name: agenta-mongo-test
