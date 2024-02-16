@@ -1,11 +1,9 @@
 import {useState, useEffect, useMemo} from "react"
-import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {
@@ -31,6 +29,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -107,7 +106,6 @@ const useStyles = createUseStyles({
 const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
-    const router = useRouter()
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -123,13 +121,20 @@ const AppSelector: React.FC = () => {
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const {selectedOrg} = useProfileData()
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
         details: undefined,
         appId: undefined,
     })
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     useEffect(() => {
         getAllProviderLlmKeys()
@@ -207,7 +212,6 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
-            orgId: selectedOrg?.id!,
             providerKey:
                 isDemo() && apiKey?.length === 0
                     ? []
@@ -287,7 +291,11 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 2) {
+                                            if (
+                                                isDemo() &&
+                                                selectedOrg?.is_paying == false &&
+                                                apps.length > 2
+                                            ) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
