@@ -1,6 +1,9 @@
 name: Run Backend tests
 
-on: [pull_request]
+on:
+  pull_request:
+    paths:
+      - 'agenta-backend/**'
 
 jobs:
   continous_integration:

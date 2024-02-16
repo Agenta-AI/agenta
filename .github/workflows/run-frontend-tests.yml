@@ -1,6 +1,9 @@
 name: Run Frontend tests
 
-on: [pull_request]
+on:
+  pull_request:
+    paths:
+      - 'agenta-web/**'
 env:
   OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
