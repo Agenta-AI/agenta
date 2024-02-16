@@ -294,6 +294,7 @@ const EvaluationResults: React.FC<Props> = () => {
                             disabled={selected.length === 0}
                             icon={<DeleteOutlined />}
                             type="primary"
+                            data-cy="evaluation-results-delete-button"
                             danger
                             onClick={onDelete}
                         >
