@@ -43,7 +43,7 @@ services:
                 "--log-level",
                 "info",
                 "--root-path",
-                "/api",
+                "/api"
             ]
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
@@ -126,12 +126,14 @@ services:
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
+            - DATABASE_MODE=test
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock
         depends_on:
             - rabbitmq
             - redis
+            - mongo
         extra_hosts:
             - host.docker.internal:host-gateway
         networks:
