@@ -51,6 +51,3 @@ jobs:
       - name: Docker logs
         if: always() #
         run: docker ps -q | xargs -I {} docker logs {}
-
-      - name: Stop Docker Compose
-        run: docker-compose down
