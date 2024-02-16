@@ -10,6 +10,12 @@ from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.api.observability_models import (
     Span,
+    SpanStatus,
+    SpanVariant,
+    LLMInputs,
+    LLMContent,
+    LLMModelParams,
+    SpanDetail,
     Trace,
     Feedback as FeedbackOutput,
 )
@@ -93,7 +99,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
 )
 
-from beanie import Link
+from beanie import Link, PydanticObjectId as ObjectId
 
 
 logger = logging.getLogger(__name__)
@@ -509,26 +515,24 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
     )
 
 
-def spans_db_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
+async def spans_to_pydantic(spans: List[ObjectId], trace_db: TraceDB) -> List[Span]:
+    app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
+    spans_db = [
+        await SpanDB.find_one(SpanDB.id == ObjectId(span_id)) for span_id in spans
+    ]
     return [
         Span(
-            span_id=str(span_db.id),
-            parent_span_id=str(span_db.parent_span_id),
-            meta=span_db.meta,
-            event_name=span_db.event_name,
-            event_type=span_db.event_type,
-            start_time=span_db.start_time,
-            duration=span_db.duration,
-            status=span_db.status,
-            end_time=span_db.end_time,
-            inputs=span_db.inputs,
-            outputs=span_db.outputs,
-            prompt_template=span_db.prompt_template,
-            tokens_input=span_db.tokens_input,
-            tokens_output=span_db.tokens_output,
-            token_total=span_db.token_total,
-            cost=span_db.cost,
-            tags=span_db.tags,
+            id=str(span_db.id),
+            created_at=span_db.created_at,
+            variant=SpanVariant(
+                variant_id=str(app_variant_db.id),
+                variant_name=app_variant_db.variant_name,
+                revision=app_variant_db.revision,
+            ),
+            environment="",
+            status=SpanStatus(value=trace_db.status.value, error=trace_db.status.error),
+            metadata=span_db.meta,
+            user_id=str(trace_db.user.id),
         ).dict(exclude_unset=True)
         for span_db in spans_db
     ]

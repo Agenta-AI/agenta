@@ -298,7 +298,7 @@ class SpanDB(Document):
     event_type: Optional[str]
     start_time: datetime
     duration: Optional[int]
-    status: str  # initiated, completed, stopped, cancelled
+    status: Result
     end_time: datetime = Field(default=datetime.now())
     inputs: Optional[List[str]]
     outputs: Optional[List[str]]
@@ -308,6 +308,7 @@ class SpanDB(Document):
     token_total: Optional[int]
     cost: Optional[float]
     tags: Optional[List[str]]
+    created_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "spans"
@@ -332,6 +333,7 @@ class TraceDB(Document):
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
+    type: str = Field(default="generation")
     token_consumption: Optional[int]
     user: Link[UserDB]
     tags: Optional[List[str]]
