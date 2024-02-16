@@ -93,7 +93,7 @@ async def invoke_app(
 
         except httpx.HTTPStatusError as e:
             # Parse error details from the API response
-            error_message = "Errow in invoking the LLM App:"
+            error_message = "Error in invoking the LLM App:"
             try:
                 error_body = e.response.json()
                 if "message" in error_body:
