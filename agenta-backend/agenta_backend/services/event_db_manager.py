@@ -6,7 +6,9 @@ from fastapi import HTTPException
 
 from agenta_backend.models.api.observability_models import (
     Span,
+    SpanDetail,
     CreateSpan,
+    ObservabilityDashboardData,
     Feedback,
     CreateFeedback,
     UpdateFeedback,
@@ -15,7 +17,7 @@ from agenta_backend.models.api.observability_models import (
     UpdateTrace,
 )
 from agenta_backend.models.converters import (
-    spans_db_to_pydantic,
+    spans_to_pydantic,
     feedback_db_to_pydantic,
     trace_db_to_pydantic,
 )
@@ -139,6 +141,172 @@ async def create_trace_span(payload: CreateSpan) -> str:
     return str(span_db.id)
 
 
+async def get_trace_spans_by_user_uid(user_uid: str, trace_type: str) -> List[Span]:
+    """Get the spans for a given trace.
+
+    Args:
+        user_uid (str): the uid of the user
+        trace_type (str): the type of the trace
+
+    Returns:
+        List[Span]: the list of spans for the given user
+    """
+
+    user = await db_manager.get_user(user_uid)
+
+    # Get trace
+    trace = await TraceDB.find_one(
+        TraceDB.type == trace_type, TraceDB.user.id == user.id, fetch_links=True
+    )
+
+    # Get trace spans
+    spans = await spans_to_pydantic(trace.spans, trace)
+    return spans
+
+
+async def fetch_mock_generation(user_uid: str) -> List[Span]:
+    import random, uuid
+    from faker import Faker
+    from datetime import datetime, timedelta
+
+    fake = Faker()
+    list_of_generations = []
+
+    user = await db_manager.get_user(user_uid)
+
+    def get_random_timestamp():
+        past_24_hours = datetime.now() - timedelta(hours=24)
+        random_time = fake.date_time_between(start_date=past_24_hours)
+        return random_time.isoformat()
+
+    def generate_mock_generation():
+        status_value = random.choice(["SUCCESS", "FAILURE"])
+        list_of_generations.append(
+            Span(
+                **{
+                    "id": str(uuid.uuid4()),
+                    "created_at": get_random_timestamp(),
+                    "variant": {
+                        "variant_id": str(uuid.uuid4()),
+                        "variant_name": fake.company(),
+                        "revision": random.randint(1, 20),
+                    },
+                    "environment": random.choice(
+                        ["development", "staging", "production"]
+                    ),
+                    "status": {
+                        "value": random.choice(["INITIATED", "COMPLETED", "STOPPED"]),
+                        "error": (
+                            {
+                                "message": fake.sentence(),
+                                "stacktrace": fake.text(
+                                    max_nb_chars=200
+                                ),  # Short stacktrace
+                            }
+                            if status_value == "FAILURE"
+                            else None
+                        ),
+                    },
+                    "metadata": {
+                        "cost": random.uniform(0.01, 2),
+                        "latency": random.uniform(0.1, 10),
+                        "usage": {
+                            "completion_tokens": random.randint(50, 300),
+                            "prompt_tokens": random.randint(20, 100),
+                            "total_tokens": random.randint(100, 500),
+                        },
+                    },
+                    "user_id": str(user.id),
+                }
+            )
+        )
+
+    for _ in range(10):
+        generate_mock_generation()
+    return list_of_generations
+
+
+def fetch_mock_generation_detail(generation_id: str) -> SpanDetail:
+    import random
+    from faker import Faker
+
+    fake = Faker()
+    return SpanDetail(
+        **{
+            "span_id": generation_id,
+            "content": {
+                "inputs": [
+                    {"input_name": fake.word(), "input_value": fake.sentence()}
+                    for _ in range(random.randint(1, 3))
+                ],
+                "output": fake.paragraph(nb_sentences=3),
+            },
+            "model_params": {
+                "prompt": {
+                    "system": (
+                        fake.sentence() if random.random() < 0.5 else None
+                    ),  # Optional system prompt
+                    "user": fake.sentence(),
+                    "variables": [
+                        {
+                            "name": fake.word(),
+                            "type": random.choice(["number", "string", "bool"]),
+                        }
+                        for _ in range(random.randint(0, 2))
+                    ],
+                },
+                "params": {
+                    "temperature": random.uniform(0.2, 0.9),
+                    "top_p": random.uniform(0.5, 1.0),
+                },
+            },
+        }
+    )
+
+
+def fetch_mock_observability_dashboard() -> ObservabilityDashboardData:
+    from faker import Faker
+    import random
+    from datetime import datetime, timedelta
+
+    fake = Faker()
+
+    list_of_data_points = []
+
+    def generate_data_point():
+        for _ in range(10):
+            list_of_data_points.append(
+                {
+                    "timestamp": datetime.now(),
+                    "success_count": random.randint(5, 20),
+                    "failure_count": random.randint(0, 5),
+                    "cost": random.uniform(0.05, 0.5),
+                    "latency": random.uniform(0.2, 1.5),
+                    "total_tokens": random.randint(100, 500),
+                    "prompt_tokens": random.randint(20, 150),
+                    "completion_tokens": random.randint(50, 300),
+                    "environment": random.choice(
+                        ["development", "staging", "production"]
+                    ),
+                    "variant": f"variant_{random.randint(1, 5)}",
+                }
+            )
+
+    generate_data_point()
+    return ObservabilityDashboardData(
+        **{
+            "data": list_of_data_points,
+            "total_count": random.randint(50, 200),
+            "failure_rate": random.uniform(0.0, 0.25),
+            "total_cost": random.uniform(5, 20),
+            "avg_cost": random.uniform(0.1, 0.8),
+            "avg_latency": random.uniform(0.5, 2.0),
+            "total_tokens": random.randint(1000, 5000),
+            "avg_tokens": random.randint(100, 500),
+        }
+    )
+
+
 async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
     """Get the spans for a given trace.
 
@@ -157,7 +325,7 @@ async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
     )
 
     # Get trace spans
-    spans = spans_db_to_pydantic(trace.spans)
+    spans = spans_to_pydantic(trace.spans)
     return spans
 
 
