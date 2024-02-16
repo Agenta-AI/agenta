@@ -1,5 +1,4 @@
 import {v4 as uuidv4} from "uuid"
-import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
@@ -214,33 +213,11 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
     return result
 }
 
-export const getInitials = (str: string, limit = 2) => {
-    let initialText = "E"
-
-    try {
-        initialText = str
-            ?.split(" ")
-            .slice(0, limit)
-            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
-    } catch (error) {
-        console.log("Error using getInitials", error)
-    }
-
-    return initialText
-}
-
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
         return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
-}
-
-export function dynamicComponent<T>(path: string, fallback: any = () => null) {
-    return dynamic<T>(() => import(`@/components/${path}`), {
-        loading: fallback,
-        ssr: false,
-    })
 }
 
 export const removeKeys = (obj: GenericObject, keys: string[]) => {
@@ -438,3 +415,10 @@ export const redirectIfNoLLMKeys = () => {
 
 export const randNum = (min: number, max: number) =>
     Math.floor(Math.random() * (max - min + 1) + min)
+
+export const snakeToTitle = (str: string) => {
+    return str
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+}

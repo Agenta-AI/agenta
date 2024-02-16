@@ -10,9 +10,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     ConfigDB,
     AppVariantDB,
-    OrganizationDB,
 )
-from agenta_backend.services import selectors
 
 import httpx
 
@@ -39,12 +37,6 @@ async def get_first_user_object():
         create_user = UserDB(uid="0")
         await create_user.create()
 
-        org = OrganizationDB(type="default", owner=str(create_user.id))
-        await org.create()
-
-        create_user.organizations.append(org.id)
-        await create_user.save()
-
         return create_user
     return user
 
@@ -60,12 +52,6 @@ async def get_second_user_object():
         )
         await create_user.create()
 
-        org = OrganizationDB(type="default", owner=str(create_user.id))
-        await org.create()
-
-        create_user.organizations.append(org.id)
-        await create_user.save()
-
         return create_user
     return user
 
@@ -73,16 +59,14 @@ async def get_second_user_object():
 @pytest.fixture()
 async def get_first_user_app(get_first_user_object):
     user = await get_first_user_object
-    organization = await selectors.get_user_own_org(user.uid)
 
-    app = AppDB(app_name="myapp", organization=organization, user=user)
+    app = AppDB(app_name="myapp", user=user)
     await app.create()
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates_v2:local_test_prompt",
         user=user,
-        organization=organization,
     )
     await db_image.create()
 
@@ -91,9 +75,7 @@ async def get_first_user_app(get_first_user_object):
         parameters={},
     )
 
-    db_base = VariantBaseDB(
-        base_name="app", image=db_image, organization=organization, user=user, app=app
-    )
+    db_base = VariantBaseDB(base_name="app", image=db_image, user=user, app=app)
     await db_base.create()
 
     appvariant = AppVariantDB(
@@ -101,7 +83,6 @@ async def get_first_user_app(get_first_user_object):
         variant_name="app",
         image=db_image,
         user=user,
-        organization=organization,
         parameters={},
         base_name="app",
         config_name="default",
@@ -111,7 +92,7 @@ async def get_first_user_app(get_first_user_object):
         config=db_config,
     )
     await appvariant.create()
-    return appvariant, user, organization, app, db_image, db_config, db_base
+    return appvariant, user, app, db_image, db_config, db_base
 
 
 @pytest.fixture()
@@ -122,10 +103,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 8.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -140,10 +121,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 13.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -158,10 +139,10 @@ def spans_db_data():
             "meta": {},
             "event_name": "call",
             "event_type": "fixture_call",
-            "start_time": str(datetime.utcnow()),
+            "start_time": str(datetime.now()),
             "duration": 18.30,
             "status": "initiated",
-            "end_time": str(datetime.utcnow()),
+            "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
             "prompt_template": "string",
@@ -179,8 +160,8 @@ def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -189,8 +170,8 @@ def app_variant_create_data():
     return {
         "variant_name": "v1",
         "parameters": {},
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
     }
 
 
@@ -202,8 +183,8 @@ def trace_create_data():
         "status": "completed",
         "token_consumption": 638,
         "tags": ["string"],
-        "start_time": str(datetime.utcnow()),
-        "end_time": str(datetime.utcnow()),
+        "start_time": str(datetime.now()),
+        "end_time": str(datetime.now()),
     }
 
 
@@ -236,17 +217,10 @@ def fetch_single_prompt_template(fetch_templates):
 
 
 @pytest.fixture()
-async def fetch_user_organization():
-    organization = await OrganizationDB.find().to_list()
-    return {"org_id": str(organization[0].id)}
-
-
-@pytest.fixture()
 def app_from_template():
     return {
         "app_name": "string",
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "organization_id": "string",
         "template_id": "string",
     }
 
@@ -268,6 +242,23 @@ def update_app_variant_parameters():
         "top_p": 1,
         "frequence_penalty": 0,
         "presence_penalty": 0,
+    }
+
+
+@pytest.fixture()
+def app_variant_parameters_updated():
+    return {
+        "parameters": {
+            "temperature": 1.43,
+            "model": "gpt-3.5-turbo",
+            "max_tokens": 1182,
+            "prompt_system": "You are an expert in geography. Answer in Japanese.",
+            "prompt_user": "What is the capital of {country}?",
+            "top_p": 1,
+            "frequence_penalty": 1.4,
+            "presence_penalty": 1.25,
+            "force_json": 0,
+        }
     }
 
 
@@ -329,3 +320,8 @@ def auto_ai_critique_evaluator_config():
             "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
         },
     }
+
+
+@pytest.fixture()
+def deploy_to_environment_payload():
+    return {"environment_name": "string", "variant_id": "string"}

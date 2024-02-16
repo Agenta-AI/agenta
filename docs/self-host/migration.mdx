@@ -13,20 +13,52 @@ docker compose -f docker-compose.gh.yml up -d --pull always
 
 This command instructs Docker to fetch and use the latest version of the Agenta image.
 
+# Database Migrations
 
-### Migrating from Version 0.8 to 0.9
+The steps below outlines the process for performing database migrations using Beanie with the Agenta backend system. 
 
-1. **Executing the Beanie Migration**: Run the migration script as follows:
-    
+Beanie is a MongoDB ODM (Object Document Mapper) for Python. More information about Beanie can be found [here](https://github.com/roman-right/beanie).
+
+## Steps for Migration
+
+### Accessing the Backend Docker Container
+
+To access the backend Docker container:
+
+1. **List Docker Containers**: List all running Docker containers with the command:
+
+    ```bash
+    docker ps
     ```
-    docker compose exec -w /app/agenta_backend/migrations/24_01_24_error_and_result/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+
+2. **Identify the `agenta-backend` Container ID**: Note down the container ID from the output. Example output:
+
+    ```
+    CONTAINER ID   IMAGE                    COMMAND                  CREATED         STATUS         PORTS                                      NAMES
+    ae0c56933636   agenta-backend           "uvicorn agenta_back…"   3 hours ago     Up 3 hours     8000/tcp                                   agenta-backend-1
+    e35f6c8b7fcb   agenta-agenta-web        "docker-entrypoint.s…"   3 hours ago     Up 3 hours     0.0.0.0:3000->3000/tcp                     agenta-agenta-web-1
     ```
 
-### Migrating from Version 0.7 to 0.8
+3. **SSH into the Container**: Use the following command, replacing `CONTAINER_ID` with your container's ID:
 
-1. **Executing the Beanie Migration**: Run the migration script as follows:
-    
-    ```
-    docker compose exec -w /app/agenta_backend/migrations/17_01_24_pydantic_and_evaluations/ agenta-backend  bash -c 'beanie migrate --no-use-transaction -uri $MONGODB_URI -db 'agenta_v2' -p .'
+    ```bash
+    docker exec -it CONTAINER_ID bash
     ```
 
+### Performing the Migration
+
+To perform the database migration:
+
+1. **Navigate to the Migration Directory**: Change the directory to the migration folder:
+
+    ```sh
+    cd agenta_backend/migrations/{migration_name}
+    ```
+    Replace `{migration_name}` with the actual migration name, e.g., `v0_10_0_to_v0_11_0`.
+
+2. **Run Beanie Migration**: Execute the migration command:
+
+    ```sh
+    beanie migrate --no-use-transaction -uri 'mongodb://username:password@mongo' -db 'agenta_v2' -p .
+    ```
+    Ensure to replace `username`, `password`, and other placeholders with actual values.

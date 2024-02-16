@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId, free_fall_migration
+from beanie import Document, Link, PydanticObjectId, iterative_migration
 
 # Old models
 
@@ -15,7 +15,7 @@ class APIKeyDB(Document):
     rate_limit: int = Field(default=0)
     hidden: Optional[bool] = Field(default=False)
     expiration_date: Optional[datetime]
-    created_at: Optional[datetime] = datetime.utcnow()
+    created_at: Optional[datetime] = datetime.now()
     updated_at: Optional[datetime]
 
     class Settings:
@@ -36,8 +36,8 @@ class OrganizationDB(Document):
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
     invitations: Optional[List[InvitationDB]] = []
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "organizations"
@@ -48,8 +48,8 @@ class UserDB(Document):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "users"
@@ -65,8 +65,8 @@ class ImageDB(Document):
     deletable: bool = Field(default=True)
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "docker_images"
@@ -76,8 +76,8 @@ class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "app_db"
@@ -91,8 +91,8 @@ class DeploymentDB(Document):
     container_id: Optional[str]
     uri: Optional[str]
     status: str
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "deployments"
@@ -105,8 +105,8 @@ class VariantBaseDB(Document):
     base_name: str
     image: Link[ImageDB]
     deployment: Optional[PydanticObjectId]  # Link to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "bases"
@@ -115,8 +115,8 @@ class VariantBaseDB(Document):
 class ConfigVersionDB(BaseModel):
     version: int
     parameters: Dict[str, Any]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
 
 class OldConfigDB(Document):
@@ -124,8 +124,8 @@ class OldConfigDB(Document):
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
     version_history: List[ConfigVersionDB] = Field(default=[])
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "configs"
@@ -143,8 +143,8 @@ class AppVariantDB(Document):
     base: Link[VariantBaseDB]
     config_name: Optional[str]
     config: Link[OldConfigDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
@@ -161,10 +161,10 @@ class AppEnvironmentDB(Document):
     organization: Link[OrganizationDB]
     deployed_app_variant: Optional[PydanticObjectId]
     deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class TemplateDB(Document):
@@ -189,8 +189,8 @@ class TestSetDB(Document):
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "testsets"
@@ -203,8 +203,8 @@ class EvaluatorConfigDB(Document):
     name: str
     evaluator_key: str
     settings_values: Dict[str, Any] = Field(default=dict)
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "evaluators_configs"
@@ -254,8 +254,8 @@ class HumanEvaluationDB(Document):
     evaluation_type: str
     variants: List[PydanticObjectId]
     testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "human_evaluations"
@@ -270,8 +270,8 @@ class HumanEvaluationScenarioDB(Document):
     vote: Optional[str]
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
     is_pinned: Optional[bool]
     note: Optional[str]
 
@@ -288,8 +288,8 @@ class EvaluationDB(Document):
     variant: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "new_evaluations"
@@ -307,8 +307,8 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "new_evaluation_scenarios"
@@ -322,7 +322,7 @@ class SpanDB(Document):
     start_time: datetime
     duration: Optional[int]
     status: str  # initiated, completed, stopped, cancelled
-    end_time: datetime = Field(default=datetime.utcnow())
+    end_time: datetime = Field(default=datetime.now())
     inputs: Optional[List[str]]
     outputs: Optional[List[str]]
     prompt_template: Optional[str]
@@ -343,7 +343,7 @@ class Feedback(BaseModel):
     score: Optional[float]
     meta: Optional[Dict[str, Any]]
     created_at: datetime
-    updated_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.now())
 
 
 class TraceDB(Document):
@@ -351,7 +351,7 @@ class TraceDB(Document):
     variant_id: str
     spans: List[PydanticObjectId]
     start_time: datetime
-    end_time: datetime = Field(default=datetime.utcnow())
+    end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
@@ -384,8 +384,8 @@ class NewAppVariantDB(Document):
     base: Link[VariantBaseDB]
     config_name: Optional[str]
     config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
@@ -396,13 +396,13 @@ class NewAppVariantDB(Document):
 
 
 class NewAppVariantRevisionsDB(Document):
-    variant: Link[NewAppVariantDB]
+    variant: Link[AppVariantDB]
     revision: int
     modified_by: Link[UserDB]
     base: Link[VariantBaseDB]
     config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "app_variant_revisions"
@@ -416,35 +416,45 @@ class NewAppEnvironmentDB(Document):
     deployed_app_variant: Optional[PydanticObjectId]
     deployed_app_variant_revision: Optional[Link[NewAppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
-        name = "app_environment_db"
+        name = "environments"
 
 
 class Forward:
-    @free_fall_migration(
+    @iterative_migration(
         document_models=[
             UserDB,
             OrganizationDB,
             AppDB,
             ImageDB,
             VariantBaseDB,
+            AppVariantDB,
             NewAppVariantDB,
             NewAppVariantRevisionsDB,
+            AppEnvironmentDB,
+            NewAppEnvironmentDB,
         ]
     )
-    async def create_app_variant_revision(self, session):
-        new_app_variants = await NewAppVariantDB.find(fetch_links=True).to_list()
-        for app_variant in new_app_variants:
-            variant_revision = NewAppVariantRevisionsDB(
-                variant=app_variant,
-                revision=app_variant.revision,
-                modified_by=app_variant.user,
-                base=app_variant.base,
-                config=app_variant.config,
+    async def updating_app_environment(
+        self, input_document: AppEnvironmentDB, output_document: NewAppEnvironmentDB
+    ):
+        if input_document.deployed_app_variant is not None:
+            output_document.deployed_app_variant = input_document.deployed_app_variant
+
+        # Find the app variant and the app variant revision document
+        app_variant = await NewAppVariantDB.find_one(
+            NewAppVariantDB.id == input_document.deployed_app_variant
+        )
+        if app_variant is not None:
+            app_variant_revision = await NewAppVariantRevisionsDB.find_one(
+                NewAppVariantRevisionsDB.variant.id == app_variant.id
             )
-            await variant_revision.create(session=session)
+            if app_variant_revision is not None:
+                output_document.deployed_app_variant_revision = app_variant_revision
+            else:
+                output_document.deployed_app_variant_revision = None
 
 
 class Backward:

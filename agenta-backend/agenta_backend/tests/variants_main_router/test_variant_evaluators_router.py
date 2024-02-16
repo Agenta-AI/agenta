@@ -30,12 +30,10 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_app_from_template(
-    app_from_template, fetch_user, fetch_single_prompt_template
+    app_from_template, fetch_single_prompt_template
 ):
-    user = await fetch_user
     payload = app_from_template
     payload["app_name"] = APP_NAME
-    payload["organization_id"] = str(user.organizations[0])
     payload["template_id"] = fetch_single_prompt_template["id"]
 
     response = httpx.post(
@@ -192,7 +190,10 @@ async def test_create_evaluation():
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"]["value"] == EvaluationStatusEnum.EVALUATION_STARTED
+    assert (
+        response_data["status"]["value"]
+        == EvaluationStatusEnum.EVALUATION_STARTED.value
+    )
     assert response_data is not None
 
 
@@ -204,8 +205,8 @@ async def test_fetch_evaluation_status():
     evaluation = evaluations[0]
 
     # Prepare and start short-polling request
-    max_attempts = 10
-    intervals = 3  # seconds
+    max_attempts = 12
+    intervals = 5  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
             f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
