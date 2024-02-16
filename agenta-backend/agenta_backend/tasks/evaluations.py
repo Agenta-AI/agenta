@@ -96,6 +96,9 @@ def evaluate(
         loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
+        assert (
+            app_variant_db is not None
+        ), f"App variant with id {variant_id} not found!"
         app_variant_parameters = app_variant_db.config.parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
@@ -180,10 +183,12 @@ def evaluate(
                     if correct_answer_column in data_point
                     else ""
                 )
+
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
                         user=app.user,
-                        organization=app.organization,
+                        organization=app.organization if isCloudEE() else None,
+                        workspace=app.workspace if isCloudEE() else None,
                         evaluation=new_evaluation_db,
                         variant_id=variant_id,
                         evaluators_configs=new_evaluation_db.evaluators_configs,

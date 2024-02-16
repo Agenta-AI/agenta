@@ -1,11 +1,9 @@
 import {useState, useEffect, useMemo} from "react"
-import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {
@@ -31,6 +29,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -128,6 +127,14 @@ const AppSelector: React.FC = () => {
         details: undefined,
         appId: undefined,
     })
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     useEffect(() => {
         getAllProviderLlmKeys()
@@ -284,7 +291,11 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 2) {
+                                            if (
+                                                isDemo() &&
+                                                selectedOrg?.is_paying == false &&
+                                                apps.length > 2
+                                            ) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
