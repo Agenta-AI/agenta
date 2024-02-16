@@ -1,0 +1,57 @@
+---
+title: 'Writing Custom Evaluators'
+description: 'Write the code for a custom evaluator on Agenta'
+---
+
+Sometimes, the default evaluators on Agenta may not be sufficient for your specific use case. In such cases, you can create a custom evaluator to suit your specific needs. Custom evaluators are written in Python.
+
+For the moment, there are limitation on the code that can be written in the custom evaluator. Our backend uses RestrictedPython to execute the code which limits the libraries that can be used. 
+
+
+## Accessing the Evaluator Page
+To create a custom evaluator on Agenta, simply click on the Evaluations button in the sidebar menu, and then select the "Evaluators" tab within the Evaluations page.
+<img height="600" className="dark:hidden" src="/images/basic_guides/15_accessing_evaluator_page_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/15_accessing_evaluator_page_dark.png" />
+
+## Creating an Evaluator
+On the Evaluators tab, click on the "New Evaluator" button at the top right corner of your screen which would open a modal prompting you to provide the following information:
+1. <b>Evaluator name: </b> Enter a unique and descriptive name for your custom evaluator.
+2. <b>Evaluator Template: </b> Choose a template for your custom evaluator. This could be based on the specific criteria or type of evaluation you want.
+<img height="600" className="dark:hidden" src="/images/basic_guides/16_new_evaluator_modal_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/16_new_evaluator_modal_dark.png" />
+Click on the "Create" button within the modal to confirm and complete the creation of your custom evaluator.
+
+## Evaluation code
+
+Your code should include on function called evaluate with the following signature:
+```python
+from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    correct_answer: str
+) -> float:
+```
+
+The function should return a float value which is the score of the evaluation. The score should be between 0 and 1. 0 means the evaluation failed and 1 means the evaluation passed.
+
+The parameters are as follows:
+1. <b>app_params: </b> A dictionary containing the configuration of the app. This would include the prompt, model and all the other parameters specified in the playground with the same naming.
+2. <b>inputs: </b> A dictionary containing the inputs of the app. 
+3. <b>output: </b> The generated output of the app. 
+4. <b>correct_answer: </b> The correct answer of the app. 
+
+For instance, exact match would be implemented as follows:
+```python
+from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    correct_answer: str
+) -> float:
+    return 1 if output == correct_answer else 0
+```
