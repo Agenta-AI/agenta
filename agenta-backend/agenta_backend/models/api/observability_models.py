@@ -1,5 +1,6 @@
+from enum import Enum
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel
 
@@ -27,8 +28,83 @@ class CreateSpan(BaseSpan):
     pass
 
 
-class Span(BaseSpan):
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
+class Status(str, Enum):
+    INITIATED = "INITIATED"
+    COMPLETED = "COMPLETED"
+    STOPPED = "STOPPED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
+class SpanVariant(BaseModel):
+    variant_id: str
+    variant_name: str
+    revision: int
+
+
+class SpanStatus(BaseModel):
+    value: Optional[Status]
+    error: Optional[Error]
+
+
+class Span(BaseModel):
+    id: str
+    created_at: datetime
+    variant: SpanVariant
+    environment: str
+    status: SpanStatus
+    metadata: Dict[str, Any]
+    user_id: str
+
+
+class LLMInputs(BaseModel):
+    input_name: str
+    input_value: str
+
+
+class LLMContent(BaseModel):
+    inputs: List[LLMInputs]
+    output: str
+
+
+class LLMModelParams(BaseModel):
+    prompt: Dict[str, Any]
+    params: Dict[str, Any]
+
+
+class SpanDetail(BaseModel):
     span_id: str
+    content: LLMContent
+    model_params: LLMModelParams
+
+
+class ObservabilityData(BaseModel):
+    timestamp: datetime
+    success_count: int
+    failure_count: int
+    cost: float
+    latency: float
+    total_tokens: int
+    prompt_tokens: int
+    completion_tokens: int
+    environment: str
+    variant: str
+
+
+class ObservabilityDashboardData(BaseModel):
+    data: List[ObservabilityData]
+    total_count: int
+    failure_rate: float
+    total_cost: float
+    avg_cost: float
+    avg_latency: float
+    total_tokens: int
+    avg_tokens: int
 
 
 class CreateFeedback(BaseModel):
