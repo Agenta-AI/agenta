@@ -6,54 +6,82 @@ from pymongo import MongoClient
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE():
+    from agenta_backend.commons.models.db_models import (
+        APIKeyDB,
+        WorkspaceDB,
+        OrganizationDB,
+        AppDB_ as AppDB,
+        UserDB_ as UserDB,
+        ImageDB_ as ImageDB,
+        TestSetDB_ as TestSetDB,
+        AppVariantDB_ as AppVariantDB,
+        EvaluationDB_ as EvaluationDB,
+        DeploymentDB_ as DeploymentDB,
+        VariantBaseDB_ as VariantBaseDB,
+        AppEnvironmentDB_ as AppEnvironmentDB,
+        AppEnvironmentRevisionDB_ as AppEnvironmentRevisionDB,
+        EvaluatorConfigDB_ as EvaluatorConfigDB,
+        HumanEvaluationDB_ as HumanEvaluationDB,
+        EvaluationScenarioDB_ as EvaluationScenarioDB,
+        HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+else:
+    from agenta_backend.models.db_models import (
+        AppDB,
+        UserDB,
+        ImageDB,
+        TestSetDB,
+        EvaluationDB,
+        DeploymentDB,
+        AppVariantDB,
+        VariantBaseDB,
+        AppEnvironmentDB,
+        AppEnvironmentRevisionDB,
+        EvaluatorConfigDB,
+        HumanEvaluationDB,
+        EvaluationScenarioDB,
+        HumanEvaluationScenarioDB,
+    )
+
 from agenta_backend.models.db_models import (
-    APIKeyDB,
-    AppEnvironmentDB,
-    OrganizationDB,
-    UserDB,
-    ImageDB,
-    AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantRevisionsDB,
-    AppVariantDB,
-    TemplateDB,
-    TestSetDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
     SpanDB,
     TraceDB,
+    TemplateDB,
+    AppVariantRevisionsDB,
 )
+
+# Define Document Models
+document_models: List[Document] = [
+    AppDB,
+    UserDB,
+    SpanDB,
+    TraceDB,
+    ImageDB,
+    TestSetDB,
+    TemplateDB,
+    AppVariantDB,
+    DeploymentDB,
+    EvaluationDB,
+    VariantBaseDB,
+    AppEnvironmentDB,
+    AppEnvironmentRevisionDB,
+    EvaluatorConfigDB,
+    HumanEvaluationDB,
+    EvaluationScenarioDB,
+    AppVariantRevisionsDB,
+    HumanEvaluationScenarioDB,
+]
+
+if isCloudEE():
+    document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
+
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-# Define Document Models
-document_models: List[Document] = [
-    APIKeyDB,
-    AppEnvironmentDB,
-    OrganizationDB,
-    UserDB,
-    ImageDB,
-    AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    TemplateDB,
-    TestSetDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    EvaluationDB,
-    EvaluationScenarioDB,
-    SpanDB,
-    TraceDB,
-]
 
 
 class DBEngine:

@@ -1,7 +1,10 @@
 import {ListAppsItem} from "@/lib/Types"
-import {useApps} from "@/lib/services/api"
+import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {axiosFetcher} from "@/lib/services/api"
 import {useRouter} from "next/router"
-import {PropsWithChildren, createContext, useContext, useMemo} from "react"
+import {PropsWithChildren, createContext, useContext, useEffect, useMemo, useState} from "react"
+import useSWR from "swr"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -17,6 +20,34 @@ const initialValues: AppContextType = {
     error: null,
     isLoading: false,
     mutate: () => {},
+}
+
+const useApps = () => {
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
+
+    const {selectedOrg, loading} = useOrgData()
+    const {data, error, isLoading, mutate} = useSWR(
+        `${getAgentaApiUrl()}/api/apps/` +
+            (isDemo()
+                ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
+                : ""),
+        isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher,
+        {
+            shouldRetryOnError: false,
+        },
+    )
+    return {
+        data: (data || []) as ListAppsItem[],
+        error,
+        isLoading: isLoading || loading,
+        mutate,
+    }
 }
 
 export const AppContext = createContext<AppContextType>(initialValues)

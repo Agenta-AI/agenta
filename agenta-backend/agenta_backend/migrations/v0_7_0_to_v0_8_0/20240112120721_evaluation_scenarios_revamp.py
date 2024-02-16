@@ -12,8 +12,8 @@ class OrganizationDB(Document):
     type: Optional[str]
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "organizations"
@@ -24,8 +24,8 @@ class UserDB(Document):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "users"
@@ -35,8 +35,8 @@ class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "app_db"
@@ -48,8 +48,8 @@ class TestSetDB(Document):
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "testsets"
@@ -62,8 +62,8 @@ class EvaluatorConfigDB(Document):
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]] = None
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "evaluators_configs"
@@ -113,8 +113,8 @@ class HumanEvaluationDB(Document):
     evaluation_type: str
     variants: List[PydanticObjectId]
     testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "human_evaluations"
@@ -129,8 +129,8 @@ class HumanEvaluationScenarioDB(Document):
     vote: Optional[str]
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
     is_pinned: Optional[bool]
     note: Optional[str]
 
@@ -147,8 +147,8 @@ class EvaluationDB(Document):
     variant: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "new_evaluations"
@@ -166,8 +166,8 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: datetime = Field(default=datetime.now())
+    updated_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "new_evaluation_scenarios"
@@ -203,8 +203,8 @@ class OldEvaluationDB(Document):
     variants: List[PydanticObjectId]
     version: str = Field("odmantic")
     testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
         name = "evaluations"
@@ -220,8 +220,8 @@ class OldEvaluationScenarioDB(Document):
     version: str = Field("odmantic")
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
     is_pinned: Optional[bool]
     note: Optional[str]
 

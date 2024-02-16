@@ -1,10 +1,10 @@
 import json
-import asyncio
+import httpx
 import logging
+import asyncio
 import traceback
 from typing import Any, Dict, List
 
-import httpx
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
 
@@ -178,9 +178,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[InvokationResult] = (
-        []
-    )  # Outputs after running all batches
+    list_of_app_outputs: List[
+        InvokationResult
+    ] = []  # Outputs after running all batches
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):

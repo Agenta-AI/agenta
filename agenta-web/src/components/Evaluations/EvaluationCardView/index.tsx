@@ -156,9 +156,13 @@ const EvaluationCardView: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
+    const [evaluationsState, setEvaluationsState] = useLocalStorage<{
+        [key: string]: {lastVisitedScenario: string}
+    }>("evaluationsState", {})
+
     const [scenarioId, setScenarioId] = useQueryParam(
         "evaluationScenario",
-        evaluationScenarios[0]?.id || "",
+        evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || "",
     )
     const [instructionsShown, setInstructionsShown] = useLocalStorage(
         "evalInstructionsShown",
@@ -171,7 +175,15 @@ const EvaluationCardView: React.FC<Props> = ({
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
 
-    // console.log(evaluationScenarios, isLoading)
+    useEffect(() => {
+        setEvaluationsState((prevEvaluationsState) => ({
+            ...prevEvaluationsState,
+            [evaluation.id]: {
+                ...(prevEvaluationsState[evaluation.id] || {}),
+                lastVisitedScenario: scenarioId,
+            },
+        }))
+    }, [scenarioId])
 
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)

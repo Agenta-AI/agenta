@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class TimestampModel(BaseModel):
-    created_at: datetime = Field(datetime.utcnow())
-    updated_at: datetime = Field(datetime.utcnow())
+    created_at: datetime = Field(datetime.now())
+    updated_at: datetime = Field(datetime.now())
 
 
 class Organization(BaseModel):
@@ -17,6 +17,7 @@ class Organization(BaseModel):
     owner: str
     members: Optional[List[str]]
     invitations: Optional[List]
+    is_paying: Optional[bool]
 
 
 class OrganizationUpdate(BaseModel):
