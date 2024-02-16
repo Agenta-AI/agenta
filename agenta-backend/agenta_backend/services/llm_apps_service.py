@@ -91,53 +91,13 @@ async def invoke_app(
                 result=Result(type="text", value=app_output["message"], error=None)
             )
 
-        except httpx.HTTPStatusError as e:
-            # Parse error details from the API response
-            error_message = "Errow in invoking the LLM App:"
-            try:
-                error_body = e.response.json()
-                if "message" in error_body:
-                    error_message = error_body["message"]
-                elif (
-                    "error" in error_body
-                ):  # Some APIs return error information under an 'error' key
-                    error_message = error_body["error"]
-            except ValueError:
-                # Fallback if the error response is not JSON or doesn't have the expected structure
-                logger.error(f"Failed to parse error response: {e}")
-
-            logger.error(f"Error occurred during request: {error_message}")
+        except httpx.HTTPError as e:
+            logger.error(f"Error occurred during request: {e}")
             return InvokationResult(
                 result=Result(
                     type="error",
                     error=Error(
-                        message=error_message,
-                        stacktrace=str(e),
-                    ),
-                )
-            )
-
-        except httpx.RequestError as e:
-            # Handle other request errors (e.g., network issues)
-            logger.error(f"Request error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Network error while invoking the LLM App",
-                        stacktrace=str(e),
-                    ),
-                )
-            )
-
-        except Exception as e:
-            # Catch-all for any other unexpected errors
-            logger.error(f"Unexpected error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Unexpected error while invoking the LLM App",
+                        message="An error occurred while invoking the LLM App",
                         stacktrace=str(e),
                     ),
                 )
