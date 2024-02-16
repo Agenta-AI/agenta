@@ -24,7 +24,7 @@ import Link from "next/link"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {diffWords} from "diff"
+import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -83,47 +83,6 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         [evaluationIdsStr],
     )
 
-    const compareStrings = (variantOutput1: any, variantOutput2: any) => {
-        const results = diffWords(variantOutput1, variantOutput2)
-
-        const display = results.map((part, index) => {
-            if (part.removed) {
-                return (
-                    <span
-                        key={index}
-                        style={{
-                            backgroundColor: "#ccffd8",
-                            color: "#000",
-                        }}
-                    >
-                        {part.value}
-                    </span>
-                )
-            } else if (!part.added) {
-                return <span key={index}>{part.value}</span>
-            } else if (part.added) {
-                return (
-                    <>
-                        {" "}
-                        <span
-                            key={index}
-                            style={{
-                                backgroundColor: "#ff818266",
-                                textDecoration: "line-through",
-                                color: appTheme === "dark" ? "#fff" : "#000",
-                            }}
-                        >
-                            {part.value}
-                        </span>
-                    </>
-                )
-            }
-            return null
-        })
-
-        return <span>{display}</span>
-    }
-
     const colDefs = useMemo(() => {
         const colDefs: ColDef<ComparisonResultRow>[] = []
         const {inputs, variants} = rows[0] || {}
@@ -171,15 +130,15 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         <>
                             {showDiff === "show" ? (
                                 <span>
-                                    {compareStrings(
-                                        getTypedValue(
+                                    <CompareOutputDiff
+                                        variantOutput={getTypedValue(
                                             params.data?.variants.find(
                                                 (item) =>
                                                     item.evaluationId === variant.evaluationId,
                                             )?.output?.result,
-                                        ),
-                                        params.data?.correctAnswer,
-                                    )}
+                                        )}
+                                        expectedOutput={params.data?.correctAnswer}
+                                    />
                                 </span>
                             ) : (
                                 getTypedValue(
@@ -243,7 +202,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, showDiff, appTheme])
+    }, [rows, showDiff])
 
     const fetcher = () => {
         setFetching(true)
