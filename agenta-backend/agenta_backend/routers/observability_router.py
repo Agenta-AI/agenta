@@ -1,24 +1,15 @@
 import os
 from typing import List
 
-from fastapi import Request
-from agenta_backend.utils.common import APIRouter
+from fastapi import Request, Query
 
-from agenta_backend.services.event_db_manager import (
-    get_variant_traces,
-    create_app_trace,
-    create_trace_span,
-    get_trace_single,
-    trace_status_update,
-    get_trace_spans,
-    add_feedback_to_trace,
-    get_trace_feedbacks,
-    get_feedback_detail,
-    update_trace_feedback,
-)
+from agenta_backend.utils.common import APIRouter
+from agenta_backend.services import event_db_manager
 from agenta_backend.models.api.observability_models import (
     Span,
+    SpanDetail,
     CreateSpan,
+    ObservabilityDashboardData,
     CreateFeedback,
     Feedback,
     UpdateFeedback,
@@ -31,38 +22,13 @@ from agenta_backend.models.api.observability_models import (
 router = APIRouter()
 
 
-@router.post("/traces/", response_model=str, operation_id="create_trace")
-async def create_trace(
-    payload: CreateTrace,
-    request: Request,
-):
-    trace = await create_app_trace(payload, request.state.user_id)
-    return trace
-
-
 @router.get(
-    "/traces/{app_id}/{variant_id}/",
-    response_model=List[Trace],
-    operation_id="get_traces",
+    "/dashboard/",
+    response_model=ObservabilityDashboardData,
+    operation_id="observability_dashboard",
 )
-async def get_traces(
-    app_id: str,
-    variant_id: str,
-    request: Request,
-):
-    traces = await get_variant_traces(app_id, variant_id, request.state.user_id)
-    return traces
-
-
-@router.get(
-    "/traces/{trace_id}/", response_model=Trace, operation_id="get_single_trace"
-)
-async def get_single_trace(
-    trace_id: str,
-    request: Request,
-):
-    trace = await get_trace_single(trace_id, request.state.user_id)
-    return trace
+async def get_dashboard_data(request: Request):
+    return event_db_manager.fetch_mock_observability_dashboard()
 
 
 @router.post("/spans/", response_model=str, operation_id="create_span")
@@ -70,19 +36,37 @@ async def create_span(
     payload: CreateSpan,
     request: Request,
 ):
-    spans_id = await create_trace_span(payload)
+    spans_id = await event_db_manager.create_trace_span(payload)
     return spans_id
 
 
 @router.get(
-    "/spans/{trace_id}/", response_model=List[Span], operation_id="get_spans_of_trace"
+    "/spans/", response_model=List[Span], operation_id="get_spans_of_generation"
 )
 async def get_spans_of_trace(
-    trace_id: str,
     request: Request,
+    type: str = Query(default="generation"),
 ):
-    spans = await get_trace_spans(trace_id, request.state.user_id)
-    return spans
+    if type == "generation":
+        spans = await event_db_manager.fetch_mock_generation(request.state.user_id)
+        return spans
+    return []
+
+
+@router.get(
+    "/spans/{span_id}/",
+    response_model=SpanDetail,
+    operation_id="get_span_of_generation",
+)
+async def get_span_of_trace(
+    request: Request,
+    span_id: str,
+    type: str = Query(default="generation"),
+):
+    if type == "generation":
+        spans = event_db_manager.fetch_mock_generation_detail(span_id)
+        return spans
+    return []
 
 
 @router.put(
@@ -93,7 +77,9 @@ async def update_trace_status(
     payload: UpdateTrace,
     request: Request,
 ):
-    trace = await trace_status_update(trace_id, payload, request.state.user_id)
+    trace = await event_db_manager.trace_status_update(
+        trace_id, payload, request.state.user_id
+    )
     return trace
 
 
@@ -105,7 +91,9 @@ async def create_feedback(
     payload: CreateFeedback,
     request: Request,
 ):
-    feedback = await add_feedback_to_trace(trace_id, payload, request.state.user_id)
+    feedback = await event_db_manager.add_feedback_to_trace(
+        trace_id, payload, request.state.user_id
+    )
     return feedback
 
 
@@ -115,7 +103,9 @@ async def create_feedback(
     operation_id="get_feedbacks",
 )
 async def get_feedbacks(trace_id: str, request: Request):
-    feedbacks = await get_trace_feedbacks(trace_id, request.state.user_id)
+    feedbacks = await event_db_manager.get_trace_feedbacks(
+        trace_id, request.state.user_id
+    )
     return feedbacks
 
 
@@ -129,7 +119,9 @@ async def get_feedback(
     feedback_id: str,
     request: Request,
 ):
-    feedback = await get_feedback_detail(trace_id, feedback_id, request.state.user_id)
+    feedback = await event_db_manager.get_feedback_detail(
+        trace_id, feedback_id, request.state.user_id
+    )
     return feedback
 
 
@@ -144,7 +136,7 @@ async def update_feedback(
     payload: UpdateFeedback,
     request: Request,
 ):
-    feedback = await update_trace_feedback(
+    feedback = await event_db_manager.update_trace_feedback(
         trace_id, feedback_id, payload, request.state.user_id
     )
     return feedback
