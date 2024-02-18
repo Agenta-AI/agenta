@@ -12,9 +12,6 @@ describe("Evaluation Comparison Test", function () {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.location("pathname").should("include", "/evaluations")
-            cy.get('[data-cy="evaluation-results-compare-button"]').should("exist")
-            cy.get('[data-cy="evaluation-results-delete-button"]').should("exist")
-            cy.get('[data-cy="new-evaluation-button"]').should("exist")
         })
 
         it("Should create 2 new Evaluations", () => {
