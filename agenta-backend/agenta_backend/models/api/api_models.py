@@ -83,6 +83,7 @@ class AppVariantResponse(BaseModel):
     base_id: str
     config_name: str
     uri: Optional[str]
+    revision: int
 
 
 class AppVariantRevision(BaseModel):
