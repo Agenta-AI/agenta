@@ -59,7 +59,7 @@ if isCloudEE():
         check_rbac_permission,
         check_apikey_action_access,
     )
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.db_models import Permission, UsageCategory
 
 
 if isCloud():
@@ -481,9 +481,14 @@ async def create_app_and_variant_from_template(
                 )
 
         if isCloud():
-            raise PaymentRequiredException(
-                "Free quota exceeded. Payment required to continue."
+            free_quota_exceeded = await db_manager_ee.check_exceeding_free_quota(
+                organization_id=payload.organization_id,
+                usage_category=UsageCategory.apps,
             )
+            if free_quota_exceeded:
+                raise PaymentRequiredException(
+                    "Free quota exceeded. Payment required to continue."
+                )
 
         logger.debug(
             f"Step 4: Checking if app {payload.app_name} already exists"

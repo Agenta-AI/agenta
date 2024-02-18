@@ -42,6 +42,11 @@ axios.interceptors.response.use(
             throw error
         }
 
+        if (error.response?.status === 402) {
+            window.location.href = "/payment"
+            throw error
+        }
+
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
 
