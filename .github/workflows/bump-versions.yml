@@ -35,6 +35,10 @@ jobs:
         with:
           python-version: 3.9
 
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
       - name: Bump versions
         run: |
           BUMP_TYPE=${{ inputs.bump-type }}
@@ -51,4 +55,14 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.TOKEN }}
+          commit-message: Bump versions
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          branch: bump-versions
+          delete-branch: true
+          title: 'Bump versions'
+          body: |
+            New version in
+            - agenta-web
+            - agenta-backend
+            - agenta-cli
+
