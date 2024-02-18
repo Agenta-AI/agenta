@@ -1,11 +1,9 @@
 import {useState, useEffect, useMemo} from "react"
-import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {
@@ -31,6 +29,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -50,11 +49,11 @@ const useStyles = createUseStyles({
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
     }),
-    createCard: {
+    createCard: ({themeMode}: StyleProps) => ({
         fontSize: 20,
-        backgroundColor: "hsl(0, 0%, 100%)",
-        borderColor: "hsl(0, 0%, 10%) !important",
-        color: "#FFFFFF",
+        backgroundColor: themeMode === "dark" ? "" : "hsl(0, 0%, 100%)",
+        borderColor: themeMode === "dark" ? "hsl(0, 0%, 100%)" : "hsl(0, 0%, 10%) !important",
+        color: themeMode === "dark" ? "#fff" : "#000",
         boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
 
         width: 300,
@@ -64,16 +63,16 @@ const useStyles = createUseStyles({
         justifyContent: "center",
         cursor: "pointer",
         "& .ant-card-meta-title": {
-            color: "hsl(0, 0%, 10%)",
+            color: themeMode === "dark" ? "#fff" : "#000",
         },
-    },
-    createCardMeta: {
+    }),
+    createCardMeta: ({themeMode}: StyleProps) => ({
         height: "90%",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-evenly",
-        color: "hsl(0, 0%, 10%)",
-    },
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
     closeIcon: {
         fontSize: 20,
         color: "red",
@@ -128,6 +127,14 @@ const AppSelector: React.FC = () => {
         details: undefined,
         appId: undefined,
     })
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     useEffect(() => {
         getAllProviderLlmKeys()
@@ -284,7 +291,11 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 2) {
+                                            if (
+                                                isDemo() &&
+                                                selectedOrg?.is_paying == false &&
+                                                apps.length > 2
+                                            ) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
