@@ -1,4 +1,4 @@
-name: Publish a new release
+name: Bump versions
 
 on:
   workflow_dispatch:
@@ -9,9 +9,9 @@ on:
         default: "patch"
         type: choice
         options:
-          - Patch
-          - Minor
-          - Major
+          - patch
+          - minor
+          - major
 
 jobs:
   migrate-db-schema-stage:
@@ -31,7 +31,7 @@ jobs:
           node-version: 20
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: 3.9
 
@@ -51,4 +51,4 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.TOKEN }}
