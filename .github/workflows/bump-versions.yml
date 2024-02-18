@@ -35,6 +35,10 @@ jobs:
         with:
           python-version: 3.9
 
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
       - name: Bump versions
         run: |
           BUMP_TYPE=${{ inputs.bump-type }}
