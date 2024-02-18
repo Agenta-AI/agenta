@@ -1,8 +1,7 @@
 import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
-import {renameVariables} from "@/lib/helpers/utils"
-import {Form, FormInstance, Image, Input} from "antd"
+import {Form, FormInstance, Image, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -92,16 +91,10 @@ const ParamsForm: React.FC<Props> = ({
                                             height={imgHeight}
                                             className={classes.cover}
                                             fallback="/assets/fallback.png"
+                                            alt={param.name}
                                         />
                                     )}
-                                <Input.TextArea
-                                    data-cy={`testview-input-parameters-${index}`}
-                                    key={index}
-                                    value={param.value}
-                                    placeholder={`${renameVariables(param.name)} (${type})`}
-                                    onChange={(e) => onParamChange?.(param.name, e.target.value)}
-                                    autoSize={{minRows: 2, maxRows: 8}}
-                                />
+                                <Typography.Text>{param.value}</Typography.Text>
                             </div>
                         </Form.Item>
                     )
