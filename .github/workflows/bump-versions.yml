@@ -54,3 +54,15 @@ jobs:
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: Bump versions
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          branch: bump-versions
+          delete-branch: true
+          title: 'Bump versions'
+          body: |
+            New version in
+            - agenta-web
+            - agenta-backend
+            - agenta-cli
+
