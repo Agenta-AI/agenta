@@ -1280,6 +1280,25 @@ async def list_app_variant_revisions_by_variant(
     return app_variant_revision
 
 
+async def fetch_app_variant_revision(
+    app_variant: str, revision_number: int
+) -> List[AppVariantRevisionsDB]:
+    """Returns list of app variant revision for the given app variant
+
+    Args:
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
+
+    Returns:
+        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
+    """
+    app_variant_revision = await AppVariantRevisionsDB.find_one(
+        AppVariantRevisionsDB.variant.id == ObjectId(app_variant),
+        AppVariantRevisionsDB.revision == revision_number,
+        fetch_links=True,
+    )
+    return app_variant_revision
+
+
 async def list_environments_by_variant(
     app_variant: AppVariantDB,
 ) -> List[AppEnvironmentDB]:
