@@ -1,6 +1,6 @@
 {
     "name": "agenta",
-    "version": "0.12.0",
+    "version": "0.12.1",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -29,6 +29,7 @@
         "@monaco-editor/react": "^4.5.2",
         "@next/mdx": "^13.4.13",
         "@sentry/nextjs": "^7.77.0",
+        "@types/diff": "^5.0.9",
         "@types/js-beautify": "^1.14.0",
         "@types/lodash": "^4.14.201",
         "@types/mdx": "^2.0.6",
@@ -45,6 +46,7 @@
         "axios": "^1.4.0",
         "classnames": "^2.3.2",
         "dayjs": "^1.11.10",
+        "diff": "^5.2.0",
         "dotenv": "^16.3.1",
         "eslint": "8.39.0",
         "eslint-config-next": "13.3.4",
