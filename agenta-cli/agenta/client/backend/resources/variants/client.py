@@ -14,7 +14,9 @@ from ...types.http_validation_error import HttpValidationError
 from ...types.image import Image
 from ...types.uri import Uri
 from ...types.variant_action import VariantAction
-from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
+from .types.add_variant_from_base_and_config_response import (
+    AddVariantFromBaseAndConfigResponse,
+)
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -30,7 +32,12 @@ class VariantsClient:
         self._client_wrapper = client_wrapper
 
     def add_variant_from_base_and_config(
-        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
+        self,
+        *,
+        base_id: str,
+        new_variant_name: str,
+        new_config_name: str,
+        parameters: typing.Dict[str, typing.Any],
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -57,7 +64,9 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
+            ),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -84,9 +93,9 @@ class VariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -96,7 +105,9 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -111,7 +122,11 @@ class VariantsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def start_variant(
-        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
+        self,
+        variant_id: str,
+        *,
+        action: VariantAction,
+        env_vars: typing.Optional[DockerEnvVars] = OMIT,
     ) -> Uri:
         """
         Start a variant of an app.
@@ -136,9 +151,9 @@ class VariantsClient:
             - env_vars: typing.Optional[DockerEnvVars].
         ---
         from aybruhm import VariantAction, VariantActionEnum
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -154,7 +169,9 @@ class VariantsClient:
             _request["env_vars"] = env_vars
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -183,9 +200,9 @@ class VariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -195,7 +212,9 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -209,7 +228,9 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_parameters(self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]) -> typing.Any:
+    def update_variant_parameters(
+        self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
+    ) -> typing.Any:
         """
         Updates the parameters for an app variant.
 
@@ -229,9 +250,9 @@ class VariantsClient:
 
             - parameters: typing.Dict[str, typing.Any].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -242,7 +263,10 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/parameters",
+            ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -277,9 +301,9 @@ class VariantsClient:
             - request: Image.
         ---
         from aybruhm import Image
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -293,7 +317,10 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/image",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -314,7 +341,12 @@ class AsyncVariantsClient:
         self._client_wrapper = client_wrapper
 
     async def add_variant_from_base_and_config(
-        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
+        self,
+        *,
+        base_id: str,
+        new_variant_name: str,
+        new_config_name: str,
+        parameters: typing.Dict[str, typing.Any],
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -341,7 +373,9 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
+            ),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -368,7 +402,7 @@ class AsyncVariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -380,7 +414,9 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -395,7 +431,11 @@ class AsyncVariantsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def start_variant(
-        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
+        self,
+        variant_id: str,
+        *,
+        action: VariantAction,
+        env_vars: typing.Optional[DockerEnvVars] = OMIT,
     ) -> Uri:
         """
         Start a variant of an app.
@@ -420,7 +460,7 @@ class AsyncVariantsClient:
             - env_vars: typing.Optional[DockerEnvVars].
         ---
         from aybruhm import VariantAction, VariantActionEnum
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -438,7 +478,9 @@ class AsyncVariantsClient:
             _request["env_vars"] = env_vars
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -467,7 +509,7 @@ class AsyncVariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -479,7 +521,9 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -515,7 +559,7 @@ class AsyncVariantsClient:
 
             - parameters: typing.Dict[str, typing.Any].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -528,7 +572,10 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/parameters",
+            ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -543,7 +590,9 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_image(self, variant_id: str, *, request: Image) -> typing.Any:
+    async def update_variant_image(
+        self, variant_id: str, *, request: Image
+    ) -> typing.Any:
         """
         Updates the image used in an app variant.
 
@@ -563,7 +612,7 @@ class AsyncVariantsClient:
             - request: Image.
         ---
         from aybruhm import Image
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -579,7 +628,10 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/image",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,

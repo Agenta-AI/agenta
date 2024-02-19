@@ -43,9 +43,9 @@ class AppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -55,7 +55,9 @@ class AppsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -69,7 +71,9 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_variant_by_env(self, *, app_id: str, environment: str) -> AppVariantResponse:
+    def get_variant_by_env(
+        self, *, app_id: str, environment: str
+    ) -> AppVariantResponse:
         """
         Retrieve the app variant based on the provided app_id and environment.
 
@@ -89,9 +93,9 @@ class AppsClient:
 
             - environment: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -102,8 +106,12 @@ class AppsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
-            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
+            ),
+            params=remove_none_from_dict(
+                {"app_id": app_id, "environment": environment}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -145,9 +153,9 @@ class AppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -156,7 +164,9 @@ class AppsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
-            params=remove_none_from_dict({"app_name": app_name, "org_id": org_id, "workspace_id": workspace_id}),
+            params=remove_none_from_dict(
+                {"app_name": app_name, "org_id": org_id, "workspace_id": workspace_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -171,7 +181,11 @@ class AppsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_app(
-        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT, workspace_id: typing.Optional[str] = OMIT
+        self,
+        *,
+        app_name: str,
+        organization_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
     ) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
@@ -193,9 +207,9 @@ class AppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -262,9 +276,9 @@ class AppsClient:
 
             - config_name: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -275,14 +289,21 @@ class AppsClient:
             tags="tags",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
+        _request: typing.Dict[str, typing.Any] = {
+            "variant_name": variant_name,
+            "docker_id": docker_id,
+            "tags": tags,
+        }
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/variant/from-image",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -307,9 +328,9 @@ class AppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -319,7 +340,9 @@ class AppsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -366,9 +389,9 @@ class AppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -389,7 +412,10 @@ class AppsClient:
             _request["workspace_id"] = workspace_id
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "apps/app_and_variant_from_template",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -418,9 +444,9 @@ class AppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -430,7 +456,9 @@ class AppsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -444,7 +472,9 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def environment_revisions(self, app_id: str, environment_name: typing.Any) -> EnvironmentOutputExtended:
+    def environment_revisions(
+        self, app_id: str, environment_name: typing.Any
+    ) -> EnvironmentOutputExtended:
         """
         Parameters:
             - app_id: str.
@@ -454,7 +484,8 @@ class AppsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/revisions/{environment_name}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/revisions/{environment_name}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -488,7 +519,7 @@ class AsyncAppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -500,7 +531,9 @@ class AsyncAppsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -514,7 +547,9 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_by_env(self, *, app_id: str, environment: str) -> AppVariantResponse:
+    async def get_variant_by_env(
+        self, *, app_id: str, environment: str
+    ) -> AppVariantResponse:
         """
         Retrieve the app variant based on the provided app_id and environment.
 
@@ -534,7 +569,7 @@ class AsyncAppsClient:
 
             - environment: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -547,8 +582,12 @@ class AsyncAppsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
-            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
+            ),
+            params=remove_none_from_dict(
+                {"app_id": app_id, "environment": environment}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -590,7 +629,7 @@ class AsyncAppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -601,7 +640,9 @@ class AsyncAppsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
-            params=remove_none_from_dict({"app_name": app_name, "org_id": org_id, "workspace_id": workspace_id}),
+            params=remove_none_from_dict(
+                {"app_name": app_name, "org_id": org_id, "workspace_id": workspace_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -616,7 +657,11 @@ class AsyncAppsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_app(
-        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT, workspace_id: typing.Optional[str] = OMIT
+        self,
+        *,
+        app_name: str,
+        organization_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
     ) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
@@ -638,7 +683,7 @@ class AsyncAppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -707,7 +752,7 @@ class AsyncAppsClient:
 
             - config_name: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -720,14 +765,21 @@ class AsyncAppsClient:
             tags="tags",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
+        _request: typing.Dict[str, typing.Any] = {
+            "variant_name": variant_name,
+            "docker_id": docker_id,
+            "tags": tags,
+        }
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/variant/from-image",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -752,7 +804,7 @@ class AsyncAppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -764,7 +816,9 @@ class AsyncAppsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -811,7 +865,7 @@ class AsyncAppsClient:
 
             - workspace_id: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -834,7 +888,10 @@ class AsyncAppsClient:
             _request["workspace_id"] = workspace_id
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "apps/app_and_variant_from_template",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -863,7 +920,7 @@ class AsyncAppsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -875,7 +932,9 @@ class AsyncAppsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -889,7 +948,9 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def environment_revisions(self, app_id: str, environment_name: typing.Any) -> EnvironmentOutputExtended:
+    async def environment_revisions(
+        self, app_id: str, environment_name: typing.Any
+    ) -> EnvironmentOutputExtended:
         """
         Parameters:
             - app_id: str.
@@ -899,7 +960,8 @@ class AsyncAppsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/revisions/{environment_name}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/revisions/{environment_name}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,

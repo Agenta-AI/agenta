@@ -26,7 +26,11 @@ class ConfigsClient:
         self._client_wrapper = client_wrapper
 
     def get_config(
-        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
+        self,
+        *,
+        base_id: str,
+        config_name: typing.Optional[str] = None,
+        environment_name: typing.Optional[str] = None,
     ) -> GetConfigResponse:
         """
         Parameters:
@@ -36,9 +40,9 @@ class ConfigsClient:
 
             - environment_name: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -50,7 +54,11 @@ class ConfigsClient:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "environment_name": environment_name,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -66,7 +74,12 @@ class ConfigsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def save_config(
-        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
+        self,
+        *,
+        base_id: str,
+        config_name: str,
+        parameters: typing.Dict[str, typing.Any],
+        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -78,9 +91,9 @@ class ConfigsClient:
 
             - overwrite: bool.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -95,7 +108,12 @@ class ConfigsClient:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "parameters": parameters,
+                    "overwrite": overwrite,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -115,9 +133,9 @@ class ConfigsClient:
         Parameters:
             - deployment_revision_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -128,7 +146,8 @@ class ConfigsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"configs/deployment/{deployment_revision_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"configs/deployment/{deployment_revision_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -148,9 +167,9 @@ class ConfigsClient:
         Parameters:
             - deployment_revision_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -161,7 +180,8 @@ class ConfigsClient:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"configs/deployment/{deployment_revision_id}/revert"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"configs/deployment/{deployment_revision_id}/revert",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -182,7 +202,11 @@ class AsyncConfigsClient:
         self._client_wrapper = client_wrapper
 
     async def get_config(
-        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
+        self,
+        *,
+        base_id: str,
+        config_name: typing.Optional[str] = None,
+        environment_name: typing.Optional[str] = None,
     ) -> GetConfigResponse:
         """
         Parameters:
@@ -192,7 +216,7 @@ class AsyncConfigsClient:
 
             - environment_name: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -206,7 +230,11 @@ class AsyncConfigsClient:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "environment_name": environment_name,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -222,7 +250,12 @@ class AsyncConfigsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def save_config(
-        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
+        self,
+        *,
+        base_id: str,
+        config_name: str,
+        parameters: typing.Dict[str, typing.Any],
+        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -234,7 +267,7 @@ class AsyncConfigsClient:
 
             - overwrite: bool.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -251,7 +284,12 @@ class AsyncConfigsClient:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "parameters": parameters,
+                    "overwrite": overwrite,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -266,12 +304,14 @@ class AsyncConfigsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_config_deployment_revision(self, deployment_revision_id: str) -> typing.Any:
+    async def get_config_deployment_revision(
+        self, deployment_revision_id: str
+    ) -> typing.Any:
         """
         Parameters:
             - deployment_revision_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -284,7 +324,8 @@ class AsyncConfigsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"configs/deployment/{deployment_revision_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"configs/deployment/{deployment_revision_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -299,12 +340,14 @@ class AsyncConfigsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def revert_deployment_revision(self, deployment_revision_id: str) -> typing.Any:
+    async def revert_deployment_revision(
+        self, deployment_revision_id: str
+    ) -> typing.Any:
         """
         Parameters:
             - deployment_revision_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -317,7 +360,8 @@ class AsyncConfigsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"configs/deployment/{deployment_revision_id}/revert"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"configs/deployment/{deployment_revision_id}/revert",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
