@@ -1,6 +1,5 @@
 import React from "react"
 import {Spin} from "antd"
-import {SpinFCType} from "antd/es/spin"
 import {createUseStyles} from "react-jss"
 
 type Props = {
@@ -10,7 +9,7 @@ type Props = {
         React.HTMLAttributes<HTMLDivElement>,
         HTMLDivElement
     >
-    spinnerProps?: SpinFCType
+    spinnerProps?: React.ComponentProps<typeof Spin>
 }
 
 const useStyles = createUseStyles({

@@ -8,11 +8,12 @@ import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
-import {ApiOutlined, DownOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Empty, Space, Typography} from "antd"
+import {ApiOutlined, AppstoreOutlined, DownOutlined, HistoryOutlined} from "@ant-design/icons"
+import {Alert, Button, Dropdown, Empty, Space, Tabs, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
 
@@ -30,6 +31,7 @@ export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
+    const [tab, setTab] = useQueryParam("tab", "overview")
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
