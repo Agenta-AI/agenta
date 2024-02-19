@@ -300,7 +300,7 @@ class SpanDB(Document):
     duration: Optional[int]
     status: Result
     end_time: datetime = Field(default=datetime.now())
-    inputs: Optional[List[str]]
+    inputs: Optional[Dict[str]]
     outputs: Optional[List[str]]
     prompt_template: Optional[str]
     tokens_input: Optional[int]
