@@ -1,10 +1,11 @@
 import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
-import {Form, FormInstance, Image, Typography} from "antd"
+import {Form, FormInstance, Image} from "antd"
 import {createUseStyles} from "react-jss"
+import {JSSTheme} from "@/lib/Types"
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     form: {
         width: "100%",
         "& .ant-form-item": {
@@ -25,7 +26,16 @@ const useStyles = createUseStyles({
         objectFit: "cover",
         borderRadius: 6,
     },
-})
+    paramValueContainer: {
+        border: `1px solid ${theme.colorBorder}`,
+        width: "100%",
+        borderRadius: theme.borderRadius,
+        padding: theme.paddingSM,
+        maxHeight: 300,
+        minHeight: 75,
+        overflowY: "scroll",
+    },
+}))
 
 const ASPECT_RATIO = 1.55
 
@@ -94,7 +104,7 @@ const ParamsForm: React.FC<Props> = ({
                                             alt={param.name}
                                         />
                                     )}
-                                <Typography.Text>{param.value}</Typography.Text>
+                                <div className={classes.paramValueContainer}>{param.value}</div>
                             </div>
                         </Form.Item>
                     )
