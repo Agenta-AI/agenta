@@ -56,6 +56,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: theme.borderRadius,
         overflow: "hidden",
     },
+    additionTTip: {
+        marginTop: '10px',
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+    }
 }))
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
@@ -81,6 +87,16 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     isValidRegex(value) ? res("") : rej("Regex pattern is not valid"),
                 ),
         })
+
+    const additionalTooltip = name[1] === "webhook_url" ? (
+        <div className={classes.additionTTip}>
+            <span>Learn More About The Evaluator</span>
+            <Tooltip title="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators">
+                <InfoCircleOutlined style={{ color: token.colorPrimary }} />
+            </Tooltip>
+        </div>
+    ) : null
+
     return (
         <Form.Item
             name={name}
@@ -123,6 +139,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     theme={`vs-${appTheme}`}
                 />
             ) : null}
+            {additionalTooltip}
         </Form.Item>
     )
 }
