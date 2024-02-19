@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .environment_revision import EnvironmentRevision
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -11,34 +12,23 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class AppVariantOutput(pydantic.BaseModel):
+class EnvironmentOutputExtended(pydantic.BaseModel):
+    name: str
     app_id: str
-    app_name: str
-    variant_id: str
-    variant_name: str
-    parameters: typing.Optional[typing.Dict[str, typing.Any]]
-    previous_variant_name: typing.Optional[str]
-    organization_id: str
-    user_id: str
-    base_name: str
-    base_id: str
-    config_name: str
-    uri: typing.Optional[str]
+    deployed_app_variant_id: typing.Optional[str]
+    deployed_variant_name: typing.Optional[str]
+    deployed_app_variant_revision_id: typing.Optional[str]
+    revision: typing.Optional[int]
+    revisions: typing.List[EnvironmentRevision]
+    organization_id: typing.Optional[str]
+    workspace_id: typing.Optional[str]
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:
