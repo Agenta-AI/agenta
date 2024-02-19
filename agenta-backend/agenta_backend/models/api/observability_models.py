@@ -13,7 +13,7 @@ class BaseSpan(BaseModel):
     start_time: datetime = Field(default=datetime.now())
     duration: Optional[int]
     status: str
-    inputs: Optional[Dict[str]]
+    inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
     prompt_template: Optional[str]
     tokens_input: Optional[int]
