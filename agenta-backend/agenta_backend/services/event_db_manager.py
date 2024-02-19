@@ -195,7 +195,7 @@ async def fetch_mock_generation(user_uid: str) -> List[Span]:
                         ["development", "staging", "production"]
                     ),
                     "status": {
-                        "value": random.choice(["INITIATED", "SUCCESS", "FAILURE"]),
+                        "value": status_value,
                         "error": (
                             {
                                 "message": fake.sentence(),
@@ -226,12 +226,59 @@ async def fetch_mock_generation(user_uid: str) -> List[Span]:
     return list_of_generations
 
 
-def fetch_mock_generation_detail(generation_id: str) -> SpanDetail:
-    import random
+async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> SpanDetail:
+    import random, uuid
     from faker import Faker
+    from datetime import datetime, timedelta
 
     fake = Faker()
+    user = await db_manager.get_user(user_uid)
+
+    def get_random_timestamp():
+        past_24_hours = datetime.now() - timedelta(hours=24)
+        random_time = fake.date_time_between(start_date=past_24_hours)
+        return random_time.isoformat()
+
+    def generate_mock_generation():
+        status_value = random.choice(["SUCCESS", "FAILURE", "INITIATED"])
+        return {
+            "id": str(uuid.uuid4()),
+            "created_at": get_random_timestamp(),
+            "variant": {
+                "variant_id": str(uuid.uuid4()),
+                "variant_name": fake.company(),
+                "revision": random.randint(1, 20),
+            },
+            "environment": random.choice(
+                ["development", "staging", "production"]
+            ),
+            "status": {
+                "value": random.choice(["INITIATED", "SUCCESS", "FAILURE"]),
+                "error": (
+                    {
+                        "message": fake.sentence(),
+                        "stacktrace": fake.text(
+                            max_nb_chars=200
+                        ),  # Short stacktrace
+                    }
+                    if status_value == "FAILURE"
+                    else None
+                ),
+            },
+            "metadata": {
+                "cost": random.uniform(0.01, 2),
+                "latency": random.uniform(0.1, 10),
+                "usage": {
+                    "completion_tokens": random.randint(50, 300),
+                    "prompt_tokens": random.randint(20, 100),
+                    "total_tokens": random.randint(100, 500),
+                },
+            },
+            "user_id": str(user.id),
+        }
+
     return SpanDetail(
+        **generate_mock_generation(),
         **{
             "span_id": generation_id,
             "content": {

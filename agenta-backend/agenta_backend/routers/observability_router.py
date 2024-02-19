@@ -70,7 +70,9 @@ async def get_span_of_trace(
     type: str = Query(default="generation"),
 ):
     if type == "generation":
-        spans = event_db_manager.fetch_mock_generation_detail(span_id)
+        spans = await event_db_manager.fetch_mock_generation_detail(
+            span_id, request.state.user_id
+        )
         return spans
     return []
 
