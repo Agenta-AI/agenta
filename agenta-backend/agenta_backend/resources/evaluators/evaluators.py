@@ -90,12 +90,6 @@ evaluators = [
                 "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
                 "description": "URL for the webhook test",
             },
-            "webhook_body": {
-                "label": "Webhook Body",
-                "type": "object",
-                "default": "{}",
-                "description": "Request body for webhook URL",
-            },
         },
     },
     {
