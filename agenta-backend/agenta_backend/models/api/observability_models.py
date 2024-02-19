@@ -74,7 +74,7 @@ class LLMModelParams(BaseModel):
     params: Dict[str, Any]
 
 
-class SpanDetail(BaseModel):
+class SpanDetail(Span):
     span_id: str
     content: LLMContent
     model_params: LLMModelParams
