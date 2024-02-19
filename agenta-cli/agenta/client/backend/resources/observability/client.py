@@ -31,9 +31,9 @@ class ObservabilityClient:
 
     def dashboard(self) -> ObservabilityDashboardData:
         """
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -41,7 +41,9 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -89,9 +91,9 @@ class ObservabilityClient:
 
             - spans: typing.List[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -119,7 +121,9 @@ class ObservabilityClient:
             _request["end_time"] = end_time
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/trace"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/trace"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -134,14 +138,16 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_spans_of_generation(self, *, type: typing.Optional[str] = None) -> typing.List[Span]:
+    def get_spans_of_generation(
+        self, *, type: typing.Optional[str] = None
+    ) -> typing.List[Span]:
         """
         Parameters:
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -149,7 +155,9 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -215,9 +223,9 @@ class ObservabilityClient:
 
             - tags: typing.Optional[typing.List[str]].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -226,7 +234,10 @@ class ObservabilityClient:
             status="status",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status}
+        _request: typing.Dict[str, typing.Any] = {
+            "event_name": event_name,
+            "status": status,
+        }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
@@ -255,7 +266,9 @@ class ObservabilityClient:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -270,16 +283,18 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
+    def get_span_of_generation(
+        self, span_id: str, *, type: typing.Optional[str] = None
+    ) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
 
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -289,7 +304,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -311,9 +329,9 @@ class ObservabilityClient:
 
             - status: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -324,7 +342,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -344,9 +365,9 @@ class ObservabilityClient:
         Parameters:
             - trace_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -356,7 +377,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -388,9 +412,9 @@ class ObservabilityClient:
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -407,7 +431,10 @@ class ObservabilityClient:
             _request["meta"] = meta
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -429,9 +456,9 @@ class ObservabilityClient:
 
             - feedback_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -443,7 +470,8 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -479,9 +507,9 @@ class ObservabilityClient:
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -499,7 +527,8 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -522,7 +551,7 @@ class AsyncObservabilityClient:
 
     async def dashboard(self) -> ObservabilityDashboardData:
         """
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -532,7 +561,9 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -580,7 +611,7 @@ class AsyncObservabilityClient:
 
             - spans: typing.List[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -610,7 +641,9 @@ class AsyncObservabilityClient:
             _request["end_time"] = end_time
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/trace"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/trace"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -625,12 +658,14 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_spans_of_generation(self, *, type: typing.Optional[str] = None) -> typing.List[Span]:
+    async def get_spans_of_generation(
+        self, *, type: typing.Optional[str] = None
+    ) -> typing.List[Span]:
         """
         Parameters:
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -640,7 +675,9 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -706,7 +743,7 @@ class AsyncObservabilityClient:
 
             - tags: typing.Optional[typing.List[str]].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -717,7 +754,10 @@ class AsyncObservabilityClient:
             status="status",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status}
+        _request: typing.Dict[str, typing.Any] = {
+            "event_name": event_name,
+            "status": status,
+        }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
@@ -746,7 +786,9 @@ class AsyncObservabilityClient:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -761,14 +803,16 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
+    async def get_span_of_generation(
+        self, span_id: str, *, type: typing.Optional[str] = None
+    ) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
 
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -780,7 +824,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -802,7 +849,7 @@ class AsyncObservabilityClient:
 
             - status: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -815,7 +862,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -835,7 +885,7 @@ class AsyncObservabilityClient:
         Parameters:
             - trace_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -847,7 +897,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -879,7 +932,7 @@ class AsyncObservabilityClient:
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -898,7 +951,10 @@ class AsyncObservabilityClient:
             _request["meta"] = meta
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -920,7 +976,7 @@ class AsyncObservabilityClient:
 
             - feedback_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -934,7 +990,8 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -970,7 +1027,7 @@ class AsyncObservabilityClient:
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -990,7 +1047,8 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),

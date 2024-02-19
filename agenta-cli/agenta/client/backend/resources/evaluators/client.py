@@ -34,9 +34,9 @@ class EvaluatorsClient:
         List[Evaluator]: A list of evaluator objects.
 
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -44,7 +44,9 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -69,9 +71,9 @@ class EvaluatorsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -81,7 +83,9 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
+            ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -97,7 +101,12 @@ class EvaluatorsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_new_evaluator_config(
-        self, *, app_id: str, name: str, evaluator_key: str, settings_values: typing.Dict[str, typing.Any]
+        self,
+        *,
+        app_id: str,
+        name: str,
+        evaluator_key: str,
+        settings_values: typing.Dict[str, typing.Any],
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -117,9 +126,9 @@ class EvaluatorsClient:
 
             - settings_values: typing.Dict[str, typing.Any].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -132,9 +141,16 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
+            ),
             json=jsonable_encoder(
-                {"app_id": app_id, "name": name, "evaluator_key": evaluator_key, "settings_values": settings_values}
+                {
+                    "app_id": app_id,
+                    "name": name,
+                    "evaluator_key": evaluator_key,
+                    "settings_values": settings_values,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -159,9 +175,9 @@ class EvaluatorsClient:
         Parameters:
             - evaluator_config_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -172,7 +188,8 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -210,9 +227,9 @@ class EvaluatorsClient:
 
             - settings_values: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -230,7 +247,8 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -259,9 +277,9 @@ class EvaluatorsClient:
         Parameters:
             - evaluator_config_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -272,7 +290,8 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -300,7 +319,7 @@ class AsyncEvaluatorsClient:
         List[Evaluator]: A list of evaluator objects.
 
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -310,7 +329,9 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -322,7 +343,9 @@ class AsyncEvaluatorsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_evaluator_configs(self, *, app_id: str) -> typing.List[EvaluatorConfig]:
+    async def get_evaluator_configs(
+        self, *, app_id: str
+    ) -> typing.List[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
 
@@ -335,7 +358,7 @@ class AsyncEvaluatorsClient:
         Parameters:
             - app_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -347,7 +370,9 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
+            ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -363,7 +388,12 @@ class AsyncEvaluatorsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_new_evaluator_config(
-        self, *, app_id: str, name: str, evaluator_key: str, settings_values: typing.Dict[str, typing.Any]
+        self,
+        *,
+        app_id: str,
+        name: str,
+        evaluator_key: str,
+        settings_values: typing.Dict[str, typing.Any],
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -383,7 +413,7 @@ class AsyncEvaluatorsClient:
 
             - settings_values: typing.Dict[str, typing.Any].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -398,9 +428,16 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
+            ),
             json=jsonable_encoder(
-                {"app_id": app_id, "name": name, "evaluator_key": evaluator_key, "settings_values": settings_values}
+                {
+                    "app_id": app_id,
+                    "name": name,
+                    "evaluator_key": evaluator_key,
+                    "settings_values": settings_values,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -425,7 +462,7 @@ class AsyncEvaluatorsClient:
         Parameters:
             - evaluator_config_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -438,7 +475,8 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -476,7 +514,7 @@ class AsyncEvaluatorsClient:
 
             - settings_values: typing.Optional[typing.Dict[str, typing.Any]].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -496,7 +534,8 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -525,7 +564,7 @@ class AsyncEvaluatorsClient:
         Parameters:
             - evaluator_config_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -538,7 +577,8 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluators/configs/{evaluator_config_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,

@@ -49,7 +49,9 @@ class ContainersClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
+            ),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
@@ -76,9 +78,9 @@ class ContainersClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -88,7 +90,10 @@ class ContainersClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "containers/restart_container",
+            ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -116,7 +121,9 @@ class ContainersClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -129,7 +136,10 @@ class ContainersClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def construct_app_container_url(
-        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
+        self,
+        *,
+        base_id: typing.Optional[str] = None,
+        variant_id: typing.Optional[str] = None,
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -150,9 +160,9 @@ class ContainersClient:
 
             - variant_id: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -160,8 +170,12 @@ class ContainersClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
-            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
+            ),
+            params=remove_none_from_dict(
+                {"base_id": base_id, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -180,7 +194,9 @@ class AsyncContainersClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    async def build_image(self, *, app_id: str, base_name: str, tar_file: typing.IO) -> Image:
+    async def build_image(
+        self, *, app_id: str, base_name: str, tar_file: typing.IO
+    ) -> Image:
         """
         Builds a Docker image from a tar file containing the application code.
 
@@ -202,7 +218,9 @@ class AsyncContainersClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
+            ),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
@@ -219,7 +237,9 @@ class AsyncContainersClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def restart_container(self, *, variant_id: str) -> typing.Dict[str, typing.Any]:
+    async def restart_container(
+        self, *, variant_id: str
+    ) -> typing.Dict[str, typing.Any]:
         """
         Restart docker container.
 
@@ -229,7 +249,7 @@ class AsyncContainersClient:
         Parameters:
             - variant_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -241,7 +261,10 @@ class AsyncContainersClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "containers/restart_container",
+            ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -269,7 +292,9 @@ class AsyncContainersClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -282,7 +307,10 @@ class AsyncContainersClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def construct_app_container_url(
-        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
+        self,
+        *,
+        base_id: typing.Optional[str] = None,
+        variant_id: typing.Optional[str] = None,
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -303,7 +331,7 @@ class AsyncContainersClient:
 
             - variant_id: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAybruhmApi
 
         client = AsyncAybruhmApi(
             api_key="YOUR_API_KEY",
@@ -313,8 +341,12 @@ class AsyncContainersClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
-            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
+            ),
+            params=remove_none_from_dict(
+                {"base_id": base_id, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
