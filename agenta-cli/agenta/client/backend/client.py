@@ -41,7 +41,7 @@ except ImportError:
 OMIT = typing.cast(typing.Any, ...)
 
 
-class AybruhmApi:
+class AgentaApi:
     def __init__(
         self,
         *,
@@ -77,9 +77,9 @@ class AybruhmApi:
         List[ListAPIKeysResponse]: A list of API Keys associated with the user.
 
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -112,9 +112,9 @@ class AybruhmApi:
         Parameters:
             - workspace_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -156,9 +156,9 @@ class AybruhmApi:
         Parameters:
             - key_prefix: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -191,9 +191,9 @@ class AybruhmApi:
         Parameters:
             - key_prefix: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -231,9 +231,9 @@ class AybruhmApi:
         HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -271,9 +271,9 @@ class AybruhmApi:
 
             - owner: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -307,9 +307,9 @@ class AybruhmApi:
 
     def get_own_org(self) -> OrganizationOutput:
         """
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -343,9 +343,9 @@ class AybruhmApi:
         Parameters:
             - org_id: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -387,9 +387,9 @@ class AybruhmApi:
 
             - updated_at: typing.Optional[dt.datetime].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -432,10 +432,10 @@ class AybruhmApi:
 
             - request: typing.List[InviteRequest].
         ---
-        from aybruhm import InviteRequest
-        from aybruhm.client import AybruhmApi
+        from agenta import InviteRequest
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -488,9 +488,9 @@ class AybruhmApi:
 
             - email: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -539,9 +539,9 @@ class AybruhmApi:
 
             - token: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -584,9 +584,9 @@ class AybruhmApi:
 
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -638,9 +638,9 @@ class AybruhmApi:
 
             - updated_at: typing.Optional[dt.datetime].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -688,9 +688,9 @@ class AybruhmApi:
         HTTPException: If an error occurs while retrieving the workspace roles.
 
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -723,9 +723,9 @@ class AybruhmApi:
         HTTPException: If there is an error retrieving the workspace permissions.
 
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -772,9 +772,9 @@ class AybruhmApi:
 
             - role: typing.Optional[WorkspaceRole].
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -831,9 +831,9 @@ class AybruhmApi:
 
             - role: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -887,9 +887,9 @@ class AybruhmApi:
 
             - email: str.
         ---
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -918,9 +918,9 @@ class AybruhmApi:
 
     def health_check(self) -> typing.Any:
         """
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -942,9 +942,9 @@ class AybruhmApi:
 
     def user_profile(self) -> typing.Any:
         """
-        from aybruhm.client import AybruhmApi
+        from agenta.client import AgentaApi
 
-        client = AybruhmApi(
+        client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -965,7 +965,7 @@ class AybruhmApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
 
-class AsyncAybruhmApi:
+class AsyncAgentaApi:
     def __init__(
         self,
         *,
@@ -1001,9 +1001,9 @@ class AsyncAybruhmApi:
         List[ListAPIKeysResponse]: A list of API Keys associated with the user.
 
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1036,9 +1036,9 @@ class AsyncAybruhmApi:
         Parameters:
             - workspace_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1080,9 +1080,9 @@ class AsyncAybruhmApi:
         Parameters:
             - key_prefix: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1115,9 +1115,9 @@ class AsyncAybruhmApi:
         Parameters:
             - key_prefix: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1155,9 +1155,9 @@ class AsyncAybruhmApi:
         HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1195,9 +1195,9 @@ class AsyncAybruhmApi:
 
             - owner: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1231,9 +1231,9 @@ class AsyncAybruhmApi:
 
     async def get_own_org(self) -> OrganizationOutput:
         """
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1267,9 +1267,9 @@ class AsyncAybruhmApi:
         Parameters:
             - org_id: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1311,9 +1311,9 @@ class AsyncAybruhmApi:
 
             - updated_at: typing.Optional[dt.datetime].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1356,10 +1356,10 @@ class AsyncAybruhmApi:
 
             - request: typing.List[InviteRequest].
         ---
-        from aybruhm import InviteRequest
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta import InviteRequest
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1412,9 +1412,9 @@ class AsyncAybruhmApi:
 
             - email: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1463,9 +1463,9 @@ class AsyncAybruhmApi:
 
             - token: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1508,9 +1508,9 @@ class AsyncAybruhmApi:
 
             - type: typing.Optional[str].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1562,9 +1562,9 @@ class AsyncAybruhmApi:
 
             - updated_at: typing.Optional[dt.datetime].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1612,9 +1612,9 @@ class AsyncAybruhmApi:
         HTTPException: If an error occurs while retrieving the workspace roles.
 
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1647,9 +1647,9 @@ class AsyncAybruhmApi:
         HTTPException: If there is an error retrieving the workspace permissions.
 
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1696,9 +1696,9 @@ class AsyncAybruhmApi:
 
             - role: typing.Optional[WorkspaceRole].
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1755,9 +1755,9 @@ class AsyncAybruhmApi:
 
             - role: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1811,9 +1811,9 @@ class AsyncAybruhmApi:
 
             - email: str.
         ---
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1842,9 +1842,9 @@ class AsyncAybruhmApi:
 
     async def health_check(self) -> typing.Any:
         """
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
@@ -1866,9 +1866,9 @@ class AsyncAybruhmApi:
 
     async def user_profile(self) -> typing.Any:
         """
-        from aybruhm.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
+        client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
