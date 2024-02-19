@@ -1,9 +1,9 @@
 import {GenericObject, JSSTheme, PaginationQuery} from "@/lib/Types"
-import {Button, Dropdown, Input, TableColumnType} from "antd"
-import {AnyObject} from "antd/es/_util/type"
+import {Button, Dropdown, Input} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {FilterDropdownProps} from "antd/es/table/interface"
 import dayjs from "dayjs"
-import {useMemo} from "react"
+import React, {useMemo} from "react"
 import {createUseStyles} from "react-jss"
 import {Resizable} from "react-resizable"
 
@@ -39,7 +39,7 @@ export const getFilterParams = (
     field: string,
     tableParams: TableParams,
 ) => {
-    let filterDropdown: TableColumnType<AnyObject>["filterDropdown"] = ({
+    const FilterDropdown: React.FC<FilterDropdownProps> = ({
         setSelectedKeys,
         selectedKeys,
         confirm,
@@ -65,7 +65,7 @@ export const getFilterParams = (
     )?.[1]
 
     return {
-        filterDropdown,
+        filterDropdown: FilterDropdown,
         filteredValue: filteredValStr
             ? [
                   type === "date"
