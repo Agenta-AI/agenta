@@ -34,10 +34,8 @@ class Error(BaseModel):
 
 class Status(str, Enum):
     INITIATED = "INITIATED"
-    COMPLETED = "COMPLETED"
-    STOPPED = "STOPPED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
 
 
 class SpanVariant(BaseModel):
