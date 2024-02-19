@@ -2,7 +2,7 @@ from enum import Enum
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BaseSpan(BaseModel):
@@ -10,11 +10,10 @@ class BaseSpan(BaseModel):
     meta: Optional[Dict[str, Any]]
     event_name: str
     event_type: Optional[str]
-    start_time: datetime
+    start_time: datetime = Field(default=datetime.now())
     duration: Optional[int]
     status: str
-    end_time: datetime
-    inputs: Optional[List[str]]
+    inputs: Optional[Dict[str]]
     outputs: Optional[List[str]]
     prompt_template: Optional[str]
     tokens_input: Optional[int]
@@ -129,11 +128,11 @@ class BaseTrace(BaseModel):
     variant_id: Optional[str]
     cost: Optional[float]
     latency: float
-    status: str
+    status: str = Field(default=Status.INITIATED)
     token_consumption: Optional[int]
     tags: Optional[List[str]]
-    start_time: datetime
-    end_time: datetime
+    start_time: datetime = Field(default=datetime.now())
+    end_time: Optional[datetime]
 
 
 class Trace(BaseTrace):
