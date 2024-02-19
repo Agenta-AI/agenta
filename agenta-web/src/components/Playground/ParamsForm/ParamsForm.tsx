@@ -1,7 +1,8 @@
 import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
-import {Form, FormInstance, Image} from "antd"
+import {renameVariables} from "@/lib/helpers/utils"
+import {Form, FormInstance, Image, Input} from "antd"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 
@@ -47,6 +48,7 @@ interface Props {
     useChatDefaultValue?: boolean
     form?: FormInstance<GenericObject>
     imageSize?: "small" | "large"
+    isPlaygroundComponent?: boolean
 }
 
 const ParamsForm: React.FC<Props> = ({
@@ -57,6 +59,7 @@ const ParamsForm: React.FC<Props> = ({
     useChatDefaultValue,
     form,
     imageSize = "small",
+    isPlaygroundComponent = false,
 }) => {
     const classes = useStyles()
     const imgHeight = imageSize === "small" ? 90 : 120
@@ -104,7 +107,20 @@ const ParamsForm: React.FC<Props> = ({
                                             alt={param.name}
                                         />
                                     )}
-                                <div className={classes.paramValueContainer}>{param.value}</div>
+                                {isPlaygroundComponent ? (
+                                    <Input.TextArea
+                                        data-cy={`testview-input-parameters-${index}`}
+                                        key={index}
+                                        value={param.value}
+                                        placeholder={`${renameVariables(param.name)} (${type})`}
+                                        onChange={(e) =>
+                                            onParamChange?.(param.name, e.target.value)
+                                        }
+                                        autoSize={{minRows: 2, maxRows: 8}}
+                                    />
+                                ) : (
+                                    <div className={classes.paramValueContainer}>{param.value}</div>
+                                )}
                             </div>
                         </Form.Item>
                     )
