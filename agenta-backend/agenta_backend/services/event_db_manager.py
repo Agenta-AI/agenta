@@ -180,7 +180,7 @@ async def fetch_mock_generation(user_uid: str) -> List[Span]:
         return random_time.isoformat()
 
     def generate_mock_generation():
-        status_value = random.choice(["SUCCESS", "FAILURE"])
+        status_value = random.choice(["SUCCESS", "FAILURE", "INITIATED"])
         list_of_generations.append(
             Span(
                 **{
@@ -195,7 +195,7 @@ async def fetch_mock_generation(user_uid: str) -> List[Span]:
                         ["development", "staging", "production"]
                     ),
                     "status": {
-                        "value": random.choice(["INITIATED", "COMPLETED", "STOPPED"]),
+                        "value": random.choice(["INITIATED", "SUCCESS", "FAILURE"]),
                         "error": (
                             {
                                 "message": fake.sentence(),
