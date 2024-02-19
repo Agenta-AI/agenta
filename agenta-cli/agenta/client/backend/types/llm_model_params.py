@@ -11,26 +11,16 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class GetConfigReponse(pydantic.BaseModel):
-    config_id: str
-    config_name: str
-    current_version: int
-    parameters: typing.Dict[str, typing.Any]
+class LlmModelParams(pydantic.BaseModel):
+    prompt: typing.Dict[str, typing.Any]
+    params: typing.Dict[str, typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:

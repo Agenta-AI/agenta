@@ -2,6 +2,6 @@
 
 import typing
 
-from .template import Template
+from ....types.template import Template
 
 ContainerTemplatesResponse = typing.Union[typing.List[Template], str]
