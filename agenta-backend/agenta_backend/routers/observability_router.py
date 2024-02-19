@@ -31,6 +31,12 @@ async def get_dashboard_data(request: Request):
     return event_db_manager.fetch_mock_observability_dashboard()
 
 
+@router.post("/trace/", response_model=str, operation_id="create_trace")
+async def create_trace(request: Request, payload: CreateTrace):
+    trace_id = await event_db_manager.create_app_trace(payload, request.state.user_id)
+    return trace_id
+
+
 @router.post("/spans/", response_model=str, operation_id="create_span")
 async def create_span(
     payload: CreateSpan,
