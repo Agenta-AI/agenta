@@ -99,7 +99,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
     PaginationQuery,
     WithPagination,
-    T as CustomType
+    T as CustomType,
 )
 
 from fastapi import Depends
@@ -598,10 +598,8 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         updated_at=evaluator_config.updated_at,
     )
 
+
 def get_paginated_data(data: List[CustomType], query: PaginationQuery = Depends()):
     return WithPagination[CustomType](
-        data=data,
-        total=len(data),
-        page=query.page,
-        pageSize=query.pageSize
+        data=data, total=len(data), page=query.page, pageSize=query.pageSize
     )
