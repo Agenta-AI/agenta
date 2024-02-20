@@ -11,6 +11,8 @@ import {
     SettingOutlined,
     LogoutOutlined,
     FormOutlined,
+    SlidersOutlined,
+    PlayCircleOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
@@ -75,6 +77,11 @@ const useStyles = createUseStyles({
     },
     menuLinks: {
         width: "100%",
+    },
+    subMenuContainer: {
+        "& .ant-menu-submenu-title": {
+            paddingLeft: "16px !important",
+        },
     },
 })
 
@@ -218,27 +225,61 @@ const Sidebar: React.FC = () => {
                                             </Menu.Item>
                                         </Tooltip>
 
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Evaluate and Compare variants programmatically."
-                                                    : ""
-                                            }
-                                            key="evaluations"
+                                        <Menu
+                                            mode="inline"
+                                            selectable={false}
+                                            className={classes.menuContainer}
+                                            data-cy="app-evaluations-link"
                                         >
-                                            <Menu.Item icon={<LineChartOutlined />}>
-                                                <Link
-                                                    data-cy="app-evaluations-link"
-                                                    href={getNavigationPath("evaluations")}
-                                                    className={classes.menuLinks}
+                                            <Menu.SubMenu
+                                                title="Evaluations"
+                                                icon={<LineChartOutlined />}
+                                                className={classes.subMenuContainer}
+                                            >
+                                                <Tooltip
+                                                    placement="right"
+                                                    title={
+                                                        "Select and customize evaluators such as custom code or regex evaluators."
+                                                    }
                                                 >
-                                                    {collapsed
-                                                        ? "Evaluate and Compare variants programmatically."
-                                                        : "Evaluations"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
+                                                    <Menu.Item
+                                                        style={{paddingLeft: 16}}
+                                                        icon={<SlidersOutlined />}
+                                                    >
+                                                        <Link
+                                                            data-cy="app-configure-evaluators-link"
+                                                            href={getNavigationPath(
+                                                                "evaluations?tab=evaluators",
+                                                            )}
+                                                            className={classes.menuLinks}
+                                                        >
+                                                            Configure Evaluators
+                                                        </Link>
+                                                    </Menu.Item>
+                                                </Tooltip>
+                                                <Tooltip
+                                                    placement="right"
+                                                    title={
+                                                        "Choose your variants and evaluators to start the evaluation process."
+                                                    }
+                                                >
+                                                    <Menu.Item
+                                                        style={{paddingLeft: 16}}
+                                                        icon={<PlayCircleOutlined />}
+                                                    >
+                                                        <Link
+                                                            data-cy="app-run-evaluations-link"
+                                                            href={getNavigationPath(
+                                                                "evaluations?tab=results",
+                                                            )}
+                                                            className={classes.menuLinks}
+                                                        >
+                                                            Run Evaluations
+                                                        </Link>
+                                                    </Menu.Item>
+                                                </Tooltip>
+                                            </Menu.SubMenu>
+                                        </Menu>
 
                                         <Tooltip
                                             placement="right"
