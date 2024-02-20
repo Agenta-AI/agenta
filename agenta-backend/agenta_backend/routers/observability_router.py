@@ -1,10 +1,14 @@
-import os
 from typing import List
 
-from fastapi import Request, Query
+from fastapi import Request, Query, Depends
 
 from agenta_backend.utils.common import APIRouter
 from agenta_backend.services import event_db_manager
+from agenta_backend.models.api.api_models import (
+    WithPagination,
+    PaginationQuery,
+    SorterParams,
+)
 from agenta_backend.models.api.observability_models import (
     Span,
     SpanDetail,
@@ -16,6 +20,7 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     CreateTrace,
     UpdateTrace,
+    GenerationRequestFilters,
 )
 
 
@@ -47,14 +52,23 @@ async def create_span(
 
 
 @router.get(
-    "/spans/", response_model=List[Span], operation_id="get_spans_of_generation"
+    "/spans/",
+    response_model=WithPagination[Span],
+    operation_id="get_spans_of_generation",
 )
 async def get_spans_of_trace(
     request: Request,
-    type: str = Query(default="generation"),
+    pagination: PaginationQuery = Depends(),
+    filters: GenerationRequestFilters = Depends(),
+    sorters: SorterParams = Depends(),
 ):
-    if type == "generation":
-        spans = await event_db_manager.fetch_mock_generation(request.state.user_id)
+    if filters and filters.type == "generation":
+        spans = await event_db_manager.fetch_mock_generation(
+            request.state.user_id,
+            pagination,
+            filters,
+            sorters,
+        )
         return spans
     return []
 
