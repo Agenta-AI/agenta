@@ -4,6 +4,14 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
+from agenta_backend.models.api.api_models import GenericObject
+
+
+class GenerationRequestFilters(GenericObject):
+    type: str = Field("generation")
+    environment: Optional[str]
+    variant: Optional[str]
+
 
 class BaseSpan(BaseModel):
     parent_span_id: Optional[str]
