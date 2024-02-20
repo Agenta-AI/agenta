@@ -328,6 +328,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                 ref={gridRef as any}
                                 rowData={evaluations}
                                 columnDefs={colDefs}
+                                rowStyle={{
+                                    cursor: "pointer",
+                                }}
                                 getRowId={(params) => params.data.id}
                                 onRowClicked={(params) => {
                                     // ignore clicks on the checkbox col
