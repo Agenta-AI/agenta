@@ -17,9 +17,9 @@ class GenericObject(BaseModel):
     pass
 
 
-class PaginationQuery(BaseModel):
-    page: int = Query(1, ge=1)
-    pageSize: int = Query(10, ge=1)
+class PaginationParam(BaseModel):
+    page: int = Field(default=1, ge=1)
+    pageSize: int = Field(default=10, ge=1)
 
 
 class SorterParams(BaseModel):
