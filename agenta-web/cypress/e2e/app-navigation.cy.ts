@@ -28,10 +28,16 @@ describe("App Navigation without errors", () => {
         cy.get('[data-cy="app-testset-list"]').should("exist")
     })
 
-    it("should navigate successfully to Evaluations", () => {
+    it("should navigate successfully to Configure evaluators page", () => {
         cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-        cy.location("pathname").should("include", "/evaluations")
-        //TOOD add more assertions specific to the new evaluations page
+        cy.clickLinkAndWait('[data-cy="app-configure-evaluators-link"]')
+        cy.url().should("include", "/evaluations?tab=evaluators")
+    })
+
+    it("should navigate successfully to Run evaluations page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
+        cy.clickLinkAndWait('[data-cy="app-run-evaluations-link"]')
+        cy.url().should("include", "/evaluations?tab=results")
     })
 
     it("should navigate successfully to Annotations", () => {
