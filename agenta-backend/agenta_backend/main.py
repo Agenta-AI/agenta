@@ -54,7 +54,7 @@ async def lifespan(application: FastAPI, cache=True):
     """
     # initialize the database
     await DBEngine().init_db()
-    await templates_manager.update_and_sync_templates(cache=cache)
+    # await templates_manager.update_and_sync_templates(cache=cache)
     yield
 
 

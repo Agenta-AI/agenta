@@ -1,9 +1,10 @@
 import logging
-from typing import List
 from datetime import datetime
+from typing import List, Optional
 
 from fastapi import HTTPException
 
+from agenta_backend.models.api.api_models import PaginationQuery, SorterParams
 from agenta_backend.models.api.observability_models import (
     Span,
     SpanDetail,
@@ -15,11 +16,13 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     CreateTrace,
     UpdateTrace,
+    GenerationRequestFilters,
 )
 from agenta_backend.models.converters import (
     spans_to_pydantic,
     feedback_db_to_pydantic,
     trace_db_to_pydantic,
+    get_paginated_data,
 )
 from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
@@ -141,7 +144,9 @@ async def create_trace_span(payload: CreateSpan) -> str:
     return str(span_db.id)
 
 
-async def get_trace_spans_by_user_uid(user_uid: str, trace_type: str) -> List[Span]:
+async def get_trace_spans_by_user_uid(
+    user_uid: str, trace_type: str, pagination: PaginationQuery
+) -> List[Span]:
     """Get the spans for a given trace.
 
     Args:
@@ -161,10 +166,15 @@ async def get_trace_spans_by_user_uid(user_uid: str, trace_type: str) -> List[Sp
 
     # Get trace spans
     spans = await spans_to_pydantic(trace.spans, trace)
-    return spans
+    return get_paginated_data(spans, pagination)
 
 
-async def fetch_mock_generation(user_uid: str) -> List[Span]:
+async def fetch_mock_generation(
+    user_uid: str,
+    pagination: PaginationQuery,
+    filters: GenerationRequestFilters,
+    sorters: SorterParams,
+) -> List[Span]:
     import random, uuid
     from faker import Faker
     from datetime import datetime, timedelta
@@ -223,7 +233,25 @@ async def fetch_mock_generation(user_uid: str) -> List[Span]:
 
     for _ in range(10):
         generate_mock_generation()
-    return list_of_generations
+
+    def filter_span(span: Span):
+        if filters:
+            if filters.variant and span.variant.variant_name != filters.variant:
+                return False
+            if filters.environment and span.environment != filters.environment:
+                return False
+        return True
+
+    filtered_generations = filter(filter_span, list_of_generations)
+
+    sort_keys = list(sorters.dict(exclude=None).keys())
+    if "created_at" in sort_keys:
+        reverse = sorters.created_at == "desc" if sorters else False
+
+    sorted_generations = sorted(
+        filtered_generations, key=lambda x: x.created_at, reverse=reverse
+    )
+    return get_paginated_data(sorted_generations, pagination)
 
 
 async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> SpanDetail:
@@ -249,17 +277,13 @@ async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> Spa
                 "variant_name": fake.company(),
                 "revision": random.randint(1, 20),
             },
-            "environment": random.choice(
-                ["development", "staging", "production"]
-            ),
+            "environment": random.choice(["development", "staging", "production"]),
             "status": {
                 "value": random.choice(["INITIATED", "SUCCESS", "FAILURE"]),
                 "error": (
                     {
                         "message": fake.sentence(),
-                        "stacktrace": fake.text(
-                            max_nb_chars=200
-                        ),  # Short stacktrace
+                        "stacktrace": fake.text(max_nb_chars=200),  # Short stacktrace
                     }
                     if status_value == "FAILURE"
                     else None
@@ -307,7 +331,7 @@ async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> Spa
                     "top_p": random.uniform(0.5, 1.0),
                 },
             },
-        }
+        },
     )
 
 
