@@ -1,10 +1,10 @@
 import logging
+from typing import List
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import HTTPException
 
-from agenta_backend.models.api.api_models import PaginationQuery, SorterParams
+from agenta_backend.models.api.api_models import PaginationParam, SorterParams
 from agenta_backend.models.api.observability_models import (
     Span,
     SpanDetail,
@@ -16,7 +16,9 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     CreateTrace,
     UpdateTrace,
-    GenerationRequestFilters,
+    ObservabilityData,
+    GenerationFilterParams,
+    ObservabilityDashboardDataRequestParams,
 )
 from agenta_backend.models.converters import (
     spans_to_pydantic,
@@ -145,7 +147,7 @@ async def create_trace_span(payload: CreateSpan) -> str:
 
 
 async def get_trace_spans_by_user_uid(
-    user_uid: str, trace_type: str, pagination: PaginationQuery
+    user_uid: str, trace_type: str, pagination: PaginationParam
 ) -> List[Span]:
     """Get the spans for a given trace.
 
@@ -171,8 +173,8 @@ async def get_trace_spans_by_user_uid(
 
 async def fetch_mock_generation(
     user_uid: str,
-    pagination: PaginationQuery,
-    filters: GenerationRequestFilters,
+    pagination: PaginationParam,
+    filters: GenerationFilterParams,
     sorters: SorterParams,
 ) -> List[Span]:
     import random, uuid
@@ -335,38 +337,67 @@ async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> Spa
     )
 
 
-def fetch_mock_observability_dashboard() -> ObservabilityDashboardData:
-    from faker import Faker
+def fetch_mock_observability_dashboard(
+    params: ObservabilityDashboardDataRequestParams,
+) -> ObservabilityDashboardData:
     import random
-    from datetime import datetime, timedelta
-
-    fake = Faker()
+    from datetime import datetime
 
     list_of_data_points = []
 
     def generate_data_point():
         for _ in range(10):
             list_of_data_points.append(
-                {
-                    "timestamp": datetime.now(),
-                    "success_count": random.randint(5, 20),
-                    "failure_count": random.randint(0, 5),
-                    "cost": random.uniform(0.05, 0.5),
-                    "latency": random.uniform(0.2, 1.5),
-                    "total_tokens": random.randint(100, 500),
-                    "prompt_tokens": random.randint(20, 150),
-                    "completion_tokens": random.randint(50, 300),
-                    "environment": random.choice(
-                        ["development", "staging", "production"]
-                    ),
-                    "variant": f"variant_{random.randint(1, 5)}",
-                }
+                ObservabilityData(
+                    **{
+                        "timestamp": datetime.now(),
+                        "success_count": random.randint(5, 20),
+                        "failure_count": random.randint(0, 5),
+                        "cost": random.uniform(0.05, 0.5),
+                        "latency": random.uniform(0.2, 1.5),
+                        "total_tokens": random.randint(100, 500),
+                        "prompt_tokens": random.randint(20, 150),
+                        "completion_tokens": random.randint(50, 300),
+                        "environment": random.choice(
+                            ["development", "staging", "production"]
+                        ),
+                        "variant": f"variant_{random.randint(1, 5)}",
+                    }
+                )
             )
 
     generate_data_point()
+
+    def filter_data(data: ObservabilityData):
+        if params:
+            if params.environment and data.environment == params.environment:
+                return True
+            if params.variant and data.variant == params.variant:
+                return True
+            if (params.startTime and params.endTime) and (
+                data.timestamp in [params.startTime, params.endTime]
+            ):
+                return True
+            if (
+                params.environment == data.environment
+                and params.variant == data.variant
+            ):
+                return True
+            if (
+                (params.startTime and params.endTime)
+                and (data.timestamp in [params.startTime, params.endTime])
+                and (
+                    params.environment == data.environment
+                    and params.variant == data.variant
+                )
+            ):
+                return True
+        return False
+
+    filtered_data = filter(filter_data, list_of_data_points)
     return ObservabilityDashboardData(
         **{
-            "data": list_of_data_points,
+            "data": list(filtered_data),
             "total_count": random.randint(50, 200),
             "failure_rate": random.uniform(0.0, 0.25),
             "total_cost": random.uniform(5, 20),
