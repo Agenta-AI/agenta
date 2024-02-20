@@ -6,34 +6,35 @@ from agenta_backend.utils.common import APIRouter
 from agenta_backend.services import event_db_manager
 from agenta_backend.models.api.api_models import (
     WithPagination,
-    PaginationQuery,
-    SorterParams,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
     SpanDetail,
     CreateSpan,
-    ObservabilityDashboardData,
     CreateFeedback,
     Feedback,
     UpdateFeedback,
     Trace,
     CreateTrace,
     UpdateTrace,
-    GenerationRequestFilters,
+    GenerationParams,
+    ObservabilityDashboardData,
+    ObservabilityDashboardDataRequestParams,
 )
 
 
 router = APIRouter()
 
 
-@router.get(
+@router.post(
     "/dashboard/",
     response_model=ObservabilityDashboardData,
     operation_id="observability_dashboard",
 )
-async def get_dashboard_data(request: Request):
-    return event_db_manager.fetch_mock_observability_dashboard()
+async def get_dashboard_data(
+    request: Request, parameters: ObservabilityDashboardDataRequestParams
+):
+    return event_db_manager.fetch_mock_observability_dashboard(parameters)
 
 
 @router.post("/trace/", response_model=str, operation_id="create_trace")
@@ -51,23 +52,18 @@ async def create_span(
     return spans_id
 
 
-@router.get(
-    "/spans/",
+@router.post(
+    "/spans/search/",
     response_model=WithPagination[Span],
     operation_id="get_spans_of_generation",
 )
-async def get_spans_of_trace(
-    request: Request,
-    pagination: PaginationQuery = Depends(),
-    filters: GenerationRequestFilters = Depends(),
-    sorters: SorterParams = Depends(),
-):
-    if filters and filters.type == "generation":
+async def get_spans_of_trace(request: Request, params: GenerationParams):
+    if params.filters and params.filters.type == "generation":
         spans = await event_db_manager.fetch_mock_generation(
             request.state.user_id,
-            pagination,
-            filters,
-            sorters,
+            params.pagination,
+            params.filters,
+            params.sorters,
         )
         return spans
     return []
