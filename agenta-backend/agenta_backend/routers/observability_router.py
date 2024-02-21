@@ -6,6 +6,8 @@ from agenta_backend.utils.common import APIRouter
 from agenta_backend.services import event_db_manager
 from agenta_backend.models.api.api_models import (
     WithPagination,
+    SorterParams,
+    PaginationParam,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
@@ -17,8 +19,6 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     CreateTrace,
     UpdateTrace,
-    SorterParams,
-    PaginationParam,
     GenerationFilterParams,
     ObservabilityDashboardData,
     ObservabilityDashboardDataRequestParams,
