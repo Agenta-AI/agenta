@@ -4,23 +4,12 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
-from agenta_backend.models.api.api_models import (
-    GenericObject,
-    SorterParams,
-    PaginationParam,
-)
 
 
-class GenerationFilterParams(GenericObject):
+class GenerationFilterParams(BaseModel):
     type: str = Field("generation")
     environment: Optional[str]
     variant: Optional[str]
-
-
-class GenerationParams(BaseModel):
-    pagination: PaginationParam
-    filters: GenerationFilterParams
-    sorters: SorterParams
 
 
 class ObservabilityDashboardDataRequestParams(BaseModel):

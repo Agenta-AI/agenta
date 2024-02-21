@@ -19,7 +19,10 @@ from .resources.containers.client import AsyncContainersClient, ContainersClient
 from .resources.environments.client import AsyncEnvironmentsClient, EnvironmentsClient
 from .resources.evaluations.client import AsyncEvaluationsClient, EvaluationsClient
 from .resources.evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
-from .resources.observability.client import AsyncObservabilityClient, ObservabilityClient
+from .resources.observability.client import (
+    AsyncObservabilityClient,
+    ObservabilityClient,
+)
 from .resources.testsets.client import AsyncTestsetsClient, TestsetsClient
 from .resources.variants.client import AsyncVariantsClient, VariantsClient
 from .types.http_validation_error import HttpValidationError
@@ -53,7 +56,9 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx.Client(timeout=timeout) if httpx_client is None else httpx_client,
+            httpx_client=httpx.Client(timeout=timeout)
+            if httpx_client is None
+            else httpx_client,
         )
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
         self.variants = VariantsClient(client_wrapper=self._client_wrapper)
@@ -168,7 +173,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -203,7 +210,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -241,7 +250,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -290,7 +301,9 @@ class AgentaApi:
             _request["owner"] = owner
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -317,7 +330,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -355,7 +370,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -406,7 +423,9 @@ class AgentaApi:
             _request["updated_at"] = updated_at
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -453,7 +472,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}/invite"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces/{workspace_id}/invite",
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -469,7 +489,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def resend_invitation(self, org_id: str, workspace_id: str, *, email: str) -> typing.Any:
+    def resend_invitation(
+        self, org_id: str, workspace_id: str, *, email: str
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -520,7 +542,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def accept_invitation(self, org_id: str, workspace_id: str, *, token: str) -> typing.Any:
+    def accept_invitation(
+        self, org_id: str, workspace_id: str, *, token: str
+    ) -> typing.Any:
         """
         Accept an invitation to a workspace.
 
@@ -572,7 +596,12 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_workspace(
-        self, org_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT
+        self,
+        org_id: str,
+        *,
+        name: str,
+        description: typing.Optional[str] = OMIT,
+        type: typing.Optional[str] = OMIT,
     ) -> WorkspaceResponse:
         """
         Parameters:
@@ -602,7 +631,10 @@ class AgentaApi:
             _request["type"] = type
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -659,7 +691,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces/{workspace_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -698,7 +731,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -733,7 +768,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -746,7 +783,12 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def assign_role_to_user(
-        self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[WorkspaceRole] = OMIT
+        self,
+        workspace_id: str,
+        *,
+        email: str,
+        organization_id: str,
+        role: typing.Optional[WorkspaceRole] = OMIT,
     ) -> bool:
         """
         Assigns a role to a user in a workspace.
@@ -784,12 +826,18 @@ class AgentaApi:
             organization_id="organization_id",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"email": email, "organization_id": organization_id}
+        _request: typing.Dict[str, typing.Any] = {
+            "email": email,
+            "organization_id": organization_id,
+        }
         if role is not OMIT:
             _request["role"] = role.value
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/roles",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -804,7 +852,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def unassign_role_from_user(self, workspace_id: str, *, email: str, org_id: str, role: str) -> typing.Any:
+    def unassign_role_from_user(
+        self, workspace_id: str, *, email: str, org_id: str, role: str
+    ) -> typing.Any:
         """
         Delete a role assignment from a user in a workspace.
 
@@ -846,8 +896,13 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
-            params=remove_none_from_dict({"email": email, "org_id": org_id, "role": role}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/roles",
+            ),
+            params=remove_none_from_dict(
+                {"email": email, "org_id": org_id, "role": role}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -861,7 +916,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def remove_user_from_workspace(self, workspace_id: str, *, org_id: str, email: str) -> WorkspaceResponse:
+    def remove_user_from_workspace(
+        self, workspace_id: str, *, org_id: str, email: str
+    ) -> WorkspaceResponse:
         """
         Remove a user from a workspace.
 
@@ -901,7 +958,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/users"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/users",
+            ),
             params=remove_none_from_dict({"org_id": org_id, "email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -977,7 +1037,9 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx.AsyncClient(timeout=timeout) if httpx_client is None else httpx_client,
+            httpx_client=httpx.AsyncClient(timeout=timeout)
+            if httpx_client is None
+            else httpx_client,
         )
         self.apps = AsyncAppsClient(client_wrapper=self._client_wrapper)
         self.variants = AsyncVariantsClient(client_wrapper=self._client_wrapper)
@@ -986,7 +1048,9 @@ class AsyncAgentaApi:
         self.testsets = AsyncTestsetsClient(client_wrapper=self._client_wrapper)
         self.containers = AsyncContainersClient(client_wrapper=self._client_wrapper)
         self.environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
-        self.observability = AsyncObservabilityClient(client_wrapper=self._client_wrapper)
+        self.observability = AsyncObservabilityClient(
+            client_wrapper=self._client_wrapper
+        )
         self.bases = AsyncBasesClient(client_wrapper=self._client_wrapper)
         self.configs = AsyncConfigsClient(client_wrapper=self._client_wrapper)
 
@@ -1092,7 +1156,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1127,7 +1193,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1165,7 +1233,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1214,7 +1284,9 @@ class AsyncAgentaApi:
             _request["owner"] = owner
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1241,7 +1313,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1279,7 +1353,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1330,7 +1406,9 @@ class AsyncAgentaApi:
             _request["updated_at"] = updated_at
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1377,7 +1455,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}/invite"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces/{workspace_id}/invite",
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -1393,7 +1472,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def resend_invitation(self, org_id: str, workspace_id: str, *, email: str) -> typing.Any:
+    async def resend_invitation(
+        self, org_id: str, workspace_id: str, *, email: str
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -1444,7 +1525,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def accept_invitation(self, org_id: str, workspace_id: str, *, token: str) -> typing.Any:
+    async def accept_invitation(
+        self, org_id: str, workspace_id: str, *, token: str
+    ) -> typing.Any:
         """
         Accept an invitation to a workspace.
 
@@ -1496,7 +1579,12 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_workspace(
-        self, org_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT
+        self,
+        org_id: str,
+        *,
+        name: str,
+        description: typing.Optional[str] = OMIT,
+        type: typing.Optional[str] = OMIT,
     ) -> WorkspaceResponse:
         """
         Parameters:
@@ -1526,7 +1614,10 @@ class AsyncAgentaApi:
             _request["type"] = type
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1583,7 +1674,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations/{org_id}/workspaces/{workspace_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1622,7 +1714,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1657,7 +1751,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1670,7 +1766,12 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def assign_role_to_user(
-        self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[WorkspaceRole] = OMIT
+        self,
+        workspace_id: str,
+        *,
+        email: str,
+        organization_id: str,
+        role: typing.Optional[WorkspaceRole] = OMIT,
     ) -> bool:
         """
         Assigns a role to a user in a workspace.
@@ -1708,12 +1809,18 @@ class AsyncAgentaApi:
             organization_id="organization_id",
         )
         """
-        _request: typing.Dict[str, typing.Any] = {"email": email, "organization_id": organization_id}
+        _request: typing.Dict[str, typing.Any] = {
+            "email": email,
+            "organization_id": organization_id,
+        }
         if role is not OMIT:
             _request["role"] = role.value
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/roles",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1728,7 +1835,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def unassign_role_from_user(self, workspace_id: str, *, email: str, org_id: str, role: str) -> typing.Any:
+    async def unassign_role_from_user(
+        self, workspace_id: str, *, email: str, org_id: str, role: str
+    ) -> typing.Any:
         """
         Delete a role assignment from a user in a workspace.
 
@@ -1770,8 +1879,13 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
-            params=remove_none_from_dict({"email": email, "org_id": org_id, "role": role}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/roles",
+            ),
+            params=remove_none_from_dict(
+                {"email": email, "org_id": org_id, "role": role}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1785,7 +1899,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def remove_user_from_workspace(self, workspace_id: str, *, org_id: str, email: str) -> WorkspaceResponse:
+    async def remove_user_from_workspace(
+        self, workspace_id: str, *, org_id: str, email: str
+    ) -> WorkspaceResponse:
         """
         Remove a user from a workspace.
 
@@ -1825,7 +1941,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/users"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"workspaces/{workspace_id}/users",
+            ),
             params=remove_none_from_dict({"org_id": org_id, "email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,

@@ -29,7 +29,9 @@ compose_file="docker-compose.${suffix}yml"
 echo "compose_file: $compose_file"
 
 # run docker compose without agenta-web service
-STANDALONE=true docker compose -f $compose_file up -d --build --scale agenta-web=0 
+export NEXT_PUBLIC_STANDALONE="true"
+docker compose -f $compose_file down
+docker compose -f $compose_file up -d --build --scale agenta-web=0 
 
 if [[ $env == "prod" ]]; then
     # run next js app in prod mode
