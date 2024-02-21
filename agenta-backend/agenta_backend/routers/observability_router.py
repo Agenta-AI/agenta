@@ -6,6 +6,8 @@ from agenta_backend.utils.common import APIRouter
 from agenta_backend.services import event_db_manager
 from agenta_backend.models.api.api_models import (
     WithPagination,
+    SorterParams,
+    PaginationParam,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
@@ -17,7 +19,7 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     CreateTrace,
     UpdateTrace,
-    GenerationParams,
+    GenerationFilterParams,
     ObservabilityDashboardData,
     ObservabilityDashboardDataRequestParams,
 )
@@ -26,13 +28,13 @@ from agenta_backend.models.api.observability_models import (
 router = APIRouter()
 
 
-@router.post(
+@router.get(
     "/dashboard/",
     response_model=ObservabilityDashboardData,
     operation_id="observability_dashboard",
 )
 async def get_dashboard_data(
-    request: Request, parameters: ObservabilityDashboardDataRequestParams
+    request: Request, parameters: ObservabilityDashboardDataRequestParams = Depends()
 ):
     return event_db_manager.fetch_mock_observability_dashboard(parameters)
 
@@ -52,18 +54,23 @@ async def create_span(
     return spans_id
 
 
-@router.post(
-    "/spans/search/",
+@router.get(
+    "/spans/",
     response_model=WithPagination[Span],
     operation_id="get_spans_of_generation",
 )
-async def get_spans_of_trace(request: Request, params: GenerationParams):
-    if params.filters and params.filters.type == "generation":
+async def get_spans_of_trace(
+    request: Request,
+    pagination: PaginationParam = Depends(),
+    filters: GenerationFilterParams = Depends(),
+    sorters: SorterParams = Depends(),
+):
+    if filters and filters.type == "generation":
         spans = await event_db_manager.fetch_mock_generation(
             request.state.user_id,
-            params.pagination,
-            params.filters,
-            params.sorters,
+            pagination,
+            filters,
+            sorters,
         )
         return spans
     return []
