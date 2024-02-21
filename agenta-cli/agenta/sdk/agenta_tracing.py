@@ -15,10 +15,10 @@ class LLMTracing:
 
     def initialize_client(self) -> AsyncObservabilityClient:
         return client.AsyncAgentaApi(
-            base_url=self.base_url, api_key=self.api_key, timeout=60 # type: ignore
+            base_url=self.base_url, api_key=self.api_key, timeout=60  # type: ignore
         ).observability
 
-    async def start_tracing(
+    async def create_trace(
         self,
         client: AsyncObservabilityClient,
         app_id: str,
@@ -45,9 +45,7 @@ class LLMTracing:
     async def finalize_trace(
         self, client: AsyncObservabilityClient, trace_id: str, status: str
     ) -> bool:
-        return await client.update_trace_status(
-            trace_id=trace_id, status=status
-        )
+        return await client.update_trace_status(trace_id=trace_id, status=status)
 
     async def create_span(
         self,
@@ -58,17 +56,17 @@ class LLMTracing:
     ):
         span = await client.create_span(
             parent_span_id=parent_span_id,
-            meta=kwargs["meta"], # type: ignore
+            meta=kwargs["meta"],  # type: ignore
             event_name=event_name,
             event_type="generation",
             status="INITIATED",
-            inputs=kwargs["inputs"], # type: ignore
-            outputs=kwargs["outputs"], # type: ignore
-            prompt_template=kwargs["prompt_template"], # type: ignore
-            tokens_input=kwargs["tokens_input"], # type: ignore
-            tokens_output=kwargs["tokens_output"], # type: ignore
-            token_total=kwargs["token_total"], # type: ignore
-            cost=kwargs["cost"], # type: ignore
+            inputs=kwargs["inputs"],  # type: ignore
+            outputs=kwargs["outputs"],  # type: ignore
+            prompt_template=kwargs["prompt_template"],  # type: ignore
+            tokens_input=kwargs["prompts_token"],  # type: ignore
+            tokens_output=kwargs["completion_tokens"],  # type: ignore
+            token_total=kwargs["total_tokens"],  # type: ignore
+            cost=kwargs["cost"],  # type: ignore
             tags=[],
         )
         return span
@@ -76,12 +74,7 @@ class LLMTracing:
     def set_span_tag(self, tag: str):
         raise NotImplementedError
 
-    async def trace(
-        self,
-        app_id: str,
-        variant_id: str,
-        **kwargs: Dict[str, Any]
-    ):
+    async def start_tracing(self, app_id: str, variant_id: str, **kwargs: Dict[str, Any]):
         client = self.initialize_client()
 
         try:
@@ -89,7 +82,7 @@ class LLMTracing:
             span = await self.create_span(
                 client, None, event_name=str(uuid.uuid4()), kwargs=kwargs
             )
-            trace = await self.start_tracing(
+            trace = await self.create_trace(
                 client,
                 app_id=app_id,
                 variant_id=variant_id,
