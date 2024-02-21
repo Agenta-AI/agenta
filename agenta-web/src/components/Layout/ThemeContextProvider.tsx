@@ -1,6 +1,7 @@
 import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
+import {AntdThemeConfig} from "../../../tailwind.config"
 
 export enum ThemeMode {
     Light = "light",
@@ -68,17 +69,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 theme={{
                     algorithm:
                         val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                    token: {
-                        // Seed Token
-                        colorPrimary: "#4AA081",
-                        borderRadius: 8,
-                    },
-                    components: {
-                        Button: {
-                            colorPrimary: "#4AA081",
-                            colorErrorText: "#ef4146",
-                        },
-                    },
+                    ...AntdThemeConfig,
                 }}
             >
                 {children}

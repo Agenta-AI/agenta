@@ -12,6 +12,7 @@ import {
     LogoutOutlined,
     FormOutlined,
     BarChartOutlined,
+    SwapOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
@@ -231,7 +232,7 @@ const Sidebar: React.FC = () => {
                                             }
                                             key="evaluations"
                                         >
-                                            <Menu.Item icon={<LineChartOutlined />}>
+                                            <Menu.Item icon={<BarChartOutlined />}>
                                                 <Link
                                                     data-cy="app-evaluations-link"
                                                     href={getNavigationPath("evaluations")}
@@ -278,7 +279,7 @@ const Sidebar: React.FC = () => {
                                             key="observability"
                                         >
                                             <Menu.Item
-                                                icon={<BarChartOutlined />}
+                                                icon={<LineChartOutlined />}
                                                 disabled={!isDemo()}
                                             >
                                                 <Link
@@ -309,7 +310,11 @@ const Sidebar: React.FC = () => {
                                             key="requests"
                                         >
                                             <Menu.Item
-                                                icon={<BarChartOutlined />}
+                                                icon={
+                                                    <SwapOutlined
+                                                        style={{transform: "rotate(90deg)"}}
+                                                    />
+                                                }
                                                 disabled={!isDemo()}
                                             >
                                                 <Link
