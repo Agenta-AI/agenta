@@ -38,6 +38,7 @@ const Evaluators: React.FC<Props> = () => {
     const appId = useAppId()
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [newEvalModalConfigOpen, setNewEvalModalConfigOpen] = useState(false)
     const [editIndex, setEditIndex] = useState<number>(-1)
     const [fetching, setFetching] = useState(false)
     const [searchTerm, setSearchTerm] = useState<string>("")
@@ -88,7 +89,7 @@ const Evaluators: React.FC<Props> = () => {
                                 evaluatorConfig={item}
                                 onEdit={() => {
                                     setEditIndex(ix)
-                                    setNewEvalModalOpen(true)
+                                    setNewEvalModalConfigOpen(true)
                                 }}
                                 onSuccessDelete={fetcher}
                             />
@@ -102,8 +103,12 @@ const Evaluators: React.FC<Props> = () => {
                 onCancel={() => setNewEvalModalOpen(false)}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
+                    setNewEvalModalConfigOpen(false)
                     fetcher()
                 }}
+                newEvalModalConfigOpen={newEvalModalConfigOpen}
+                setNewEvalModalConfigOpen={setNewEvalModalConfigOpen}
+                setNewEvalModalOpen={setNewEvalModalOpen}
                 editMode={editIndex !== -1}
                 initialValues={evaluatorConfigs[editIndex]}
             />
