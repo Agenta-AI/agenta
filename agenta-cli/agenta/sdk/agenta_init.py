@@ -79,13 +79,14 @@ class AgentaSingleton:
             else:
                 try:
                     app_id = self.get_app(app_name)
-                    base_id = self.get_app_bases(app_id, base_name)
+                    base_id = self.get_app_base(app_id, base_name)
                 except Exception as ex:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
                     )
         self.base_id = base_id
         self.host = host
+        self.base_name = base_name
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
 
@@ -97,7 +98,7 @@ class AgentaSingleton:
         app_id = apps[0].app_id
         return app_id
 
-    def get_app_bases(self, app_id: str, base_name: str) -> str:
+    def get_app_base(self, app_id: str, base_name: str) -> str:
         bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
         if len(bases) == 0:
             raise APIRequestError(f"No base was found for the app {app_id}")
@@ -109,7 +110,9 @@ class AgentaSingleton:
         self, app_name: str, host: str, api_key: str, **kwargs: Dict[str, Any]
     ):
         app_id = self.get_app(app_name)
+        base_id = self.get_app_base(app_id, self.base_name) # type: ignore
         llm_tracing = LLMTracing(host, api_key=api_key)
+        await llm_tracing.start_tracing(app_id, base_id, "default", kwargs=kwargs)
 
 
 class Config:
