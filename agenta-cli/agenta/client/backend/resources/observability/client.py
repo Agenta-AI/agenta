@@ -187,7 +187,7 @@ class ObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: str,
-        inputs: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+        inputs: typing.Optional[typing.List[str]] = OMIT,
         outputs: typing.Optional[typing.List[str]] = OMIT,
         prompt_template: typing.Optional[str] = OMIT,
         tokens_input: typing.Optional[int] = OMIT,
@@ -212,7 +212,7 @@ class ObservabilityClient:
 
             - status: str.
 
-            - inputs: typing.Optional[typing.Dict[str, typing.Any]].
+            - inputs: typing.Optional[typing.List[str]].
 
             - outputs: typing.Optional[typing.List[str]].
 
@@ -712,7 +712,7 @@ class AsyncObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: str,
-        inputs: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+        inputs: typing.Optional[typing.List[str]] = OMIT,
         outputs: typing.Optional[typing.List[str]] = OMIT,
         prompt_template: typing.Optional[str] = OMIT,
         tokens_input: typing.Optional[int] = OMIT,
@@ -737,7 +737,7 @@ class AsyncObservabilityClient:
 
             - status: str.
 
-            - inputs: typing.Optional[typing.Dict[str, typing.Any]].
+            - inputs: typing.Optional[typing.List[str]].
 
             - outputs: typing.Optional[typing.List[str]].
 
