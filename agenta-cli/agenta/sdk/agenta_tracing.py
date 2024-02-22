@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, Optional, List
 # Own Imports
 from agenta.client.backend import client
 from agenta.client.backend.client import AsyncObservabilityClient
+
 # Stdlib Imports
 import uuid
 from datetime import datetime, timedelta
@@ -30,7 +31,8 @@ class LLMTracing:
         self,
         client: AsyncObservabilityClient,
         app_id: str,
-        variant_id: str,
+        base_id: str,
+        config_name: str,
         spans: List[str],
         **kwargs: Dict[str, Any]
     ):
@@ -39,7 +41,8 @@ class LLMTracing:
         latency: timedelta = trace_end_time - kwargs["trace_start_time"]  # type: ignore
         trace = await client.create_trace(
             app_id=app_id,
-            variant_id=variant_id,
+            base_id=base_id,
+            config_name=config_name,
             cost=kwargs["cost"],  # type: ignore
             latency=latency.total_seconds(),
             status="INITIATED",
@@ -82,7 +85,9 @@ class LLMTracing:
     def set_span_tag(self, tag: str):
         raise NotImplementedError
 
-    async def start_tracing(self, app_id: str, variant_id: str, **kwargs: Dict[str, Any]):
+    async def start_tracing(
+        self, app_id: str, base_id: str, config_name: str, **kwargs: Dict[str, Any]
+    ):
         client = self.initialize_client()
 
         try:
@@ -93,7 +98,8 @@ class LLMTracing:
             trace = await self.create_trace(
                 client,
                 app_id=app_id,
-                variant_id=variant_id,
+                base_id=base_id,
+                config_name=config_name,
                 spans=[span],
                 kwargs={**kwargs, "trace_start_time": trace_starting},
             )
