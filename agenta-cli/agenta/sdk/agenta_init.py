@@ -86,6 +86,7 @@ class AgentaSingleton:
                     )
         self.base_id = base_id
         self.host = host
+        self.app_name = app_name
         self.base_name = base_name
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
@@ -105,14 +106,6 @@ class AgentaSingleton:
 
         base_id = bases[0].base_id
         return base_id
-
-    async def trace(
-        self, app_name: str, host: str, api_key: str, **kwargs: Dict[str, Any]
-    ):
-        app_id = self.get_app(app_name)
-        base_id = self.get_app_base(app_id, self.base_name) # type: ignore
-        llm_tracing = LLMTracing(host, api_key=api_key)
-        await llm_tracing.start_tracing(app_id, base_id, "default", kwargs=kwargs)
 
 
 class Config:
@@ -225,3 +218,15 @@ def init(app_name=None, base_name=None, **kwargs):
     singleton = AgentaSingleton()
     singleton.init(app_name=app_name, base_name=base_name, **kwargs)
     set_global(setup=singleton.setup, config=singleton.config)
+
+
+async def trace(**kwargs):
+    """Function to start llm tracing.
+    """
+
+    singleton = AgentaSingleton()
+
+    app_id = singleton.get_app(singleton.app_name)
+    base_id = singleton.get_app_base(app_id, singleton.base_name) # type: ignore
+    llm_tracing = LLMTracing(singleton.host, singleton.api_key)
+    await llm_tracing.start_tracing(app_id, base_id, "default", **kwargs)
