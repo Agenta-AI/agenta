@@ -7,15 +7,6 @@ from typing import Optional, Dict, Any, Optional, List
 from agenta.client.backend import client
 from agenta.client.backend.client import AsyncObservabilityClient
 
-# Stdlib Imports
-import uuid
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Optional, List
-
-# Own Imports
-from agenta.client.backend import client
-from agenta.client.backend.client import AsyncObservabilityClient
-
 
 class LLMTracing:
     def __init__(self, base_url: str, api_key: Optional[str] = None):
@@ -24,7 +15,7 @@ class LLMTracing:
 
     def initialize_client(self) -> AsyncObservabilityClient:
         return client.AsyncAgentaApi(
-            base_url=self.base_url, api_key=self.api_key, timeout=60  # type: ignore
+            base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
     async def create_trace(
@@ -74,7 +65,7 @@ class LLMTracing:
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore
             prompt_template=kwargs["prompt_template"],  # type: ignore
-            tokens_input=kwargs["prompts_token"],  # type: ignore
+            tokens_input=kwargs["prompt_tokens"],  # type: ignore
             tokens_output=kwargs["completion_tokens"],  # type: ignore
             token_total=kwargs["total_tokens"],  # type: ignore
             cost=kwargs["cost"],  # type: ignore
@@ -88,12 +79,12 @@ class LLMTracing:
     async def start_tracing(
         self, app_id: str, base_id: str, config_name: str, **kwargs: Dict[str, Any]
     ):
+        trace = None
         client = self.initialize_client()
-
         try:
             trace_starting = datetime.now()
             span = await self.create_span(
-                client, None, event_name=str(uuid.uuid4()), kwargs=kwargs
+                client, None, event_name=str(uuid.uuid4()), **kwargs
             )
             trace = await self.create_trace(
                 client,
@@ -101,11 +92,15 @@ class LLMTracing:
                 base_id=base_id,
                 config_name=config_name,
                 spans=[span],
-                kwargs={**kwargs, "trace_start_time": trace_starting},
+                **{**kwargs, "trace_start_time": trace_starting}, # type: ignore
             )
-        except Exception:
-            # TODO: handle logic to handle case of failure
+        except KeyError as exc:
+            print(f"Something happened when tracing LLM app. Error: {str(exc)}")
+            return
+        except Exception as exc:
+            print("Error tracing LLM app ", app_id, str(exc))
             return
         finally:
-            await self.finalize_trace(client, trace, "SUCCESS")
+            if trace is not None:
+                await self.finalize_trace(client, trace, "SUCCESS")
             return
