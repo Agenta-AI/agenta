@@ -8,7 +8,7 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init(app_name="test", base_name="app")
+ag.init(app_name="aat", base_name="app_async_trace")
 ag.config.default(
     temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
 )
