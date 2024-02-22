@@ -374,8 +374,11 @@ def fetch_mock_observability_dashboard(
                 return True
             if params.variant and data.variant == params.variant:
                 return True
+
+            # Convert data.timestamp to epoch time
+            epoch_time = int(data.timestamp.timestamp())
             if (params.startTime and params.endTime) and (
-                data.timestamp in [params.startTime, params.endTime]
+                epoch_time in [params.startTime, params.endTime]
             ):
                 return True
             if (
