@@ -162,6 +162,7 @@ def init(app_name: str, backend_host: str):
                     click.echo(click.style(f"Error: {ex}", fg="red"))
                     sys.exit(1)
 
+        filtered_org = None
         if where_question == "On agenta cloud":
             which_organization = questionary.select(
                 "Which organization do you want to create the app for?",
@@ -180,7 +181,7 @@ def init(app_name: str, backend_host: str):
 
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.create_app(
+            app_id = client.apps.create_app(
                 app_name=app_name,
                 organization_id=filtered_org.id if filtered_org else None,
             ).app_id
