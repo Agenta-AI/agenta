@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 # for nested async calls
 import nest_asyncio
+
 nest_asyncio.apply()
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
@@ -240,17 +241,17 @@ async def batch_invoke(
             return batch_output
         except Exception as exc:
             traceback.print_exc()
-            logger.info(
-                f"Error processing item[{index}]: ==> {str(exc)}"
-            )
+            logger.info(f"Error processing item[{index}]: ==> {str(exc)}")
             return None
 
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
         end_idx = min(start_idx + batch_size, len(testset_data))
-        
+
         loop = asyncio.get_event_loop()
-        looper = asyncio.gather(*[process_item(index) for index in range(start_idx, end_idx)])
+        looper = asyncio.gather(
+            *[process_item(index) for index in range(start_idx, end_idx)]
+        )
         results = loop.run_until_complete(looper)
         list_of_app_outputs.extend(results)
 
