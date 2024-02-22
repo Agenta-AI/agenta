@@ -1,8 +1,8 @@
 import agenta as ag
 from agenta import FloatParam, TextParam
-from openai import OpenAI
+from openai import AsyncOpenAI
 
-client = OpenAI()
+client = AsyncOpenAI()
 
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
@@ -15,7 +15,7 @@ ag.config.default(
 
 
 @ag.entrypoint
-def generate(country: str, gender: str):
+async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.
 
@@ -28,17 +28,14 @@ def generate(country: str, gender: str):
     """
     prompt = ag.config.prompt_template.format(country=country, gender=gender)
 
-    chat_completion = client.chat.completions.create(
+    chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
     token_usage = chat_completion.usage.dict()
     prompt_output = chat_completion.choices[0].message.content
     prompt_cost = ag.calculate_token_usage("gpt-3.5-turbo", token_usage)
-    ag.trace(
-        ag.app_name,
-        ag.host,
-        ag.api_key,
-        kwargs={
+    await ag.trace(
+        **{
             **token_usage,
             "meta": token_usage,
             "inputs": ["country", "gender"],
