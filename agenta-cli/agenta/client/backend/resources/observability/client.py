@@ -59,7 +59,8 @@ class ObservabilityClient:
         self,
         *,
         app_id: typing.Optional[str] = OMIT,
-        variant_id: typing.Optional[str] = OMIT,
+        base_id: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
         latency: float,
         status: typing.Optional[str] = OMIT,
@@ -73,7 +74,9 @@ class ObservabilityClient:
         Parameters:
             - app_id: typing.Optional[str].
 
-            - variant_id: typing.Optional[str].
+            - base_id: typing.Optional[str].
+
+            - config_name: typing.Optional[str].
 
             - cost: typing.Optional[float].
 
@@ -105,8 +108,10 @@ class ObservabilityClient:
         _request: typing.Dict[str, typing.Any] = {"latency": latency, "spans": spans}
         if app_id is not OMIT:
             _request["app_id"] = app_id
-        if variant_id is not OMIT:
-            _request["variant_id"] = variant_id
+        if base_id is not OMIT:
+            _request["base_id"] = base_id
+        if config_name is not OMIT:
+            _request["config_name"] = config_name
         if cost is not OMIT:
             _request["cost"] = cost
         if status is not OMIT:
@@ -579,7 +584,8 @@ class AsyncObservabilityClient:
         self,
         *,
         app_id: typing.Optional[str] = OMIT,
-        variant_id: typing.Optional[str] = OMIT,
+        base_id: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
         latency: float,
         status: typing.Optional[str] = OMIT,
@@ -593,7 +599,9 @@ class AsyncObservabilityClient:
         Parameters:
             - app_id: typing.Optional[str].
 
-            - variant_id: typing.Optional[str].
+            -  base_id: typing.Optional[str].
+
+            - config_name: typing.Optional[str].
 
             - cost: typing.Optional[float].
 
@@ -625,8 +633,10 @@ class AsyncObservabilityClient:
         _request: typing.Dict[str, typing.Any] = {"latency": latency, "spans": spans}
         if app_id is not OMIT:
             _request["app_id"] = app_id
-        if variant_id is not OMIT:
-            _request["variant_id"] = variant_id
+        if base_id is not OMIT:
+            _request["base_id"] = base_id
+        if config_name is not OMIT:
+            _request["config_name"] = config_name
         if cost is not OMIT:
             _request["cost"] = cost
         if status is not OMIT:
