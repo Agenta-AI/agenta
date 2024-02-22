@@ -5,6 +5,9 @@ import asyncio
 import traceback
 from typing import Any, Dict, List
 
+# for nested async calls
+import nest_asyncio
+nest_asyncio.apply()
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
 
@@ -223,26 +226,33 @@ async def batch_invoke(
     ] = []  # Outputs after running all batches
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
+    async def process_item(index: int) -> InvokationResult:
+        try:
+            batch_output: InvokationResult = await run_with_retry(
+                uri,
+                testset_data[index],
+                parameters,
+                max_retries,
+                retry_delay,
+                openapi_parameters,
+            )
+            print(f"Adding output for item {index}")
+            return batch_output
+        except Exception as exc:
+            traceback.print_exc()
+            logger.info(
+                f"Error processing item[{index}]: ==> {str(exc)}"
+            )
+            return None
+
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
         end_idx = min(start_idx + batch_size, len(testset_data))
-        for index in range(start_idx, end_idx):
-            try:
-                batch_output: InvokationResult = await run_with_retry(
-                    uri,
-                    testset_data[index],
-                    parameters,
-                    max_retries,
-                    retry_delay,
-                    openapi_parameters,
-                )
-                list_of_app_outputs.append(batch_output)
-                print(f"Adding outputs to batch {start_idx}")
-            except Exception as exc:
-                traceback.print_exc()
-                logger.info(
-                    f"Error processing batch[{start_idx}]:[{end_idx}] ==> {str(exc)}"
-                )
+        
+        loop = asyncio.get_event_loop()
+        looper = asyncio.gather(*[process_item(index) for index in range(start_idx, end_idx)])
+        results = loop.run_until_complete(looper)
+        list_of_app_outputs.extend(results)
 
         # Schedule the next batch with a delay
         next_batch_start_idx = end_idx
