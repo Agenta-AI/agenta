@@ -9,7 +9,7 @@ import {
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Tag, Tooltip, Typography} from "antd"
+import {Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -21,6 +21,8 @@ import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRendere
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -53,6 +55,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
+    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -94,21 +97,32 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     if (result && result.type == "error") {
                         return `${result?.error?.message}\n${result?.error?.stacktrace}`
                     }
-                    return result?.value
+                    return (
+                        <>
+                            {showDiff === "show" ? (
+                                <CompareOutputDiff
+                                    variantOutput={result?.value}
+                                    expectedOutput={params.data?.correct_answer}
+                                />
+                            ) : (
+                                result?.value
+                            )}
+                        </>
+                    )
                 },
                 cellRenderer: LongTextCellRenderer,
             })
         })
-        scenarios[0]?.evaluators_configs.forEach((config) => {
+        scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
-                headerName: config.name,
+                headerName: config?.name,
                 headerComponent: (props: any) => {
-                    const evaluator = evaluators.find((item) => item.key === config.evaluator_key)!
+                    const evaluator = evaluators.find((item) => item.key === config?.evaluator_key)!
                     return (
                         <AgCustomHeader {...props}>
                             <Space direction="vertical" style={{padding: "0.5rem 0"}}>
                                 <span>{config.name}</span>
-                                <Tag color={evaluator.color}>{evaluator.name}</Tag>
+                                <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
                             </Space>
                         </AgCustomHeader>
                     )
@@ -120,10 +134,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRendererParams: {
                     config,
                 },
+                valueGetter: (params) => {
+                    return params.data?.results[index].result.value
+                },
             })
         })
         return colDefs
-    }, [evalaution, scenarios])
+    }, [evalaution, scenarios, showDiff])
 
     const fetcher = () => {
         setFetching(true)
@@ -197,6 +214,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Space>
                 </Space>
                 <Space size="middle" align="center">
+                    <Space>
+                        <Typography.Text>Show Difference: </Typography.Text>
+                        <Switch
+                            value={showDiff === "show"}
+                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
+                        />
+                    </Space>
                     <Tooltip title="Export as CSV">
                         <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
                     </Tooltip>
