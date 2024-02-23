@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Union
 from agenta_backend.models.api.api_models import Result
 
@@ -39,7 +39,7 @@ class EvaluationScenarioStatusEnum(str, Enum):
 
 
 class AggregatedResult(BaseModel):
-    evaluator_config: EvaluatorConfig
+    evaluator_config: Union[EvaluatorConfig, Dict[str, Any]]
     result: Result
 
 
@@ -66,8 +66,8 @@ class Evaluation(BaseModel):
     variant_names: List[str]
     variant_revision_ids: List[str]
     revisions: List[str]
-    testset_id: str
-    testset_name: str
+    testset_id: Optional[str]
+    testset_name: Optional[str]
     status: Result
     aggregated_results: List[AggregatedResult]
     created_at: datetime

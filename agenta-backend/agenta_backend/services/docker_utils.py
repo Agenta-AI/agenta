@@ -134,6 +134,9 @@ def start_container(
             logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             logger.error(
                 f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
             )

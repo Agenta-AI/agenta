@@ -13,7 +13,7 @@ import {
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
-import {dynamicComponent, getAllProviderLlmKeys, getApikeys, isDemo} from "@/lib/helpers/utils"
+import {getAllProviderLlmKeys, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, JSSTheme} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -29,6 +29,8 @@ import {createUseStyles} from "react-jss"
 import HumanEvaluationResult from "./HumanEvaluationResult"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -354,11 +356,13 @@ export default function Evaluations() {
             selectedCustomEvaluationID,
             testsetId: selectedTestset._id!,
         }).catch((err) => {
-            setError({
-                message: getErrorMessage(err),
-                btnText: "Go to Test sets",
-                endpoint: `/apps/${appId}/testsets`,
-            })
+            if (err.message !== PERMISSION_ERR_MSG) {
+                setError({
+                    message: getErrorMessage(err),
+                    btnText: "Go to Test sets",
+                    endpoint: `/apps/${appId}/testsets`,
+                })
+            }
         })
 
         if (!evaluationTableId) {
