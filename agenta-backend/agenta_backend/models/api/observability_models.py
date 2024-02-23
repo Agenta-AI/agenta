@@ -5,7 +5,6 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
-
 class GenerationFilterParams(BaseModel):
     type: str = Field("generation")
     environment: Optional[str]
@@ -17,28 +16,6 @@ class ObservabilityDashboardDataRequestParams(BaseModel):
     endTime: Optional[int]
     environment: Optional[str]
     variant: Optional[str]
-
-
-class BaseSpan(BaseModel):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str
-    event_type: Optional[str]
-    start_time: datetime = Field(default=datetime.now())
-    duration: Optional[int]
-    status: str
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-
-
-class CreateSpan(BaseSpan):
-    pass
 
 
 class Error(BaseModel):
@@ -71,6 +48,28 @@ class Span(BaseModel):
     status: SpanStatus
     metadata: Dict[str, Any]
     user_id: str
+
+
+class BaseSpan(BaseModel):
+    parent_span_id: Optional[str]
+    meta: Optional[Dict[str, Any]]
+    event_name: str
+    event_type: Optional[str]
+    start_time: datetime = Field(default=datetime.now())
+    duration: Optional[int]
+    status: SpanStatus
+    inputs: Optional[List[str]]
+    outputs: Optional[List[str]]
+    prompt_template: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+
+
+class CreateSpan(BaseSpan):
+    pass
 
 
 class LLMInputs(BaseModel):

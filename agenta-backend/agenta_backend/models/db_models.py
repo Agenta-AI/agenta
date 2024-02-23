@@ -291,6 +291,17 @@ class EvaluationScenarioDB(Document):
         name = "new_evaluation_scenarios"
 
 
+class SpanEnumStatus(str, Enum):
+    INITIATED = "INITIATED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+
+
+class SpanStatus(BaseModel):
+    value: Optional[SpanEnumStatus]
+    error: Optional[Error]
+
+
 class SpanDB(Document):
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
@@ -298,7 +309,7 @@ class SpanDB(Document):
     event_type: Optional[str]
     start_time: datetime
     duration: Optional[int]
-    status: Result
+    status: SpanStatus
     end_time: datetime = Field(default=datetime.now())
     inputs: Optional[List[str]]
     outputs: Optional[List[str]]
