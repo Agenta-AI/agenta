@@ -6,12 +6,10 @@ import dayjs from "dayjs"
 import React, {useMemo} from "react"
 import {createUseStyles} from "react-jss"
 import {Resizable} from "react-resizable"
+import EnforceAntdStyles from "../EnforceAntdStyles/EnforceAntdStyles"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     filterRoot: {
-        "& .input": {
-            width: 200,
-        },
         padding: "1rem",
         display: "flex",
         alignItems: "center",
@@ -47,16 +45,18 @@ export const getFilterParams = (
         const classes = useStyles()
 
         return (
-            <div className={classes.filterRoot}>
-                <Input.Search
-                    type={type}
-                    defaultValue={selectedKeys[0]?.toString()}
-                    onSearch={(val) => {
-                        setSelectedKeys(val ? [val] : [])
-                        confirm()
-                    }}
-                />
-            </div>
+            <EnforceAntdStyles>
+                <div className={classes.filterRoot}>
+                    <Input.Search
+                        type={type}
+                        defaultValue={selectedKeys[0]?.toString()}
+                        onSearch={(val) => {
+                            setSelectedKeys(val ? [val] : [])
+                            confirm()
+                        }}
+                    />
+                </div>
+            </EnforceAntdStyles>
         )
     }
 
