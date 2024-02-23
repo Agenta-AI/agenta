@@ -259,7 +259,9 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.variants.start_variant(variant_id=variant_id, action={"action": "START"})
+    endpoint = client.variants.start_variant(
+        variant_id=variant_id, action={"action": "START"}
+    )
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
