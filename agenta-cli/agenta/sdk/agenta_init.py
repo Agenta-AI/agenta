@@ -221,12 +221,11 @@ def init(app_name=None, base_name=None, **kwargs):
 
 
 async def trace(**kwargs):
-    """Function to start llm tracing.
-    """
+    """Function to start llm tracing."""
 
     singleton = AgentaSingleton()
 
     app_id = singleton.get_app(singleton.app_name)
-    base_id = singleton.get_app_base(app_id, singleton.base_name) # type: ignore
+    base_id = singleton.get_app_base(app_id, singleton.base_name)  # type: ignore
     llm_tracing = LLMTracing(singleton.host, singleton.api_key)
     await llm_tracing.start_tracing(app_id, base_id, "default", **kwargs)

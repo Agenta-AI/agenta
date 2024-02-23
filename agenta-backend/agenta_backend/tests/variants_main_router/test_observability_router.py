@@ -162,9 +162,7 @@ async def test_create_trace_endpoint(trace_create_data):
 
 @pytest.mark.asyncio
 async def test_update_trace_status_endpoint():
-    payload = {
-        "status": random.choice(["initiated", "success", "failure"])
-    }
+    payload = {"status": random.choice(["initiated", "success", "failure"])}
 
     traces = await TraceDB.find().to_list()
     response = await test_client.put(

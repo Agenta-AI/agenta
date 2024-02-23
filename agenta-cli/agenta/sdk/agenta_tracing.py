@@ -25,7 +25,7 @@ class LLMTracing:
         base_id: str,
         config_name: str,
         spans: List[str],
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ):
         # calculate the latency between the trace start time and end time
         trace_end_time = datetime.now()
@@ -54,7 +54,7 @@ class LLMTracing:
         client: AsyncObservabilityClient,
         parent_span_id: Optional[str],
         event_name: str,
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ):
         span = await client.create_span(
             parent_span_id=parent_span_id,
@@ -92,7 +92,7 @@ class LLMTracing:
                 base_id=base_id,
                 config_name=config_name,
                 spans=[span],
-                **{**kwargs, "trace_start_time": trace_starting}, # type: ignore
+                **{**kwargs, "trace_start_time": trace_starting},  # type: ignore
             )
         except KeyError as exc:
             print(f"Something happened when tracing LLM app. Error: {str(exc)}")
