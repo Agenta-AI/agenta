@@ -1,36 +1,32 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useMemo} from "react"
 import {useRouter} from "next/router"
-import {Layout, Menu, Tooltip, theme} from "antd"
+import {Layout, Menu, Tooltip} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
-import {useSidebarConfig} from "./config"
-
-type StyleProps = {
-    themeMode: "system" | "dark" | "light"
-    colorBgContainer: string
-}
+import {SidebarConfig, useSidebarConfig} from "./config"
+import {JSSTheme} from "@/lib/Types"
 
 const {Sider} = Layout
 
-const useStyles = createUseStyles({
-    sidebar: ({colorBgContainer}: StyleProps) => ({
-        background: `${colorBgContainer} !important`,
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    sidebar: {
+        background: `${theme.colorBgContainer} !important`,
         height: "100vh",
         position: "sticky !important",
         bottom: "0px",
         top: "0px",
 
         "&>div:nth-of-type(2)": {
-            background: `${colorBgContainer} !important`,
+            background: `${theme.colorBgContainer} !important`,
         },
-    }),
-    siderWrapper: ({themeMode}: StyleProps) => ({
-        border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
-    }),
+    },
+    siderWrapper: {
+        border: `0.01px solid ${theme.isDark ? "#222" : "#ddd"}`,
+    },
     sliderContainer: {
         display: "flex",
         flexDirection: "column",
@@ -62,41 +58,76 @@ const useStyles = createUseStyles({
     menuLinks: {
         width: "100%",
     },
-})
+}))
+
+const SidebarMenu: React.FC<{
+    items: SidebarConfig[]
+    selectedKeys: string[]
+    menuProps?: React.ComponentProps<typeof Menu>
+}> = ({items, selectedKeys, menuProps}) => {
+    return (
+        <Menu mode="vertical" selectedKeys={selectedKeys} {...menuProps}>
+            {items.map((item) => {
+                if (item.submenu) {
+                    return (
+                        <Menu.SubMenu
+                            key={item.key}
+                            icon={item.icon}
+                            title={item.title}
+                            onTitleClick={item.onClick}
+                        >
+                            {item.submenu.map((subitem) => (
+                                <Menu.Item
+                                    icon={subitem.icon}
+                                    key={subitem.key}
+                                    onClick={subitem.onClick}
+                                >
+                                    <Tooltip title={subitem.tooltip}>
+                                        <Link
+                                            href={subitem.link || "#"}
+                                            target={
+                                                subitem.link?.startsWith("http")
+                                                    ? "_blank"
+                                                    : undefined
+                                            }
+                                        >
+                                            {subitem.title}
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
+                            ))}
+                        </Menu.SubMenu>
+                    )
+                } else {
+                    return (
+                        <Menu.Item icon={item.icon} key={item.key} onClick={item.onClick}>
+                            <Tooltip title={item.tooltip}>
+                                <Link
+                                    href={item.link || "#"}
+                                    target={item.link?.startsWith("http") ? "_blank" : undefined}
+                                >
+                                    {item.title}
+                                </Link>
+                            </Tooltip>
+                        </Menu.Item>
+                    )
+                }
+            })}
+        </Menu>
+    )
+}
 
 const Sidebar: React.FC = () => {
     const {appTheme} = useAppTheme()
-    const {
-        token: {colorBgContainer},
-    } = theme.useToken()
     const router = useRouter()
-    const classes = useStyles({
-        themeMode: appTheme,
-        colorBgContainer,
-    } as StyleProps)
+    const classes = useStyles()
 
-    const pathSegments = router.asPath.split("/")
-    const page_name = pathSegments[3]
-
-    let initialSelectedKeys: string[] = []
-    if (typeof page_name === "string") {
-        initialSelectedKeys = [page_name]
-    } else if (Array.isArray(page_name)) {
-        initialSelectedKeys = page_name
-    } else if (typeof page_name === "undefined") {
-        initialSelectedKeys = ["apps"]
-    }
-    const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
-
-    useEffect(() => {
-        setSelectedKeys(initialSelectedKeys)
-    }, [page_name])
 
     const menu = useSidebarConfig()
     const {topItems, bottomItems} = useMemo(() => {
-        const topItems: ReturnType<typeof useSidebarConfig> = []
-        const bottomItems: ReturnType<typeof useSidebarConfig> = []
+        const topItems: SidebarConfig[] = []
+        const bottomItems: SidebarConfig[] = []
 
         menu.forEach((item) => {
             if (item.isHidden) return
@@ -112,6 +143,28 @@ const Sidebar: React.FC = () => {
             bottomItems,
         }
     }, [menu])
+
+    const selectedKeys = useMemo(() => {
+        let matched: SidebarConfig
+
+        const executor = (items: SidebarConfig[]) => {
+            items.forEach((item) => {
+                if (item.submenu?.length) {
+                    executor(item.submenu)
+                } else if (
+                    item.link &&
+                    router.asPath.startsWith(item.link) &&
+                    item.link.length > (matched?.link?.length || 0)
+                ) {
+                    matched = item
+                }
+            })
+        }
+        executor([...topItems, ...bottomItems])
+
+        //@ts-ignore
+        return [matched?.key]
+    }, [router.asPath, topItems, bottomItems])
 
     return (
         <div className={classes.siderWrapper}>
@@ -131,115 +184,16 @@ const Sidebar: React.FC = () => {
                     </div>
                     <ErrorBoundary fallback={<div />}>
                         <div>
-                            <Menu
-                                mode="vertical"
-                                selectedKeys={initialSelectedKeys}
-                                className={classes.menuContainer}
-                            >
-                                {topItems.map((item) => {
-                                    if (item.submenu) {
-                                        return (
-                                            <Menu.SubMenu
-                                                key={item.key}
-                                                icon={item.icon}
-                                                title={item.title}
-                                            >
-                                                {item.submenu.map((subitem) => (
-                                                    <Tooltip
-                                                        title={subitem.tooltip}
-                                                        key={subitem.key}
-                                                    >
-                                                        <Menu.Item icon={subitem.icon}>
-                                                            <Link
-                                                                href={subitem.link || "#"}
-                                                                target={
-                                                                    subitem.link?.startsWith("http")
-                                                                        ? "_blank"
-                                                                        : undefined
-                                                                }
-                                                            >
-                                                                {subitem.title}
-                                                            </Link>
-                                                        </Menu.Item>
-                                                    </Tooltip>
-                                                ))}
-                                            </Menu.SubMenu>
-                                        )
-                                    } else {
-                                        return (
-                                            <Tooltip title={item.tooltip} key={item.key}>
-                                                <Menu.Item icon={item.icon}>
-                                                    <Link
-                                                        href={item.link || "#"}
-                                                        target={
-                                                            item.link?.startsWith("http")
-                                                                ? "_blank"
-                                                                : undefined
-                                                        }
-                                                    >
-                                                        {item.title}
-                                                    </Link>
-                                                </Menu.Item>
-                                            </Tooltip>
-                                        )
-                                    }
-                                })}
-                            </Menu>
-
-                            <Menu
-                                mode="vertical"
-                                className={classes.menuContainer2}
+                            <SidebarMenu
+                                menuProps={{className: classes.menuContainer}}
+                                items={topItems}
                                 selectedKeys={selectedKeys}
-                            >
-                                {bottomItems.map((item) => {
-                                    if (item.submenu) {
-                                        return (
-                                            <Menu.SubMenu
-                                                key={item.key}
-                                                icon={item.icon}
-                                                title={item.title}
-                                            >
-                                                {item.submenu.map((subitem) => (
-                                                    <Tooltip
-                                                        title={subitem.tooltip}
-                                                        key={subitem.key}
-                                                    >
-                                                        <Menu.Item icon={subitem.icon}>
-                                                            <Link
-                                                                href={subitem.link || "#"}
-                                                                target={
-                                                                    subitem.link?.startsWith("http")
-                                                                        ? "_blank"
-                                                                        : undefined
-                                                                }
-                                                            >
-                                                                {subitem.title}
-                                                            </Link>
-                                                        </Menu.Item>
-                                                    </Tooltip>
-                                                ))}
-                                            </Menu.SubMenu>
-                                        )
-                                    } else {
-                                        return (
-                                            <Tooltip title={item.tooltip} key={item.key}>
-                                                <Menu.Item icon={item.icon}>
-                                                    <Link
-                                                        href={item.link || "#"}
-                                                        target={
-                                                            item.link?.startsWith("http")
-                                                                ? "_blank"
-                                                                : undefined
-                                                        }
-                                                    >
-                                                        {item.title}
-                                                    </Link>
-                                                </Menu.Item>
-                                            </Tooltip>
-                                        )
-                                    }
-                                })}
-                            </Menu>
+                            />
+                            <SidebarMenu
+                                menuProps={{className: classes.menuContainer2}}
+                                items={bottomItems}
+                                selectedKeys={selectedKeys}
+                            />
                         </div>
                     </ErrorBoundary>
                 </div>
