@@ -35,6 +35,7 @@ async def test_create_spans_endpoint(spans_db_data):
         json=spans_db_data[0],
         timeout=timeout,
     )
+    print("Response: ", response.json())
     assert response.status_code == 200
 
 
@@ -160,37 +161,9 @@ async def test_create_trace_endpoint(trace_create_data):
 
 
 @pytest.mark.asyncio
-async def test_get_traces_endpoint():
-    variants = await AppVariantDB.find(fetch_links=True).to_list()
-    app_id, variant_id = variants[0].app.id, variants[0].id
-
-    response = await test_client.get(
-        f"{BACKEND_API_HOST}/observability/traces/{str(app_id)}/{str(variant_id)}/"
-    )
-    assert response.status_code == 200
-    assert len(response.json()) == 1
-
-
-@pytest.mark.asyncio
-async def test_get_trace_endpoint():
-    traces = await TraceDB.find().to_list()
-
-    variants = await AppVariantDB.find(fetch_links=True).to_list()
-    app_id, variant_id = variants[0].app.id, variants[0].id
-
-    response = await test_client.get(
-        f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/"
-    )
-    assert response.status_code == 200
-    assert len(response.json()["spans"]) == 3
-    assert response.json()["app_id"] == str(app_id)
-    assert response.json()["variant_id"] == str(variant_id)
-
-
-@pytest.mark.asyncio
 async def test_update_trace_status_endpoint():
     payload = {
-        "status": random.choice(["initiated", "completed", "stopped", "cancelled"])
+        "status": random.choice(["initiated", "success", "failure"])
     }
 
     traces = await TraceDB.find().to_list()

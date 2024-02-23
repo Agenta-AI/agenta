@@ -105,7 +105,10 @@ def spans_db_data():
             "event_type": "fixture_call",
             "start_time": str(datetime.now()),
             "duration": 8.30,
-            "status": "initiated",
+            "status": {
+                "value": "SUCCESS",
+                "error": None
+            },
             "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
@@ -123,7 +126,10 @@ def spans_db_data():
             "event_type": "fixture_call",
             "start_time": str(datetime.now()),
             "duration": 13.30,
-            "status": "initiated",
+            "status": {
+                "value": "SUCCESS",
+                "error": None
+            },
             "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
@@ -141,7 +147,10 @@ def spans_db_data():
             "event_type": "fixture_call",
             "start_time": str(datetime.now()),
             "duration": 18.30,
-            "status": "initiated",
+            "status": {
+                "value": "SUCCESS",
+                "error": None
+            },
             "end_time": str(datetime.now()),
             "inputs": ["string"],
             "outputs": ["string"],
