@@ -1,21 +1,7 @@
 import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
-
-export const AntdThemeConfig = {
-    token: {
-        // Seed Token
-        colorPrimary: "#4AA081",
-        borderRadius: 8,
-    },
-    components: {
-        Button: {
-            colorPrimary: "#4AA081",
-            colorErrorText: "#ef4146",
-        },
-    },
-}
-const token = theme.getDesignToken(AntdThemeConfig)
+const token = theme.getDesignToken()
 
 const config: Config = {
     content: [
