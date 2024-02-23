@@ -32,6 +32,7 @@
         "@next/mdx": "^13.4.13",
         "@remixicon/react": "^4.1.1",
         "@sentry/nextjs": "^7.77.0",
+        "@tailwindcss/forms": "^0.5.7",
         "@tremor/react": "^3.14.0",
         "@types/js-beautify": "^1.14.0",
         "@types/lodash": "^4.14.201",
@@ -46,6 +47,7 @@
         "ag-grid-community": "^31.0.1",
         "ag-grid-react": "^31.0.1",
         "antd": "^5.14.1",
+        "autoprefixer": "^10.4.17",
         "axios": "^1.4.0",
         "classnames": "^2.3.2",
         "dayjs": "^1.11.10",
@@ -58,6 +60,8 @@
         "next": "13.3.4",
         "nextjs-cors": "^2.1.2",
         "papaparse": "^5.4.1",
+        "postcss": "^8.4.35",
+        "postcss-antd-fixes": "^0.2.0",
         "posthog-js": "^1.104.4",
         "promise-retry": "^2.0.1",
         "react": "18.2.0",
@@ -79,13 +83,9 @@
         "uuid": "^9.0.1"
     },
     "devDependencies": {
-        "@tailwindcss/forms": "^0.5.7",
         "@types/node": "^20.8.10",
-        "autoprefixer": "^10.4.17",
         "cypress": "^13.4.0",
         "node-mocks-http": "^1.12.2",
-        "postcss": "^8.4.35",
-        "postcss-antd-fixes": "^0.2.0",
         "prettier": "^3.0.0"
     }
 }
