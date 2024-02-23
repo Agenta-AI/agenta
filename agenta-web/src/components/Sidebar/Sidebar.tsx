@@ -1,32 +1,13 @@
-import React, {useEffect, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {
-    RocketOutlined,
-    AppstoreOutlined,
-    DatabaseOutlined,
-    CloudUploadOutlined,
-    LineChartOutlined,
-    ReadOutlined,
-    PhoneOutlined,
-    SettingOutlined,
-    LogoutOutlined,
-    FormOutlined,
-    BarChartOutlined,
-    SwapOutlined,
-} from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme} from "antd"
-
+import {Layout, Menu, Tooltip, theme} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
-import AlertPopup from "../AlertPopup/AlertPopup"
-import {useProfileData} from "@/contexts/profile.context"
-import {isDemo} from "@/lib/helpers/utils"
-import {useSession} from "@/hooks/useSession"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLocalStorage} from "usehooks-ts"
+import {useSidebarConfig} from "./config"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
@@ -89,12 +70,10 @@ const Sidebar: React.FC = () => {
         token: {colorBgContainer},
     } = theme.useToken()
     const router = useRouter()
-    const appId = router.query.app_id as string
     const classes = useStyles({
         themeMode: appTheme,
         colorBgContainer,
     } as StyleProps)
-    const {doesSessionExist, logout} = useSession()
 
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
@@ -108,30 +87,31 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const {user} = useProfileData()
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
     }, [page_name])
 
-    const getNavigationPath = (path: string) => {
-        if (path === "apps") {
-            return "/apps"
-        } else {
-            return `/apps/${appId}/${path}`
-        }
-    }
+    const menu = useSidebarConfig()
+    const {topItems, bottomItems} = useMemo(() => {
+        const topItems: ReturnType<typeof useSidebarConfig> = []
+        const bottomItems: ReturnType<typeof useSidebarConfig> = []
 
-    const handleLogout = () => {
-        AlertPopup({
-            title: "Logout",
-            message: "Are you sure you want to logout?",
-            onOk: logout,
+        menu.forEach((item) => {
+            if (item.isHidden) return
+            if (item.isBottom) {
+                bottomItems.push(item)
+            } else {
+                topItems.push(item)
+            }
         })
-    }
 
-    const OrgsListSubMenu = dynamicComponent("OrgsListSubMenu/OrgsListSubMenu")
+        return {
+            topItems,
+            bottomItems,
+        }
+    }, [menu])
 
     return (
         <div className={classes.siderWrapper}>
@@ -145,7 +125,7 @@ const Sidebar: React.FC = () => {
             >
                 <div className={classes.sliderContainer}>
                     <div>
-                        <Link data-cy="app-management-link" href={getNavigationPath("apps")}>
+                        <Link data-cy="app-management-link" href="/apps">
                             <Logo isOnlyIconLogo={collapsed} />
                         </Link>
                     </div>
@@ -156,212 +136,54 @@ const Sidebar: React.FC = () => {
                                 selectedKeys={initialSelectedKeys}
                                 className={classes.menuContainer}
                             >
-                                <Tooltip
-                                    key="apps"
-                                    placement="right"
-                                    title={
-                                        !collapsed
-                                            ? "Create new applications or switch between your existing projects."
-                                            : ""
+                                {topItems.map((item) => {
+                                    if (item.submenu) {
+                                        return (
+                                            <Menu.SubMenu
+                                                key={item.key}
+                                                icon={item.icon}
+                                                title={item.title}
+                                            >
+                                                {item.submenu.map((subitem) => (
+                                                    <Tooltip
+                                                        title={subitem.tooltip}
+                                                        key={subitem.key}
+                                                    >
+                                                        <Menu.Item icon={subitem.icon}>
+                                                            <Link
+                                                                href={subitem.link || "#"}
+                                                                target={
+                                                                    subitem.link?.startsWith("http")
+                                                                        ? "_blank"
+                                                                        : undefined
+                                                                }
+                                                            >
+                                                                {subitem.title}
+                                                            </Link>
+                                                        </Menu.Item>
+                                                    </Tooltip>
+                                                ))}
+                                            </Menu.SubMenu>
+                                        )
+                                    } else {
+                                        return (
+                                            <Tooltip title={item.tooltip} key={item.key}>
+                                                <Menu.Item icon={item.icon}>
+                                                    <Link
+                                                        href={item.link || "#"}
+                                                        target={
+                                                            item.link?.startsWith("http")
+                                                                ? "_blank"
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        {item.title}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                        )
                                     }
-                                >
-                                    <Menu.Item icon={<AppstoreOutlined />}>
-                                        <Link
-                                            data-cy="app-management-link"
-                                            href={getNavigationPath("apps")}
-                                            className={classes.menuLinks}
-                                        >
-                                            {collapsed
-                                                ? "Create new applications or switch between your existing projects."
-                                                : "App Management"}
-                                        </Link>
-                                    </Menu.Item>
-                                </Tooltip>
-                                {page_name && (
-                                    <>
-                                        <Tooltip
-                                            placement="right"
-                                            key="playground"
-                                            title={
-                                                !collapsed
-                                                    ? "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
-                                                    : ""
-                                            }
-                                        >
-                                            <Menu.Item icon={<RocketOutlined />}>
-                                                <Link
-                                                    data-cy="app-playground-link"
-                                                    href={getNavigationPath("playground")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
-                                                        : "Playground"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Create and manage testsets for evaluation purposes."
-                                                    : ""
-                                            }
-                                            key="testsets"
-                                        >
-                                            <Menu.Item icon={<DatabaseOutlined />}>
-                                                <Link
-                                                    data-cy="app-testsets-link"
-                                                    href={getNavigationPath("testsets")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Create and manage testsets for evaluation purposes."
-                                                        : "Test Sets"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Evaluate and Compare variants programmatically."
-                                                    : ""
-                                            }
-                                            key="evaluations"
-                                        >
-                                            <Menu.Item icon={<BarChartOutlined />}>
-                                                <Link
-                                                    data-cy="app-evaluations-link"
-                                                    href={getNavigationPath("evaluations")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Evaluate and Compare variants programmatically."
-                                                        : "Evaluations"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Use human feedback to score and compare variants."
-                                                    : ""
-                                            }
-                                            key="annotations"
-                                        >
-                                            <Menu.Item icon={<FormOutlined />}>
-                                                <Link
-                                                    data-cy="app-annotations-link"
-                                                    href={getNavigationPath("annotations")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Use human feedback to score and compare variants."
-                                                        : "Annotations"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !isDemo()
-                                                    ? "Observability and monitoring of your applications is available in the Cloud/Enterprise editions only"
-                                                    : !collapsed
-                                                      ? "Observability and monitoring of your app"
-                                                      : ""
-                                            }
-                                            key="observability"
-                                        >
-                                            <Menu.Item
-                                                icon={<LineChartOutlined />}
-                                                disabled={!isDemo()}
-                                            >
-                                                <Link
-                                                    data-cy="app-observability-link"
-                                                    href={getNavigationPath("observability")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    <Space>
-                                                        <span>
-                                                            {collapsed
-                                                                ? "Observability and monitoring of your app"
-                                                                : "Observability"}
-                                                        </span>
-                                                    </Space>
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !isDemo()
-                                                    ? "Generations of your app are available in the Cloud/Enterprise editions only"
-                                                    : !collapsed
-                                                      ? "Generations of your app"
-                                                      : ""
-                                            }
-                                            key="requests"
-                                        >
-                                            <Menu.Item
-                                                icon={
-                                                    <SwapOutlined
-                                                        style={{transform: "rotate(90deg)"}}
-                                                    />
-                                                }
-                                                disabled={!isDemo()}
-                                            >
-                                                <Link
-                                                    data-cy="app-requests-link"
-                                                    href={getNavigationPath(
-                                                        "observability/generations",
-                                                    )}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    <Space>
-                                                        <span>
-                                                            {collapsed
-                                                                ? "Generations of your app"
-                                                                : "Generations"}
-                                                        </span>
-                                                    </Space>
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Deploy your applications to different environments."
-                                                    : ""
-                                            }
-                                            key="endpoints"
-                                        >
-                                            <Menu.Item icon={<CloudUploadOutlined />}>
-                                                <Link
-                                                    data-cy="app-endpoints-link"
-                                                    href={getNavigationPath("endpoints")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    <Space>
-                                                        <span>
-                                                            {collapsed
-                                                                ? "Deploy your applications to different environments."
-                                                                : "Endpoints"}
-                                                        </span>
-                                                    </Space>
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-                                    </>
-                                )}
+                                })}
                             </Menu>
 
                             <Menu
@@ -369,42 +191,54 @@ const Sidebar: React.FC = () => {
                                 className={classes.menuContainer2}
                                 selectedKeys={selectedKeys}
                             >
-                                {doesSessionExist && (
-                                    <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                        <Link data-cy="settings-link" href="/settings">
-                                            Settings
-                                        </Link>
-                                    </Menu.Item>
-                                )}
-
-                                <Menu.Item key="docs" icon={<ReadOutlined />}>
-                                    <Link href="https://docs.agenta.ai" target="_blank">
-                                        Docs
-                                    </Link>
-                                </Menu.Item>
-
-                                {isDemo() && (
-                                    <>
-                                        <Menu.Item key="expert" icon={<PhoneOutlined />}>
-                                            <Link
-                                                href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
-                                                target="_blank"
+                                {bottomItems.map((item) => {
+                                    if (item.submenu) {
+                                        return (
+                                            <Menu.SubMenu
+                                                key={item.key}
+                                                icon={item.icon}
+                                                title={item.title}
                                             >
-                                                Book Onboarding Call
-                                            </Link>
-                                        </Menu.Item>
-                                        <OrgsListSubMenu key="workspaces" />
-                                        {user?.username && (
-                                            <Menu.Item
-                                                key="logout"
-                                                icon={<LogoutOutlined />}
-                                                onClick={handleLogout}
-                                            >
-                                                Logout
-                                            </Menu.Item>
-                                        )}
-                                    </>
-                                )}
+                                                {item.submenu.map((subitem) => (
+                                                    <Tooltip
+                                                        title={subitem.tooltip}
+                                                        key={subitem.key}
+                                                    >
+                                                        <Menu.Item icon={subitem.icon}>
+                                                            <Link
+                                                                href={subitem.link || "#"}
+                                                                target={
+                                                                    subitem.link?.startsWith("http")
+                                                                        ? "_blank"
+                                                                        : undefined
+                                                                }
+                                                            >
+                                                                {subitem.title}
+                                                            </Link>
+                                                        </Menu.Item>
+                                                    </Tooltip>
+                                                ))}
+                                            </Menu.SubMenu>
+                                        )
+                                    } else {
+                                        return (
+                                            <Tooltip title={item.tooltip} key={item.key}>
+                                                <Menu.Item icon={item.icon}>
+                                                    <Link
+                                                        href={item.link || "#"}
+                                                        target={
+                                                            item.link?.startsWith("http")
+                                                                ? "_blank"
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        {item.title}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                        )
+                                    }
+                                })}
                             </Menu>
                         </div>
                     </ErrorBoundary>
