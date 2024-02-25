@@ -191,6 +191,11 @@ const NewEvaluatorModal: React.FC<Props> = ({
         )
     }, [searchTerm, evaluators])
 
+    const handleCloseModal = () => {
+        setSearchTerm("")
+        setNewEvalModalOpen(false)
+    }
+
     const evalFields = useMemo(
         () =>
             Object.keys(selectedEval?.settings_template || {})
@@ -292,11 +297,13 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 data-cy="new-evaluator-modal"
                 width={1000}
                 footer={null}
+                onCancel={handleCloseModal}
                 {...props}
             >
                 <div className={classes.searchContainer}>
                     <Input.Search
-                        onSearch={(term) => setSearchTerm(term)}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search"
                         allowClear
                         enterButton
