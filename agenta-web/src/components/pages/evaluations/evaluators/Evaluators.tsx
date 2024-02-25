@@ -62,7 +62,8 @@ const Evaluators: React.FC<Props> = () => {
         <div className={classes.root}>
             <Space className={classes.buttonsGroup}>
                 <Input.Search
-                    onSearch={(term) => setSearchTerm(term)}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search"
                     allowClear
                     enterButton
@@ -100,7 +101,6 @@ const Evaluators: React.FC<Props> = () => {
 
             <NewEvaluatorModal
                 open={newEvalModalOpen}
-                onCancel={() => setNewEvalModalOpen(false)}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
                     setNewEvalModalConfigOpen(false)
