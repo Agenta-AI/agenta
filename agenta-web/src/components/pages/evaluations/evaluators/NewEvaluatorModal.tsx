@@ -67,10 +67,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         margin: "0px",
         padding: "0px",
         textDecoration: "underline",
-        color: "rgba(255, 255, 255, 0.85)",
+        color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
 
         "&:hover": {
-            color: "rgba(255, 255, 255, 0.85)",
+            color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
             textDecoration: "underline",
         },
     },
@@ -110,9 +110,9 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     rel="noopener noreferrer"
                     className={classes.ExternalHelpLink}
                 >
-                    More
+                    more
                 </Link>
-                <span>About The Evaluator</span>
+                <span>about the evaluator</span>
             </div>
         ) : null
 
