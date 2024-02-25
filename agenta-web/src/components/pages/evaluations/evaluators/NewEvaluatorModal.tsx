@@ -14,7 +14,7 @@ import {Divider, Form, Input, InputNumber, Modal, Radio, Switch, Tooltip, theme}
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
-import Link from 'next/link'
+import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -71,9 +71,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
         "&:hover": {
             color: "rgba(255, 255, 255, 0.85)",
-            textDecoration: "underline"
-        }
-    }
+            textDecoration: "underline",
+        },
+    },
 }))
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
