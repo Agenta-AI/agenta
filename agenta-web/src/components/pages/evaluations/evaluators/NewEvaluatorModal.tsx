@@ -335,6 +335,9 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
             <Modal
                 open={newEvalModalConfigOpen}
+                onCancel={() => {
+                    setNewEvalModalConfigOpen(false)
+                }}
                 destroyOnClose
                 onOk={form.submit}
                 title={editMode ? "Edit your evaluator" : "Configure your evaluator"}
