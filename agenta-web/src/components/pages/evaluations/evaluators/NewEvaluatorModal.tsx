@@ -14,6 +14,7 @@ import {Divider, Form, Input, InputNumber, Modal, Radio, Switch, Tooltip, theme}
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
+import Link from 'next/link'
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -56,12 +57,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: theme.borderRadius,
         overflow: "hidden",
     },
-    additionTTip: {
+    ExternalHelp: {
         marginTop: "10px",
         display: "flex",
         alignItems: "center",
-        gap: "0.5rem",
+        gap: "0.3em",
     },
+    ExternalHelpLink: {
+        margin: "0px",
+        padding: "0px",
+        textDecoration: "underline",
+        color: "rgba(255, 255, 255, 0.85)",
+
+        "&:hover": {
+            color: "rgba(255, 255, 255, 0.85)",
+            textDecoration: "underline"
+        }
+    }
 }))
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
@@ -88,13 +100,19 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 ),
         })
 
-    const additionalTooltip =
+    const ExternalHelpInfo =
         name[1] === "webhook_url" ? (
-            <div className={classes.additionTTip}>
-                <span>Learn More About The Evaluator</span>
-                <Tooltip title="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators">
-                    <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                </Tooltip>
+            <div className={classes.ExternalHelp}>
+                <span>Learn</span>
+                <Link
+                    href="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={classes.ExternalHelpLink}
+                >
+                    More
+                </Link>
+                <span>About The Evaluator</span>
             </div>
         ) : null
 
@@ -140,7 +158,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     theme={`vs-${appTheme}`}
                 />
             ) : null}
-            {additionalTooltip}
+            {ExternalHelpInfo}
         </Form.Item>
     )
 }
