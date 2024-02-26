@@ -38,6 +38,7 @@ const Evaluators: React.FC<Props> = () => {
     const appId = useAppId()
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [newEvalModalConfigOpen, setNewEvalModalConfigOpen] = useState(false)
     const [editIndex, setEditIndex] = useState<number>(-1)
     const [fetching, setFetching] = useState(false)
     const [searchTerm, setSearchTerm] = useState<string>("")
@@ -61,7 +62,8 @@ const Evaluators: React.FC<Props> = () => {
         <div className={classes.root}>
             <Space className={classes.buttonsGroup}>
                 <Input.Search
-                    onSearch={(term) => setSearchTerm(term)}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search"
                     allowClear
                     enterButton
@@ -88,7 +90,7 @@ const Evaluators: React.FC<Props> = () => {
                                 evaluatorConfig={item}
                                 onEdit={() => {
                                     setEditIndex(ix)
-                                    setNewEvalModalOpen(true)
+                                    setNewEvalModalConfigOpen(true)
                                 }}
                                 onSuccessDelete={fetcher}
                             />
@@ -99,11 +101,14 @@ const Evaluators: React.FC<Props> = () => {
 
             <NewEvaluatorModal
                 open={newEvalModalOpen}
-                onCancel={() => setNewEvalModalOpen(false)}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
+                    setNewEvalModalConfigOpen(false)
                     fetcher()
                 }}
+                newEvalModalConfigOpen={newEvalModalConfigOpen}
+                setNewEvalModalConfigOpen={setNewEvalModalConfigOpen}
+                setNewEvalModalOpen={setNewEvalModalOpen}
                 editMode={editIndex !== -1}
                 initialValues={evaluatorConfigs[editIndex]}
             />
