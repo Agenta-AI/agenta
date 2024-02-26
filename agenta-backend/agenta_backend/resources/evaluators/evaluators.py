@@ -20,11 +20,13 @@ evaluators = [
                 "description": "The threshold value for similarity comparison",
             }
         },
+        "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
     },
     {
         "name": "Regex Test",
         "key": "auto_regex_test",
         "direct_use": False,
+        "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
         "settings_template": {
             "regex_pattern": {
                 "label": "Regex Pattern",
@@ -52,6 +54,7 @@ evaluators = [
                 "description": "The name of the field in the JSON output that you wish to evaluate",
             }
         },
+        "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
     },
     {
         "name": "AI Critique",
@@ -65,6 +68,7 @@ evaluators = [
                 "description": "Template for AI critique prompts",
             }
         },
+        "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
     },
     {
         "name": "Code Evaluation",
@@ -78,6 +82,7 @@ evaluators = [
                 "description": "Code for evaluating submissions",
             }
         },
+        "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
     },
     {
         "name": "Webhook test",
@@ -91,6 +96,7 @@ evaluators = [
                 "description": "URL for the webhook test",
             },
         },
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.",
     },
     {
         "name": "A/B Test",
