@@ -117,49 +117,51 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
         ) : null
 
     return (
-        <Form.Item
-            name={name}
-            label={
-                <div className={classes.label}>
-                    <span>{label}</span>
-                    {description && (
-                        <Tooltip title={description}>
-                            <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                        </Tooltip>
-                    )}
-                </div>
-            }
-            initialValue={defaultVal}
-            rules={rules}
-        >
-            {type === "string" || type === "regex" ? (
-                <Input />
-            ) : type === "number" ? (
-                <InputNumber min={0} max={1} step={0.1} />
-            ) : type === "boolean" || type === "bool" ? (
-                <Switch />
-            ) : type === "text" ? (
-                <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-            ) : type === "code" ? (
-                <Editor
-                    className={classes.editor}
-                    height={400}
-                    width="100%"
-                    language="python"
-                    theme={`vs-${appTheme}`}
-                />
-            ) : type === "object" ? (
-                <Editor
-                    className={classes.editor}
-                    height={120}
-                    width="100%"
-                    language="json"
-                    options={{lineNumbers: "off"}}
-                    theme={`vs-${appTheme}`}
-                />
-            ) : null}
+        <>
+            <Form.Item
+                name={name}
+                label={
+                    <div className={classes.label}>
+                        <span>{label}</span>
+                        {description && (
+                            <Tooltip title={description}>
+                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                            </Tooltip>
+                        )}
+                    </div>
+                }
+                initialValue={defaultVal}
+                rules={rules}
+            >
+                {type === "string" || type === "regex" ? (
+                    <Input />
+                ) : type === "number" ? (
+                    <InputNumber min={0} max={1} step={0.1} />
+                ) : type === "boolean" || type === "bool" ? (
+                    <Switch />
+                ) : type === "text" ? (
+                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                ) : type === "code" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={400}
+                        width="100%"
+                        language="python"
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : type === "object" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={120}
+                        width="100%"
+                        language="json"
+                        options={{lineNumbers: "off"}}
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : null}
+            </Form.Item>
             {ExternalHelpInfo}
-        </Form.Item>
+        </>
     )
 }
 
