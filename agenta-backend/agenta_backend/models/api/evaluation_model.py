@@ -10,6 +10,7 @@ class Evaluator(BaseModel):
     key: str
     direct_use: bool
     settings_template: dict
+    description: Optional[str]
 
 
 class EvaluatorConfig(BaseModel):
