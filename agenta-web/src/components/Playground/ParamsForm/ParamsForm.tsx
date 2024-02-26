@@ -33,7 +33,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: theme.borderRadius,
         padding: theme.paddingSM,
         maxHeight: 300,
-        minHeight: 75,
         overflowY: "scroll",
     },
 }))
