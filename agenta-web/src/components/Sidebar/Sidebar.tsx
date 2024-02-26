@@ -231,15 +231,16 @@ const Sidebar: React.FC = () => {
                                             className={classes.menuContainer}
                                             data-cy="app-evaluations-link"
                                         >
-                                            <Menu.SubMenu
-                                                title="Evaluations"
-                                                icon={<LineChartOutlined />}
+                                            <Menu.ItemGroup
+                                                title={!collapsed && "Evaluations"}
                                                 className={classes.subMenuContainer}
                                             >
                                                 <Tooltip
                                                     placement="right"
                                                     title={
-                                                        "Select and customize evaluators such as custom code or regex evaluators."
+                                                        !collapsed
+                                                            ? "Select and customize evaluators such as custom code or regex evaluators."
+                                                            : ""
                                                     }
                                                 >
                                                     <Menu.Item
@@ -253,14 +254,18 @@ const Sidebar: React.FC = () => {
                                                             )}
                                                             className={classes.menuLinks}
                                                         >
-                                                            Configure Evaluators
+                                                            {collapsed
+                                                                ? "Select and customize evaluators such as custom code or regex evaluators."
+                                                                : "Configure Evaluator"}
                                                         </Link>
                                                     </Menu.Item>
                                                 </Tooltip>
                                                 <Tooltip
                                                     placement="right"
                                                     title={
-                                                        "Choose your variants and evaluators to start the evaluation process."
+                                                        !collapsed
+                                                            ? "Choose your variants and evaluators to start the evaluation process."
+                                                            : ""
                                                     }
                                                 >
                                                     <Menu.Item
@@ -274,11 +279,13 @@ const Sidebar: React.FC = () => {
                                                             )}
                                                             className={classes.menuLinks}
                                                         >
-                                                            Run Evaluations
+                                                            {collapsed
+                                                                ? "Choose your variants and evaluators to start the evaluation process."
+                                                                : "Start Evaluation"}
                                                         </Link>
                                                     </Menu.Item>
                                                 </Tooltip>
-                                            </Menu.SubMenu>
+                                            </Menu.ItemGroup>
                                         </Menu>
 
                                         <Tooltip
