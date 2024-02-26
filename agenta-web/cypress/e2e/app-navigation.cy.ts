@@ -29,13 +29,11 @@ describe("App Navigation without errors", () => {
     })
 
     it("should navigate successfully to Configure evaluators page", () => {
-        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-configure-evaluators-link"]')
         cy.url().should("include", "/evaluations?tab=evaluators")
     })
 
     it("should navigate successfully to Run evaluations page", () => {
-        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-run-evaluations-link"]')
         cy.url().should("include", "/evaluations?tab=results")
     })
