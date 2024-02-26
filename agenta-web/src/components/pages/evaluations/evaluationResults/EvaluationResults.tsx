@@ -180,6 +180,12 @@ const EvaluationResults: React.FC<Props> = () => {
                         </Link>
                     )
                 },
+                onCellClicked(params: any) {
+                    const {revisions, variants} = params.data
+                    router.push(
+                        `/apps/${appId}/playground?variant=${variants[0].variantName}&revision=${revisions[0]}`,
+                    )
+                },
                 valueGetter: (params) =>
                     `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
                 headerName: "Variant",
@@ -198,6 +204,9 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 160,
                 tooltipValueGetter: (params) => params.value,
                 ...getFilterParams("text"),
+                onCellClicked(params) {
+                    router.push(`/apps/${appId}/testsets/${params.data?.testset.id}`)
+                },
             },
             ...evaluatorConfigs.map(
                 (config) =>
@@ -328,6 +337,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                 ref={gridRef as any}
                                 rowData={evaluations}
                                 columnDefs={colDefs}
+                                rowStyle={{
+                                    cursor: "pointer",
+                                }}
                                 getRowId={(params) => params.data.id}
                                 onRowClicked={(params) => {
                                     // ignore clicks on the checkbox col
