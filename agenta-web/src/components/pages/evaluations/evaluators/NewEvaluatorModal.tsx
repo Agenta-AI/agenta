@@ -73,37 +73,37 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
             textDecoration: "underline",
         },
-        evaluatorsTable: {
-            maxHeight: 550,
-            overflowY: "scroll",
-            margin: "2rem 0 1rem",
-            border: `1px solid ${theme.colorBorder}`,
-            borderRadius: theme.borderRadius,
-            "& .ant-table-thead": {
-                position: "sticky",
-                top: 0,
-                zIndex: 1000,
-            },
+    },
+    evaluatorsTable: {
+        maxHeight: 550,
+        overflowY: "scroll",
+        margin: "2rem 0 1rem",
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        "& .ant-table-thead": {
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
         },
-        evalModalBtns: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            width: "100%",
-            justifyContent: "flex-end",
-        },
-        evalBtnContainer: {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            width: "100%",
-        },
-        searchContainer: {
-            marginTop: "1rem",
-            width: "100%",
-            display: "flex",
-            justifyContent: "flex-end",
-        },
+    },
+    evalModalBtns: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        width: "100%",
+        justifyContent: "flex-end",
+    },
+    evalBtnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+    },
+    searchContainer: {
+        marginTop: "1rem",
+        width: "100%",
+        display: "flex",
+        justifyContent: "flex-end",
     },
 }))
 
