@@ -58,7 +58,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         overflow: "hidden",
     },
     ExternalHelp: {
-        marginTop: "10px",
+        marginBottom: "20px",
         display: "flex",
         alignItems: "center",
         gap: "0.3em",
