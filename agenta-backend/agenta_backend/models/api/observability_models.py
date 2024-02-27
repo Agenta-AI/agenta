@@ -136,7 +136,8 @@ class UpdateFeedback(BaseModel):
 
 class BaseTrace(BaseModel):
     app_id: Optional[str]
-    variant_id: Optional[str]
+    base_id: Optional[str]
+    config_name: Optional[str]
     cost: Optional[float]
     latency: float
     status: str = Field(default=Status.INITIATED)
