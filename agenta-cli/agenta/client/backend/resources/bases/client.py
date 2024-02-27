@@ -22,10 +22,7 @@ class BasesClient:
         self._client_wrapper = client_wrapper
 
     def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
@@ -48,11 +45,8 @@ class BasesClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.bases.list_bases()
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -77,10 +71,7 @@ class AsyncBasesClient:
         self._client_wrapper = client_wrapper
 
     async def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
@@ -101,13 +92,10 @@ class AsyncBasesClient:
 
             - base_name: typing.Optional[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.bases.list_bases()
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",

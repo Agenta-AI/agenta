@@ -4,8 +4,6 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .span_status import SpanStatus
-from .span_variant import SpanVariant
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -13,32 +11,22 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class Span(pydantic.BaseModel):
-    id: str
-    created_at: dt.datetime
-    variant: SpanVariant
-    environment: str
-    status: SpanStatus
-    metadata: typing.Dict[str, typing.Any]
-    user_id: str
+class WithPagination(pydantic.BaseModel):
+    data: typing.List[typing.Any]
+    total: int
+    page: int
+    page_size: int = pydantic.Field(alias="pageSize")
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:
         frozen = True
         smart_union = True
+        allow_population_by_field_name = True
         json_encoders = {dt.datetime: serialize_datetime}

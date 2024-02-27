@@ -52,16 +52,8 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -90,17 +82,12 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.import_testset()
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.import_testset()
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -114,9 +101,7 @@ class TestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -133,26 +118,15 @@ class TestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
+        from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.create_testset(
-            app_id="app_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -182,19 +156,12 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.get_single_testset(
-            testset_id="testset_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_single_testset(testset_id="testset_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -224,26 +191,15 @@ class TestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
+        from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.update_testset(
-            testset_id="testset_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -275,13 +231,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.get_testsets(
-            app_id="app_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_testsets(app_id="app_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -315,13 +266,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.delete_testsets(
-            testset_ids=["testset_ids"],
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_testsets(testset_ids=["testset_ids"])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -370,16 +316,8 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -406,19 +344,14 @@ class AsyncTestsetsClient:
         dict: The result of the import process.
 
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.import_testset()
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.import_testset()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -432,9 +365,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    async def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -451,26 +382,15 @@ class AsyncTestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
-        from agenta.client import AsyncAybruhmApi
+        from agenta import NewTestset
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.create_testset(
-            app_id="app_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -498,21 +418,14 @@ class AsyncTestsetsClient:
         Parameters:
             - testset_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.get_single_testset(
-            testset_id="testset_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_single_testset(testset_id="testset_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -526,9 +439,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_testset(
-        self, testset_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    async def update_testset(self, testset_id: str, *, request: NewTestset) -> typing.Any:
         """
         Update a testset with given id, update the testset in MongoDB.
 
@@ -544,26 +455,15 @@ class AsyncTestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
-        from agenta.client import AsyncAybruhmApi
+        from agenta import NewTestset
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.update_testset(
-            testset_id="testset_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -593,15 +493,10 @@ class AsyncTestsetsClient:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.get_testsets(
-            app_id="app_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_testsets(app_id="app_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -620,9 +515,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_testsets(
-        self, *, testset_ids: typing.List[str]
-    ) -> typing.List[str]:
+    async def delete_testsets(self, *, testset_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific testsets based on their unique IDs.
 
@@ -635,15 +528,10 @@ class AsyncTestsetsClient:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.delete_testsets(
-            testset_ids=["testset_ids"],
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_testsets(testset_ids=["testset_ids"])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
