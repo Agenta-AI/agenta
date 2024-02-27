@@ -229,7 +229,6 @@ const Sidebar: React.FC = () => {
                                             mode="inline"
                                             selectable={false}
                                             className={classes.menuContainer}
-                                            data-cy="app-evaluations-link"
                                         >
                                             <Menu.ItemGroup
                                                 title={!collapsed && "Evaluations"}
@@ -248,7 +247,7 @@ const Sidebar: React.FC = () => {
                                                         icon={<SlidersOutlined />}
                                                     >
                                                         <Link
-                                                            data-cy="app-configure-evaluators-link"
+                                                            data-cy="app-evaluators-link"
                                                             href={getNavigationPath(
                                                                 "evaluations?tab=evaluators",
                                                             )}
@@ -256,7 +255,7 @@ const Sidebar: React.FC = () => {
                                                         >
                                                             {collapsed
                                                                 ? "Select and customize evaluators such as custom code or regex evaluators."
-                                                                : "Configure Evaluator"}
+                                                                : "Evaluators"}
                                                         </Link>
                                                     </Menu.Item>
                                                 </Tooltip>
@@ -273,7 +272,7 @@ const Sidebar: React.FC = () => {
                                                         icon={<PlayCircleOutlined />}
                                                     >
                                                         <Link
-                                                            data-cy="app-run-evaluations-link"
+                                                            data-cy="app-evaluations-results-link"
                                                             href={getNavigationPath(
                                                                 "evaluations?tab=results",
                                                             )}
@@ -281,60 +280,108 @@ const Sidebar: React.FC = () => {
                                                         >
                                                             {collapsed
                                                                 ? "Choose your variants and evaluators to start the evaluation process."
-                                                                : "Start Evaluation"}
+                                                                : "Results"}
                                                         </Link>
                                                     </Menu.Item>
                                                 </Tooltip>
                                             </Menu.ItemGroup>
                                         </Menu>
 
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Use human feedback to score and compare variants."
-                                                    : ""
-                                            }
-                                            key="annotations"
+                                        <Menu
+                                            mode="inline"
+                                            selectable={false}
+                                            className={classes.menuContainer}
                                         >
-                                            <Menu.Item icon={<FormOutlined />}>
-                                                <Link
-                                                    data-cy="app-annotations-link"
-                                                    href={getNavigationPath("annotations")}
-                                                    className={classes.menuLinks}
+                                            <Menu.ItemGroup
+                                                title={!collapsed && "Annotations"}
+                                                className={classes.subMenuContainer}
+                                            >
+                                                <Tooltip
+                                                    placement="right"
+                                                    title={
+                                                        !collapsed
+                                                            ? "A/B tests allow you to compare the performance of two different variants manually."
+                                                            : ""
+                                                    }
                                                 >
-                                                    {collapsed
-                                                        ? "Use human feedback to score and compare variants."
-                                                        : "Annotations"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Deploy your applications to different environments."
-                                                    : ""
-                                            }
-                                            key="endpoints"
-                                        >
-                                            <Menu.Item icon={<CloudUploadOutlined />}>
-                                                <Link
-                                                    data-cy="app-endpoints-link"
-                                                    href={getNavigationPath("endpoints")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    <Space>
-                                                        <span>
+                                                    <Menu.Item style={{paddingLeft: 16}}>
+                                                        <Link
+                                                            data-cy="app-human-ab-testing-link"
+                                                            href={getNavigationPath(
+                                                                "annotations/human_a_b_testing",
+                                                            )}
+                                                            className={classes.menuLinks}
+                                                        >
                                                             {collapsed
-                                                                ? "Deploy your applications to different environments."
-                                                                : "Endpoints"}
-                                                        </span>
-                                                    </Space>
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
+                                                                ? "A/B tests allow you to compare the performance of two different variants manually."
+                                                                : "A/B Test"}
+                                                        </Link>
+                                                    </Menu.Item>
+                                                </Tooltip>
+                                                <Tooltip
+                                                    placement="right"
+                                                    title={
+                                                        !collapsed
+                                                            ? "Single model test allows you to score the performance of a single LLM app manually."
+                                                            : ""
+                                                    }
+                                                >
+                                                    <Menu.Item style={{paddingLeft: 16}}>
+                                                        <Link
+                                                            data-cy="app-single-model-test-link"
+                                                            href={getNavigationPath(
+                                                                "annotations/single_model_test",
+                                                            )}
+                                                            className={classes.menuLinks}
+                                                        >
+                                                            {collapsed
+                                                                ? "Single model test allows you to score the performance of a single LLM app manually."
+                                                                : "Single Model Test"}
+                                                        </Link>
+                                                    </Menu.Item>
+                                                </Tooltip>
+                                            </Menu.ItemGroup>
+                                        </Menu>
+
+                                        <Menu
+                                            mode="inline"
+                                            selectable={false}
+                                            className={classes.menuContainer}
+                                        >
+                                            <Menu.ItemGroup
+                                                title={!collapsed && "Deployment"}
+                                                className={classes.subMenuContainer}
+                                            >
+                                                <Tooltip
+                                                    placement="right"
+                                                    title={
+                                                        !collapsed
+                                                            ? "Deploy your applications to different environments."
+                                                            : ""
+                                                    }
+                                                    key="endpoints"
+                                                >
+                                                    <Menu.Item
+                                                        style={{paddingLeft: 16}}
+                                                        icon={<CloudUploadOutlined />}
+                                                    >
+                                                        <Link
+                                                            data-cy="app-endpoints-link"
+                                                            href={getNavigationPath("endpoints")}
+                                                            className={classes.menuLinks}
+                                                        >
+                                                            <Space>
+                                                                <span>
+                                                                    {collapsed
+                                                                        ? "Deploy your applications to different environments."
+                                                                        : "Endpoints"}
+                                                                </span>
+                                                            </Space>
+                                                        </Link>
+                                                    </Menu.Item>
+                                                </Tooltip>
+                                            </Menu.ItemGroup>
+                                        </Menu>
                                     </>
                                 )}
                             </Menu>

@@ -1,7 +1,7 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Collapse, Statistic, Table, Typography} from "antd"
+import {Button, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useContext, useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
 import {EvaluationResponseType} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -11,7 +11,6 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
-import Link from "next/link"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -53,9 +52,6 @@ type StyleProps = {
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
-        "& svg": {
-            color: "red",
-        },
     },
     collapse: ({themeMode}: StyleProps) => ({
         margin: "10px 0",
@@ -97,11 +93,25 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        margin: "20px 0",
+        gap: 10,
+        "& svg": {
+            color: "red",
+        },
+    },
 })
 
 const {Title} = Typography
 
-export default function HumanEvaluationResult() {
+interface HumanEvaluationResultProps {
+    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluationResultProps) {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -333,46 +343,31 @@ export default function HumanEvaluationResult() {
         } catch {}
     }
 
-    const items = [
-        {
-            key: "1",
-            label: (
-                <div className={classes.container}>
-                    <Title level={3}>A/B Test Results</Title>
-                </div>
-            ),
-            children: (
-                <div>
-                    <div className={classes.container}>
-                        <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
-                            <DeleteOutlined key="delete" />
-                            Delete
-                        </Button>
-                    </div>
-
-                    <Table
-                        rowSelection={{
-                            type: selectionType,
-                            ...rowSelection,
-                        }}
-                        className="ph-no-capture"
-                        columns={columns}
-                        dataSource={evaluationsList}
-                    />
-                </div>
-            ),
-        },
-    ]
-
     return (
-        <Collapse
-            items={items}
-            ghost
-            bordered={false}
-            expandIconPosition="end"
-            className={classes.collapse}
-            collapsible="icon"
-            defaultActiveKey={["1"]}
-        />
+        <div>
+            <div className={classes.btnContainer}>
+                <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
+                    <DeleteOutlined key="delete" />
+                    Delete
+                </Button>
+                <Button type="primary" onClick={() => setIsEvalModalOpen(true)}>
+                    New Evaluation
+                </Button>
+            </div>
+
+            <div className={classes.container}>
+                <Title level={3}>A/B Test Results</Title>
+            </div>
+
+            <Table
+                rowSelection={{
+                    type: selectionType,
+                    ...rowSelection,
+                }}
+                className="ph-no-capture"
+                columns={columns}
+                dataSource={evaluationsList}
+            />
+        </div>
     )
 }
