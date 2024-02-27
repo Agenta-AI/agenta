@@ -144,10 +144,8 @@ async def create_trace_span(payload: CreateSpan) -> str:
 
     end_time = datetime.now()
     duration = end_time - payload.start_time
-    span_status = SpanStatus(value=payload.status)
     span_db = SpanDB(
-        **payload.dict(exclude={"status"}),
-        status=span_status,
+        **payload.dict(exclude={"end_time", "duration"}),
         end_time=end_time,
         duration=duration.total_seconds(),
     )

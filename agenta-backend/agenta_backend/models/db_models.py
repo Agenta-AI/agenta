@@ -337,7 +337,8 @@ class Feedback(BaseModel):
 
 class TraceDB(Document):
     app_id: Optional[str]
-    variant_id: str
+    base_id: str
+    config_name: str
     spans: List[PydanticObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
