@@ -11,12 +11,8 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class Image(pydantic.BaseModel):
-    type: typing.Optional[str]
-    docker_id: str
-    tags: str
-    organization_id: typing.Optional[str]
-    workspace_id: typing.Optional[str]
+class EvaluationScenarioScoreUpdate(pydantic.BaseModel):
+    score: float
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}

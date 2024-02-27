@@ -23,9 +23,7 @@ class EnvironmentsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    def deploy_to_environment(
-        self, *, environment_name: str, variant_id: str
-    ) -> typing.Any:
+    def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -44,23 +42,13 @@ class EnvironmentsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.environments.deploy_to_environment(
-            environment_name="environment_name",
-            variant_id="variant_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.deploy_to_environment(environment_name="environment_name", variant_id="variant_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
-            ),
-            json=jsonable_encoder(
-                {"environment_name": environment_name, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
+            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -79,9 +67,7 @@ class AsyncEnvironmentsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    async def deploy_to_environment(
-        self, *, environment_name: str, variant_id: str
-    ) -> typing.Any:
+    async def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -98,25 +84,15 @@ class AsyncEnvironmentsClient:
 
             - variant_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.environments.deploy_to_environment(
-            environment_name="environment_name",
-            variant_id="variant_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.deploy_to_environment(environment_name="environment_name", variant_id="variant_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
-            ),
-            json=jsonable_encoder(
-                {"environment_name": environment_name, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
+            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )

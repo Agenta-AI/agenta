@@ -19,10 +19,7 @@ from .resources.containers.client import AsyncContainersClient, ContainersClient
 from .resources.environments.client import AsyncEnvironmentsClient, EnvironmentsClient
 from .resources.evaluations.client import AsyncEvaluationsClient, EvaluationsClient
 from .resources.evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
-from .resources.observability.client import (
-    AsyncObservabilityClient,
-    ObservabilityClient,
-)
+from .resources.observability.client import AsyncObservabilityClient, ObservabilityClient
 from .resources.testsets.client import AsyncTestsetsClient, TestsetsClient
 from .resources.variants.client import AsyncVariantsClient, VariantsClient
 from .types.http_validation_error import HttpValidationError
@@ -45,20 +42,9 @@ OMIT = typing.cast(typing.Any, ...)
 
 
 class AgentaApi:
-    def __init__(
-        self,
-        *,
-        base_url: str,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
-        httpx_client: typing.Optional[httpx.Client] = None,
-    ):
+    def __init__(self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60):
         self._client_wrapper = SyncClientWrapper(
-            base_url=base_url,
-            api_key=api_key,
-            httpx_client=httpx.Client(timeout=timeout)
-            if httpx_client is None
-            else httpx_client,
+            base_url=base_url, api_key=api_key, httpx_client=httpx.Client(timeout=timeout)
         )
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
         self.variants = VariantsClient(client_wrapper=self._client_wrapper)
@@ -84,10 +70,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_api_keys()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -119,13 +102,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.create_api_key(
-            workspace_id="workspace_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_api_key(workspace_id="workspace_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -163,19 +141,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.delete_api_key(
-            key_prefix="key_prefix",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_api_key(key_prefix="key_prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -200,19 +171,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.validate_api_key(
-            key_prefix="key_prefix",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.validate_api_key(key_prefix="key_prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -242,17 +206,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_organizations()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -284,13 +243,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.create_organization(
-            name="name",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_organization(name="name")
         """
         _request: typing.Dict[str, typing.Any] = {"name": name}
         if description is not OMIT:
@@ -301,9 +255,7 @@ class AgentaApi:
             _request["owner"] = owner
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -322,17 +274,12 @@ class AgentaApi:
         """
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_own_org()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -360,19 +307,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.fetch_organization_details(
-            org_id="org_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_organization_details(org_id="org_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -406,13 +346,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.update_organization(
-            org_id="org_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_organization(org_id="org_id")
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -423,9 +358,7 @@ class AgentaApi:
             _request["updated_at"] = updated_at
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -454,26 +387,15 @@ class AgentaApi:
         from agenta import InviteRequest
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.invite_user_to_workspace(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            request=[
-                InviteRequest(
-                    email="email",
-                    roles=["roles"],
-                )
-            ],
+            org_id="org_id", workspace_id="workspace_id", request=[InviteRequest(email="email", roles=["roles"])]
         )
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces/{workspace_id}/invite",
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}/invite"
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -489,9 +411,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def resend_invitation(
-        self, org_id: str, workspace_id: str, *, email: str
-    ) -> typing.Any:
+    def resend_invitation(self, org_id: str, workspace_id: str, *, email: str) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -512,15 +432,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.resend_invitation(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            email="email",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.resend_invitation(org_id="org_id", workspace_id="workspace_id", email="email")
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -542,9 +455,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def accept_invitation(
-        self, org_id: str, workspace_id: str, *, token: str
-    ) -> typing.Any:
+    def accept_invitation(self, org_id: str, workspace_id: str, *, token: str) -> typing.Any:
         """
         Accept an invitation to a workspace.
 
@@ -565,15 +476,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.accept_invitation(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            token="token",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.accept_invitation(org_id="org_id", workspace_id="workspace_id", token="token")
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -596,12 +500,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_workspace(
-        self,
-        org_id: str,
-        *,
-        name: str,
-        description: typing.Optional[str] = OMIT,
-        type: typing.Optional[str] = OMIT,
+        self, org_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT
     ) -> WorkspaceResponse:
         """
         Parameters:
@@ -615,14 +514,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.create_workspace(
-            org_id="org_id",
-            name="name",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_workspace(org_id="org_id", name="name")
         """
         _request: typing.Dict[str, typing.Any] = {"name": name}
         if description is not OMIT:
@@ -631,10 +524,7 @@ class AgentaApi:
             _request["type"] = type
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -672,14 +562,8 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.update_workspace(
-            org_id="org_id",
-            workspace_id="workspace_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_workspace(org_id="org_id", workspace_id="workspace_id")
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -691,8 +575,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces/{workspace_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -723,17 +606,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_all_workspace_roles()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -760,17 +638,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_all_workspace_permissions()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -783,12 +656,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def assign_role_to_user(
-        self,
-        workspace_id: str,
-        *,
-        email: str,
-        organization_id: str,
-        role: typing.Optional[WorkspaceRole] = OMIT,
+        self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[WorkspaceRole] = OMIT
     ) -> bool:
         """
         Assigns a role to a user in a workspace.
@@ -816,28 +684,15 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.assign_role_to_user(
-            workspace_id="workspace_id",
-            email="email",
-            organization_id="organization_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.assign_role_to_user(workspace_id="workspace_id", email="email", organization_id="organization_id")
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "email": email,
-            "organization_id": organization_id,
-        }
+        _request: typing.Dict[str, typing.Any] = {"email": email, "organization_id": organization_id}
         if role is not OMIT:
-            _request["role"] = role.value
+            _request["role"] = role
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/roles",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -852,9 +707,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def unassign_role_from_user(
-        self, workspace_id: str, *, email: str, org_id: str, role: str
-    ) -> typing.Any:
+    def unassign_role_from_user(self, workspace_id: str, *, email: str, org_id: str, role: str) -> typing.Any:
         """
         Delete a role assignment from a user in a workspace.
 
@@ -883,26 +736,13 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.unassign_role_from_user(
-            workspace_id="workspace_id",
-            email="email",
-            org_id="org_id",
-            role="role",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.unassign_role_from_user(workspace_id="workspace_id", email="email", org_id="org_id", role="role")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/roles",
-            ),
-            params=remove_none_from_dict(
-                {"email": email, "org_id": org_id, "role": role}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
+            params=remove_none_from_dict({"email": email, "org_id": org_id, "role": role}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -916,9 +756,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def remove_user_from_workspace(
-        self, workspace_id: str, *, org_id: str, email: str
-    ) -> WorkspaceResponse:
+    def remove_user_from_workspace(self, workspace_id: str, *, org_id: str, email: str) -> WorkspaceResponse:
         """
         Remove a user from a workspace.
 
@@ -946,22 +784,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.remove_user_from_workspace(
-            workspace_id="workspace_id",
-            org_id="org_id",
-            email="email",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.remove_user_from_workspace(workspace_id="workspace_id", org_id="org_id", email="email")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/users",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/users"),
             params=remove_none_from_dict({"org_id": org_id, "email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -980,10 +808,7 @@ class AgentaApi:
         """
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.health_check()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1004,10 +829,7 @@ class AgentaApi:
         """
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.user_profile()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1026,20 +848,9 @@ class AgentaApi:
 
 
 class AsyncAgentaApi:
-    def __init__(
-        self,
-        *,
-        base_url: str,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
-        httpx_client: typing.Optional[httpx.AsyncClient] = None,
-    ):
+    def __init__(self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60):
         self._client_wrapper = AsyncClientWrapper(
-            base_url=base_url,
-            api_key=api_key,
-            httpx_client=httpx.AsyncClient(timeout=timeout)
-            if httpx_client is None
-            else httpx_client,
+            base_url=base_url, api_key=api_key, httpx_client=httpx.AsyncClient(timeout=timeout)
         )
         self.apps = AsyncAppsClient(client_wrapper=self._client_wrapper)
         self.variants = AsyncVariantsClient(client_wrapper=self._client_wrapper)
@@ -1048,9 +859,7 @@ class AsyncAgentaApi:
         self.testsets = AsyncTestsetsClient(client_wrapper=self._client_wrapper)
         self.containers = AsyncContainersClient(client_wrapper=self._client_wrapper)
         self.environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
-        self.observability = AsyncObservabilityClient(
-            client_wrapper=self._client_wrapper
-        )
+        self.observability = AsyncObservabilityClient(client_wrapper=self._client_wrapper)
         self.bases = AsyncBasesClient(client_wrapper=self._client_wrapper)
         self.configs = AsyncConfigsClient(client_wrapper=self._client_wrapper)
 
@@ -1067,10 +876,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_api_keys()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1102,13 +908,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.create_api_key(
-            workspace_id="workspace_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_api_key(workspace_id="workspace_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -1146,19 +947,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.delete_api_key(
-            key_prefix="key_prefix",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_api_key(key_prefix="key_prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1183,19 +977,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.validate_api_key(
-            key_prefix="key_prefix",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.validate_api_key(key_prefix="key_prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1225,17 +1012,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_organizations()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1267,13 +1049,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.create_organization(
-            name="name",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_organization(name="name")
         """
         _request: typing.Dict[str, typing.Any] = {"name": name}
         if description is not OMIT:
@@ -1284,9 +1061,7 @@ class AsyncAgentaApi:
             _request["owner"] = owner
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1305,17 +1080,12 @@ class AsyncAgentaApi:
         """
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_own_org()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1343,19 +1113,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.fetch_organization_details(
-            org_id="org_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_organization_details(org_id="org_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1389,13 +1152,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.update_organization(
-            org_id="org_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_organization(org_id="org_id")
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -1406,9 +1164,7 @@ class AsyncAgentaApi:
             _request["updated_at"] = updated_at
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1437,26 +1193,15 @@ class AsyncAgentaApi:
         from agenta import InviteRequest
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.invite_user_to_workspace(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            request=[
-                InviteRequest(
-                    email="email",
-                    roles=["roles"],
-                )
-            ],
+            org_id="org_id", workspace_id="workspace_id", request=[InviteRequest(email="email", roles=["roles"])]
         )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces/{workspace_id}/invite",
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}/invite"
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -1472,9 +1217,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def resend_invitation(
-        self, org_id: str, workspace_id: str, *, email: str
-    ) -> typing.Any:
+    async def resend_invitation(self, org_id: str, workspace_id: str, *, email: str) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -1495,15 +1238,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.resend_invitation(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            email="email",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.resend_invitation(org_id="org_id", workspace_id="workspace_id", email="email")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -1525,9 +1261,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def accept_invitation(
-        self, org_id: str, workspace_id: str, *, token: str
-    ) -> typing.Any:
+    async def accept_invitation(self, org_id: str, workspace_id: str, *, token: str) -> typing.Any:
         """
         Accept an invitation to a workspace.
 
@@ -1548,15 +1282,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.accept_invitation(
-            org_id="org_id",
-            workspace_id="workspace_id",
-            token="token",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.accept_invitation(org_id="org_id", workspace_id="workspace_id", token="token")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -1579,12 +1306,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_workspace(
-        self,
-        org_id: str,
-        *,
-        name: str,
-        description: typing.Optional[str] = OMIT,
-        type: typing.Optional[str] = OMIT,
+        self, org_id: str, *, name: str, description: typing.Optional[str] = OMIT, type: typing.Optional[str] = OMIT
     ) -> WorkspaceResponse:
         """
         Parameters:
@@ -1598,14 +1320,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.create_workspace(
-            org_id="org_id",
-            name="name",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_workspace(org_id="org_id", name="name")
         """
         _request: typing.Dict[str, typing.Any] = {"name": name}
         if description is not OMIT:
@@ -1614,10 +1330,7 @@ class AsyncAgentaApi:
             _request["type"] = type
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1655,14 +1368,8 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.update_workspace(
-            org_id="org_id",
-            workspace_id="workspace_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_workspace(org_id="org_id", workspace_id="workspace_id")
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -1674,8 +1381,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations/{org_id}/workspaces/{workspace_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"organizations/{org_id}/workspaces/{workspace_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1706,17 +1412,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_all_workspace_roles()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/roles"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1743,17 +1444,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_all_workspace_permissions()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "workspaces/permissions"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1766,12 +1462,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def assign_role_to_user(
-        self,
-        workspace_id: str,
-        *,
-        email: str,
-        organization_id: str,
-        role: typing.Optional[WorkspaceRole] = OMIT,
+        self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[WorkspaceRole] = OMIT
     ) -> bool:
         """
         Assigns a role to a user in a workspace.
@@ -1799,28 +1490,15 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.assign_role_to_user(
-            workspace_id="workspace_id",
-            email="email",
-            organization_id="organization_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.assign_role_to_user(workspace_id="workspace_id", email="email", organization_id="organization_id")
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "email": email,
-            "organization_id": organization_id,
-        }
+        _request: typing.Dict[str, typing.Any] = {"email": email, "organization_id": organization_id}
         if role is not OMIT:
-            _request["role"] = role.value
+            _request["role"] = role
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/roles",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1835,9 +1513,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def unassign_role_from_user(
-        self, workspace_id: str, *, email: str, org_id: str, role: str
-    ) -> typing.Any:
+    async def unassign_role_from_user(self, workspace_id: str, *, email: str, org_id: str, role: str) -> typing.Any:
         """
         Delete a role assignment from a user in a workspace.
 
@@ -1866,26 +1542,13 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.unassign_role_from_user(
-            workspace_id="workspace_id",
-            email="email",
-            org_id="org_id",
-            role="role",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.unassign_role_from_user(workspace_id="workspace_id", email="email", org_id="org_id", role="role")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/roles",
-            ),
-            params=remove_none_from_dict(
-                {"email": email, "org_id": org_id, "role": role}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/roles"),
+            params=remove_none_from_dict({"email": email, "org_id": org_id, "role": role}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1899,9 +1562,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def remove_user_from_workspace(
-        self, workspace_id: str, *, org_id: str, email: str
-    ) -> WorkspaceResponse:
+    async def remove_user_from_workspace(self, workspace_id: str, *, org_id: str, email: str) -> WorkspaceResponse:
         """
         Remove a user from a workspace.
 
@@ -1929,22 +1590,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.remove_user_from_workspace(
-            workspace_id="workspace_id",
-            org_id="org_id",
-            email="email",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.remove_user_from_workspace(workspace_id="workspace_id", org_id="org_id", email="email")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"workspaces/{workspace_id}/users",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"workspaces/{workspace_id}/users"),
             params=remove_none_from_dict({"org_id": org_id, "email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1963,10 +1614,7 @@ class AsyncAgentaApi:
         """
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.health_check()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1987,10 +1635,7 @@ class AsyncAgentaApi:
         """
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.user_profile()
         """
         _response = await self._client_wrapper.httpx_client.request(
