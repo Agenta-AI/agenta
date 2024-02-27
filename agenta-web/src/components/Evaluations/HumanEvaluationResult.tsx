@@ -351,7 +351,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                     Delete
                 </Button>
                 <Button type="primary" onClick={() => setIsEvalModalOpen(true)}>
-                    New Evaluation
+                    New Annotation
                 </Button>
             </div>
 
