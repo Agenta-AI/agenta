@@ -94,6 +94,14 @@ async def get_span_of_trace(
     return []
 
 
+@router.delete(
+    "/spans/{span_id}/", response_model=bool, operation_id="delete_span_of_trace"
+)
+async def delete_span_of_trace(request: Request, span_id: str):
+    await event_db_manager.delete_span(span_id, "mock")
+    return True
+
+
 @router.put(
     "/traces/{trace_id}/", response_model=bool, operation_id="update_trace_status"
 )

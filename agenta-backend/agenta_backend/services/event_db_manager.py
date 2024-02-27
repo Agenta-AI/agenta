@@ -434,6 +434,20 @@ async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
     return spans
 
 
+async def delete_span(span_id: str, resource_type: str):
+    """Delete the span for a given span_id.
+
+    Args:
+        span_id (str): The Id of the span
+    """
+
+    if resource_type == "mock":
+        return
+
+    span = await SpanDB.find_one(SpanDB.id == ObjectId(span_id))
+    await span.delete()
+
+
 async def add_feedback_to_trace(
     trace_id: str, payload: CreateFeedback, user_uid: str
 ) -> str:
