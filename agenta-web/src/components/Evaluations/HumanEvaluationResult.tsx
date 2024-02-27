@@ -307,9 +307,9 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                 dataIndex: "action",
                 key: "action",
                 render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
-                    let actionText = "View evaluation"
+                    let actionText = "View annotation"
                     if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
-                        actionText = "Continue evaluation"
+                        actionText = "Continue annotation"
                     }
                     return (
                         <div className="hover-button-wrapper">
