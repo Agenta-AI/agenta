@@ -15,7 +15,9 @@ class EvaluationType(str, enum.Enum):
     SINGLE_MODEL_TEST = "single_model_test"
 
     def visit(
-        self, human_a_b_testing: typing.Callable[[], T_Result], single_model_test: typing.Callable[[], T_Result]
+        self,
+        human_a_b_testing: typing.Callable[[], T_Result],
+        single_model_test: typing.Callable[[], T_Result],
     ) -> T_Result:
         if self is EvaluationType.HUMAN_A_B_TESTING:
             return human_a_b_testing()
