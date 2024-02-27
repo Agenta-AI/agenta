@@ -5,13 +5,14 @@ from typing import Optional, Dict, Any, Optional, List
 
 # Own Imports
 from agenta.client.backend import client
+from agenta.client.backend.types.span_status import SpanStatus
 from agenta.client.backend.client import AsyncObservabilityClient
 
 
 class LLMTracing:
     def __init__(self, base_url: str, api_key: Optional[str] = None):
-        self.base_url = base_url
-        self.api_key = api_key
+        self.base_url = base_url + "/api"
+        self.api_key = api_key if api_key is not None else ""
 
     def initialize_client(self) -> AsyncObservabilityClient:
         return client.AsyncAgentaApi(
@@ -37,7 +38,7 @@ class LLMTracing:
             cost=kwargs["cost"],  # type: ignore
             latency=latency.total_seconds(),
             status="INITIATED",
-            token_consumption=kwargs["token_consumption"],  # type: ignore
+            token_consumption=kwargs["total_tokens"],  # type: ignore
             tags=[],
             end_time=trace_end_time,
             spans=spans,
@@ -61,7 +62,7 @@ class LLMTracing:
             meta=kwargs["meta"],  # type: ignore
             event_name=event_name,
             event_type="generation",
-            status="INITIATED",
+            status=SpanStatus(**{"value": "INITIATED", "error": None}),
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore
             prompt_template=kwargs["prompt_template"],  # type: ignore
