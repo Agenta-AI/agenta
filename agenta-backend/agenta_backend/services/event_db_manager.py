@@ -29,6 +29,7 @@ from agenta_backend.models.converters import (
 from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     TraceDB,
+    SpanStatus,
     Feedback as FeedbackDB,
     SpanDB,
 )
@@ -141,7 +142,15 @@ async def create_trace_span(payload: CreateSpan) -> str:
         str: the created span id
     """
 
-    span_db = SpanDB(**payload.dict())
+    end_time = datetime.now()
+    duration = end_time - payload.start_time
+    span_status = SpanStatus(value=payload.status)
+    span_db = SpanDB(
+        **payload.dict(exclude={"status"}),
+        status=span_status,
+        end_time=end_time,
+        duration=duration.total_seconds(),
+    )
     await span_db.create()
     return str(span_db.id)
 
@@ -432,6 +441,20 @@ async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
     # Get trace spans
     spans = spans_to_pydantic(trace.spans)
     return spans
+
+
+async def delete_span(span_id: str, resource_type: str):
+    """Delete the span for a given span_id.
+
+    Args:
+        span_id (str): The Id of the span
+    """
+
+    if resource_type == "mock":
+        return
+
+    span = await SpanDB.find_one(SpanDB.id == ObjectId(span_id))
+    await span.delete()
 
 
 async def add_feedback_to_trace(
