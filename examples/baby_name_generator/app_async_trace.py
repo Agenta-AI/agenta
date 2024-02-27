@@ -34,16 +34,6 @@ async def generate(country: str, gender: str):
     token_usage = chat_completion.usage.dict()
     prompt_output = chat_completion.choices[0].message.content
     prompt_cost = ag.calculate_token_usage("gpt-3.5-turbo", token_usage)
-    await ag.trace(
-        **{
-            **token_usage,
-            "meta": token_usage,
-            "inputs": ["country", "gender"],
-            "outputs": [prompt_output],
-            "prompt_template": ag.config.prompt_template,
-            "cost": prompt_cost,
-        },
-    )
     return {
         "message": prompt_output,
         **{"usage": token_usage},
