@@ -34,11 +34,10 @@ router = APIRouter()
     operation_id="observability_dashboard",
 )
 async def get_dashboard_data(
-    request: Request, parameters: ObservabilityDashboardDataRequestParams = Depends()
+    request: Request, app_id: str, parameters: ObservabilityDashboardDataRequestParams = Depends()
 ):
-    if not parameters.appId:
-        return []
-    return event_db_manager.retrieve_observability_dashboard(parameters)
+    dashboard_data = await event_db_manager.retrieve_observability_dashboard(app_id, parameters)
+    return dashboard_data
 
 
 @router.post("/traces/", response_model=str, operation_id="create_trace")
@@ -112,7 +111,7 @@ async def update_trace(
     payload: UpdateTrace,
     request: Request,
 ):
-    trace = await event_db_manager.trace_status_update(
+    trace = await event_db_manager.trace_update(
         trace_id, payload, request.state.user_id
     )
     return trace
