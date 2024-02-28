@@ -62,8 +62,8 @@ class LLMTracing:
             status=SpanStatus(**{"value": "SUCCESS", "error": None}),
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore
-            prompt_system=kwargs["system"],  # type: ignore
-            prompt_user=kwargs["user"],  # type: ignore
+            prompt_system=kwargs["prompt_system"],  # type: ignore
+            prompt_user=kwargs["prompt_user"],  # type: ignore
             tokens_input=kwargs["prompt_tokens"],  # type: ignore
             tokens_output=kwargs["completion_tokens"],  # type: ignore
             token_total=kwargs["total_tokens"],  # type: ignore
