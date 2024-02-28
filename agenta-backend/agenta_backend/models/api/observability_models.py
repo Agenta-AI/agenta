@@ -16,7 +16,6 @@ class ObservabilityDashboardDataRequestParams(BaseModel):
     endTime: Optional[int]
     environment: Optional[str]
     variant: Optional[str]
-    appId: Optional[str]
 
 
 class Error(BaseModel):
@@ -59,7 +58,7 @@ class BaseSpan(BaseModel):
     start_time: datetime = Field(default=datetime.now())
     duration: Optional[int]
     status: SpanStatus
-    inputs: Optional[List[str]]
+    inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
     prompt_system: Optional[str]
     prompt_user: Optional[str]

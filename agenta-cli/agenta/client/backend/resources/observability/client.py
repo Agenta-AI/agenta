@@ -755,7 +755,7 @@ class AsyncObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
-        inputs: typing.Optional[typing.List[str]] = OMIT,
+        inputs: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         outputs: typing.Optional[typing.List[str]] = OMIT,
         prompt_system: typing.Optional[str] = OMIT,
         prompt_user: typing.Optional[str] = OMIT,
@@ -782,7 +782,7 @@ class AsyncObservabilityClient:
 
             - status: SpanStatus.
 
-            - inputs: typing.Optional[typing.List[str]].
+            - inputs: typing.Optional[typing.Dict[str, Any]].
 
             - outputs: typing.Optional[typing.List[str]].
 

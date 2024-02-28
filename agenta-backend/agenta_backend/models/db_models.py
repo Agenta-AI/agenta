@@ -319,7 +319,7 @@ class TraceDB(Document):
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
-    latency: float
+    latency: Optional[float]
     status: str  # initiated, completed, stopped, cancelled, failed
     type: str = Field(default="generation")
     token_consumption: Optional[int]
@@ -341,7 +341,7 @@ class SpanDB(Document):
     duration: Optional[int]
     status: SpanStatus
     end_time: datetime = Field(default=datetime.now())
-    inputs: Optional[List[str]]
+    inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
     prompt_user: Optional[str]
     prompt_system: Optional[str]
