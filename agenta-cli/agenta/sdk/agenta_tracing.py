@@ -62,7 +62,7 @@ class LLMTracing:
             meta=kwargs["meta"],  # type: ignore
             event_name=event_name,
             event_type="generation",
-            status=SpanStatus(**{"value": "INITIATED", "error": None}),
+            status=SpanStatus(**{"value": "SUCCESS", "error": None}),
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore
             prompt_template=kwargs["prompt_template"],  # type: ignore
