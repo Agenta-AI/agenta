@@ -124,7 +124,16 @@ async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bo
         TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id
     )
 
-    await trace.update({"$set": payload.dict(exclude_none=True)})
+    # Calculate latency
+    latency = payload.end_time - trace.start_time
+    await trace.update(
+        {
+            "$set": {
+                **payload.dict(exclude_none=True),
+                "latency": latency.total_seconds(),
+            },
+        }
+    )
     return True
 
 
