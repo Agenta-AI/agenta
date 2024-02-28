@@ -75,13 +75,6 @@ async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
     """
 
     user = await db_manager.get_user(user_uid)
-
-    # Ensure spans exists in the db
-    for span in payload.spans:
-        span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span), fetch_links=True)
-        if span_db is None:
-            raise HTTPException(404, detail=f"Span {span} does not exist")
-
     trace_db = TraceDB(**payload.dict(), user=user)
     await trace_db.create()
     return str(trace_db.id)
@@ -177,9 +170,9 @@ async def fetch_generation_spans(
         List[Span]: the list of spans for the given user
     """
 
-    user = await db_manager.get_user(user_uid)
     spans_db = await SpanDB.find(
-        SpanDB.trace.user.id == str(user.id), SpanDB.trace.app_id == app_id
+        SpanDB.trace.app_id == app_id,
+        fetch_links=True,
     ).to_list()
 
     def filter_span(span: Span):
@@ -218,9 +211,7 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
     """
 
     user = await db_manager.get_user(user_uid)
-    span_db = await SpanDB.find_one(
-        SpanDB.id == ObjectId(span_id), SpanDB.trace.user.id == user.id
-    )
+    span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span_id), fetch_links=True)
     app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
         span_db.trace.base_id, span_db.trace.config_name
     )
@@ -275,11 +266,12 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
             },
             "metadata": span_db.meta,
             "user_id": str(user.id),
-        },
-        **{
             "span_id": str(span_db.id),
             "content": {
-                "inputs": span_db.inputs,
+                "inputs": [
+                    {"input_name": key, "input_value": value}
+                    for key, value in span_db.inputs.items()
+                ],
                 "output": span_db.outputs[0],
             },
             "model_params": {
@@ -295,78 +287,72 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
 
 
 async def retrieve_observability_dashboard(
+    app_id: str,
     params: ObservabilityDashboardDataRequestParams,
 ) -> ObservabilityDashboardData:
-    traces = await TraceDB.find(TraceDB.app_id == ObjectId(params.appId))
-    list_of_spans_db: SpanDB = []
-
-    for trace in traces:
-        for span in trace.spans:
-            span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span))
-            list_of_spans_db.append(span_db)
+    spans_db = await SpanDB.find(
+        SpanDB.trace.app_id == app_id, fetch_links=True
+    ).to_list()
+    if spans_db == []:
+        return []
 
     list_of_observability_data: ObservabilityData = []
-    for span_db in list_of_spans_db:
+    for span_db in spans_db:
+        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+            span_db.trace.base_id, span_db.trace.config_name
+        )
+        latency = span_db.end_time - span_db.start_time
         list_of_observability_data.append(
             ObservabilityData(
                 **{
                     "timestamp": span_db.created_at,
-                    "success_count": len(list_of_spans_db),
+                    "success_count": 0,
                     "failure_count": 0,
                     "cost": span_db.cost,
-                    "latency": span_db.latency,
+                    "latency": latency.total_seconds(),
                     "total_tokens": span_db.token_total,
                     "prompt_tokens": span_db.tokens_input,
                     "completion_tokens": span_db.tokens_output,
                     "environment": "",
-                    "variant": "",
+                    "variant": app_variant_db.variant_name,
                 }
             )
         )
 
-    def filter_data(data: ObservabilityData):
-        if params:
-            if params.environment and data.environment == params.environment:
-                return True
-            if params.variant and data.variant == params.variant:
-                return True
+    def filter_data_by_params(observability_data: List[ObservabilityData]):
+        filtered_data = observability_data
+        if params.startTime or params.endTime:
+            def filter_by_timestamp(data: ObservabilityData):
+                epoch_time = int(data.timestamp.timestamp())
+                return params.startTime <= epoch_time <= params.endTime
 
-            # Convert data.timestamp to epoch time
-            epoch_time = int(data.timestamp.timestamp())
-            if (params.startTime and params.endTime) and (
-                epoch_time in [params.startTime, params.endTime]
-            ):
-                return True
-            if (
-                params.environment == data.environment
-                and params.variant == data.variant
-            ):
-                return True
-            if (
-                (params.startTime and params.endTime)
-                and (data.timestamp in [params.startTime, params.endTime])
-                and (
-                    params.environment == data.environment
-                    and params.variant == data.variant
-                )
-            ):
-                return True
-        return False
+            filtered_data = filter(filter_by_timestamp, filtered_data)
+
+        if params.environment:
+            filtered_data = filter(lambda data: data.environment == params.environment, filtered_data)
+
+        if params.variant:
+            filtered_data = filter(lambda data: data.variant == params.variant, filtered_data)
+        return list(filtered_data)
+
 
     len_of_spans_db = len(list_of_observability_data)
-    filtered_data = filter(filter_data, list_of_observability_data)
+    filtered_data = filter_data_by_params(list_of_observability_data)
+
     return ObservabilityDashboardData(
         **{
-            "data": list(filtered_data),
+            "data": filtered_data,
             "total_count": len_of_spans_db,
             "failure_rate": 0,
-            "total_cost": sum([span_db.cost for span_db in list_of_spans_db]),
-            "avg_cost": sum([span_db.cost for span_db in list_of_spans_db])
-            / len_of_spans_db,
-            "avg_latency": sum([span_db.duration for span_db in list_of_spans_db])
-            / len_of_spans_db,
-            "total_tokens": sum([span_db.token_total for span_db in list_of_spans_db]),
-            "avg_tokens": sum([span_db.token_total for span_db in list_of_spans_db])
+            "total_cost": round(sum([span_db.cost for span_db in spans_db]), 5),
+            "avg_cost": round(
+                sum([span_db.cost for span_db in spans_db]) / len_of_spans_db, 5
+            ),
+            "avg_latency": round(
+                sum([span_db.duration for span_db in spans_db]) / len_of_spans_db, 5
+            ),
+            "total_tokens": sum([span_db.token_total for span_db in spans_db]),
+            "avg_tokens": sum([span_db.token_total for span_db in spans_db])
             / len_of_spans_db,
         }
     )
