@@ -16,6 +16,7 @@ class ObservabilityDashboardDataRequestParams(BaseModel):
     endTime: Optional[int]
     environment: Optional[str]
     variant: Optional[str]
+    appId: Optional[str]
 
 
 class Error(BaseModel):
@@ -51,6 +52,7 @@ class Span(BaseModel):
 
 
 class BaseSpan(BaseModel):
+    trace_id: Optional[str]
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str
@@ -60,7 +62,8 @@ class BaseSpan(BaseModel):
     status: SpanStatus
     inputs: Optional[List[str]]
     outputs: Optional[List[str]]
-    prompt_template: Optional[str]
+    prompt_system: Optional[str]
+    prompt_user: Optional[str]
     tokens_input: Optional[int]
     tokens_output: Optional[int]
     token_total: Optional[int]
@@ -144,7 +147,6 @@ class BaseTrace(BaseModel):
     token_consumption: Optional[int]
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
-    end_time: Optional[datetime]
 
 
 class Trace(BaseTrace):
@@ -159,3 +161,4 @@ class CreateTrace(BaseTrace):
 
 class UpdateTrace(BaseModel):
     status: str
+    end_time: datetime
