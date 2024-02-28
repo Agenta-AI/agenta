@@ -25,7 +25,6 @@ class LLMTracing:
         app_id: str,
         base_id: str,
         config_name: str,
-        spans: List[str],
         **kwargs: Dict[str, Any],
     ):
         # calculate the latency between the trace start time and end time
@@ -41,23 +40,24 @@ class LLMTracing:
             token_consumption=kwargs["total_tokens"],  # type: ignore
             tags=[],
             end_time=trace_end_time,
-            spans=spans,
         )
         return trace
 
     async def finalize_trace(
         self, client: AsyncObservabilityClient, trace_id: str, status: str
     ) -> bool:
-        return await client.update_trace_status(trace_id=trace_id, status=status)
+        return await client.update_trace(trace_id=trace_id, status=status, end_time=datetime.now())
 
     async def create_span(
         self,
         client: AsyncObservabilityClient,
+        trace_id: str,
         parent_span_id: Optional[str],
         event_name: str,
         **kwargs: Dict[str, Any],
     ):
         span = await client.create_span(
+            trace_id=trace_id,
             parent_span_id=parent_span_id,
             meta=kwargs["meta"],  # type: ignore
             event_name=event_name,
@@ -65,7 +65,8 @@ class LLMTracing:
             status=SpanStatus(**{"value": "SUCCESS", "error": None}),
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore
-            prompt_template=kwargs["prompt_template"],  # type: ignore
+            prompt_system=kwargs["system"],  # type: ignore
+            prompt_user=kwargs["user"],  # type: ignore
             tokens_input=kwargs["prompt_tokens"],  # type: ignore
             tokens_output=kwargs["completion_tokens"],  # type: ignore
             token_total=kwargs["total_tokens"],  # type: ignore
@@ -84,16 +85,15 @@ class LLMTracing:
         client = self.initialize_client()
         try:
             trace_starting = datetime.now()
-            span = await self.create_span(
-                client, None, event_name=str(uuid.uuid4()), **kwargs
-            )
             trace = await self.create_trace(
                 client,
                 app_id=app_id,
                 base_id=base_id,
                 config_name=config_name,
-                spans=[span],
                 **{**kwargs, "trace_start_time": trace_starting},  # type: ignore
+            )
+            await self.create_span(
+                client, trace, None, event_name=str(uuid.uuid4()), **kwargs
             )
         except KeyError as exc:
             print(f"Something happened when tracing LLM app. Error: {str(exc)}")
