@@ -35,9 +35,9 @@ async def generate(country: str, gender: str):
     prompt_output = chat_completion.choices[0].message.content
     prompt_cost = ag.calculate_token_usage("gpt-3.5-turbo", token_usage)
 
-    #! NOTE: the use of ag.trace explicitly become redundant due to the
-    #! fact that tracing has been integrated into the sdk. CHeck app_async for llm 
-    #! example with the explicit trace use
+    #! NOTE: the use of ag.trace explicitly has become redundant due to the
+    #! fact that tracing has been integrated into the sdk. Check app_async.py for llm
+    #! example without the explicit trace use
     await ag.trace(
         **{
             **token_usage,
