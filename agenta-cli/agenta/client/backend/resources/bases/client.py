@@ -22,10 +22,7 @@ class BasesClient:
         self._client_wrapper = client_wrapper
 
     def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
@@ -74,10 +71,7 @@ class AsyncBasesClient:
         self._client_wrapper = client_wrapper
 
     async def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.

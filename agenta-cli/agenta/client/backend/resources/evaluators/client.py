@@ -41,9 +41,7 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -75,9 +73,7 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -93,12 +89,7 @@ class EvaluatorsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_new_evaluator_config(
-        self,
-        *,
-        app_id: str,
-        name: str,
-        evaluator_key: str,
-        settings_values: typing.Dict[str, typing.Any],
+        self, *, app_id: str, name: str, evaluator_key: str, settings_values: typing.Dict[str, typing.Any]
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -125,16 +116,9 @@ class EvaluatorsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
             json=jsonable_encoder(
-                {
-                    "app_id": app_id,
-                    "name": name,
-                    "evaluator_key": evaluator_key,
-                    "settings_values": settings_values,
-                }
+                {"app_id": app_id, "name": name, "evaluator_key": evaluator_key, "settings_values": settings_values}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -167,8 +151,7 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -221,8 +204,7 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -259,8 +241,7 @@ class EvaluatorsClient:
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -295,9 +276,7 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -309,9 +288,7 @@ class AsyncEvaluatorsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_evaluator_configs(
-        self, *, app_id: str
-    ) -> typing.List[EvaluatorConfig]:
+    async def get_evaluator_configs(self, *, app_id: str) -> typing.List[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
 
@@ -331,9 +308,7 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -349,12 +324,7 @@ class AsyncEvaluatorsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_new_evaluator_config(
-        self,
-        *,
-        app_id: str,
-        name: str,
-        evaluator_key: str,
-        settings_values: typing.Dict[str, typing.Any],
+        self, *, app_id: str, name: str, evaluator_key: str, settings_values: typing.Dict[str, typing.Any]
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -383,16 +353,9 @@ class AsyncEvaluatorsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluators/configs"),
             json=jsonable_encoder(
-                {
-                    "app_id": app_id,
-                    "name": name,
-                    "evaluator_key": evaluator_key,
-                    "settings_values": settings_values,
-                }
+                {"app_id": app_id, "name": name, "evaluator_key": evaluator_key, "settings_values": settings_values}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -425,8 +388,7 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -479,8 +441,7 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -517,8 +478,7 @@ class AsyncEvaluatorsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluators/configs/{evaluator_config_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluators/configs/{evaluator_config_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
