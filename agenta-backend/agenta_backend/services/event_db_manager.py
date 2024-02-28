@@ -322,6 +322,7 @@ async def retrieve_observability_dashboard(
     def filter_data_by_params(observability_data: List[ObservabilityData]):
         filtered_data = observability_data
         if params.startTime or params.endTime:
+
             def filter_by_timestamp(data: ObservabilityData):
                 epoch_time = int(data.timestamp.timestamp())
                 return params.startTime <= epoch_time <= params.endTime
@@ -329,12 +330,15 @@ async def retrieve_observability_dashboard(
             filtered_data = filter(filter_by_timestamp, filtered_data)
 
         if params.environment:
-            filtered_data = filter(lambda data: data.environment == params.environment, filtered_data)
+            filtered_data = filter(
+                lambda data: data.environment == params.environment, filtered_data
+            )
 
         if params.variant:
-            filtered_data = filter(lambda data: data.variant == params.variant, filtered_data)
+            filtered_data = filter(
+                lambda data: data.variant == params.variant, filtered_data
+            )
         return list(filtered_data)
-
 
     len_of_spans_db = len(list_of_observability_data)
     filtered_data = filter_data_by_params(list_of_observability_data)

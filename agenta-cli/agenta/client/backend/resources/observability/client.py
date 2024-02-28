@@ -58,7 +58,9 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
+            ),
             params=remove_none_from_dict(
                 {
                     "startTime": start_time,
@@ -135,7 +137,9 @@ class ObservabilityClient:
             _request["start_time"] = start_time
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -184,7 +188,9 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             params=remove_none_from_dict(
                 {
                     "app_id": app_id,
@@ -272,7 +278,11 @@ class ObservabilityClient:
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status, "trace_id": trace_id}
+        _request: typing.Dict[str, typing.Any] = {
+            "event_name": event_name,
+            "status": status,
+            "trace_id": trace_id,
+        }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
@@ -303,7 +313,9 @@ class ObservabilityClient:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -318,7 +330,9 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
+    def get_span_of_generation(
+        self, span_id: str, *, type: typing.Optional[str] = None
+    ) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
@@ -332,7 +346,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -359,7 +376,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -373,7 +393,9 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_trace(self, trace_id: str, *, status: str, end_time: dt.datetime) -> bool:
+    def update_trace(
+        self, trace_id: str, *, status: str, end_time: dt.datetime
+    ) -> bool:
         """
         Parameters:
             - trace_id: str.
@@ -393,7 +415,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status, "end_time": end_time}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -420,7 +445,10 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -466,7 +494,10 @@ class ObservabilityClient:
             _request["meta"] = meta
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -496,7 +527,8 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -545,7 +577,8 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -594,7 +627,9 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
+            ),
             params=remove_none_from_dict(
                 {
                     "startTime": start_time,
@@ -671,7 +706,9 @@ class AsyncObservabilityClient:
             _request["start_time"] = start_time
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -720,7 +757,9 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             params=remove_none_from_dict(
                 {
                     "app_id": app_id,
@@ -808,7 +847,11 @@ class AsyncObservabilityClient:
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status, "trace_id": trace_id}
+        _request: typing.Dict[str, typing.Any] = {
+            "event_name": event_name,
+            "status": status,
+            "trace_id": trace_id,
+        }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
@@ -839,7 +882,9 @@ class AsyncObservabilityClient:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -854,7 +899,9 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
+    async def get_span_of_generation(
+        self, span_id: str, *, type: typing.Optional[str] = None
+    ) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
@@ -868,7 +915,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -895,7 +945,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{span_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -909,7 +962,9 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_trace(self, trace_id: str, *, status: str, end_time: dt.datetime) -> bool:
+    async def update_trace(
+        self, trace_id: str, *, status: str, end_time: dt.datetime
+    ) -> bool:
         """
         Parameters:
             - trace_id: str.
@@ -929,7 +984,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status, "end_time": end_time}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -956,7 +1014,10 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1002,7 +1063,10 @@ class AsyncObservabilityClient:
             _request["meta"] = meta
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1032,7 +1096,8 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1081,7 +1146,8 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
