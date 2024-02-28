@@ -90,11 +90,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.import_testset()
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.import_testset()
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -133,20 +130,11 @@ class TestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
+        from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.create_testset(
-            app_id="app_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -182,13 +170,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.get_single_testset(
-            testset_id="testset_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_single_testset(testset_id="testset_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -224,20 +207,11 @@ class TestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
+        from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.update_testset(
-            testset_id="testset_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -275,13 +249,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.get_testsets(
-            app_id="app_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_testsets(app_id="app_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -315,13 +284,8 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.testsets.delete_testsets(
-            testset_ids=["testset_ids"],
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_testsets(testset_ids=["testset_ids"])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -406,13 +370,10 @@ class AsyncTestsetsClient:
         dict: The result of the import process.
 
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.import_testset()
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.import_testset()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -451,20 +412,11 @@ class AsyncTestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
-        from agenta.client import AsyncAybruhmApi
+        from agenta import NewTestset
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.create_testset(
-            app_id="app_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -498,15 +450,10 @@ class AsyncTestsetsClient:
         Parameters:
             - testset_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.get_single_testset(
-            testset_id="testset_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_single_testset(testset_id="testset_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -544,20 +491,11 @@ class AsyncTestsetsClient:
 
             - request: NewTestset.
         ---
-        from aybruhm import NewTestset
-        from agenta.client import AsyncAybruhmApi
+        from agenta import NewTestset
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.update_testset(
-            testset_id="testset_id",
-            request=NewTestset(
-                name="name",
-                csvdata=[{"csvdata": "csvdata"}],
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
@@ -593,15 +531,10 @@ class AsyncTestsetsClient:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.get_testsets(
-            app_id="app_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_testsets(app_id="app_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -635,15 +568,10 @@ class AsyncTestsetsClient:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.testsets.delete_testsets(
-            testset_ids=["testset_ids"],
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_testsets(testset_ids=["testset_ids"])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",

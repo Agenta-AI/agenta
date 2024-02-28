@@ -48,11 +48,8 @@ class BasesClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.bases.list_bases()
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -101,13 +98,10 @@ class AsyncBasesClient:
 
             - base_name: typing.Optional[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.bases.list_bases()
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",

@@ -29,6 +29,7 @@ from agenta_backend.models.converters import (
 from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     TraceDB,
+    SpanStatus,
     Feedback as FeedbackDB,
     SpanDB,
 )
@@ -141,7 +142,13 @@ async def create_trace_span(payload: CreateSpan) -> str:
         str: the created span id
     """
 
-    span_db = SpanDB(**payload.dict())
+    end_time = datetime.now()
+    duration = end_time - payload.start_time
+    span_db = SpanDB(
+        **payload.dict(exclude={"end_time", "duration"}),
+        end_time=end_time,
+        duration=duration.total_seconds(),
+    )
     await span_db.create()
     return str(span_db.id)
 

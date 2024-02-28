@@ -11,15 +11,11 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class Organization(pydantic.BaseModel):
-    id: typing.Optional[str]
-    name: str
-    description: typing.Optional[str]
-    type: typing.Optional[str]
-    owner: str
-    members: typing.Optional[typing.List[str]]
-    invitations: typing.Optional[typing.List[typing.Any]]
-    is_paying: typing.Optional[bool]
+class WithPagination(pydantic.BaseModel):
+    data: typing.List[typing.Any]
+    total: int
+    page: int
+    page_size: int = pydantic.Field(alias="pageSize")
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
@@ -40,4 +36,5 @@ class Organization(pydantic.BaseModel):
     class Config:
         frozen = True
         smart_union = True
+        allow_population_by_field_name = True
         json_encoders = {dt.datetime: serialize_datetime}
