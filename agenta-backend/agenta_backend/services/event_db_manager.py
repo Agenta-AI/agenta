@@ -106,9 +106,7 @@ async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
     return trace_db_to_pydantic(trace)
 
 
-async def trace_status_update(
-    trace_id: str, payload: UpdateTrace, user_uid: str
-) -> bool:
+async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bool:
     """Update status of trace.
 
     Args:
@@ -126,9 +124,7 @@ async def trace_status_update(
         TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id
     )
 
-    # Update and save trace
-    trace.status = payload.status
-    await trace.save()
+    await trace.update({"$set": payload.dict(exclude_none=True)})
     return True
 
 
@@ -144,8 +140,10 @@ async def create_trace_span(payload: CreateSpan) -> str:
 
     end_time = datetime.now()
     duration = end_time - payload.start_time
+    trace = await TraceDB.find_one(TraceDB.id == ObjectId(payload.trace_id))
     span_db = SpanDB(
-        **payload.dict(exclude={"end_time", "duration"}),
+        **payload.dict(exclude={"end_time", "duration", "trace_id"}),
+        trace=trace,
         end_time=end_time,
         duration=duration.total_seconds(),
     )
@@ -153,8 +151,12 @@ async def create_trace_span(payload: CreateSpan) -> str:
     return str(span_db.id)
 
 
-async def get_trace_spans_by_user_uid(
-    user_uid: str, trace_type: str, pagination: PaginationParam
+async def fetch_generation_spans(
+    user_uid: str,
+    app_id: str,
+    pagination: PaginationParam,
+    filters: GenerationFilterParams,
+    sorters: SorterParams,
 ) -> List[Span]:
     """Get the spans for a given trace.
 
@@ -167,81 +169,9 @@ async def get_trace_spans_by_user_uid(
     """
 
     user = await db_manager.get_user(user_uid)
-
-    # Get trace
-    trace = await TraceDB.find_one(
-        TraceDB.type == trace_type, TraceDB.user.id == user.id, fetch_links=True
-    )
-
-    # Get trace spans
-    spans = await spans_to_pydantic(trace.spans, trace)
-    return get_paginated_data(spans, pagination)
-
-
-async def fetch_mock_generation(
-    user_uid: str,
-    pagination: PaginationParam,
-    filters: GenerationFilterParams,
-    sorters: SorterParams,
-) -> List[Span]:
-    import random, uuid
-    from faker import Faker
-    from datetime import datetime, timedelta
-
-    fake = Faker()
-    list_of_generations = []
-
-    user = await db_manager.get_user(user_uid)
-
-    def get_random_timestamp():
-        past_24_hours = datetime.now() - timedelta(hours=24)
-        random_time = fake.date_time_between(start_date=past_24_hours)
-        return random_time.isoformat()
-
-    def generate_mock_generation():
-        status_value = random.choice(["SUCCESS", "FAILURE", "INITIATED"])
-        list_of_generations.append(
-            Span(
-                **{
-                    "id": str(uuid.uuid4()),
-                    "created_at": get_random_timestamp(),
-                    "variant": {
-                        "variant_id": str(uuid.uuid4()),
-                        "variant_name": fake.company(),
-                        "revision": random.randint(1, 20),
-                    },
-                    "environment": random.choice(
-                        ["development", "staging", "production"]
-                    ),
-                    "status": {
-                        "value": status_value,
-                        "error": (
-                            {
-                                "message": fake.sentence(),
-                                "stacktrace": fake.text(
-                                    max_nb_chars=200
-                                ),  # Short stacktrace
-                            }
-                            if status_value == "FAILURE"
-                            else None
-                        ),
-                    },
-                    "metadata": {
-                        "cost": random.uniform(0.01, 2),
-                        "latency": random.uniform(0.1, 10),
-                        "usage": {
-                            "completion_tokens": random.randint(50, 300),
-                            "prompt_tokens": random.randint(20, 100),
-                            "total_tokens": random.randint(100, 500),
-                        },
-                    },
-                    "user_id": str(user.id),
-                }
-            )
-        )
-
-    for _ in range(10):
-        generate_mock_generation()
+    spans_db = await SpanDB.find(
+        SpanDB.trace.user.id == str(user.id), SpanDB.trace.app_id == app_id
+    ).to_list()
 
     def filter_span(span: Span):
         if filters:
@@ -251,129 +181,138 @@ async def fetch_mock_generation(
                 return False
         return True
 
-    filtered_generations = filter(filter_span, list_of_generations)
+    # Get trace spans
+    spans = await spans_to_pydantic(spans_db)
+    filtered_generations = filter(filter_span, spans)
 
+    # Sorting logic
+    reverse = False
     sort_keys = list(sorters.dict(exclude=None).keys())
     if "created_at" in sort_keys:
         reverse = sorters.created_at == "desc" if sorters else False
 
     sorted_generations = sorted(
-        filtered_generations, key=lambda x: x.created_at, reverse=reverse
+        filtered_generations, key=lambda x: x["created_at"], reverse=reverse
     )
     return get_paginated_data(sorted_generations, pagination)
 
 
-async def fetch_mock_generation_detail(generation_id: str, user_uid: str) -> SpanDetail:
-    import random, uuid
-    from faker import Faker
-    from datetime import datetime, timedelta
+async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
+    """Get a generation span detail.
 
-    fake = Faker()
+    Args:
+        span_id (str): The ID of a span
+        user_uid (str): The user ID
+
+    Returns:
+        SpanDetail: span detail pydantic model
+    """
+
     user = await db_manager.get_user(user_uid)
+    span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span_id), SpanDB.trace.user.id == user.id)
+    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+        span_db.trace.base_id, span_db.trace.config_name
+    )
+    def convert_variables(span_db: SpanDB):
+        """
+        Converts a list of variables to a list of dictionaries with name and type information.
 
-    def get_random_timestamp():
-        past_24_hours = datetime.now() - timedelta(hours=24)
-        random_time = fake.date_time_between(start_date=past_24_hours)
-        return random_time.isoformat()
+        Args:
+            span_db: A dictionary containing a list of variables under the "inputs" key.
 
-    def generate_mock_generation():
-        status_value = random.choice(["SUCCESS", "FAILURE", "INITIATED"])
-        return {
-            "id": str(uuid.uuid4()),
-            "created_at": get_random_timestamp(),
+        Returns:
+            A list of dictionaries, where each dictionary has the following keys:
+                name: The name of the variable.
+                type: The type of the variable (string, number, or boolean).
+        """
+
+        variables = []
+        for variable in span_db.inputs:
+            if isinstance(variable, str):
+                variable_type = "string"
+            elif isinstance(variable, (int, float)):
+                variable_type = "number"
+            elif isinstance(variable, bool):
+                variable_type = "boolean"
+            else:
+                raise ValueError(f"Unsupported variable type: {type(variable)}")
+
+            variables.append({"name": variable, "type": variable_type})
+        return variables
+
+    return SpanDetail(
+        **{
+            "id": str(span_db.id),
+            "created_at": span_db.created_at.isoformat(),
             "variant": {
-                "variant_id": str(uuid.uuid4()),
-                "variant_name": fake.company(),
-                "revision": random.randint(1, 20),
+                "variant_id": str(app_variant_db.id),
+                "variant_name": app_variant_db.variant_name,
+                "revision": app_variant_db.revision,
             },
-            "environment": random.choice(["development", "staging", "production"]),
+            "environment": "",
             "status": {
-                "value": random.choice(["INITIATED", "SUCCESS", "FAILURE"]),
+                "value": span_db.status.value,
                 "error": (
                     {
-                        "message": fake.sentence(),
-                        "stacktrace": fake.text(max_nb_chars=200),  # Short stacktrace
+                        "message": span_db.status.error.message,
+                        "stacktrace": span_db.status.error.stacktrace,
                     }
-                    if status_value == "FAILURE"
+                    if span_db.status.value == "FAILURE"
                     else None
                 ),
             },
-            "metadata": {
-                "cost": random.uniform(0.01, 2),
-                "latency": random.uniform(0.1, 10),
-                "usage": {
-                    "completion_tokens": random.randint(50, 300),
-                    "prompt_tokens": random.randint(20, 100),
-                    "total_tokens": random.randint(100, 500),
-                },
-            },
+            "metadata": span_db.meta,
             "user_id": str(user.id),
-        }
-
-    return SpanDetail(
-        **generate_mock_generation(),
+        },
         **{
-            "span_id": generation_id,
+            "span_id": str(span_db.id),
             "content": {
-                "inputs": [
-                    {"input_name": fake.word(), "input_value": fake.sentence()}
-                    for _ in range(random.randint(1, 3))
-                ],
-                "output": fake.paragraph(nb_sentences=3),
+                "inputs": span_db.inputs,
+                "output": span_db.outputs[0],
             },
             "model_params": {
                 "prompt": {
                     "system": (
-                        fake.sentence() if random.random() < 0.5 else None
-                    ),  # Optional system prompt
-                    "user": fake.sentence(),
-                    "variables": [
-                        {
-                            "name": fake.word(),
-                            "type": random.choice(["number", "string", "bool"]),
-                        }
-                        for _ in range(random.randint(0, 2))
-                    ],
+                        span_db.prompt_system
+                    ),
+                    "user": span_db.prompt_user,
+                    "variables": convert_variables(span_db),
                 },
-                "params": {
-                    "temperature": random.uniform(0.2, 0.9),
-                    "top_p": random.uniform(0.5, 1.0),
-                },
+                "params": app_variant_db.config.parameters,
             },
         },
     )
 
 
-def fetch_mock_observability_dashboard(
+async def retrieve_observability_dashboard(
     params: ObservabilityDashboardDataRequestParams,
 ) -> ObservabilityDashboardData:
-    import random
-    from datetime import datetime
+    traces = await TraceDB.find(TraceDB.app_id == ObjectId(params.appId))
+    list_of_spans_db: SpanDB = []
 
-    list_of_data_points = []
+    for trace in traces:
+        for span in trace.spans:
+            span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span))
+            list_of_spans_db.append(span_db)
 
-    def generate_data_point():
-        for _ in range(10):
-            list_of_data_points.append(
-                ObservabilityData(
-                    **{
-                        "timestamp": datetime.now(),
-                        "success_count": random.randint(5, 20),
-                        "failure_count": random.randint(0, 5),
-                        "cost": random.uniform(0.05, 0.5),
-                        "latency": random.uniform(0.2, 1.5),
-                        "total_tokens": random.randint(100, 500),
-                        "prompt_tokens": random.randint(20, 150),
-                        "completion_tokens": random.randint(50, 300),
-                        "environment": random.choice(
-                            ["development", "staging", "production"]
-                        ),
-                        "variant": f"variant_{random.randint(1, 5)}",
-                    }
-                )
+    list_of_observability_data: ObservabilityData = []
+    for span_db in list_of_spans_db:
+        list_of_observability_data.append(
+            ObservabilityData(
+                **{
+                    "timestamp": span_db.created_at,
+                    "success_count": len(list_of_spans_db),
+                    "failure_count": 0,
+                    "cost": span_db.cost,
+                    "latency": span_db.latency,
+                    "total_tokens": span_db.token_total,
+                    "prompt_tokens": span_db.tokens_input,
+                    "completion_tokens": span_db.tokens_output,
+                    "environment": "",
+                    "variant": "",
+                }
             )
-
-    generate_data_point()
+        )
 
     def filter_data(data: ObservabilityData):
         if params:
@@ -404,52 +343,31 @@ def fetch_mock_observability_dashboard(
                 return True
         return False
 
-    filtered_data = filter(filter_data, list_of_data_points)
+    len_of_spans_db = len(list_of_observability_data)
+    filtered_data = filter(filter_data, list_of_observability_data)
     return ObservabilityDashboardData(
         **{
             "data": list(filtered_data),
-            "total_count": random.randint(50, 200),
-            "failure_rate": random.uniform(0.0, 0.25),
-            "total_cost": random.uniform(5, 20),
-            "avg_cost": random.uniform(0.1, 0.8),
-            "avg_latency": random.uniform(0.5, 2.0),
-            "total_tokens": random.randint(1000, 5000),
-            "avg_tokens": random.randint(100, 500),
+            "total_count": len_of_spans_db,
+            "failure_rate": 0,
+            "total_cost": sum([span_db.cost for span_db in list_of_spans_db]),
+            "avg_cost": sum([span_db.cost for span_db in list_of_spans_db])
+            / len_of_spans_db,
+            "avg_latency": sum([span_db.duration for span_db in list_of_spans_db])
+            / len_of_spans_db,
+            "total_tokens": sum([span_db.token_total for span_db in list_of_spans_db]),
+            "avg_tokens": sum([span_db.token_total for span_db in list_of_spans_db])
+            / len_of_spans_db,
         }
     )
 
 
-async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
-    """Get the spans for a given trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        List[Span]: the list of spans for the given trace
-    """
-
-    user = await db_manager.get_user(user_uid)
-
-    # Get trace
-    trace = await TraceDB.find_one(
-        TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id, fetch_links=True
-    )
-
-    # Get trace spans
-    spans = spans_to_pydantic(trace.spans)
-    return spans
-
-
-async def delete_span(span_id: str, resource_type: str):
+async def delete_span(span_id: str):
     """Delete the span for a given span_id.
 
     Args:
         span_id (str): The Id of the span
     """
-
-    if resource_type == "mock":
-        return
 
     span = await SpanDB.find_one(SpanDB.id == ObjectId(span_id))
     await span.delete()
