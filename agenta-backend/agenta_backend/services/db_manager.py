@@ -1786,7 +1786,18 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    app_db = await AppDB.find_one(AppDB.app_name == app_name, fetch_links=True)
+    """Fetch an app by its name, organization id, and workspace id.
+
+    Args:
+        app_name (str): The name of the app
+        organization_id (str): The ID of the app organization
+        workspace_id (str): The ID of the app workspace
+
+    Returns:
+        AppDB: the instance of the app
+    """
+
+    query_expression = {"app_name": app_name}
 
     if isCloudEE():
         # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -1794,12 +1805,21 @@ async def fetch_app_by_name_and_parameters(
             organization_id is not None and workspace_id is not None
         ), "organization_id and workspace_id must be provided together"
 
-        return await app_db.find_one(
-            AppDB.organization.id == ObjectId(organization_id),
-            AppDB.workspace.id == ObjectId(workspace_id),
+        query_expression.update(
+            {
+                "organization.id": ObjectId(organization_id),
+                "workspace.id": ObjectId(workspace_id),
+            }
         )
     else:
-        return await app_db.find_one(AppDB.user.uid == user_uid)
+        query_expression.update(
+            {
+                "user.uid": user_uid,
+            }
+        )
+
+    app_db = await AppDB.find_one(query_expression, fetch_links=True)
+    return app_db
 
 
 async def create_new_evaluation(
