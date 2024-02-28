@@ -20,6 +20,7 @@ from .evaluation_scenario import EvaluationScenario
 from .evaluation_scenario_input import EvaluationScenarioInput
 from .evaluation_scenario_output import EvaluationScenarioOutput
 from .evaluation_scenario_result import EvaluationScenarioResult
+from .evaluation_scenario_score_update import EvaluationScenarioScoreUpdate
 from .evaluation_status_enum import EvaluationStatusEnum
 from .evaluation_type import EvaluationType
 from .evaluation_webhook import EvaluationWebhook
@@ -51,7 +52,6 @@ from .permission import Permission
 from .result import Result
 from .score import Score
 from .simple_evaluation_output import SimpleEvaluationOutput
-from .span import Span
 from .span_detail import SpanDetail
 from .span_status import SpanStatus
 from .span_variant import SpanVariant
@@ -65,6 +65,7 @@ from .validation_error import ValidationError
 from .validation_error_loc_item import ValidationErrorLocItem
 from .variant_action import VariantAction
 from .variant_action_enum import VariantActionEnum
+from .with_pagination import WithPagination
 from .workspace_member_response import WorkspaceMemberResponse
 from .workspace_permission import WorkspacePermission
 from .workspace_response import WorkspaceResponse
@@ -92,6 +93,7 @@ __all__ = [
     "EvaluationScenarioInput",
     "EvaluationScenarioOutput",
     "EvaluationScenarioResult",
+    "EvaluationScenarioScoreUpdate",
     "EvaluationStatusEnum",
     "EvaluationType",
     "EvaluationWebhook",
@@ -123,7 +125,6 @@ __all__ = [
     "Result",
     "Score",
     "SimpleEvaluationOutput",
-    "Span",
     "SpanDetail",
     "SpanStatus",
     "SpanVariant",
@@ -137,6 +138,7 @@ __all__ = [
     "ValidationErrorLocItem",
     "VariantAction",
     "VariantActionEnum",
+    "WithPagination",
     "WorkspaceMemberResponse",
     "WorkspacePermission",
     "WorkspaceResponse",
