@@ -168,10 +168,24 @@ async def prepare_llm_params_and_begin_tracing(
         result (Union[str, dict]): the output of the llm run
     """
 
+    def get_prompt_system(config_params: Dict[str, Any]) -> Union[str, None]:
+        if "prompt_template" in config_params:
+            return config_params["prompt_template"]
+
+        if "prompt_system" in config_params:
+            return config_params["prompt_system"]
+
+        if "base_prompt" in config_params:
+            return config_params["base_prompt"]
+
+        return None
+
+
     if "config_params" in params:
         trace_data = {
             "inputs": list(params["params"].keys()),
-            "prompt_template": params["config_params"]["prompt_template"],
+            "prompt_system": get_prompt_system(params["config_params"]),
+            "prompt_user": params["config_params"].get("prompt_user"),
         }
 
         if isinstance(result, dict):
