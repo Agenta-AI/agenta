@@ -46,7 +46,9 @@ class LLMTracing:
     async def finalize_trace(
         self, client: AsyncObservabilityClient, trace_id: str, status: str
     ) -> bool:
-        return await client.update_trace(trace_id=trace_id, status=status, end_time=datetime.now())
+        return await client.update_trace(
+            trace_id=trace_id, status=status, end_time=datetime.now()
+        )
 
     async def create_span(
         self,
