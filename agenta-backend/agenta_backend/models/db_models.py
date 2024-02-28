@@ -302,29 +302,6 @@ class SpanStatus(BaseModel):
     error: Optional[Error]
 
 
-class SpanDB(Document):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str  # Function or execution name
-    event_type: Optional[str]
-    start_time: datetime
-    duration: Optional[int]
-    status: SpanStatus
-    end_time: datetime = Field(default=datetime.now())
-    inputs: Optional[List[str]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-    created_at: datetime = Field(default=datetime.now())
-
-    class Settings:
-        name = "spans"
-
-
 class Feedback(BaseModel):
     uid: str = Field(default=str(uuid4()))
     user_id: str
@@ -339,7 +316,6 @@ class TraceDB(Document):
     app_id: Optional[str]
     base_id: str
     config_name: str
-    spans: List[PydanticObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
@@ -353,3 +329,28 @@ class TraceDB(Document):
 
     class Settings:
         name = "traces"
+
+
+class SpanDB(Document):
+    trace: Link[TraceDB]
+    parent_span_id: Optional[str]
+    meta: Optional[Dict[str, Any]]
+    event_name: str  # Function or execution name
+    event_type: Optional[str]
+    start_time: datetime
+    duration: Optional[int]
+    status: SpanStatus
+    end_time: datetime = Field(default=datetime.now())
+    inputs: Optional[List[str]]
+    outputs: Optional[List[str]]
+    prompt_user: Optional[str]
+    prompt_system: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+    created_at: datetime = Field(default=datetime.now())
+
+    class Settings:
+        name = "spans"
