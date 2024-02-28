@@ -10,8 +10,8 @@ describe("Evaluations CRUD Operations Test", function () {
 
     context("Executing Evaluations CRUD operations", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.location("pathname").should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/evaluations/results`)
+            cy.location("pathname").should("include", "/evaluations/results")
         })
 
         it("Should successfully create an Evaluation", () => {
