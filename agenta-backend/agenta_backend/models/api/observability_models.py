@@ -52,7 +52,6 @@ class Span(BaseModel):
 
 
 class BaseSpan(BaseModel):
-    trace_id: Optional[str]
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str
@@ -72,7 +71,7 @@ class BaseSpan(BaseModel):
 
 
 class CreateSpan(BaseSpan):
-    pass
+    trace_id: str
 
 
 class LLMInputs(BaseModel):
@@ -142,7 +141,6 @@ class BaseTrace(BaseModel):
     base_id: Optional[str]
     config_name: Optional[str]
     cost: Optional[float]
-    latency: float
     status: str = Field(default=Status.INITIATED)
     token_consumption: Optional[int]
     tags: Optional[List[str]]
@@ -156,7 +154,7 @@ class Trace(BaseTrace):
 
 
 class CreateTrace(BaseTrace):
-    spans: List[str]
+    pass
 
 
 class UpdateTrace(BaseModel):
