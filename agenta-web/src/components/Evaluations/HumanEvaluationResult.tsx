@@ -350,7 +350,11 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                     <DeleteOutlined key="delete" />
                     Delete
                 </Button>
-                <Button type="primary" onClick={() => setIsEvalModalOpen(true)}>
+                <Button
+                    type="primary"
+                    data-cy="new-annotation-modal-button"
+                    onClick={() => setIsEvalModalOpen(true)}
+                >
                     New Annotation
                 </Button>
             </div>

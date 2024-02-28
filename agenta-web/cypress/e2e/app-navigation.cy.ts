@@ -28,19 +28,24 @@ describe("App Navigation without errors", () => {
         cy.get('[data-cy="app-testset-list"]').should("exist")
     })
 
-    it("should navigate successfully to Configure evaluators page", () => {
-        cy.clickLinkAndWait('[data-cy="app-configure-evaluators-link"]')
-        cy.url().should("include", "/evaluations?tab=evaluators")
+    it("should navigate successfully to Automatic Evaluation results evaluators page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluators-link"]')
+        cy.url().should("include", "/evaluations/new-evaluator")
     })
 
-    it("should navigate successfully to Run evaluations page", () => {
-        cy.clickLinkAndWait('[data-cy="app-run-evaluations-link"]')
-        cy.url().should("include", "/evaluations?tab=results")
+    it("should navigate successfully to Automatic Evaluation results page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluations-results-link"]')
+        cy.url().should("include", "/evaluations/results")
     })
 
-    it("should navigate successfully to Annotations", () => {
-        cy.clickLinkAndWait('[data-cy="app-annotations-link"]')
-        cy.location("pathname").should("include", "/annotations")
+    it("should navigate successfully to A/B Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-human-ab-testing-link"]')
+        cy.location("pathname").should("include", "/annotations/human_a_b_testing")
+    })
+
+    it("should navigate successfully to Single Model Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-single-model-test-link"]')
+        cy.location("pathname").should("include", "/annotations/single_model_test")
     })
 
     if (isDemo()) {
