@@ -209,10 +209,13 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
     """
 
     user = await db_manager.get_user(user_uid)
-    span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span_id), SpanDB.trace.user.id == user.id)
+    span_db = await SpanDB.find_one(
+        SpanDB.id == ObjectId(span_id), SpanDB.trace.user.id == user.id
+    )
     app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
         span_db.trace.base_id, span_db.trace.config_name
     )
+
     def convert_variables(span_db: SpanDB):
         """
         Converts a list of variables to a list of dictionaries with name and type information.
@@ -272,9 +275,7 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
             },
             "model_params": {
                 "prompt": {
-                    "system": (
-                        span_db.prompt_system
-                    ),
+                    "system": (span_db.prompt_system),
                     "user": span_db.prompt_user,
                     "variables": convert_variables(span_db),
                 },

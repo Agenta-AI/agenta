@@ -180,7 +180,6 @@ async def prepare_llm_params_and_begin_tracing(
 
         return None
 
-
     if "config_params" in params:
         trace_data = {
             "inputs": list(params["params"].keys()),

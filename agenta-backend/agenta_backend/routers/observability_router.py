@@ -106,9 +106,7 @@ async def delete_span_of_trace(request: Request, span_id: str):
     return True
 
 
-@router.put(
-    "/traces/{trace_id}/", response_model=bool, operation_id="update_trace"
-)
+@router.put("/traces/{trace_id}/", response_model=bool, operation_id="update_trace")
 async def update_trace(
     trace_id: str,
     payload: UpdateTrace,
