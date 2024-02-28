@@ -34,6 +34,20 @@ async def generate(country: str, gender: str):
     token_usage = chat_completion.usage.dict()
     prompt_output = chat_completion.choices[0].message.content
     prompt_cost = ag.calculate_token_usage("gpt-3.5-turbo", token_usage)
+
+    #! NOTE: the use of ag.trace has explicitly become redundant due to the
+    #! fact that tracing has been integrated into the sdk. CHeck app_async for llm 
+    #! example with the explicit trace use
+    await ag.trace(
+        **{
+            **token_usage,
+            "meta": token_usage,
+            "inputs": ["country", "gender"],
+            "outputs": [prompt_output],
+            "prompt_template": ag.config.prompt_template,
+            "cost": prompt_cost,
+        },
+    )
     return {
         "message": prompt_output,
         **{"usage": token_usage},
