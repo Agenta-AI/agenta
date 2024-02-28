@@ -182,7 +182,7 @@ async def prepare_llm_params_and_begin_tracing(
 
     if "config_params" in params:
         trace_data = {
-            "inputs": list(params["params"].keys()),
+            "inputs": params["params"],
             "prompt_system": get_prompt_system(params["config_params"]),
             "prompt_user": params["config_params"].get("prompt_user"),
         }
