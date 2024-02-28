@@ -12,7 +12,7 @@ import {
     SlidersOutlined,
     PlayCircleOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme} from "antd"
+import {Divider, Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -231,6 +231,7 @@ const Sidebar: React.FC = () => {
                                             </Menu.Item>
                                         </Tooltip>
 
+                                        {collapsed && <Divider style={{margin: 0}} />}
                                         <Menu
                                             mode="inline"
                                             selectable={false}
@@ -292,7 +293,7 @@ const Sidebar: React.FC = () => {
                                                 </Tooltip>
                                             </Menu.ItemGroup>
                                         </Menu>
-
+                                        {collapsed && <Divider style={{margin: 0}} />}
                                         <Menu
                                             mode="inline"
                                             selectable={false}
@@ -366,6 +367,7 @@ const Sidebar: React.FC = () => {
                                                 </Tooltip>
                                             </Menu.ItemGroup>
                                         </Menu>
+                                        {collapsed && <Divider style={{margin: 0}} />}
 
                                         <Menu
                                             mode="inline"
