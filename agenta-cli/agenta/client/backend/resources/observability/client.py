@@ -88,12 +88,10 @@ class ObservabilityClient:
         base_id: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
-        latency: float,
         status: typing.Optional[str] = OMIT,
         token_consumption: typing.Optional[int] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
-        spans: typing.List[str],
     ) -> str:
         """
         Parameters:
@@ -105,8 +103,6 @@ class ObservabilityClient:
 
             - cost: typing.Optional[float].
 
-            - latency: float.
-
             - status: typing.Optional[str].
 
             - token_consumption: typing.Optional[int].
@@ -114,15 +110,13 @@ class ObservabilityClient:
             - tags: typing.Optional[typing.List[str]].
 
             - start_time: typing.Optional[dt.datetime].
-
-            - spans: typing.List[str].
         ---
         from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_trace(latency=1.1, spans=["spans"])
+        client.create_trace()
         """
-        _request: typing.Dict[str, typing.Any] = {"latency": latency, "spans": spans}
+        _request: typing.Dict[str, typing.Any] = {}
         if app_id is not OMIT:
             _request["app_id"] = app_id
         if base_id is not OMIT:
@@ -218,7 +212,6 @@ class ObservabilityClient:
     def create_span(
         self,
         *,
-        trace_id: typing.Optional[str] = OMIT,
         parent_span_id: typing.Optional[str] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         event_name: str,
@@ -235,11 +228,10 @@ class ObservabilityClient:
         token_total: typing.Optional[int] = OMIT,
         cost: typing.Optional[float] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
+        trace_id: str,
     ) -> str:
         """
         Parameters:
-            - trace_id: typing.Optional[str].
-
             - parent_span_id: typing.Optional[str].
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
@@ -271,16 +263,16 @@ class ObservabilityClient:
             - cost: typing.Optional[float].
 
             - tags: typing.Optional[typing.List[str]].
+
+            - trace_id: str.
         ---
         from agenta import SpanStatus
         from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_span(event_name="event_name", status=SpanStatus())
+        client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status}
-        if trace_id is not OMIT:
-            _request["trace_id"] = trace_id
+        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status, "trace_id": trace_id}
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
@@ -632,12 +624,10 @@ class AsyncObservabilityClient:
         base_id: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
-        latency: float,
         status: typing.Optional[str] = OMIT,
         token_consumption: typing.Optional[int] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
-        spans: typing.List[str],
     ) -> str:
         """
         Parameters:
@@ -649,8 +639,6 @@ class AsyncObservabilityClient:
 
             - cost: typing.Optional[float].
 
-            - latency: float.
-
             - status: typing.Optional[str].
 
             - token_consumption: typing.Optional[int].
@@ -658,15 +646,13 @@ class AsyncObservabilityClient:
             - tags: typing.Optional[typing.List[str]].
 
             - start_time: typing.Optional[dt.datetime].
-
-            - spans: typing.List[str].
         ---
         from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_trace(latency=1.1, spans=["spans"])
+        await client.create_trace()
         """
-        _request: typing.Dict[str, typing.Any] = {"latency": latency, "spans": spans}
+        _request: typing.Dict[str, typing.Any] = {}
         if app_id is not OMIT:
             _request["app_id"] = app_id
         if base_id is not OMIT:
@@ -762,7 +748,6 @@ class AsyncObservabilityClient:
     async def create_span(
         self,
         *,
-        trace_id: typing.Optional[str] = OMIT,
         parent_span_id: typing.Optional[str] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         event_name: str,
@@ -779,11 +764,10 @@ class AsyncObservabilityClient:
         token_total: typing.Optional[int] = OMIT,
         cost: typing.Optional[float] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
+        trace_id: str,
     ) -> str:
         """
         Parameters:
-            - trace_id: typing.Optional[str].
-
             - parent_span_id: typing.Optional[str].
 
             - meta: typing.Optional[typing.Dict[str, typing.Any]].
@@ -815,16 +799,16 @@ class AsyncObservabilityClient:
             - cost: typing.Optional[float].
 
             - tags: typing.Optional[typing.List[str]].
+
+            - trace_id: str.
         ---
         from agenta import SpanStatus
         from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_span(event_name="event_name", status=SpanStatus())
+        await client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
         """
-        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status}
-        if trace_id is not OMIT:
-            _request["trace_id"] = trace_id
+        _request: typing.Dict[str, typing.Any] = {"event_name": event_name, "status": status, "trace_id": trace_id}
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
         if meta is not OMIT:
