@@ -34,9 +34,13 @@ router = APIRouter()
     operation_id="observability_dashboard",
 )
 async def get_dashboard_data(
-    request: Request, app_id: str, parameters: ObservabilityDashboardDataRequestParams = Depends()
+    request: Request,
+    app_id: str,
+    parameters: ObservabilityDashboardDataRequestParams = Depends(),
 ):
-    dashboard_data = await event_db_manager.retrieve_observability_dashboard(app_id, parameters)
+    dashboard_data = await event_db_manager.retrieve_observability_dashboard(
+        app_id, parameters
+    )
     return dashboard_data
 
 
