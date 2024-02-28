@@ -1786,17 +1786,6 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    """Fetch an app by its name, organization id, and workspace id.
-
-    Args:
-        app_name (str): The name of the app
-        organization_id (str): The ID of the app organization
-        workspace_id (str): The ID of the app workspace
-
-    Returns:
-        AppDB: the instance of the app
-    """
-
     query_expression = {"app_name": app_name}
 
     if isCloudEE():
