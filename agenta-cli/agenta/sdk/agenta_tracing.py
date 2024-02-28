@@ -27,19 +27,14 @@ class LLMTracing:
         config_name: str,
         **kwargs: Dict[str, Any],
     ):
-        # calculate the latency between the trace start time and end time
-        trace_end_time = datetime.now()
-        latency: timedelta = trace_end_time - kwargs["trace_start_time"]  # type: ignore
         trace = await client.create_trace(
             app_id=app_id,
             base_id=base_id,
             config_name=config_name,
             cost=kwargs["cost"],  # type: ignore
-            latency=latency.total_seconds(),
             status="INITIATED",
             token_consumption=kwargs["total_tokens"],  # type: ignore
             tags=[],
-            end_time=trace_end_time,
         )
         return trace
 
