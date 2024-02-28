@@ -10,8 +10,8 @@ describe("Evaluation Comparison Test", function () {
 
     context("Executing Evaluation Comparison Workflow", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.location("pathname").should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/evaluations/results`)
+            cy.location("pathname").should("include", "/evaluations/results")
         })
 
         it("Should create 2 new Evaluations", () => {
