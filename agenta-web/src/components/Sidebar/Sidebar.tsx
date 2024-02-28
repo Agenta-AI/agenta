@@ -5,12 +5,10 @@ import {
     AppstoreOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
-    LineChartOutlined,
     ReadOutlined,
     PhoneOutlined,
     SettingOutlined,
     LogoutOutlined,
-    FormOutlined,
     SlidersOutlined,
     PlayCircleOutlined,
 } from "@ant-design/icons"
@@ -27,6 +25,9 @@ import {isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLocalStorage} from "usehooks-ts"
+import Image from "next/image"
+import abTesting from "@/media/testing.png"
+import singleModel from "@/media/score.png"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
@@ -49,6 +50,11 @@ const useStyles = createUseStyles({
     }),
     siderWrapper: ({themeMode}: StyleProps) => ({
         border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
+    }),
+    evaluationImg: ({themeMode}: StyleProps) => ({
+        width: 20,
+        height: 20,
+        filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
     sliderContainer: {
         display: "flex",
@@ -231,7 +237,7 @@ const Sidebar: React.FC = () => {
                                             className={classes.menuContainer}
                                         >
                                             <Menu.ItemGroup
-                                                title={!collapsed && "Evaluations"}
+                                                title={!collapsed && "Automatic Evaluation"}
                                                 className={classes.subMenuContainer}
                                             >
                                                 <Tooltip
@@ -249,7 +255,7 @@ const Sidebar: React.FC = () => {
                                                         <Link
                                                             data-cy="app-evaluators-link"
                                                             href={getNavigationPath(
-                                                                "evaluations?tab=evaluators",
+                                                                "evaluations/new-evaluator",
                                                             )}
                                                             className={classes.menuLinks}
                                                         >
@@ -274,7 +280,7 @@ const Sidebar: React.FC = () => {
                                                         <Link
                                                             data-cy="app-evaluations-results-link"
                                                             href={getNavigationPath(
-                                                                "evaluations?tab=results",
+                                                                "evaluations/results",
                                                             )}
                                                             className={classes.menuLinks}
                                                         >
@@ -293,7 +299,7 @@ const Sidebar: React.FC = () => {
                                             className={classes.menuContainer}
                                         >
                                             <Menu.ItemGroup
-                                                title={!collapsed && "Annotations"}
+                                                title={!collapsed && "Human Evaluation"}
                                                 className={classes.subMenuContainer}
                                             >
                                                 <Tooltip
@@ -304,7 +310,16 @@ const Sidebar: React.FC = () => {
                                                             : ""
                                                     }
                                                 >
-                                                    <Menu.Item style={{paddingLeft: 16}}>
+                                                    <Menu.Item
+                                                        style={{paddingLeft: 16}}
+                                                        icon={
+                                                            <Image
+                                                                src={abTesting}
+                                                                alt="A/B testing"
+                                                                className={classes.evaluationImg}
+                                                            />
+                                                        }
+                                                    >
                                                         <Link
                                                             data-cy="app-human-ab-testing-link"
                                                             href={getNavigationPath(
@@ -326,7 +341,16 @@ const Sidebar: React.FC = () => {
                                                             : ""
                                                     }
                                                 >
-                                                    <Menu.Item style={{paddingLeft: 16}}>
+                                                    <Menu.Item
+                                                        style={{paddingLeft: 16}}
+                                                        icon={
+                                                            <Image
+                                                                src={singleModel}
+                                                                alt="A/B testing"
+                                                                className={classes.evaluationImg}
+                                                            />
+                                                        }
+                                                    >
                                                         <Link
                                                             data-cy="app-single-model-test-link"
                                                             href={getNavigationPath(
