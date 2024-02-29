@@ -34,12 +34,17 @@ router = APIRouter()
     operation_id="observability_dashboard",
 )
 async def get_dashboard_data(
-    request: Request, parameters: ObservabilityDashboardDataRequestParams = Depends()
+    request: Request,
+    app_id: str,
+    parameters: ObservabilityDashboardDataRequestParams = Depends(),
 ):
-    return event_db_manager.fetch_mock_observability_dashboard(parameters)
+    dashboard_data = await event_db_manager.retrieve_observability_dashboard(
+        app_id, parameters
+    )
+    return dashboard_data
 
 
-@router.post("/trace/", response_model=str, operation_id="create_trace")
+@router.post("/traces/", response_model=str, operation_id="create_trace")
 async def create_trace(request: Request, payload: CreateTrace):
     trace_id = await event_db_manager.create_app_trace(payload, request.state.user_id)
     return trace_id
@@ -61,13 +66,15 @@ async def create_span(
 )
 async def get_spans_of_trace(
     request: Request,
+    app_id: str,
     pagination: PaginationParam = Depends(),
     filters: GenerationFilterParams = Depends(),
     sorters: SorterParams = Depends(),
 ):
     if filters and filters.type == "generation":
-        spans = await event_db_manager.fetch_mock_generation(
+        spans = await event_db_manager.fetch_generation_spans(
             request.state.user_id,
+            app_id,
             pagination,
             filters,
             sorters,
@@ -87,22 +94,28 @@ async def get_span_of_trace(
     type: str = Query(default="generation"),
 ):
     if type == "generation":
-        spans = await event_db_manager.fetch_mock_generation_detail(
+        spans = await event_db_manager.fetch_generation_span_detail(
             span_id, request.state.user_id
         )
         return spans
     return []
 
 
-@router.put(
-    "/traces/{trace_id}/", response_model=bool, operation_id="update_trace_status"
+@router.delete(
+    "/spans/{span_id}/", response_model=bool, operation_id="delete_span_of_trace"
 )
-async def update_trace_status(
+async def delete_span_of_trace(request: Request, span_id: str):
+    await event_db_manager.delete_span(span_id)
+    return True
+
+
+@router.put("/traces/{trace_id}/", response_model=bool, operation_id="update_trace")
+async def update_trace(
     trace_id: str,
     payload: UpdateTrace,
     request: Request,
 ):
-    trace = await event_db_manager.trace_status_update(
+    trace = await event_db_manager.trace_update(
         trace_id, payload, request.state.user_id
     )
     return trace

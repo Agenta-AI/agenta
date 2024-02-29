@@ -4,8 +4,6 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .span_status import SpanStatus
-from .span_variant import SpanVariant
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -13,14 +11,8 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class Span(pydantic.BaseModel):
-    id: str
-    created_at: dt.datetime
-    variant: SpanVariant
-    environment: str
-    status: SpanStatus
-    metadata: typing.Dict[str, typing.Any]
-    user_id: str
+class EvaluationScenarioScoreUpdate(pydantic.BaseModel):
+    score: float
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

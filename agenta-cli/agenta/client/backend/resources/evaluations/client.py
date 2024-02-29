@@ -33,7 +33,7 @@ class EvaluationsClient:
         *,
         app_id: str,
         resource_type: str,
-        resource_ids: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        resource_ids: typing.Union[typing.Optional[str], typing.List[str]],
     ) -> typing.List[str]:
         """
         Fetches evaluation ids for a given resource type and id.
@@ -54,18 +54,12 @@ class EvaluationsClient:
 
             - resource_type: str.
 
-            - resource_ids: typing.Optional[typing.Union[str, typing.List[str]]].
+            - resource_ids: typing.Union[typing.Optional[str], typing.List[str]].
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation_ids(
-            app_id="app_id",
-            resource_type="resource_type",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_ids(app_id="app_id", resource_type="resource_type")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -107,13 +101,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_list_evaluations(
-            app_id="app_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_list_evaluations(app_id="app_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -167,24 +156,16 @@ class EvaluationsClient:
 
             - correct_answer_column: typing.Optional[str].
         ---
-        from aybruhm import LlmRunRateLimit
+        from agenta import LlmRunRateLimit
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.create_evaluation(
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_evaluation(
             app_id="app_id",
             variant_ids=["variant_ids"],
             evaluators_configs=["evaluators_configs"],
             testset_id="testset_id",
-            rate_limit=LlmRunRateLimit(
-                batch_size=1,
-                max_retries=1,
-                retry_delay=1,
-                delay_between_batches=1,
-            ),
+            rate_limit=LlmRunRateLimit(batch_size=1, max_retries=1, retry_delay=1, delay_between_batches=1),
         )
         """
         _request: typing.Dict[str, typing.Any] = {
@@ -234,13 +215,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.delete_evaluations(
-            evaluations_ids=["evaluations_ids"],
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_evaluations(evaluations_ids=["evaluations_ids"])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -277,13 +253,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation_status(
-            evaluation_id="evaluation_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_status(evaluation_id="evaluation_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -320,13 +291,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation_results(
-            evaluation_id="evaluation_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_results(evaluation_id="evaluation_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -367,13 +333,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation_scenarios(
-            evaluation_id="evaluation_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_scenarios(evaluation_id="evaluation_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -409,13 +370,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation(
-            evaluation_id="evaluation_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation(evaluation_id="evaluation_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -446,11 +402,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.webhook_example_fake()
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.webhook_example_fake()
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -487,13 +440,8 @@ class EvaluationsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.evaluations.fetch_evaluation_scenarios(
-            evaluations_ids="evaluations_ids",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.fetch_evaluation_scenarios(evaluations_ids="evaluations_ids")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -525,7 +473,7 @@ class AsyncEvaluationsClient:
         *,
         app_id: str,
         resource_type: str,
-        resource_ids: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        resource_ids: typing.Union[typing.Optional[str], typing.List[str]],
     ) -> typing.List[str]:
         """
         Fetches evaluation ids for a given resource type and id.
@@ -546,18 +494,12 @@ class AsyncEvaluationsClient:
 
             - resource_type: str.
 
-            - resource_ids: typing.Optional[typing.Union[str, typing.List[str]]].
+            - resource_ids: typing.Union[typing.Optional[str], typing.List[str]].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation_ids(
-            app_id="app_id",
-            resource_type="resource_type",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_ids(app_id="app_id", resource_type="resource_type")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -597,15 +539,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - app_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_list_evaluations(
-            app_id="app_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_list_evaluations(app_id="app_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -659,24 +596,16 @@ class AsyncEvaluationsClient:
 
             - correct_answer_column: typing.Optional[str].
         ---
-        from aybruhm import LlmRunRateLimit
-        from agenta.client import AsyncAybruhmApi
+        from agenta import LlmRunRateLimit
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.create_evaluation(
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_evaluation(
             app_id="app_id",
             variant_ids=["variant_ids"],
             evaluators_configs=["evaluators_configs"],
             testset_id="testset_id",
-            rate_limit=LlmRunRateLimit(
-                batch_size=1,
-                max_retries=1,
-                retry_delay=1,
-                delay_between_batches=1,
-            ),
+            rate_limit=LlmRunRateLimit(batch_size=1, max_retries=1, retry_delay=1, delay_between_batches=1),
         )
         """
         _request: typing.Dict[str, typing.Any] = {
@@ -724,15 +653,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluations_ids: typing.List[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.delete_evaluations(
-            evaluations_ids=["evaluations_ids"],
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_evaluations(evaluations_ids=["evaluations_ids"])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -767,15 +691,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluation_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation_status(
-            evaluation_id="evaluation_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_status(evaluation_id="evaluation_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -810,15 +729,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluation_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation_results(
-            evaluation_id="evaluation_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_results(evaluation_id="evaluation_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -857,15 +771,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluation_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation_scenarios(
-            evaluation_id="evaluation_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_scenarios(evaluation_id="evaluation_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -899,15 +808,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluation_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation(
-            evaluation_id="evaluation_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation(evaluation_id="evaluation_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -936,13 +840,10 @@ class AsyncEvaluationsClient:
         _description_
 
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.webhook_example_fake()
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.webhook_example_fake()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -977,15 +878,10 @@ class AsyncEvaluationsClient:
         Parameters:
             - evaluations_ids: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.evaluations.fetch_evaluation_scenarios(
-            evaluations_ids="evaluations_ids",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.fetch_evaluation_scenarios(evaluations_ids="evaluations_ids")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
