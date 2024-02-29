@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import Request, Query, Depends
 
@@ -20,7 +20,6 @@ from agenta_backend.models.api.observability_models import (
     CreateTrace,
     UpdateTrace,
     GenerationFilterParams,
-    ObservabilityDashboardData,
     ObservabilityDashboardDataRequestParams,
 )
 
@@ -30,7 +29,6 @@ router = APIRouter()
 
 @router.get(
     "/dashboard/",
-    response_model=ObservabilityDashboardData,
     operation_id="observability_dashboard",
 )
 async def get_dashboard_data(
@@ -38,10 +36,16 @@ async def get_dashboard_data(
     app_id: str,
     parameters: ObservabilityDashboardDataRequestParams = Depends(),
 ):
-    dashboard_data = await event_db_manager.retrieve_observability_dashboard(
-        app_id, parameters
-    )
-    return dashboard_data
+    try:
+        dashboard_data = await event_db_manager.retrieve_observability_dashboard(
+            app_id, parameters
+        )
+        return dashboard_data
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return []
 
 
 @router.post("/traces/", response_model=str, operation_id="create_trace")
