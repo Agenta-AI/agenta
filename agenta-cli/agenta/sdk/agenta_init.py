@@ -29,8 +29,7 @@ class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
     _instance = None
-    setup = None
-    config = None
+    _config_data = None
 
     def __new__(cls):
         if not cls._instance:
@@ -84,12 +83,14 @@ class AgentaSingleton:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
                     )
-        self.base_id = base_id
-        self.host = host
-        self.app_name = app_name
-        self.base_name = base_name
-        self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host)
+        self._config_data = {
+            "base_id": base_id,
+            "host": host,
+            "app_name": app_name,
+            "base_name": base_name,
+            "api_key": api_key,
+            "config": Config(base_id=base_id, host=host)
+        }
 
     def get_app(self, app_name: str) -> str:
         apps = client.apps.list_apps(app_name=app_name)
@@ -106,6 +107,15 @@ class AgentaSingleton:
 
         base_id = bases[0].base_id
         return base_id
+
+    def get_current_config(self):
+        """
+        Retrieves the current active configuration
+        """
+
+        if self._config_data is None:
+            raise RuntimeError("AgentaSingleton has not been initialized")
+        return self._config_data
 
 
 class Config:
@@ -224,8 +234,8 @@ async def trace(**kwargs):
     """Function to start llm tracing."""
 
     singleton = AgentaSingleton()
-
-    app_id = singleton.get_app(singleton.app_name)
-    base_id = singleton.get_app_base(app_id, singleton.base_name)  # type: ignore
-    llm_tracing = LLMTracing(singleton.host, singleton.api_key)
+    config_data = singleton.get_current_config()
+    app_id = config_data["app_id"]
+    base_id = config_data["base_id"]  # type: ignore
+    llm_tracing = LLMTracing(config_data["host"], config_data["api_key"])
     await llm_tracing.start_tracing(app_id, base_id, "default", **kwargs)
