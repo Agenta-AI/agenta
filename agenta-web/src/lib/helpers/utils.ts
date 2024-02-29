@@ -422,3 +422,18 @@ export const snakeToTitle = (str: string) => {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ")
 }
+
+export const getInitials = (str: string, limit = 2) => {
+    let initialText = "E"
+
+    try {
+        initialText = str
+            ?.split(" ")
+            .slice(0, limit)
+            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
+    } catch (error) {
+        console.log("Error using getInitials", error)
+    }
+
+    return initialText
+}

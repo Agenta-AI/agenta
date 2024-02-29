@@ -1,12 +1,13 @@
 import {GenericObject, JSSTheme, PaginationQuery} from "@/lib/Types"
-import {Button, Dropdown, Input} from "antd"
+import {Button, Dropdown, Input, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {FilterDropdownProps} from "antd/es/table/interface"
 import dayjs from "dayjs"
-import React, {useMemo} from "react"
+import React, {ReactNode, useMemo} from "react"
 import {createUseStyles} from "react-jss"
 import {Resizable} from "react-resizable"
 import EnforceAntdStyles from "../EnforceAntdStyles/EnforceAntdStyles"
+import {CheckOutlined} from "@ant-design/icons"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     filterRoot: {
@@ -23,6 +24,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         bottom: 0,
         cursor: "col-resize",
         zIndex: 1,
+    },
+    dropdownMenu: {
+        "&>.ant-dropdown-menu-item": {
+            "& .anticon-check": {
+                display: "none",
+            },
+        },
+        "&>.ant-dropdown-menu-item-selected": {
+            "&:not(:hover)": {
+                backgroundColor: "transparent !important",
+            },
+            "& .anticon-check": {
+                display: "inline-flex !important",
+            },
+        },
     },
 }))
 
@@ -83,6 +99,7 @@ interface ColsDropdownProps<T> {
 }
 
 export const ColsDropdown = <T,>({columns, hiddenCols, setHiddenCols}: ColsDropdownProps<T>) => {
+    const classes = useStyles()
     const shownCols = useMemo(
         () =>
             columns
@@ -106,9 +123,15 @@ export const ColsDropdown = <T,>({columns, hiddenCols, setHiddenCols}: ColsDropd
                 selectedKeys: shownCols,
                 items: columns.map((item) => ({
                     key: item.key?.toString()!,
-                    label: item.title,
+                    label: (
+                        <Space>
+                            <CheckOutlined />
+                            <>{item.title as ReactNode}</>
+                        </Space>
+                    ),
                 })) as any,
                 onClick: ({key}) => onColToggle(key),
+                className: classes.dropdownMenu,
             }}
         >
             <Button>
