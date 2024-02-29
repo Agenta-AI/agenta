@@ -230,9 +230,9 @@ export default function AutomaticEvaluationResult({
             dataIndex: "action",
             key: "action",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let actionText = "View annotation"
+                let actionText = "View evaluation"
                 if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
-                    actionText = "Continue annotation"
+                    actionText = "Continue evaluation"
                 }
                 return (
                     <div className="hover-button-wrapper">

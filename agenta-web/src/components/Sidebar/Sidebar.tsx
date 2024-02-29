@@ -352,7 +352,7 @@ const Sidebar: React.FC = () => {
                                                     >
                                                         {collapsed
                                                             ? "Single model test allows you to score the performance of a single LLM app manually."
-                                                            : "Single Model Eval"}
+                                                            : "Single Model Eval."}
                                                     </Link>
                                                 </Menu.Item>
                                             </Tooltip>
