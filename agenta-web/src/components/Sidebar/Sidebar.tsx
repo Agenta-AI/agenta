@@ -298,7 +298,7 @@ const Sidebar: React.FC = () => {
                                                 placement="right"
                                                 title={
                                                     !collapsed
-                                                        ? "A/B tests allow you to compare the performance of two different variants manually."
+                                                        ? "A/B evaluation allow you to compare the performance of two different variants manually."
                                                         : ""
                                                 }
                                             >
@@ -307,7 +307,7 @@ const Sidebar: React.FC = () => {
                                                     icon={
                                                         <Image
                                                             src={abTesting}
-                                                            alt="A/B testing"
+                                                            alt="A/B Evaluation"
                                                             className={classes.evaluationImg}
                                                         />
                                                     }
@@ -321,7 +321,7 @@ const Sidebar: React.FC = () => {
                                                     >
                                                         {collapsed
                                                             ? "A/B tests allow you to compare the performance of two different variants manually."
-                                                            : "A/B Test"}
+                                                            : "A/B Evaluation"}
                                                     </Link>
                                                 </Menu.Item>
                                             </Tooltip>
@@ -329,7 +329,7 @@ const Sidebar: React.FC = () => {
                                                 placement="right"
                                                 title={
                                                     !collapsed
-                                                        ? "Single model test allows you to score the performance of a single LLM app manually."
+                                                        ? "Single model evaluation allows you to score the performance of a single LLM app manually."
                                                         : ""
                                                 }
                                             >
@@ -338,7 +338,7 @@ const Sidebar: React.FC = () => {
                                                     icon={
                                                         <Image
                                                             src={singleModel}
-                                                            alt="A/B testing"
+                                                            alt="Single Model Evaluation"
                                                             className={classes.evaluationImg}
                                                         />
                                                     }
@@ -352,7 +352,7 @@ const Sidebar: React.FC = () => {
                                                     >
                                                         {collapsed
                                                             ? "Single model test allows you to score the performance of a single LLM app manually."
-                                                            : "Single Model Test"}
+                                                            : "Single Model Evaluation"}
                                                     </Link>
                                                 </Menu.Item>
                                             </Tooltip>

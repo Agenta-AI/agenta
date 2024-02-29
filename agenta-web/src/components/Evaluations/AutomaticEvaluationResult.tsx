@@ -279,7 +279,7 @@ export default function AutomaticEvaluationResult({
                     data-cy="new-annotation-modal-button"
                     onClick={() => setIsEvalModalOpen(true)}
                 >
-                    New Annotation
+                    New Evaluation
                 </Button>
             </div>
 
