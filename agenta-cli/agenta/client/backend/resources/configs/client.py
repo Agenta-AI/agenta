@@ -42,13 +42,8 @@ class ConfigsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.configs.get_config(
-            base_id="base_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_config(base_id="base_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -93,16 +88,8 @@ class ConfigsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.configs.save_config(
-            base_id="base_id",
-            config_name="config_name",
-            parameters={},
-            overwrite=True,
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.save_config(base_id="base_id", config_name="config_name", parameters={}, overwrite=True)
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -135,13 +122,8 @@ class ConfigsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.configs.get_config_deployment_revision(
-            deployment_revision_id="deployment_revision_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_config_deployment_revision(deployment_revision_id="deployment_revision_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -169,13 +151,8 @@ class ConfigsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.configs.revert_deployment_revision(
-            deployment_revision_id="deployment_revision_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.revert_deployment_revision(deployment_revision_id="deployment_revision_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -216,15 +193,10 @@ class AsyncConfigsClient:
 
             - environment_name: typing.Optional[str].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.configs.get_config(
-            base_id="base_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_config(base_id="base_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -267,18 +239,10 @@ class AsyncConfigsClient:
 
             - overwrite: bool.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.configs.save_config(
-            base_id="base_id",
-            config_name="config_name",
-            parameters={},
-            overwrite=True,
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.save_config(base_id="base_id", config_name="config_name", parameters={}, overwrite=True)
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -311,15 +275,10 @@ class AsyncConfigsClient:
         Parameters:
             - deployment_revision_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.configs.get_config_deployment_revision(
-            deployment_revision_id="deployment_revision_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_config_deployment_revision(deployment_revision_id="deployment_revision_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -347,15 +306,10 @@ class AsyncConfigsClient:
         Parameters:
             - deployment_revision_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.configs.revert_deployment_revision(
-            deployment_revision_id="deployment_revision_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.revert_deployment_revision(deployment_revision_id="deployment_revision_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",

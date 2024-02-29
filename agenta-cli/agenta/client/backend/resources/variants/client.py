@@ -95,13 +95,8 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.get_variant(
-            variant_id="variant_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_variant(variant_id="variant_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -150,19 +145,11 @@ class VariantsClient:
 
             - env_vars: typing.Optional[DockerEnvVars].
         ---
-        from aybruhm import VariantAction, VariantActionEnum
+        from agenta import VariantAction, VariantActionEnum
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.start_variant(
-            variant_id="variant_id",
-            action=VariantAction(
-                action=VariantActionEnum.START,
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.start_variant(variant_id="variant_id", action=VariantAction(action=VariantActionEnum.START))
         """
         _request: typing.Dict[str, typing.Any] = {"action": action}
         if env_vars is not OMIT:
@@ -202,13 +189,8 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.remove_variant(
-            variant_id="variant_id",
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.remove_variant(variant_id="variant_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -252,14 +234,8 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.update_variant_parameters(
-            variant_id="variant_id",
-            parameters={},
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_variant_parameters(variant_id="variant_id", parameters={})
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -300,20 +276,11 @@ class VariantsClient:
 
             - request: Image.
         ---
-        from aybruhm import Image
+        from agenta import Image
         from agenta.client import AgentaApi
 
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.update_variant_image(
-            variant_id="variant_id",
-            request=Image(
-                docker_id="docker_id",
-                tags="tags",
-            ),
-        )
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_variant_image(variant_id="variant_id", request=Image(docker_id="docker_id", tags="tags"))
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -402,15 +369,10 @@ class AsyncVariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.variants.get_variant(
-            variant_id="variant_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_variant(variant_id="variant_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -459,19 +421,11 @@ class AsyncVariantsClient:
 
             - env_vars: typing.Optional[DockerEnvVars].
         ---
-        from aybruhm import VariantAction, VariantActionEnum
-        from agenta.client import AsyncAybruhmApi
+        from agenta import VariantAction, VariantActionEnum
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.variants.start_variant(
-            variant_id="variant_id",
-            action=VariantAction(
-                action=VariantActionEnum.START,
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.start_variant(variant_id="variant_id", action=VariantAction(action=VariantActionEnum.START))
         """
         _request: typing.Dict[str, typing.Any] = {"action": action}
         if env_vars is not OMIT:
@@ -509,15 +463,10 @@ class AsyncVariantsClient:
         Parameters:
             - variant_id: str.
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.variants.remove_variant(
-            variant_id="variant_id",
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.remove_variant(variant_id="variant_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -559,16 +508,10 @@ class AsyncVariantsClient:
 
             - parameters: typing.Dict[str, typing.Any].
         ---
-        from agenta.client import AsyncAybruhmApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.variants.update_variant_parameters(
-            variant_id="variant_id",
-            parameters={},
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_variant_parameters(variant_id="variant_id", parameters={})
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
@@ -611,20 +554,11 @@ class AsyncVariantsClient:
 
             - request: Image.
         ---
-        from aybruhm import Image
-        from agenta.client import AsyncAybruhmApi
+        from agenta import Image
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAybruhmApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        await client.variants.update_variant_image(
-            variant_id="variant_id",
-            request=Image(
-                docker_id="docker_id",
-                tags="tags",
-            ),
-        )
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_variant_image(variant_id="variant_id", request=Image(docker_id="docker_id", tags="tags"))
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",

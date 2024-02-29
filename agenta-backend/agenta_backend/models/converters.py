@@ -519,27 +519,29 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
     )
 
 
-async def spans_to_pydantic(spans: List[ObjectId], trace_db: TraceDB) -> List[Span]:
-    app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
-    spans_db = [
-        await SpanDB.find_one(SpanDB.id == ObjectId(span_id)) for span_id in spans
-    ]
-    return [
-        Span(
+async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
+    spans = []
+    for span_db in spans_db:
+        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+            span_db.trace.base_id, span_db.trace.config_name
+        )
+
+        span = Span(
             id=str(span_db.id),
-            created_at=span_db.created_at,
+            created_at=span_db.created_at.isoformat(),
             variant=SpanVariant(
                 variant_id=str(app_variant_db.id),
                 variant_name=app_variant_db.variant_name,
                 revision=app_variant_db.revision,
             ),
             environment="",
-            status=SpanStatus(value=trace_db.status.value, error=trace_db.status.error),
+            status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
             metadata=span_db.meta,
-            user_id=str(trace_db.user.id),
-        ).dict(exclude_unset=True)
-        for span_db in spans_db
-    ]
+            user_id=str(span_db.trace.user.id),  # Assuming trace_db exists
+        )
+        spans.append(span.dict(exclude_unset=True))
+
+    return spans
 
 
 def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> FeedbackOutput:

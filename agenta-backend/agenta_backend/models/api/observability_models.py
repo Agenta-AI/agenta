@@ -5,7 +5,6 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
-
 class GenerationFilterParams(BaseModel):
     type: str = Field("generation")
     environment: Optional[str]
@@ -17,28 +16,6 @@ class ObservabilityDashboardDataRequestParams(BaseModel):
     endTime: Optional[int]
     environment: Optional[str]
     variant: Optional[str]
-
-
-class BaseSpan(BaseModel):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str
-    event_type: Optional[str]
-    start_time: datetime = Field(default=datetime.now())
-    duration: Optional[int]
-    status: str
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-
-
-class CreateSpan(BaseSpan):
-    pass
 
 
 class Error(BaseModel):
@@ -71,6 +48,29 @@ class Span(BaseModel):
     status: SpanStatus
     metadata: Dict[str, Any]
     user_id: str
+
+
+class BaseSpan(BaseModel):
+    parent_span_id: Optional[str]
+    meta: Optional[Dict[str, Any]]
+    event_name: str
+    event_type: Optional[str]
+    start_time: datetime = Field(default=datetime.now())
+    duration: Optional[int]
+    status: SpanStatus
+    inputs: Optional[Dict[str, Any]]
+    outputs: Optional[List[str]]
+    prompt_system: Optional[str]
+    prompt_user: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+
+
+class CreateSpan(BaseSpan):
+    trace_id: str
 
 
 class LLMInputs(BaseModel):
@@ -137,14 +137,13 @@ class UpdateFeedback(BaseModel):
 
 class BaseTrace(BaseModel):
     app_id: Optional[str]
-    variant_id: Optional[str]
+    base_id: Optional[str]
+    config_name: Optional[str]
     cost: Optional[float]
-    latency: float
     status: str = Field(default=Status.INITIATED)
     token_consumption: Optional[int]
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
-    end_time: Optional[datetime]
 
 
 class Trace(BaseTrace):
@@ -154,8 +153,9 @@ class Trace(BaseTrace):
 
 
 class CreateTrace(BaseTrace):
-    spans: List[str]
+    pass
 
 
 class UpdateTrace(BaseModel):
     status: str
+    end_time: datetime

@@ -77,7 +77,9 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
-        return await execute_function(func, *args, **func_params)
+        return await execute_function(
+            func, *args, **{"params": func_params, "config_params": config_params}
+        )
 
     @functools.wraps(func)
     async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -90,7 +92,11 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             agenta.config.pull(config_name=kwargs["config"])
         else:
             agenta.config.pull(config_name="default")
-        return await execute_function(func, *args, **func_params)
+
+        config = agenta.config.all()
+        return await execute_function(
+            func, *args, **{"params": func_params, "config_params": config}
+        )
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
@@ -152,6 +158,46 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
+async def prepare_llm_params_and_begin_tracing(
+    params: Dict[str, Any], result: Union[str, dict]
+) -> None:
+    """Prepares LLM parameters and begins tracing.
+
+    Args:
+        params (Dict[str, Any]): the LLM app parameters
+        result (Union[str, dict]): the output of the llm run
+    """
+
+    def get_prompt_system(config_params: Dict[str, Any]) -> Union[str, None]:
+        if "prompt_template" in config_params:
+            return config_params["prompt_template"]
+
+        if "prompt_system" in config_params:
+            return config_params["prompt_system"]
+
+        if "base_prompt" in config_params:
+            return config_params["base_prompt"]
+
+        return None
+
+    if "config_params" in params:
+        trace_data = {
+            "inputs": params["params"],
+            "prompt_system": get_prompt_system(params["config_params"]),
+            "prompt_user": params["config_params"].get("prompt_user"),
+        }
+
+        if isinstance(result, dict):
+            trace_data["outputs"] = [result.get("message")]
+            trace_data["cost"] = result.get("cost")
+            trace_data["meta"] = result.get("usage")
+            trace_data.update(result["usage"])
+        else:
+            trace_data["outputs"] = [result]
+
+        await agenta.trace(**trace_data)
+
+
 async def execute_function(
     func: Callable[..., Any], *args, **func_params
 ) -> Union[Dict[str, Any], JSONResponse]:
@@ -166,20 +212,24 @@ async def execute_function(
         is_coroutine_function = inspect.iscoroutinefunction(func)
         start_time = time.perf_counter()
         if is_coroutine_function:
-            result = await func(*args, **func_params)
+            result = await func(*args, **func_params["params"])
         else:
-            result = func(*args, **func_params)
+            result = func(*args, **func_params["params"])
         end_time = time.perf_counter()
         latency = end_time - start_time
+
+        # Prepare llm arguments and begins tracing
+        await prepare_llm_params_and_begin_tracing(func_params, result)
 
         if isinstance(result, Context):
             save_context(result)
         if isinstance(result, Dict):
             return FuncResponse(**result, latency=round(latency, 4)).dict()
         if isinstance(result, str):
-            return FuncResponse(message=result, latency=round(latency, 4)).dict()
+            return FuncResponse(message=result, latency=round(latency, 4)).dict()  # type: ignore
     except Exception as e:
         return handle_exception(e)
+    return FuncResponse(message="Unexpected error occurred", latency=round(latency, 4)).dict()  # type: ignore
 
 
 def handle_exception(e: Exception) -> JSONResponse:

@@ -47,7 +47,7 @@ def add_variant_to_server(
     )
     for attempt in range(retries):
         try:
-            response = client.add_variant_from_image(
+            response = client.apps.add_variant_from_image(
                 app_id=app_id,
                 variant_name=f"{base_name.lower()}.default",
                 base_name=base_name,

@@ -291,27 +291,15 @@ class EvaluationScenarioDB(Document):
         name = "new_evaluation_scenarios"
 
 
-class SpanDB(Document):
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str  # Function or execution name
-    event_type: Optional[str]
-    start_time: datetime
-    duration: Optional[int]
-    status: Result
-    end_time: datetime = Field(default=datetime.now())
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_template: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
-    created_at: datetime = Field(default=datetime.now())
+class SpanEnumStatus(str, Enum):
+    INITIATED = "INITIATED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
 
-    class Settings:
-        name = "spans"
+
+class SpanStatus(BaseModel):
+    value: Optional[SpanEnumStatus]
+    error: Optional[Error]
 
 
 class Feedback(BaseModel):
@@ -326,12 +314,12 @@ class Feedback(BaseModel):
 
 class TraceDB(Document):
     app_id: Optional[str]
-    variant_id: str
-    spans: List[PydanticObjectId]
+    base_id: str
+    config_name: str
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
-    latency: float
+    latency: Optional[float]
     status: str  # initiated, completed, stopped, cancelled, failed
     type: str = Field(default="generation")
     token_consumption: Optional[int]
@@ -341,3 +329,28 @@ class TraceDB(Document):
 
     class Settings:
         name = "traces"
+
+
+class SpanDB(Document):
+    trace: Link[TraceDB]
+    parent_span_id: Optional[str]
+    meta: Optional[Dict[str, Any]]
+    event_name: str  # Function or execution name
+    event_type: Optional[str]
+    start_time: datetime
+    duration: Optional[int]
+    status: SpanStatus
+    end_time: datetime = Field(default=datetime.now())
+    inputs: Optional[Dict[str, Any]]
+    outputs: Optional[List[str]]
+    prompt_user: Optional[str]
+    prompt_system: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+    created_at: datetime = Field(default=datetime.now())
+
+    class Settings:
+        name = "spans"
