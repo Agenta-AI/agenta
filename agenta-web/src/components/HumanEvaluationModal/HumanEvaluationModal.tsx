@@ -357,7 +357,7 @@ const HumanEvaluationModal = ({
                     setSelectedTestset({name: "Select a Test set"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
-                title="Start a New Annotation"
+                title="Start a New Evaluation"
                 footer={null}
             >
                 <Spin spinning={areAppVariantsLoading}>
