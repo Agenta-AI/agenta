@@ -4,8 +4,7 @@ import {useSession} from "@/hooks/useSession"
 import {GenericObject} from "@/lib/Types"
 import {getColorFromStr} from "@/lib/helpers/colors"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import {isDemo} from "@/lib/helpers/utils"
-import {getInitials} from "@/lib/helpers/utils_ee"
+import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {
     ApartmentOutlined,
     AppstoreOutlined,
@@ -16,6 +15,7 @@ import {
     FormOutlined,
     LineChartOutlined,
     LogoutOutlined,
+    PartitionOutlined,
     PhoneOutlined,
     ReadOutlined,
     RocketOutlined,
@@ -107,6 +107,13 @@ export const useSidebarConfig = () => {
                     tooltip: "Dashboard view of traces and generations",
                     link: `/apps/${appId}/observability`,
                     icon: <DashboardOutlined />,
+                },
+                {
+                    key: "app-observability-traces-link",
+                    title: "Traces",
+                    tooltip: "Traces and their details",
+                    link: `/apps/${appId}/observability/traces`,
+                    icon: <PartitionOutlined />,
                 },
                 {
                     key: "app-observability-generations-link",

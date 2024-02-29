@@ -508,7 +508,7 @@ export type ComparisonResultRow = {
 export type RequestMetadata = {
     cost: number
     latency: number
-    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+    usage: {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
 }
 
 export type WithPagination<T> = {
