@@ -29,6 +29,7 @@ class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
     _instance = None
+    setup = None
     _config_data = None
 
     def __new__(cls):
@@ -42,6 +43,7 @@ class AgentaSingleton:
         base_name: Optional[str] = None,
         api_key: Optional[str] = None,
         base_id: Optional[str] = None,
+        app_id: Optional[str] = None,
         host: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
@@ -83,13 +85,15 @@ class AgentaSingleton:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
                     )
+
         self._config_data = {
             "base_id": base_id,
             "host": host,
+            "app_id": os.environ.get("AGENTA_APP_ID") if not app_id else app_id,
             "app_name": app_name,
             "base_name": base_name,
             "api_key": api_key,
-            "config": Config(base_id=base_id, host=host)
+            "config": Config(base_id=base_id, host=host),
         }
 
     def get_app(self, app_name: str) -> str:
@@ -227,7 +231,8 @@ def init(app_name=None, base_name=None, **kwargs):
     """
     singleton = AgentaSingleton()
     singleton.init(app_name=app_name, base_name=base_name, **kwargs)
-    set_global(setup=singleton.setup, config=singleton.config)
+    config = singleton.get_current_config()["config"]
+    set_global(setup=singleton.setup, config=config)
 
 
 async def trace(**kwargs):
@@ -235,7 +240,7 @@ async def trace(**kwargs):
 
     singleton = AgentaSingleton()
     config_data = singleton.get_current_config()
-    app_id = config_data["app_id"]
-    base_id = config_data["base_id"]  # type: ignore
     llm_tracing = LLMTracing(config_data["host"], config_data["api_key"])
-    await llm_tracing.start_tracing(app_id, base_id, "default", **kwargs)
+    await llm_tracing.start_tracing(
+        config_data["app_id"], config_data["base_id"], "default", **kwargs
+    )
