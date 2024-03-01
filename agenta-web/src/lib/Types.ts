@@ -391,6 +391,7 @@ export interface Evaluator {
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
+    description: string
 }
 
 export interface EvaluatorConfig {

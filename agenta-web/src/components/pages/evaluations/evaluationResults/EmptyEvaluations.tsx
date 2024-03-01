@@ -75,6 +75,7 @@ const EmptyEvaluations: React.FC<Props> = ({onConfigureEvaluators, onBeginEvalua
                             icon={<PlusCircleOutlined />}
                             type="default"
                             onClick={onBeginEvaluation}
+                            data-cy={"new-evaluation-button__no_variants"}
                         >
                             Begin Evaluation Now
                         </Button>
