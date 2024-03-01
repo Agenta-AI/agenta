@@ -10,7 +10,6 @@ async def cache_observability_data(
     data_func: Coroutine[None, None, Callable[[str, Any], ObservabilityDashboardData]],
     **kwargs,
 ) -> ObservabilityDashboardData:
-
     app_id = kwargs["app_id"]
     parameters = kwargs["parameters"]
     redis = redis_utils.redis_connection()

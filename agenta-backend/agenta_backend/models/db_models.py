@@ -319,6 +319,7 @@ class TraceDB(Document):
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
+    environment: Optional[str]
     latency: Optional[float]
     status: str  # initiated, completed, stopped, cancelled, failed
     type: str = Field(default="generation")
@@ -326,6 +327,7 @@ class TraceDB(Document):
     user: Link[UserDB]
     tags: Optional[List[str]]
     feedbacks: Optional[List[Feedback]]
+    created_at: datetime = Field(default=datetime.now())
 
     class Settings:
         name = "traces"
@@ -340,6 +342,7 @@ class SpanDB(Document):
     start_time: datetime
     duration: Optional[int]
     status: SpanStatus
+    environment: Optional[str]
     end_time: datetime = Field(default=datetime.now())
     inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]

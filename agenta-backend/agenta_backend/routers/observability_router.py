@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import Request, Query, Depends
 
 from agenta_backend.utils.common import APIRouter
-from agenta_backend.services import event_db_manager
+from agenta_backend.services import event_db_manager, redis_cache_service
 from agenta_backend.models.api.api_models import (
     WithPagination,
     SorterParams,
@@ -17,6 +17,7 @@ from agenta_backend.models.api.observability_models import (
     Feedback,
     UpdateFeedback,
     Trace,
+    TraceDetail,
     CreateTrace,
     UpdateTrace,
     GenerationFilterParams,
@@ -37,8 +38,9 @@ async def get_dashboard_data(
     parameters: ObservabilityDashboardDataRequestParams = Depends(),
 ):
     try:
-        dashboard_data = await event_db_manager.retrieve_observability_dashboard(
-            app_id, parameters
+        dashboard_data = await redis_cache_service.cache_observability_data(
+            event_db_manager.retrieve_observability_dashboard,
+            **{"app_id": app_id, "parameters": parameters}
         )
         return dashboard_data
     except Exception as e:
@@ -64,6 +66,48 @@ async def create_span(
 
 
 @router.get(
+    "/traces/",
+    response_model=WithPagination[Trace],
+    operation_id="get_traces",
+)
+async def get_traces(
+    request: Request,
+    app_id: str,
+    pagination: PaginationParam = Depends(),
+    filters: GenerationFilterParams = Depends(),
+    sorters: SorterParams = Depends(),
+):
+    spans = await event_db_manager.fetch_generation_spans(
+        app_id,
+        pagination,
+        filters,
+        sorters,
+    )
+    return spans
+
+
+@router.get(
+    "/traces/{trace_id}/",
+    response_model=TraceDetail,
+    operation_id="get_trace_detail",
+)
+async def get_trace_detail(
+    request: Request,
+    trace_id: str,
+):
+    trace_detail = await event_db_manager.fetch_trace_detail(
+        trace_id, request.state.user_id
+    )
+    return trace_detail
+
+
+@router.delete("/traces/", response_model=bool, operation_id="delete_traces")
+async def delete_traces(request: Request, trace_ids: List[str]):
+    await event_db_manager.delete_traces(trace_ids)
+    return True
+
+
+@router.get(
     "/spans/",
     response_model=WithPagination[Span],
     operation_id="get_spans_of_generation",
@@ -77,7 +121,6 @@ async def get_spans_of_trace(
 ):
     if filters and filters.type == "generation":
         spans = await event_db_manager.fetch_generation_spans(
-            request.state.user_id,
             app_id,
             pagination,
             filters,
@@ -105,11 +148,9 @@ async def get_span_of_trace(
     return []
 
 
-@router.delete(
-    "/spans/{span_id}/", response_model=bool, operation_id="delete_span_of_trace"
-)
-async def delete_span_of_trace(request: Request, span_id: str):
-    await event_db_manager.delete_span(span_id)
+@router.delete("/spans/", response_model=bool, operation_id="delete_spans_of_trace")
+async def delete_spans_of_trace(request: Request, span_ids: List[str]):
+    await event_db_manager.delete_spans(span_ids)
     return True
 
 

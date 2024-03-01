@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from functools import partial
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -14,6 +15,7 @@ from agenta_backend.models.api.observability_models import (
     CreateFeedback,
     UpdateFeedback,
     Trace,
+    TraceDetail,
     CreateTrace,
     UpdateTrace,
     ObservabilityData,
@@ -22,11 +24,12 @@ from agenta_backend.models.api.observability_models import (
 )
 from agenta_backend.models.converters import (
     spans_to_pydantic,
+    traces_to_pydantic,
     feedback_db_to_pydantic,
     trace_db_to_pydantic,
     get_paginated_data,
 )
-from agenta_backend.services import db_manager
+from agenta_backend.services import db_manager, filters, helpers
 from agenta_backend.models.db_models import (
     TraceDB,
     SpanStatus,
@@ -34,6 +37,7 @@ from agenta_backend.models.db_models import (
     SpanDB,
 )
 
+from beanie.operators import In
 from beanie import PydanticObjectId as ObjectId
 
 
@@ -154,38 +158,39 @@ async def create_trace_span(payload: CreateSpan) -> str:
 
 
 async def fetch_generation_spans(
-    user_uid: str,
     app_id: str,
     pagination: PaginationParam,
-    filters: GenerationFilterParams,
+    filters_param: GenerationFilterParams,
     sorters: SorterParams,
 ) -> List[Span]:
     """Get the spans for a given trace.
 
     Args:
-        user_uid (str): the uid of the user
-        trace_type (str): the type of the trace
+        app_id (str): The ID of the app
+        pagination (PaginationParam): The data of the pagination param
+        filters_param (GenerationFilterParams): The data of the generation filter params
+        sorters (SorterParams): The data of the sorters param
 
     Returns:
         List[Span]: the list of spans for the given user
     """
 
-    spans_db = await SpanDB.find(
+    spans_db = SpanDB.find(
         SpanDB.trace.app_id == app_id,
         fetch_links=True,
-    ).to_list()
-
-    def filter_span(span: Span):
-        if filters:
-            if filters.variant and span.variant.variant_name != filters.variant:
-                return False
-            if filters.environment and span.environment != filters.environment:
-                return False
-        return True
+    )
+    if filters_param.trace_id is not None:
+        spans_db = await spans_db.find(
+            SpanDB.trace.id == ObjectId(filters_param.trace_id)
+        ).to_list()
+    else:
+        spans_db = await spans_db.to_list()
 
     # Get trace spans
     spans = await spans_to_pydantic(spans_db)
-    filtered_generations = filter(filter_span, spans)
+    filtered_generations = filter(
+        partial(filters.filter_document_by_filter_params, filters_param), spans
+    )
 
     # Sorting logic
     reverse = False
@@ -215,33 +220,6 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
     app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
         span_db.trace.base_id, span_db.trace.config_name
     )
-
-    def convert_variables(span_db: SpanDB):
-        """
-        Converts a list of variables to a list of dictionaries with name and type information.
-
-        Args:
-            span_db: A dictionary containing a list of variables under the "inputs" key.
-
-        Returns:
-            A list of dictionaries, where each dictionary has the following keys:
-                name: The name of the variable.
-                type: The type of the variable (string, number, or boolean).
-        """
-
-        variables = []
-        for variable in span_db.inputs:
-            if isinstance(variable, str):
-                variable_type = "string"
-            elif isinstance(variable, (int, float)):
-                variable_type = "number"
-            elif isinstance(variable, bool):
-                variable_type = "boolean"
-            else:
-                raise ValueError(f"Unsupported variable type: {type(variable)}")
-
-            variables.append({"name": variable, "type": variable_type})
-        return variables
 
     return SpanDetail(
         **{
@@ -278,7 +256,9 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
                 "prompt": {
                     "system": (span_db.prompt_system),
                     "user": span_db.prompt_user,
-                    "variables": convert_variables(span_db),
+                    "variables": helpers.convert_generation_span_inputs_variables(
+                        span_db
+                    ),
                 },
                 "params": app_variant_db.config.parameters,
             },
@@ -313,35 +293,29 @@ async def retrieve_observability_dashboard(
                     "total_tokens": span_db.token_total,
                     "prompt_tokens": span_db.tokens_input,
                     "completion_tokens": span_db.tokens_output,
-                    "environment": "",
+                    "environment": span_db.environment,
                     "variant": app_variant_db.variant_name,
                 }
             )
         )
 
-    def filter_data_by_params(observability_data: List[ObservabilityData]):
-        filtered_data = observability_data
-        if params.startTime or params.endTime:
-
-            def filter_by_timestamp(data: ObservabilityData):
-                epoch_time = int(data.timestamp.timestamp())
-                return params.startTime <= epoch_time <= params.endTime
-
-            filtered_data = filter(filter_by_timestamp, filtered_data)
-
-        if params.environment:
-            filtered_data = filter(
-                lambda data: data.environment == params.environment, filtered_data
-            )
-
-        if params.variant:
-            filtered_data = filter(
-                lambda data: data.variant == params.variant, filtered_data
-            )
-        return list(filtered_data)
-
     len_of_spans_db = len(list_of_observability_data)
-    filtered_data = filter_data_by_params(list_of_observability_data)
+    filtered_data = filters.filter_observability_dashboard_data_by_params(
+        params, list_of_observability_data
+    )
+    if filtered_data == []:
+        return ObservabilityDashboardData(
+            **{
+                "data": [],
+                "total_count": 0,
+                "failure_rate": 0,
+                "total_cost": 0,
+                "avg_cost": 0,
+                "avg_latency": 0,
+                "total_tokens": 0,
+                "avg_tokens": 0,
+            }
+        )
 
     return ObservabilityDashboardData(
         **{
@@ -353,24 +327,132 @@ async def retrieve_observability_dashboard(
                 sum([span_db.cost for span_db in spans_db]) / len_of_spans_db, 5
             ),
             "avg_latency": round(
-                sum([span_db.duration for span_db in spans_db]) / len_of_spans_db, 5
+                sum([span_db.latency for span_db in spans_db]) / len_of_spans_db, 5
             ),
-            "total_tokens": sum([span_db.token_total for span_db in spans_db]),
-            "avg_tokens": sum([span_db.token_total for span_db in spans_db])
+            "total_tokens": sum([span_db.total_tokens for span_db in spans_db]),
+            "avg_tokens": sum([span_db.total_tokens for span_db in spans_db])
             / len_of_spans_db,
         }
     )
 
 
-async def delete_span(span_id: str):
-    """Delete the span for a given span_id.
+async def fetch_traces(
+    app_id: str,
+    pagination: PaginationParam,
+    filters_param: GenerationFilterParams,
+    sorters: SorterParams,
+) -> List[Trace]:
+    """Get the traces for the given app_id.
 
     Args:
-        span_id (str): The Id of the span
+        app_id (str): The ID of the app
+        pagination (PaginationParam): The data of the pagination param
+        filters_param (GenerationFilterParams): The data of the generation filter params
+        sorters (SorterParams): The data of the sorters param
+
+    Returns:
+        List[Trace]: the list of trace for the given app_id
     """
 
-    span = await SpanDB.find_one(SpanDB.id == ObjectId(span_id))
-    await span.delete()
+    traces_db = await TraceDB.find(
+        TraceDB.app_id == app_id,
+        fetch_links=True,
+    ).to_list()
+
+    # Get traces
+    traces = await traces_to_pydantic(traces_db)
+    filtered_traces = filter(
+        partial(filters.filter_document_by_filter_params, filters_param), traces
+    )
+
+    # Sorting logic
+    reverse = False
+    sort_keys = list(sorters.dict(exclude=None).keys())
+    if "created_at" in sort_keys:
+        reverse = sorters.created_at == "desc" if sorters else False
+
+    sorted_traces = sorted(
+        filtered_traces, key=lambda x: x["created_at"], reverse=reverse
+    )
+    return get_paginated_data(sorted_traces, pagination)
+
+
+async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
+    """Get a trace detail.
+
+    Args:
+        trace_id (str): The ID of a trace
+        user_uid (str): The user ID
+
+    Returns:
+        TraceDetail: trace detail pydantic model
+    """
+
+    user = await db_manager.get_user(user_uid)
+    trace_db = await get_single_trace(trace_id)
+    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+        trace_db.base_id, trace_db.config_name
+    )
+
+    return TraceDetail(
+        **{
+            "id": str(trace_db.id),
+            "created_at": trace_db.created_at.isoformat(),
+            "variant": {
+                "variant_id": str(app_variant_db.id),
+                "variant_name": app_variant_db.variant_name,
+                "revision": app_variant_db.revision,
+            },
+            "environment": trace_db.environment,
+            "status": {"value": trace_db.status, "error": None},
+            "metadata": {
+                "cost": trace_db.cost,
+                "latency": trace_db.latency,
+                "usage": {"total_tokens": trace_db.token_consumption},
+            },
+            "user_id": str(user.id),
+        },
+    )
+
+
+async def get_single_trace(trace_id: str) -> TraceDB:
+    """Get a single trace document from database.
+
+    Args:
+        trace_id (str): The id of the trace
+
+    Returns:
+        TraceDB: the trace document
+    """
+
+    trace_db = await TraceDB.find_one(
+        TraceDB.id == ObjectId(trace_id), fetch_links=True
+    )
+    if not trace_db:
+        raise HTTPException(404, {"message": "Trace does not exist"})
+    return trace_db
+
+
+async def delete_spans(span_ids: List[str]):
+    """Delete the span for a given span_ids.
+
+    Args:
+        span_ids (str): The ids of the span
+    """
+
+    object_ids: List[ObjectId] = [ObjectId(span_id) for span_id in span_ids]
+    await SpanDB.find(In(SpanDB.id, object_ids)).delete()
+
+
+async def delete_traces(trace_ids: List[str]):
+    """Delete the trace for the given trace_ids
+
+    Args:
+        trace_ids (str): The ids of the trace
+    """
+
+    object_ids: List[ObjectId] = [ObjectId(trace_id) for trace_id in trace_ids]
+    await TraceDB.find(In(TraceDB.id, object_ids)).delete()
 
 
 async def add_feedback_to_trace(
