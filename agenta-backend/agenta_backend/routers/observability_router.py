@@ -102,8 +102,8 @@ async def get_trace_detail(
 
 
 @router.delete("/traces/", response_model=bool, operation_id="delete_traces")
-async def delete_traces(request: Request, trace_ids: List[str]):
-    await event_db_manager.delete_traces(trace_ids)
+async def delete_traces(request: Request, ids: List[str]):
+    await event_db_manager.delete_traces(ids)
     return True
 
 
@@ -149,8 +149,8 @@ async def get_span_of_trace(
 
 
 @router.delete("/spans/", response_model=bool, operation_id="delete_spans_of_trace")
-async def delete_spans_of_trace(request: Request, span_ids: List[str]):
-    await event_db_manager.delete_spans(span_ids)
+async def delete_spans_of_trace(request: Request, ids: List[str]):
+    await event_db_manager.delete_spans(ids)
     return True
 
 
