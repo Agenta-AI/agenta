@@ -520,7 +520,7 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
 
 
 async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
-    spans = []
+    spans: List[Span] = []
     for span_db in spans_db:
         app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
             span_db.trace.base_id, span_db.trace.config_name
@@ -534,14 +534,43 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
                 variant_name=app_variant_db.variant_name,
                 revision=app_variant_db.revision,
             ),
-            environment="",
+            environment=span_db.environment,
             status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
             metadata=span_db.meta,
-            user_id=str(span_db.trace.user.id),  # Assuming trace_db exists
+            user_id=str(span_db.trace.user.id),
         )
         spans.append(span.dict(exclude_unset=True))
 
     return spans
+
+
+async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
+    traces: List[Trace] = []
+    for trace_db in traces_db:
+        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+            trace_db.base_id, trace_db.config_name
+        )
+
+        trace = Trace(
+            id=str(trace_db.id),
+            created_at=trace_db.created_at.isoformat(),
+            variant=SpanVariant(
+                variant_id=str(app_variant_db.id),
+                variant_name=app_variant_db.variant_name,
+                revision=app_variant_db.revision,
+            ),
+            environment=trace_db.environment,
+            status=SpanStatus(value=trace_db.status, error=None),
+            metadata={
+                "cost": trace_db.cost,
+                "latency": trace_db.latency,
+                "usage": {"total_tokens": trace_db.token_consumption},
+            },
+            user_id=str(trace_db.user.id),
+        )
+        traces.append(trace.dict(exclude_unset=True))
+
+    return traces
 
 
 def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> FeedbackOutput:

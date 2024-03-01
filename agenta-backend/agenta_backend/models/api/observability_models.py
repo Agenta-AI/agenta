@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class GenerationFilterParams(BaseModel):
     type: str = Field("generation")
+    trace_id: Optional[str]
     environment: Optional[str]
     variant: Optional[str]
 
@@ -44,7 +45,7 @@ class Span(BaseModel):
     id: str
     created_at: datetime
     variant: SpanVariant
-    environment: str
+    environment: Optional[str]
     status: SpanStatus
     metadata: Dict[str, Any]
     user_id: str
@@ -94,6 +95,14 @@ class SpanDetail(Span):
     model_params: LLMModelParams
 
 
+class Trace(Span):
+    pass
+
+
+class TraceDetail(Trace):
+    pass
+
+
 class ObservabilityData(BaseModel):
     timestamp: datetime
     success_count: int
@@ -103,7 +112,7 @@ class ObservabilityData(BaseModel):
     total_tokens: int
     prompt_tokens: int
     completion_tokens: int
-    environment: str
+    environment: Optional[str]
     variant: str
 
 
@@ -144,12 +153,6 @@ class BaseTrace(BaseModel):
     token_consumption: Optional[int]
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
-
-
-class Trace(BaseTrace):
-    trace_id: str
-    spans: List[str]
-    feedbacks: Optional[List[Feedback]]
 
 
 class CreateTrace(BaseTrace):
