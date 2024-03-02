@@ -660,6 +660,7 @@ class AsyncObservabilityClient:
         config_name: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
         status: typing.Optional[str] = OMIT,
+        environment: typing.Optional[str] = OMIT,
         token_consumption: typing.Optional[int] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
@@ -675,6 +676,8 @@ class AsyncObservabilityClient:
             - cost: typing.Optional[float].
 
             - status: typing.Optional[str].
+
+            - environment: typing.Optional[str].
 
             - token_consumption: typing.Optional[int].
 
@@ -698,6 +701,8 @@ class AsyncObservabilityClient:
             _request["cost"] = cost
         if status is not OMIT:
             _request["status"] = status
+        if environment is not OMIT:
+            _request["environment"] = environment
         if token_consumption is not OMIT:
             _request["token_consumption"] = token_consumption
         if tags is not OMIT:
@@ -794,6 +799,7 @@ class AsyncObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
+        environment: typing.Optional[str] = OMIT,
         inputs: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         outputs: typing.Optional[typing.List[str]] = OMIT,
         prompt_system: typing.Optional[str] = OMIT,
@@ -820,6 +826,8 @@ class AsyncObservabilityClient:
             - duration: typing.Optional[int].
 
             - status: SpanStatus.
+
+            - environment: typing.Optional[str].
 
             - inputs: typing.Optional[typing.Dict[str, Any]].
 
@@ -862,6 +870,8 @@ class AsyncObservabilityClient:
             _request["start_time"] = start_time
         if duration is not OMIT:
             _request["duration"] = duration
+        if environment is not OMIT:
+            _request["environment"] = environment
         if inputs is not OMIT:
             _request["inputs"] = inputs
         if outputs is not OMIT:

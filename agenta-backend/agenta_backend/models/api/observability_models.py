@@ -72,6 +72,7 @@ class BaseSpan(BaseModel):
 
 class CreateSpan(BaseSpan):
     trace_id: str
+    environment: Optional[str]
 
 
 class LLMInputs(BaseModel):
@@ -156,7 +157,7 @@ class BaseTrace(BaseModel):
 
 
 class CreateTrace(BaseTrace):
-    pass
+    environment: Optional[str]
 
 
 class UpdateTrace(BaseModel):
