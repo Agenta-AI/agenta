@@ -319,7 +319,7 @@ class TraceDB(Document):
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
-    environment: Optional[str]
+    environment: Optional[str] = Field(default="playground")
     latency: Optional[float]
     status: str  # initiated, completed, stopped, cancelled, failed
     type: str = Field(default="generation")
@@ -342,7 +342,7 @@ class SpanDB(Document):
     start_time: datetime
     duration: Optional[int]
     status: SpanStatus
-    environment: Optional[str]
+    environment: Optional[str] = Field(default="playground")
     end_time: datetime = Field(default=datetime.now())
     inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
