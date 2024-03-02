@@ -79,7 +79,11 @@ async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
     """
 
     user = await db_manager.get_user(user_uid)
-    trace_db = TraceDB(**payload.dict(), user=user)
+    trace_db = TraceDB(
+        **payload.dict(exclude={"environment"}),
+        environment="playground" if not payload.environment else payload.environment,
+        user=user,
+    )
     await trace_db.create()
     return str(trace_db.id)
 
@@ -148,8 +152,9 @@ async def create_trace_span(payload: CreateSpan) -> str:
     duration = end_time - payload.start_time
     trace = await TraceDB.find_one(TraceDB.id == ObjectId(payload.trace_id))
     span_db = SpanDB(
-        **payload.dict(exclude={"end_time", "duration", "trace_id"}),
+        **payload.dict(exclude={"end_time", "duration", "trace_id", "environment"}),
         trace=trace,
+        environment="playground" if not payload.environment else payload.environment,
         end_time=end_time,
         duration=duration.total_seconds(),
     )
