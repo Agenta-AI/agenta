@@ -226,9 +226,10 @@ async def batch_invoke(
     async def run_batch(start_idx: int):
         print(f"Preparing {start_idx} batch...")
         end_idx = min(start_idx + batch_size, len(testset_data))
+        tasks = []
         for index in range(start_idx, end_idx):
-            try:
-                batch_output: InvokationResult = await run_with_retry(
+            task = asyncio.create_task(
+                run_with_retry(
                     uri,
                     testset_data[index],
                     parameters,
@@ -236,13 +237,14 @@ async def batch_invoke(
                     retry_delay,
                     openapi_parameters,
                 )
-                list_of_app_outputs.append(batch_output)
-                print(f"Adding outputs to batch {start_idx}")
-            except Exception as exc:
-                traceback.print_exc()
-                logger.info(
-                    f"Error processing batch[{start_idx}]:[{end_idx}] ==> {str(exc)}"
-                )
+            )
+            tasks.append(task)
+
+        # Gather results of all tasks
+        results = await asyncio.gather(*tasks)
+        for result in results:
+            list_of_app_outputs.append(result)
+            print(f"Adding outputs to batch {start_idx}")
 
         # Schedule the next batch with a delay
         next_batch_start_idx = end_idx
