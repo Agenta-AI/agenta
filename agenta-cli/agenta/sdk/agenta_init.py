@@ -30,7 +30,7 @@ class AgentaSingleton:
 
     _instance = None
     setup = None
-    _config_data = None
+    config = None
 
     def __new__(cls):
         if not cls._instance:
@@ -86,15 +86,13 @@ class AgentaSingleton:
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
                     )
 
-        self._config_data = {
-            "base_id": base_id,
-            "host": host,
-            "app_id": os.environ.get("AGENTA_APP_ID") if not app_id else app_id,
-            "app_name": app_name,
-            "base_name": base_name,
-            "api_key": api_key,
-            "config": Config(base_id=base_id, host=host),
-        }
+        self.base_id = base_id
+        self.host = host
+        self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
+        self.app_name = app_name
+        self.base_name = base_name
+        self.api_key = api_key
+        self.config = Config(base_id=base_id, host=host)
 
     def get_app(self, app_name: str) -> str:
         apps = client.apps.list_apps(app_name=app_name)
@@ -231,16 +229,14 @@ def init(app_name=None, base_name=None, **kwargs):
     """
     singleton = AgentaSingleton()
     singleton.init(app_name=app_name, base_name=base_name, **kwargs)
-    config = singleton.get_current_config()["config"]
-    set_global(setup=singleton.setup, config=config)
+    set_global(setup=singleton.setup, config=singleton.config)
 
 
 async def trace(**kwargs):
     """Function to start llm tracing."""
 
     singleton = AgentaSingleton()
-    config_data = singleton.get_current_config()
-    llm_tracing = LLMTracing(config_data["host"], config_data["api_key"])
+    llm_tracing = LLMTracing(singleton.host, singleton.api_key)
     await llm_tracing.start_tracing(
-        config_data["app_id"], config_data["base_id"], "default", **kwargs
+        singleton.app_id, singleton.base_id, "default", **kwargs
     )

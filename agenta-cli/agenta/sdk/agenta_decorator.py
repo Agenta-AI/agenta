@@ -95,7 +95,12 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
 
         config = agenta.config.all()
         return await execute_function(
-            func, *args, **{"params": func_params, "config_params": config}
+            func,
+            *args,
+            **{
+                "params": func_params,
+                "config_params": {**config, "environment": kwargs["environment"]},
+            },
         )
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
@@ -183,6 +188,7 @@ async def prepare_llm_params_and_begin_tracing(
     if "config_params" in params:
         trace_data = {
             "inputs": params["params"],
+            "environment": params["config_params"].get("environment", None),
             "prompt_system": get_prompt_system(params["config_params"]),
             "prompt_user": params["config_params"].get("prompt_user"),
         }
