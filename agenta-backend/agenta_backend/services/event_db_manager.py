@@ -327,10 +327,10 @@ async def retrieve_observability_dashboard(
                 sum([span_db.cost for span_db in spans_db]) / len_of_spans_db, 5
             ),
             "avg_latency": round(
-                sum([span_db.latency for span_db in spans_db]) / len_of_spans_db, 5
+                sum([span_db.duration for span_db in spans_db]) / len_of_spans_db, 5
             ),
-            "total_tokens": sum([span_db.total_tokens for span_db in spans_db]),
-            "avg_tokens": sum([span_db.total_tokens for span_db in spans_db])
+            "total_tokens": sum([span_db.token_total for span_db in spans_db]),
+            "avg_tokens": sum([span_db.token_total for span_db in spans_db])
             / len_of_spans_db,
         }
     )
