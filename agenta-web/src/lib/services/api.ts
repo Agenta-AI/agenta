@@ -602,7 +602,7 @@ export const createAndStartTemplate = async ({
     templateId: string
     timeout?: number
     onStatusChange?: (
-        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
+        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error" | "quota_reached",
         details?: any,
         appId?: string,
     ) => void
@@ -638,6 +638,10 @@ export const createAndStartTemplate = async ({
         } catch (error: any) {
             if (error?.response?.status === 400) {
                 onStatusChange?.("bad_request", error)
+                return
+            }
+            if (error?.response?.status === 402) {
+                onStatusChange?.("quota_reached", error)
                 return
             }
             throw error
