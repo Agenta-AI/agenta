@@ -43,7 +43,7 @@ axios.interceptors.response.use(
         }
 
         if (error.response?.status === 402) {
-            window.location.href = "/payment"
+            window.location.href = "/billing"
             throw error
         }
 
