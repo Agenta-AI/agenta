@@ -82,6 +82,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     useEffect(() => {
         setMessages((prev) => {
             let obj: GenericObject
+            let lastStatus
             switch (status) {
                 case "creating_app":
                     obj = {
@@ -116,13 +117,23 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     return obj
                 case "bad_request":
                 case "error":
-                    const lastStatus = Object.keys(prev).pop() ?? ""
+                    lastStatus = Object.keys(prev).pop() ?? ""
                     return {
                         ...prev,
                         [lastStatus]: {
                             ...prev[lastStatus],
                             type: "error",
                             errorMessage: `Error: ${getErrorMessage(details)}`,
+                        },
+                    }
+                case "quota_reached":
+                    lastStatus = Object.keys(prev).pop() ?? ""
+                    return {
+                        ...prev,
+                        [lastStatus]: {
+                            ...prev[lastStatus],
+                            type: "error",
+                            errorMessage: `Quota limit is reached: Subscription upgrade required.`,
                         },
                     }
                 case "timeout":
