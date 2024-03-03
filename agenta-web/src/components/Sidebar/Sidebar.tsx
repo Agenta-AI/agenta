@@ -11,6 +11,7 @@ import {
     SettingOutlined,
     LogoutOutlined,
     FormOutlined,
+    CalculatorOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
@@ -297,11 +298,18 @@ const Sidebar: React.FC = () => {
                                 selectedKeys={selectedKeys}
                             >
                                 {doesSessionExist && (
-                                    <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                        <Link data-cy="settings-link" href="/settings">
-                                            Settings
-                                        </Link>
-                                    </Menu.Item>
+                                    <>
+                                        <Menu.Item key="settings" icon={<SettingOutlined />}>
+                                            <Link data-cy="settings-link" href="/settings">
+                                                Settings
+                                            </Link>
+                                        </Menu.Item>
+                                        <Menu.Item key="billing" icon={<CalculatorOutlined />}>
+                                            <Link data-cy="billing-link" href="/billing">
+                                                Billing
+                                            </Link>
+                                        </Menu.Item>
+                                    </>
                                 )}
 
                                 <Menu.Item key="docs" icon={<ReadOutlined />}>
