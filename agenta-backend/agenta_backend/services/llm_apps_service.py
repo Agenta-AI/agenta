@@ -184,11 +184,16 @@ async def run_with_retry(
 
     # If max retries is reached or an exception that isn't in the second block,
     # update & return the last exception
+    exception_message = (
+        "Max retries reached"
+        if retries == max_retry_count
+        else f"Error processing {input_data} datapoint"
+    )
     return InvokationResult(
         result=Result(
             type="error",
             value=None,
-            error=Error(message="max retries reached", stacktrace=last_exception),
+            error=Error(message=exception_message, stacktrace=last_exception),
         )
     )
 
@@ -221,9 +226,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[
-        InvokationResult
-    ] = []  # Outputs after running all batches
+    list_of_app_outputs: List[InvokationResult] = (
+        []
+    )  # Outputs after running all batches
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):
