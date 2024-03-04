@@ -14,6 +14,7 @@ import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, th
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
+import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
@@ -55,6 +56,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
+    },
+    ExternalHelp: {
+        marginBottom: "20px",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.3em",
+    },
+    ExternalHelpLink: {
+        margin: "0px",
+        padding: "0px",
+        textDecoration: "underline",
+        color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+
+        "&:hover": {
+            color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+            textDecoration: "underline",
+        },
     },
     evaluatorsTable: {
         maxHeight: 550,
@@ -112,49 +130,69 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     isValidRegex(value) ? res("") : rej("Regex pattern is not valid"),
                 ),
         })
+
+    const ExternalHelpInfo =
+        name[1] === "webhook_url" ? (
+            <div className={classes.ExternalHelp}>
+                <span>Learn</span>
+                <Link
+                    href="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={classes.ExternalHelpLink}
+                >
+                    more
+                </Link>
+                <span>about the evaluator</span>
+            </div>
+        ) : null
+
     return (
-        <Form.Item
-            name={name}
-            label={
-                <div className={classes.label}>
-                    <span>{label}</span>
-                    {description && (
-                        <Tooltip title={description}>
-                            <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                        </Tooltip>
-                    )}
-                </div>
-            }
-            initialValue={defaultVal}
-            rules={rules}
-        >
-            {type === "string" || type === "regex" ? (
-                <Input />
-            ) : type === "number" ? (
-                <InputNumber min={0} max={1} step={0.1} />
-            ) : type === "boolean" || type === "bool" ? (
-                <Switch />
-            ) : type === "text" ? (
-                <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-            ) : type === "code" ? (
-                <Editor
-                    className={classes.editor}
-                    height={400}
-                    width="100%"
-                    language="python"
-                    theme={`vs-${appTheme}`}
-                />
-            ) : type === "object" ? (
-                <Editor
-                    className={classes.editor}
-                    height={120}
-                    width="100%"
-                    language="json"
-                    options={{lineNumbers: "off"}}
-                    theme={`vs-${appTheme}`}
-                />
-            ) : null}
-        </Form.Item>
+        <>
+            <Form.Item
+                name={name}
+                label={
+                    <div className={classes.label}>
+                        <span>{label}</span>
+                        {description && (
+                            <Tooltip title={description}>
+                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                            </Tooltip>
+                        )}
+                    </div>
+                }
+                initialValue={defaultVal}
+                rules={rules}
+            >
+                {type === "string" || type === "regex" ? (
+                    <Input />
+                ) : type === "number" ? (
+                    <InputNumber min={0} max={1} step={0.1} />
+                ) : type === "boolean" || type === "bool" ? (
+                    <Switch />
+                ) : type === "text" ? (
+                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                ) : type === "code" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={400}
+                        width="100%"
+                        language="python"
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : type === "object" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={120}
+                        width="100%"
+                        language="json"
+                        options={{lineNumbers: "off"}}
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : null}
+            </Form.Item>
+            {ExternalHelpInfo}
+        </>
     )
 }
 
