@@ -129,7 +129,7 @@ def auto_webhook_test(
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
-            if not score:
+            if score is not None and not isinstance(score, (int, float)):
                 return Result(
                     type="error",
                     value=None,
