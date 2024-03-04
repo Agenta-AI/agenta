@@ -92,17 +92,10 @@ evaluators = [
             "webhook_url": {
                 "label": "Webhook URL",
                 "type": "string",
-                "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
-                "description": "URL for the webhook test",
-            },
-            "webhook_body": {
-                "label": "Webhook Body",
-                "type": "object",
-                "default": "{}",
-                "description": "Request body for webhook URL",
+                "description": "https://your-webhook-url.com",
             },
         },
-        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.",
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
     },
     {
         "name": "A/B Test",
