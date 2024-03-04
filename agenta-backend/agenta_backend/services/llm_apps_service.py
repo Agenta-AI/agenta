@@ -178,9 +178,12 @@ async def run_with_retry(
             print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
+        except Exception as e:
+            last_exception = e
+            logger.info(f"Error processing datapoint: {input_data}")
 
-    # If max retries reached, return the last exception
-    # return AppOutput(output=None, status=str(last_exception))
+    # If max retries is reached or an exception that isn't in the second block,
+    # update & return the last exception
     return InvokationResult(
         result=Result(
             type="error",
