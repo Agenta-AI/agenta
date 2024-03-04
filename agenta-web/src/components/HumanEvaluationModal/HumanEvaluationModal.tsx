@@ -1,36 +1,18 @@
-import {useState, useEffect} from "react"
-import {
-    Button,
-    Col,
-    Dropdown,
-    MenuProps,
-    Radio,
-    RadioChangeEvent,
-    Row,
-    Typography,
-    message,
-    ModalProps,
-} from "antd"
-import {DownOutlined} from "@ant-design/icons"
+import React, {useEffect, useState} from "react"
+import {GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
-import {getAllProviderLlmKeys, getApikeys, isDemo} from "@/lib/helpers/utils"
-import {useRouter} from "next/router"
-import {Variant, Parameter, GenericObject, JSSTheme} from "@/lib/Types"
+import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import {isDemo} from "@/lib/helpers/utils"
+import {DownOutlined} from "@ant-design/icons"
 import {EvaluationType} from "@/lib/enums"
-import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import EvaluationErrorModal from "./EvaluationErrorModal"
+import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-
-import Image from "next/image"
-import abTesting from "@/media/testing.png"
-import singleModel from "@/media/score.png"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import HumanEvaluationResult from "./HumanEvaluationResult"
-import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
+import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -132,9 +114,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
     },
 }))
-const {Title} = Typography
 
-export default function Evaluations() {
+interface HumanEvaluationModalProps {
+    isEvalModalOpen: boolean
+    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+    evaluationType: "single_model_test" | "human_a_b_testing"
+}
+
+const HumanEvaluationModal = ({
+    isEvalModalOpen,
+    setIsEvalModalOpen,
+    evaluationType,
+}: HumanEvaluationModalProps) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
@@ -151,11 +142,7 @@ export default function Evaluations() {
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(
         new Array(1).fill({variantName: "Select a variant"}),
     )
-    const [numberOfVariants, setNumberOfVariants] = useState<number>(1)
 
-    const [selectedEvaluationType, setSelectedEvaluationType] = useState<EvaluationType | string>(
-        "Select an evaluation type",
-    )
     const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState("")
 
     const appId = router.query.app_id?.toString() || ""
@@ -190,10 +177,6 @@ export default function Evaluations() {
 
         fetchData()
     }, [appId])
-
-    useEffect(() => {
-        getAllProviderLlmKeys()
-    }, [])
 
     useEffect(() => {
         if (variants.length > 0) {
@@ -268,8 +251,8 @@ export default function Evaluations() {
         ({key}: {key: string}) => {
             const data = {
                 variants: [
-                    selectedVariants[dropdownIndex].variantName,
-                    selectedVariants[dropdownIndex].variantName,
+                    selectedVariants[dropdownIndex]?.variantName,
+                    selectedVariants[dropdownIndex]?.variantName,
                 ],
             }
 
@@ -317,31 +300,17 @@ export default function Evaluations() {
 
     const onStartEvaluation = async () => {
         // 1. We check all data is provided
-        if (selectedTestset === undefined || selectedTestset.name === "Select a testSet") {
+        if (selectedTestset === undefined || selectedTestset.name === "Select a Test set") {
             message.error("Please select a Testset")
             return
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
             return
         } else if (
-            selectedEvaluationType === EvaluationType.human_a_b_testing &&
+            evaluationType === EvaluationType.human_a_b_testing &&
             selectedVariants[1]?.variantName === "Select a variant"
         ) {
             message.error("Please select a second variant")
-            return
-        } else if (selectedEvaluationType === "Select an evaluation type") {
-            message.error("Please select an evaluation type")
-            return
-        } else if (selectedTestset?.name === "Select a Test set") {
-            message.error("Please select a testset")
-            return
-        } else if (!getApikeys() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
-            setError({
-                message:
-                    "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
-                btnText: "Go to API Keys",
-                endpoint: "/settings/?tab=secrets",
-            })
             return
         }
 
@@ -350,7 +319,7 @@ export default function Evaluations() {
             variant_ids: selectedVariants.map((variant) => variant.variantId),
             appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
-            evaluationType: EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
+            evaluationType: EvaluationType[evaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings: {},
             llmAppPromptTemplate: "",
             selectedCustomEvaluationID,
@@ -372,149 +341,106 @@ export default function Evaluations() {
         // 3 We set the variants
         setVariants(selectedVariants)
 
-        if (selectedEvaluationType === EvaluationType.human_a_b_testing) {
+        if (evaluationType === EvaluationType.human_a_b_testing) {
             router.push(`/apps/${appId}/annotations/${evaluationTableId}/human_a_b_testing`)
-        } else if (selectedEvaluationType === EvaluationType.single_model_test) {
+        } else if (evaluationType === EvaluationType.single_model_test) {
             router.push(`/apps/${appId}/annotations/${evaluationTableId}/single_model_test`)
         }
     }
 
-    const onChangeEvaluationType = (e: RadioChangeEvent) => {
-        const evaluationType = e.target.value
-        setSelectedEvaluationType(evaluationType)
-        setSelectedCustomEvaluationID("")
-        let nbOfVariants = 1
-        if (evaluationType === EvaluationType.human_a_b_testing) {
-            nbOfVariants = 2
-        }
-        setNumberOfVariants(nbOfVariants)
-
-        // set the selected variants array length based on numVariants
-        setSelectedVariants(
-            Array.from(
-                {length: nbOfVariants},
-                (_, i) => selectedVariants[i] || {variantName: "Select a variant"},
-            ),
-        )
-    }
-
     return (
-        <div>
-            <div>
-                {typeof isError === "string" && <div>{isError}</div>}
-                {areAppVariantsLoading && <div>loading variants...</div>}
-            </div>
-            <div className={classes.evaluationContainer} data-cy="evaluations-container">
-                <Row gutter={24}>
-                    <Col span={8}>
-                        <Title level={4}>1. Start a new evaluation</Title>
-                    </Col>
-                    <Col span={8}>
-                        <Title level={4}>2. Which variants would you like to evaluate</Title>
-                    </Col>
-                    <Col span={8}>
-                        <Title level={4}>3. Which testset you want to use?</Title>
-                    </Col>
-                </Row>
-                <Row align="top" gutter={24} style={{marginTop: "1rem"}}>
-                    <Col span={8}>
-                        <Radio.Group
-                            onChange={(e) => onChangeEvaluationType(e)}
-                            className={classes.radioGroup}
-                            value={selectedEvaluationType}
-                        >
-                            <Radio.Button
-                                value={EvaluationType.human_a_b_testing}
-                                className={classes.radioBtn}
-                            >
-                                <div className={classes.evaluationType} data-cy="abTesting-button">
-                                    <Image
-                                        src={abTesting}
-                                        alt="A/B testing"
-                                        className={classes.evaluationImg}
-                                    />
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
+        <>
+            <Modal
+                open={isEvalModalOpen}
+                onCancel={() => {
+                    setIsEvalModalOpen(false)
+                    setSelectedTestset({name: "Select a Test set"})
+                    setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
+                }}
+                title="Start a New Evaluation"
+                footer={null}
+            >
+                <Spin spinning={areAppVariantsLoading}>
+                    {typeof isError === "string" ? (
+                        <div style={{margin: "20px 0"}}>{isError}</div>
+                    ) : (
+                        <div style={{display: "flex", flexDirection: "column", gap: 10}}>
+                            <div>
+                                <p>Which testset you want to use?</p>
+                                <Dropdown menu={getTestsetDropdownMenu()}>
+                                    <Button
+                                        className={classes.dropdownBtn}
+                                        data-cy="selected-testset"
+                                    >
+                                        <div className={classes.dropdownStyles}>
+                                            {selectedTestset.name}
+                                            <DownOutlined />
+                                        </div>
+                                    </Button>
+                                </Dropdown>
+                            </div>
 
-                            <Radio.Button
-                                value={EvaluationType.single_model_test}
-                                className={classes.radioBtn}
-                            >
-                                <div
-                                    className={classes.evaluationType}
-                                    data-cy="singleModel-button"
-                                >
-                                    <Image
-                                        src={singleModel}
-                                        alt="Single model test"
-                                        className={classes.evaluationImg}
-                                    />
-                                    <span>
-                                        {EvaluationTypeLabels[EvaluationType.single_model_test]}
-                                    </span>
-                                </div>
-                            </Radio.Button>
-                        </Radio.Group>
-                    </Col>
-                    <Col span={8}>
-                        {Array.from({length: numberOfVariants}).map((_, index) => (
-                            <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
+                            <div>
+                                <p>Which variants would you like to evaluate</p>
+                                {Array.from({
+                                    length: evaluationType === "human_a_b_testing" ? 2 : 1,
+                                }).map((_, index) => (
+                                    <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
+                                        <Button
+                                            className={classes.variantDropdown}
+                                            data-cy={`variants-dropdown-${index}`}
+                                            style={{marginTop: index === 1 ? 8 : 0}}
+                                        >
+                                            <div className={classes.dropdownStyles}>
+                                                {selectedVariants[index]?.variantName ||
+                                                    "Select a variant"}
+                                                <DownOutlined />
+                                            </div>
+                                        </Button>
+                                    </Dropdown>
+                                ))}
+                            </div>
+
+                            <Row justify="end" gutter={8} style={{marginTop: "1.5rem"}}>
                                 <Button
-                                    className={classes.variantDropdown}
-                                    data-cy={`variants-dropdown-${index}`}
-                                    style={{marginTop: index === 1 ? 8 : 0}}
+                                    style={{marginRight: "auto"}}
+                                    key="cancel"
+                                    onClick={() => setIsEvalModalOpen(false)}
                                 >
-                                    <div className={classes.dropdownStyles}>
-                                        {selectedVariants[index]?.variantName || "Select a variant"}
-                                        <DownOutlined />
-                                    </div>
+                                    Cancel
                                 </Button>
-                            </Dropdown>
-                        ))}
-                    </Col>
-                    <Col span={8}>
-                        <Dropdown menu={getTestsetDropdownMenu()}>
-                            <Button className={classes.dropdownBtn} data-cy="selected-testset">
-                                <div className={classes.dropdownStyles}>
-                                    {selectedTestset.name}
-                                    <DownOutlined />
-                                </div>
-                            </Button>
-                        </Dropdown>
-                    </Col>
-                </Row>
-
-                <Row justify="end" gutter={8} style={{marginTop: "1rem"}}>
-                    {selectedEvaluationType === EvaluationType.human_a_b_testing && isDemo() && (
-                        <Col>
-                            <Button
-                                disabled={
-                                    !(
-                                        selectedVariants[0].variantId &&
-                                        selectedVariants[0].variantId &&
-                                        selectedTestset._id
-                                    )
-                                }
-                                onClick={() => setShareModalOpen(true)}
-                            >
-                                Invite Collaborators
-                            </Button>
-                        </Col>
+                                {evaluationType === EvaluationType.human_a_b_testing &&
+                                    isDemo() && (
+                                        <Col>
+                                            <Button
+                                                disabled={
+                                                    !(
+                                                        selectedVariants[0].variantId &&
+                                                        selectedVariants[0].variantId &&
+                                                        selectedTestset._id
+                                                    )
+                                                }
+                                                onClick={() => setShareModalOpen(true)}
+                                            >
+                                                Invite Collaborators
+                                            </Button>
+                                        </Col>
+                                    )}
+                                <Col>
+                                    <Button
+                                        onClick={onStartEvaluation}
+                                        type="primary"
+                                        data-cy="start-new-evaluation-button"
+                                    >
+                                        Start
+                                    </Button>
+                                </Col>
+                            </Row>
+                        </div>
                     )}
-                    <Col>
-                        <Button
-                            onClick={onStartEvaluation}
-                            type="primary"
-                            data-cy="start-new-evaluation-button"
-                        >
-                            Start a new annotation
-                        </Button>
-                    </Col>
-                </Row>
-            </div>
+                </Spin>
+            </Modal>
+
             <EvaluationErrorModal
                 isModalOpen={!!error.message}
                 onClose={() => setError({message: "", btnText: "", endpoint: ""})}
@@ -522,10 +448,6 @@ export default function Evaluations() {
                 message={error.message}
                 btnText={error.btnText}
             />
-            <div>
-                <HumanEvaluationResult />
-                <AutomaticEvaluationResult />
-            </div>
 
             <ShareEvaluationModal
                 open={shareModalOpen}
@@ -535,6 +457,8 @@ export default function Evaluations() {
                 testsetId={selectedTestset._id}
                 evaluationType={EvaluationType.human_a_b_testing}
             />
-        </div>
+        </>
     )
 }
+
+export default HumanEvaluationModal
