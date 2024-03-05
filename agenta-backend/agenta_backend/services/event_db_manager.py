@@ -28,6 +28,7 @@ from agenta_backend.models.converters import (
     feedback_db_to_pydantic,
     trace_db_to_pydantic,
     get_paginated_data,
+    get_pagination_skip_limit,
 )
 from agenta_backend.services import db_manager, filters, helpers
 from agenta_backend.models.db_models import (
@@ -37,6 +38,7 @@ from agenta_backend.models.db_models import (
     SpanDB,
 )
 
+import pymongo
 from beanie.operators import In
 from beanie import PydanticObjectId as ObjectId
 
@@ -180,33 +182,29 @@ async def fetch_generation_spans(
         List[Span]: the list of spans for the given user
     """
 
-    spans_db = SpanDB.find(
-        SpanDB.trace.app_id == app_id,
-        fetch_links=True,
+    # Apply pagination and sorting
+    skip, limit = get_pagination_skip_limit(pagination)
+    sort_direction = (
+        pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
     )
+
+    # Fetch spans with pagination and sorting applied
+    spans_db = SpanDB.find(
+        SpanDB.trace.app_id == app_id, fetch_links=True, skip=skip, limit=limit
+    ).sort([(SpanDB.created_at, sort_direction)])
     if filters_param.trace_id is not None:
-        spans_db = await spans_db.find(
+        spans_db = await spans_db.find_many(
             SpanDB.trace.id == ObjectId(filters_param.trace_id)
         ).to_list()
     else:
         spans_db = await spans_db.to_list()
 
-    # Get trace spans
+    # Convert beanie documents to pydantic models and filter based on the filter_params
     spans = await spans_to_pydantic(spans_db)
     filtered_generations = filter(
         partial(filters.filter_document_by_filter_params, filters_param), spans
     )
-
-    # Sorting logic
-    reverse = False
-    sort_keys = list(sorters.dict(exclude=None).keys())
-    if "created_at" in sort_keys:
-        reverse = sorters.created_at == "desc" if sorters else False
-
-    sorted_generations = sorted(
-        filtered_generations, key=lambda x: x["created_at"], reverse=reverse
-    )
-    return get_paginated_data(sorted_generations, pagination)
+    return get_paginated_data(list(filtered_generations), pagination)
 
 
 async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
@@ -359,27 +357,27 @@ async def fetch_traces(
         List[Trace]: the list of trace for the given app_id
     """
 
-    traces_db = await TraceDB.find(
-        TraceDB.app_id == app_id,
-        fetch_links=True,
-    ).to_list()
+    # Apply pagination and sorting
+    skip, limit = get_pagination_skip_limit(pagination)
+    sort_direction = (
+        pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
+    )
 
-    # Get traces
+    # Fetch traces with pagination and sorting applied
+    traces_db = (
+        await TraceDB.find(
+            TraceDB.app_id == app_id, fetch_links=True, skip=skip, limit=limit
+        )
+        .sort([(TraceDB.created_at, sort_direction)])
+        .to_list()
+    )
+
+    # Convert beanie documents to pydantic models and filter based on the filter_params
     traces = await traces_to_pydantic(traces_db)
     filtered_traces = filter(
         partial(filters.filter_document_by_filter_params, filters_param), traces
     )
-
-    # Sorting logic
-    reverse = False
-    sort_keys = list(sorters.dict(exclude=None).keys())
-    if "created_at" in sort_keys:
-        reverse = sorters.created_at == "desc" if sorters else False
-
-    sorted_traces = sorted(
-        filtered_traces, key=lambda x: x["created_at"], reverse=reverse
-    )
-    return get_paginated_data(sorted_traces, pagination)
+    return get_paginated_data(list(filtered_traces), pagination)
 
 
 async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
