@@ -194,7 +194,7 @@ async def fetch_generation_spans(
     ).sort([(SpanDB.created_at, sort_direction)])
     if filters_param.trace_id is not None:
         spans_db = await spans_db.find_many(
-            SpanDB.trace.id == ObjectId(filters_param.trace_id)
+            SpanDB.trace.id == ObjectId(filters_param.trace_id), fetch_links=True
         ).to_list()
     else:
         spans_db = await spans_db.to_list()
