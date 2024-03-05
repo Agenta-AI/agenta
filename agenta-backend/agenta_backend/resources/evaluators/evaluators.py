@@ -9,6 +9,16 @@ evaluators = [
         },
     },
     {
+        "name": "Contains Json",
+        "key": "contains_json",
+        "direct_use": True,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+        },
+        "description": "Webhook test evaluator"
+    },
+    {
         "name": "Similarity Match",
         "key": "auto_similarity_match",
         "direct_use": False,
@@ -114,6 +124,109 @@ evaluators = [
             "label": "Single Model Testing Settings",
             "description": "Settings for single model testing configurations",
         },
+    },
+    {
+        "name": "Starts With",
+        "key": "auto_starts_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+            "prefix": {
+                "label": "prefix",
+                "type": "string",
+            },
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True
+            },
+        },
+        "description": "Webhook test evaluator"
+    },
+    {
+        "name": "Ends With",
+        "key": "auto_ends_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+            "suffix": {
+                "label": "suffix",
+                "type": "string",
+                "description": "The string to match",
+            },
+        },
+        "description": "Webhook test evaluator"
+    },
+    {
+        "name": "Contains",
+        "key": "auto_contains",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+            "substring": {
+                "label": "substring",
+                "type": "string",
+                "description": "The string to match",
+            },
+        },
+        "description": "Webhook test evaluator"
+    },
+    {
+        "name": "Contains Any",
+        "key": "auto_contains_any",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+            "string": {
+                "label": "string",
+                "type": "string",
+                "description": "The string to match",
+            },
+        },
+        "description": "Webhook test evaluator"
+    },
+    {
+        "name": "Contains All",
+        "key": "auto_contains_all",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Output starts with string",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the regex should match or mismatch",
+            },
+            "string": {
+                "label": "string",
+                "type": "string",
+                "description": "The string to match",
+            },
+        },
+        "description": "Webhook test evaluator"
     },
 ]
 
