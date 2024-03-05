@@ -1,7 +1,7 @@
 # Stdlib Imports
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Optional, List
+from datetime import datetime
+from typing import Optional, Dict, Any, Optional
 
 # Own Imports
 from agenta.client.backend import client
@@ -32,6 +32,7 @@ class LLMTracing:
             base_id=base_id,
             config_name=config_name,
             cost=kwargs["cost"],  # type: ignore
+            environment=kwargs["environment"],  # type: ignore
             status="INITIATED",
             token_consumption=kwargs["total_tokens"],  # type: ignore
             tags=[],
@@ -59,6 +60,7 @@ class LLMTracing:
             meta=kwargs["meta"],  # type: ignore
             event_name=event_name,
             event_type="generation",
+            environment=kwargs["environment"],  # type: ignore
             status=SpanStatus(**{"value": "SUCCESS", "error": None}),
             inputs=kwargs["inputs"],  # type: ignore
             outputs=kwargs["outputs"],  # type: ignore

@@ -145,8 +145,9 @@ services:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - rabbitmq
-      - redis
+        - mongo
+        - rabbitmq
+        - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
