@@ -576,9 +576,12 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             </div>
 
             <SaveTestsetModal
-                setIsTestsetModalOpen={setIsTestsetModalOpen}
-                isTestsetModalOpen={isTestsetModalOpen}
-                appId={appId}
+                open={isTestsetModalOpen}
+                onCancel={() => setIsTestsetModalOpen(false)}
+                onSuccess={(testsetName: string) => {
+                    message.success(`Row added to the "${testsetName}" test set!`)
+                    setIsTestsetModalOpen(false)
+                }}
                 rows={rows}
                 evaluation={evaluation}
             />
