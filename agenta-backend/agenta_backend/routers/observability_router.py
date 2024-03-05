@@ -77,7 +77,7 @@ async def get_traces(
     filters: GenerationFilterParams = Depends(),
     sorters: SorterParams = Depends(),
 ):
-    spans = await event_db_manager.fetch_generation_spans(
+    spans = await event_db_manager.fetch_traces(
         app_id,
         pagination,
         filters,
