@@ -391,6 +391,36 @@ def auto_contains_all(
         )
 
 
+def auto_contains_json(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        try:
+            start_index = output.index("{")
+            end_index = output.rindex("}") + 1
+            potential_json = output[start_index:end_index]
+
+            json.loads(potential_json)
+            contains_json = True
+        except (ValueError, json.JSONDecodeError):
+            contains_json = False
+
+        return Result(type="bool", value=contains_json)
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains JSON evaluation", stacktrace=str(e)
+            ),
+        )
+
+
 def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],

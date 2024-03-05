@@ -6,6 +6,7 @@ from agenta_backend.services.evaluators_service import (
     auto_contains,
     auto_contains_any,
     auto_contains_all,
+    auto_contains_json,
 )
 
 
@@ -112,4 +113,19 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
         {"substrings": substrings, "case_sensitive": case_sensitive},
         {},
     )
+    assert result.value == expected
+
+
+# Test for auto_contains_json
+@pytest.mark.parametrize(
+    "output, expected",
+    [
+        ('Some random text {"key": "value"} more text', True),
+        ("No JSON here!", False),
+        ("{Malformed JSON, nope!}", False),
+        ('{"valid": "json", "number": 123}', True),
+    ],
+)
+def test_auto_contains_json(output, expected):
+    result = auto_contains_json({}, output, "", {}, {}, {})
     assert result.value == expected
