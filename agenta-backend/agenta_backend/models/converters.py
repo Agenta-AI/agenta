@@ -3,7 +3,7 @@
 
 import json
 import logging
-from typing import List
+from typing import List, Tuple
 
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
@@ -12,10 +12,6 @@ from agenta_backend.models.api.observability_models import (
     Span,
     SpanStatus,
     SpanVariant,
-    LLMInputs,
-    LLMContent,
-    LLMModelParams,
-    SpanDetail,
     Trace,
     Feedback as FeedbackOutput,
 )
@@ -50,7 +46,6 @@ if isCloudEE():
         AppVariant_ as AppVariant,
         ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
-        AppVariantOutputExtended_ as AppVariantOutputExtended,
         EnvironmentRevision_ as EnvironmentRevision,
         EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
@@ -75,7 +70,6 @@ else:
         AppVariant,
         ImageExtended,
         AppVariantResponse,
-        AppVariantOutputExtended,
         EnvironmentRevision,
         EnvironmentOutput,
         EnvironmentOutputExtended,
@@ -318,6 +312,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
         uri=uri,
+        revision=app_variant_db.revision,
     )
 
     if isCloudEE():
@@ -327,19 +322,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     return variant_response
 
 
-async def app_variant_db_and_revision_to_extended_output(
-    app_variant_db: AppVariantDB, app_variant_revisions_db: AppVariantRevisionsDB
-) -> AppVariantResponse:
-    if app_variant_db.base.deployment:
-        deployment = await db_manager.get_deployment_by_objectid(
-            app_variant_db.base.deployment
-        )
-        uri = deployment.uri
-    else:
-        deployment = None
-        uri = None
-
-    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+async def app_variant_db_revisions_to_output(
+    app_variant_revisions_db: AppVariantRevisionsDB,
+) -> AppVariantRevision:
     app_variant_revisions = []
     for app_variant_revision_db in app_variant_revisions_db:
         app_variant_revisions.append(
@@ -350,27 +335,18 @@ async def app_variant_db_and_revision_to_extended_output(
                 created_at=app_variant_revision_db.created_at,
             )
         )
-    variant_extended = AppVariantOutputExtended(
-        app_id=str(app_variant_db.app.id),
-        app_name=str(app_variant_db.app.app_name),
-        variant_name=app_variant_db.variant_name,
-        variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user.id),
-        parameters=app_variant_db.config.parameters,
-        previous_variant_name=app_variant_db.previous_variant_name,
-        base_name=app_variant_db.base_name,
-        base_id=str(app_variant_db.base.id),
-        config_name=app_variant_db.config_name,
-        uri=uri,
-        revision=app_variant_db.revision,
-        revisions=app_variant_revisions,
+    return app_variant_revisions
+
+
+async def app_variant_db_revision_to_output(
+    app_variant_revision_db: AppVariantRevisionsDB,
+) -> AppVariantRevision:
+    return AppVariantRevision(
+        revision=app_variant_revision_db.revision,
+        modified_by=app_variant_revision_db.modified_by.username,
+        config=app_variant_revision_db.config,
+        created_at=app_variant_revision_db.created_at,
     )
-
-    if isCloudEE():
-        variant_extended.organization_id = str(app_variant_db.organization.id)
-        variant_extended.workspace_id = str(app_variant_db.workspace.id)
-
-    return variant_extended
 
 
 async def environment_db_to_output(
@@ -520,7 +496,7 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
 
 
 async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
-    spans = []
+    spans: List[Span] = []
     for span_db in spans_db:
         app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
             span_db.trace.base_id, span_db.trace.config_name
@@ -534,14 +510,43 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
                 variant_name=app_variant_db.variant_name,
                 revision=app_variant_db.revision,
             ),
-            environment="",
+            environment=span_db.environment,
             status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
             metadata=span_db.meta,
-            user_id=str(span_db.trace.user.id),  # Assuming trace_db exists
+            user_id=str(span_db.trace.user.id),
         )
         spans.append(span.dict(exclude_unset=True))
 
     return spans
+
+
+async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
+    traces: List[Trace] = []
+    for trace_db in traces_db:
+        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
+            trace_db.base_id, trace_db.config_name
+        )
+
+        trace = Trace(
+            id=str(trace_db.id),
+            created_at=trace_db.created_at.isoformat(),
+            variant=SpanVariant(
+                variant_id=str(app_variant_db.id),
+                variant_name=app_variant_db.variant_name,
+                revision=app_variant_db.revision,
+            ),
+            environment=trace_db.environment,
+            status=SpanStatus(value=trace_db.status, error=None),
+            metadata={
+                "cost": trace_db.cost,
+                "latency": trace_db.latency,
+                "usage": {"total_tokens": trace_db.token_consumption},
+            },
+            user_id=str(trace_db.user.id),
+        )
+        traces.append(trace.dict(exclude_unset=True))
+
+    return traces
 
 
 def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> FeedbackOutput:
@@ -605,3 +610,9 @@ def get_paginated_data(data: List[CustomType], query: PaginationParam = Depends(
     return WithPagination[CustomType](
         data=data, total=len(data), page=query.page, pageSize=query.pageSize
     )
+
+
+def get_pagination_skip_limit(pagination: PaginationParam) -> Tuple[int, int]:
+    skip = (pagination.page - 1) * pagination.pageSize
+    limit = pagination.pageSize
+    return skip, limit
