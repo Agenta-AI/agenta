@@ -199,8 +199,8 @@ evaluators = [
                 "default": True,
                 "description": "If the evaluation should be case sensitive.",
             },
-            "strings": {
-                "label": "strings",
+            "substrings": {
+                "label": "substrings",
                 "type": "string",
                 "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
             },
@@ -220,8 +220,8 @@ evaluators = [
                 "default": True,
                 "description": "If the evaluation should be case sensitive.",
             },
-            "strings": {
-                "label": "strings",
+            "substrings": {
+                "label": "substrings",
                 "type": "string",
                 "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
             },
