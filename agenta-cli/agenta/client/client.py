@@ -526,26 +526,38 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
         raise APIRequestError(f"Request failed: {str(e)}")
 
 
-def retrieve_variant_logs(variant_id: str, api_key: Optional[str], host: str):
-    """Retrieve variant logs from the server.
+from pydantic import BaseModel
 
+
+# def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
+def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
+    """Creates new app on the server.
     Args:
-        app_name (str): The required app name
-        host (str): The URL of the Agenta backend
-        api_key (str): The API key to validate with
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
     """
 
-    try:
-        response = requests.get(
-            f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/logs/",
-            headers={"Authorization": api_key},
-            timeout=600,
+    new_evaluation = {
+        "app_id": "6583e552eb855930ec6b1bdd",
+        "variant_ids": [
+            "6583e552eb855930ec6b1be3",
+            # "6570aed55d0eaff2293088e6"
+        ],
+        "evaluators_configs": ["65856b2b11d53fcce5894ab6"],
+        "testset_id": "6583e552eb855930ec6b1be4",
+    }
+
+    response = requests.post(
+        f"{host}/api/evaluations/",
+        json=new_evaluation,
+        # headers={"Authorization": api_key} if api_key is not None else None,
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to run evaluations failed with status code {response.status_code} and error message: {error_message}."
         )
-        if response.status_code != 200:
-            error_message = response.json().get("detail", "Unknown error")
-            raise APIRequestError(
-                f"Request to retrieve_variant_logs endpoint failed with status code {response.status_code}. Error message: {error_message}"
-            )
-        return response.json()
-    except RequestException as e:
-        raise APIRequestError(f"Request failed: {str(e)}")
+    print(response.json())
+    return response.json()

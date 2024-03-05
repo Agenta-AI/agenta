@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+        restart: always
 
     agenta-backend:
         container_name: agenta-backend-1
@@ -16,10 +17,15 @@ services:
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0
-            - ENVIRONMENT=development
+            - ENVIRONMENT=production
+            - DATABASE_MODE=v2
+            - FEATURE_FLAG=oss
+            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - BARE_DOMAIN_NAME=${BARE_DOMAIN_NAME:-localhost}
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
-            - FEATURE_FLAG=oss
+            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - CELERY_RESULT_BACKEND=redis://redis:6379/0
         command:
             [
                 "uvicorn",
@@ -46,9 +52,12 @@ services:
             - "traefik.http.routers.backend.service=backend"
         networks:
             - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     agenta-web:
         container_name: agenta-web-1
@@ -66,6 +75,8 @@ services:
             - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}
             - NEXT_PUBLIC_FF=oss
             - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
+        restart: always
+
     mongo:
         image: mongo:5.0
         environment:
@@ -82,6 +93,7 @@ services:
             interval: 10s
             timeout: 10s
             retries: 20
+        restart: always
 
     mongo_express:
         image: mongo-express
@@ -96,6 +108,7 @@ services:
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     redis:
         image: redis:latest
@@ -103,6 +116,42 @@ services:
             - agenta-network
         volumes:
             - redis_data:/data
+        restart: always
+
+    rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        volumes:
+            - ./rabbitmq_data:/var/lib/rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: "guest"
+            RABBITMQ_DEFAULT_PASS: "guest"
+        networks:
+            - agenta-network
+
+    celery_worker:
+        build: ./agenta-backend
+        command: >
+            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+        environment:
+            - MONGODB_URI=mongodb://username:password@mongo:27017
+            - REDIS_URL=redis://redis:6379/0
+            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - FEATURE_FLAG=oss
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - /var/run/docker.sock:/var/run/docker.sock
+        depends_on:
+            - mongo
+            - rabbitmq
+            - redis
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        networks:
+            - agenta-network
 
 networks:
     agenta-network:

@@ -1,3 +1,4 @@
+import {isDemo} from "@/lib/helpers/utils"
 import {js as beautify} from "js-beautify"
 
 export default function tsCode(uri: string, appId: string): string {
@@ -17,7 +18,7 @@ export default function tsCode(uri: string, appId: string): string {
 
     const config = {
         headers: {
-            ...formData.getHeaders()
+            ...formData.getHeaders() ${!isDemo() ? "" : ", Authorization: 'your_api_key'"}
         }
     };
 

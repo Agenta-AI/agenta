@@ -1,0 +1,130 @@
+---
+title: "Changelog"
+---
+
+## v0.8.0 - Revamping evaluation
+*22th January 2024*
+
+We've spent the past month re-engineering our evaluation workflow. Here's what's new:
+
+**Running Evaluations**
+
+1. Simultaneous Evaluations: You can now run multiple evaluations for different app variants and evaluators concurrently.
+    
+<img height="600" src="/images/changelog/eval_1.png" />
+
+2. Rate Limit Parameters: Specify these during evaluations and reattempts to ensure reliable results without exceeding open AI rate limits.
+    
+<img height="600" src="/images/changelog/eval_2.png" />
+    
+3. Reusable Evaluators: Configure evaluators such as similarity match, regex match, or AI critique and use them across multiple evaluations.
+    
+<img height="600" src="/images/changelog/eval_3.png" />
+    
+**Evaluation Reports**
+
+1. Dashboard Improvements: We've upgraded our dashboard interface to better display evaluation results. You can now filter and sort results by evaluator, test set, and outcomes.
+    
+<img height="600" src="/images/changelog/eval_4.png" />
+    
+2. Comparative Analysis: Select multiple evaluation runs and view the results of various LLM applications side-by-side.
+    
+<img height="600" src="/images/changelog/eval_5.png" />
+    
+## v0.7.1 - Adding Cost and Token Usage to the Playground
+
+*12th January 2024*
+<Warning> This change requires you to pull the latest version of the agenta platform if you're using the self-serve version.</Warning>
+
+<img height="600" src="/images/changelog/screenshot_cost_and_token_usage.png" />
+
+We've added a feature that allows you to compare the time taken by an LLM app, its cost, and track token usage, all in one place.
+
+### Changes to the SDK
+
+This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
+
+```
+{
+ "message": string,
+ "usage": {
+  "prompt_tokens": int,
+  "completion_tokens": int,
+  "total_tokens": int
+ },
+ "cost": float
+}
+```
+
+
+
+## v0.6.6 - Improving Side-by-side Comparison in the Playground
+*19th December 2023* 
+- Enhanced the side-by-side comparison in the playground for better user experience
+
+## v0.6.5 - Resolved Batch Logic Issue in Evaluation
+*18th December 2023*
+- Resolved an issue with batch logic in evaluation (users can now run extensive evaluations)
+
+## v0.6.4 - Comprehensive Updates and Bug Fixes
+*12th December 2023*
+- Incorporated all chat turns to the chat set
+- Rectified self-hosting documentation
+- Introduced asynchronous support for applications
+- Added 'register_default' alias
+- Fixed a bug in the side-by-side feature
+
+## v0.6.3 - Integrated File Input and UI Enhancements
+*12th December 2023*
+- Integrated file input feature in the SDK
+- Provided an example that includes images
+- Upgraded the human evaluation view to present larger inputs
+- Fixed issues related to data overwriting in the cloud
+- Implemented UI enhancements to the side bar
+
+## v0.6.2 - Minor Adjustments for Better Performance
+*7th December 2023*
+- Made minor adjustments
+
+## v0.6.1 - Bug Fix for Application Saving
+*7th December 2023*
+- Resolved a bug related to saving the application
+
+## v0.6.0 - Introduction of Chat-based Applications
+*1st December 2023*
+- Introduced chat-based applications
+- Fixed a bug in 'export csv' feature in auto evaluation
+
+## v0.5.8 - Multiple UI and CSV Reader Fixes
+*1st December 2023*
+- Fixed a bug impacting the csv reader
+- Addressed an issue of variant overwriting
+- Made tabs draggable for better UI navigation
+- Implemented support for multiple LLM keys in the UI
+
+## v0.5.7 - Enhanced Self-hosting and Mistral Model Tutorial
+*17th November 2023*
+- Enhanced and simplified self-hosting feature
+- Added a tutorial for the Mistral model
+- Resolved a race condition issue in deployment
+- Fixed an issue with saving in the playground
+
+## v0.5.6 - Sentry Integration and User Communication Improvements
+*12th November 2023*
+- Enhanced bug tracking with Sentry integration in the cloud
+- Integrated Intercom for better user communication in the cloud
+- Upgraded to the latest version of OpenAI
+- Cleaned up files post serving in CLI
+
+## v0.5.5 - Cypress Tests and UI Improvements
+*2nd November 2023*
+- Conducted extensive Cypress tests for improved application stability
+- Added a collapsible sidebar for better navigation
+- Improved error handling mechanisms
+- Added documentation for the evaluation feature
+
+## v0.5 - Launch of SDK Version 2 and Cloud-hosted Version
+*23rd October 2023*
+- Launched SDK version 2
+- Launched the cloud-hosted version
+- Completed a comprehensive refactoring of the application

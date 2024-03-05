@@ -354,6 +354,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "denniszelada",
+      "name": "Dennis Zelada",
+      "avatar_url": "https://avatars.githubusercontent.com/u/219311?v=4",
+      "profile": "http://denniszelada.wordpress.com/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "romainrbr",
+      "name": "Romain Brucker",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10381609?v=4",
+      "profile": "https://github.com/romainrbr",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "HeonHeo23",
+      "name": "Heon Heo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/76820291?v=4",
+      "profile": "http://heonheo.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

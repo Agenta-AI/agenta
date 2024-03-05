@@ -40,7 +40,9 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings,
-        llmAppPromptTemplate: item.evaluation_type_settings.llm_app_prompt_template,
+        llmAppPromptTemplate: item.evaluation_type_settings?.llm_app_prompt_template,
+        revisions: item.revisions,
+        variant_revision_ids: item.variants_revision_ids,
     } as Evaluation
 }
 
@@ -63,6 +65,7 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         evaluation.evaluationType === EvaluationType.auto_exact_match ||
         evaluation.evaluationType === EvaluationType.auto_similarity_match ||
         evaluation.evaluationType === EvaluationType.auto_regex_test ||
+        evaluation.evaluationType === EvaluationType.field_match_test ||
         evaluation.evaluationType === EvaluationType.auto_webhook_test ||
         evaluation.evaluationType === EvaluationType.auto_ai_critique ||
         evaluation.evaluationType === EvaluationType.single_model_test

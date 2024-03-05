@@ -5,11 +5,12 @@ import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
 import {Evaluation, GenericObject} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
-import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
+import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
+import Link from "next/link"
 
 interface EvaluationListTableDataType {
     key: string
@@ -32,6 +33,8 @@ interface EvaluationListTableDataType {
     custom_code_eval_id: string
     resultsData: {[key: string]: number}
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 type StyleProps = {
@@ -41,9 +44,6 @@ type StyleProps = {
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
-        "& svg": {
-            color: "red",
-        },
     },
     collapse: ({themeMode}: StyleProps) => ({
         margin: "10px 0",
@@ -65,11 +65,25 @@ const useStyles = createUseStyles({
             color: "#1677ff",
         },
     },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        margin: "20px 0",
+        gap: 10,
+        "& svg": {
+            color: "red",
+        },
+    },
 })
 
 const {Title} = Typography
-
-export default function AutomaticEvaluationResult() {
+interface AutomaticEvaluationResultProps {
+    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+export default function AutomaticEvaluationResult({
+    setIsEvalModalOpen,
+}: AutomaticEvaluationResultProps) {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -86,21 +100,13 @@ export default function AutomaticEvaluationResult() {
 
         const fetchEvaluations = async () => {
             try {
-                const evals: Evaluation[] = await loadEvaluations(app_id)
+                const evals: Evaluation[] = (await loadEvaluations(app_id)).map(
+                    fromEvaluationResponseToEvaluation,
+                )
                 const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
                 const newEvals = results.map((result, ix) => {
                     const item = evals[ix]
-                    if (
-                        [
-                            EvaluationType.auto_exact_match,
-                            EvaluationType.auto_similarity_match,
-                            EvaluationType.auto_regex_test,
-                            EvaluationType.auto_ai_critique,
-                            EvaluationType.custom_code_run,
-                            EvaluationType.auto_webhook_test,
-                            EvaluationType.single_model_test,
-                        ].includes(item.evaluationType)
-                    ) {
+                    if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
                         return {
                             key: item.id,
                             createdAt: item.createdAt,
@@ -112,6 +118,8 @@ export default function AutomaticEvaluationResult() {
                             custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
                             resultsData: result.results_data,
                             avgScore: result.avg_score,
+                            revisions: item.revisions,
+                            variant_revision_ids: item.variant_revision_ids,
                         }
                     }
                 })
@@ -134,27 +142,17 @@ export default function AutomaticEvaluationResult() {
         fetchEvaluations()
     }, [app_id])
 
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${app_id}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
         const evaluationType =
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
-        if (evaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_exact_match`)
-        } else if (evaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_similarity_match`)
-        } else if (evaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_regex_test`)
-        } else if (evaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_webhook_test`)
-        } else if (evaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/single_model_test`)
-        } else if (evaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_ai_critique`)
-        } else if (evaluationType === EvaluationType.custom_code_run) {
-            router.push(
-                `/apps/${app_id}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
-            )
+        if (evaluationType === EvaluationType.single_model_test) {
+            router.push(`/apps/${app_id}/annotations/${evaluation.key}/single_model_test`)
         }
     }
 
@@ -163,10 +161,13 @@ export default function AutomaticEvaluationResult() {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value) => {
+            render: (value, record: EvaluationListTableDataType) => {
                 return (
-                    <div>
-                        <span>{value[0].variantName}</span>
+                    <div
+                        onClick={() => handleNavigation(value[0].variantName, record.revisions[0])}
+                        style={{cursor: "pointer"}}
+                    >
+                        <span>{`${value[0].variantName} #${record.revisions[0]}`}</span>
                     </div>
                 )
             },
@@ -177,17 +178,6 @@ export default function AutomaticEvaluationResult() {
             key: "testsetName",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return <span>{record.testset.name}</span>
-            },
-        },
-        {
-            title: "Evaluation type",
-            dataIndex: "evaluationType",
-            key: "evaluationType",
-            width: "300",
-            render: (value: string) => {
-                const evaluationType = EvaluationType[value as keyof typeof EvaluationType]
-                const label = EvaluationTypeLabels[evaluationType]
-                return <span>{label}</span>
             },
         },
         {
@@ -277,47 +267,36 @@ export default function AutomaticEvaluationResult() {
         }
     }
 
-    const items = [
-        {
-            key: "1",
-            label: (
-                <div className={classes.container}>
-                    <Title level={3}>Evaluation Results</Title>
-                </div>
-            ),
-            children: (
-                <div>
-                    <div className={classes.container}>
-                        <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
-                            <DeleteOutlined key="delete" />
-                            Delete
-                        </Button>
-                    </div>
-
-                    <Table
-                        rowSelection={{
-                            type: selectionType,
-                            ...rowSelection,
-                        }}
-                        className="ph-no-capture"
-                        data-cy="automatic-evaluation-result"
-                        columns={columns}
-                        dataSource={evaluationsList}
-                    />
-                </div>
-            ),
-        },
-    ]
-
     return (
-        <Collapse
-            items={items}
-            ghost
-            bordered={false}
-            expandIconPosition="end"
-            className={classes.collapse}
-            collapsible="icon"
-            defaultActiveKey={["1"]}
-        />
+        <div>
+            <div className={classes.btnContainer}>
+                <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
+                    <DeleteOutlined key="delete" />
+                    Delete
+                </Button>
+                <Button
+                    type="primary"
+                    data-cy="new-annotation-modal-button"
+                    onClick={() => setIsEvalModalOpen(true)}
+                >
+                    New Evaluation
+                </Button>
+            </div>
+
+            <div className={classes.container}>
+                <Title level={3}>Single Model Test Results</Title>
+            </div>
+
+            <Table
+                rowSelection={{
+                    type: selectionType,
+                    ...rowSelection,
+                }}
+                className="ph-no-capture"
+                data-cy="automatic-evaluation-result"
+                columns={columns}
+                dataSource={evaluationsList}
+            />
+        </div>
     )
 }

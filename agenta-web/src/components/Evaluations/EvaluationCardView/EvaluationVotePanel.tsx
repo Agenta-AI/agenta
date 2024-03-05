@@ -3,6 +3,7 @@ import {Button, ConfigProvider, InputNumber, Spin, Typography, theme} from "antd
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
+import {v4 as uuidv4} from "uuid"
 
 const useStyles = createUseStyles({
     root: {
@@ -70,12 +71,20 @@ const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value, vertical}) => {
 
 type ComparisonVoteProps = {
     variants: Variant[]
+    outputs: any
 } & CommonProps<string>
 
-const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, value, vertical}) => {
+const ComparisonVote: React.FC<ComparisonVoteProps> = ({
+    variants,
+    onChange,
+    value,
+    vertical,
+    outputs,
+}) => {
     const classes = useStyles()
     const {token} = theme.useToken()
     const badId = "0"
+    const goodId = "1"
 
     const getOnClick = (variantId: string) => () => {
         onChange(variantId)
@@ -92,6 +101,8 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
                         danger
+                        data-cy="evaluation-vote-panel-comparison-vote-button"
+                        disabled={!!!outputs?.length}
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
                     </Button>
@@ -101,11 +112,25 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                 className={vertical ? classes.btnsDividerVertical : classes.btnsDividerHorizontal}
                 style={{borderColor: token.colorBorder}}
             />
+            <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[2]}}}>
+                <Button
+                    danger
+                    type={value === goodId ? "primary" : undefined}
+                    key={goodId}
+                    onClick={getOnClick(goodId)}
+                    data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"
+                    disabled={!!!outputs?.length}
+                >
+                    Both are good
+                </Button>
+            </ConfigProvider>
             <Button
                 danger
                 type={value === badId ? "primary" : undefined}
                 key={badId}
                 onClick={getOnClick(badId)}
+                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
+                disabled={!!!outputs?.length}
             >
                 Both are bad
             </Button>
@@ -178,6 +203,7 @@ type NumericScoreVoteProps = {
     min?: number
     max?: number
     showVariantName?: boolean
+    outputs: any
 } & CommonProps<
     {
         score: number | null
@@ -193,6 +219,7 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
     max = 100,
     vertical,
     showVariantName = true,
+    outputs,
 }) => {
     const classes = useStyles()
 
@@ -228,7 +255,9 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                             }
                             min={min}
                             max={max}
+                            data-cy="evaluation-vote-panel-numeric-vote-input"
                             onChange={(score) => _onChange(variant.variantId, score)}
+                            disabled={!!!outputs?.length}
                         />
                         <Typography.Text>/ {max}</Typography.Text>
                     </div>

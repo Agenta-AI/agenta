@@ -1,0 +1,16 @@
+---
+title: "The Config Object"
+description: "Use the Config Object to Access the Configuration Parameters of your Variant"
+---
+
+## `agenta.config`
+
+`config` is an object that contains the parameters for your variant and methods that enable you to pull and push these parameters to the backend. Use the config to save the usual parameters for an LLM variant, such as the prompt, temperature, LLM model, chunk size (for RAG), etc. Everything that you plan to experiment with in the playground should be saved in the config.
+
+The parameters in the configuration are accessible in your code at any module importing agenta in this way:
+
+```python
+agenta.config.parameter_name
+```
+
+The only requirement is that `agenta.init()` is called before in the entry point module.

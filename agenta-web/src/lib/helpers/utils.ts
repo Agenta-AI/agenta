@@ -1,22 +1,37 @@
-import dynamic from "next/dynamic"
+import {v4 as uuidv4} from "uuid"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
+import promiseRetry from "promise-retry"
+import {getErrorMessage} from "./errorHandler"
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+import {notification} from "antd"
+import Router from "next/router"
+
+if (typeof window !== "undefined") {
+    //@ts-ignore
+    if (!window.Cypress) {
+        dayjs.extend(utc)
+    }
+}
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
 export type LlmProvider = {
     title: string
     key: string
+    name: string
 }
 
 export const llmAvailableProviders: LlmProvider[] = [
-    {title: "OpenAI", key: ""},
-    {title: "Replicate", key: ""},
-    {title: "Hugging Face", key: ""},
-    {title: "Cohere", key: ""},
-    {title: "Anthropic", key: ""},
-    {title: "Azure", key: ""},
-    {title: "TogetherAI", key: ""},
+    {title: "OpenAI", key: "", name: "OPENAI_API_KEY"},
+    {title: "Replicate", key: "", name: "REPLICATE_API_KEY"},
+    {title: "Hugging Face", key: "", name: "HUGGING_FACE_API_KEY"},
+    {title: "Cohere", key: "", name: "COHERE_API_KEY"},
+    {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
+    {title: "Azure API Key", key: "", name: "AZURE_API_KEY"},
+    {title: "Azure API Base", key: "", name: "AZURE_API_BASE"},
+    {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
 ]
 
 export const getAllLlmProviderKeysAsEnvVariable = () => {
@@ -26,13 +41,18 @@ export const getAllLlmProviderKeysAsEnvVariable = () => {
         HUGGING_FACE_API_KEY: getLlmProviderKey("Hugging Face"),
         COHERE_API_KEY: getLlmProviderKey("Cohere"),
         ANTHROPIC_API_KEY: getLlmProviderKey("Anthropic"),
-        AZURE_API_KEY: getLlmProviderKey("Azure"),
+        AZURE_API_KEY: getLlmProviderKey("Azure API Key"),
+        AZURE_API_BASE: getLlmProviderKey("Azure API Base"),
         TOGETHERAI_API_KEY: getLlmProviderKey("TogetherAI"),
     }
 }
 
 export const renameVariables = (name: string) => {
-    return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    if (name === "inputs") {
+        return "Prompt Variables"
+    } else {
+        return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    }
 }
 
 export const renameVariablesCapitalizeAll = (name: string) => {
@@ -51,6 +71,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.human_scoring]: "Scoring single variant",
     [EvaluationType.custom_code_run]: "Custom Code Run",
     [EvaluationType.auto_regex_test]: "Regex Test",
+    [EvaluationType.field_match_test]: "JSON Field Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
 }
@@ -58,6 +79,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
 export const getApikeys = () => {
     if (typeof window !== "undefined") {
         const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
+        let apiKeys: Array<{title: string; key: string; name: string}> = []
 
         if (llmAvailableProvidersTokenString !== null) {
             const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
@@ -68,13 +90,27 @@ export const getApikeys = () => {
             ) {
                 for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
                     if (llmAvailableProvidersTokenArray[i].key !== "") {
-                        return llmAvailableProvidersTokenArray[i].key
+                        apiKeys.push(llmAvailableProvidersTokenArray[i])
                     }
                 }
             }
         }
-        return ""
+        return apiKeys
     }
+}
+
+export const apiKeyObject = () => {
+    const apiKey = getApikeys()
+
+    if (!apiKey) return {}
+
+    return apiKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
 }
 
 export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
@@ -93,9 +129,23 @@ export const getAllProviderLlmKeys = () => {
     if (typeof window !== "undefined") {
         const inStorage = localStorage.getItem(llmAvailableProvidersToken)
         if (inStorage) {
-            return JSON.parse(inStorage)
+            const parsedArray = JSON.parse(inStorage)
+            const updatedLlmAvailableProviders = parsedArray.map(
+                (item: LlmProvider, index: number) => {
+                    if (!item.hasOwnProperty("name")) {
+                        item.name = llmAvailableProviders[index].name
+                    }
+                    return item
+                },
+            )
+
+            localStorage.setItem(
+                llmAvailableProvidersToken,
+                JSON.stringify(updatedLlmAvailableProviders),
+            )
+
+            return updatedLlmAvailableProviders
         }
-        // if doesn't have the localStorage variable
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
     }
 
@@ -163,47 +213,11 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
     return result
 }
 
-export const getInitials = (str: string, limit = 2) => {
-    let initialText = "E"
-
-    try {
-        initialText = str
-            ?.split(" ")
-            .slice(0, limit)
-            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
-    } catch (error) {
-        console.log("Error using getInitials", error)
-    }
-
-    return initialText
-}
-
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
         return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
-}
-
-export const isCloud = () => {
-    if (process.env.NEXT_PUBLIC_FF) {
-        return process.env.NEXT_PUBLIC_FF === "cloud"
-    }
-    return false
-}
-
-export const isEnterprise = () => {
-    if (process.env.NEXT_PUBLIC_FF) {
-        return process.env.NEXT_PUBLIC_FF === "ee"
-    }
-    return false
-}
-
-export function dynamicComponent<T>(path: string, fallback: any = () => null) {
-    return dynamic<T>(() => import(`@/components/${path}`), {
-        loading: fallback,
-        ssr: false,
-    })
 }
 
 export const removeKeys = (obj: GenericObject, keys: string[]) => {
@@ -232,4 +246,176 @@ export const getAgentaApiUrl = () => {
     }
 
     return apiUrl
+}
+
+export function promisifyFunction(fn: Function, ...args: any[]) {
+    return async () => {
+        return fn(...args)
+    }
+}
+
+export const withRetry = (
+    fn: Function,
+    options?: Parameters<typeof promiseRetry>[0] & {logErrors?: boolean},
+) => {
+    const {logErrors = true, ...config} = options || {}
+    const func = promisifyFunction(fn)
+
+    return promiseRetry(
+        (retry, attempt) =>
+            func().catch((e) => {
+                if (logErrors) {
+                    console.log("Error: ", getErrorMessage(e))
+                    console.log("Retry attempt: ", attempt)
+                }
+                retry(e)
+            }),
+        {
+            retries: 3,
+            ...config,
+        },
+    )
+}
+
+export async function batchExecute(
+    functions: Function[],
+    options?: {
+        batchSize?: number
+        supressErrors?: boolean
+        batchDelayMs?: number
+        logErrors?: boolean
+        allowRetry?: boolean
+        retryConfig?: Parameters<typeof promiseRetry>[0]
+    },
+) {
+    const {
+        batchSize = 10,
+        supressErrors = false,
+        batchDelayMs = 2000,
+        logErrors = true,
+        allowRetry = true,
+        retryConfig,
+    } = options || {}
+
+    functions = functions.map((f) => async () => {
+        try {
+            return await (allowRetry ? withRetry(f, {logErrors, ...(retryConfig || {})}) : f())
+        } catch (e) {
+            if (supressErrors) {
+                if (logErrors) console.log("Ignored error:", getErrorMessage(e))
+                return {__error: e}
+            }
+            throw e
+        }
+    })
+
+    if (!batchSize || !Number.isInteger(batchSize) || batchSize <= 0)
+        return Promise.all(functions.map((f) => f()))
+
+    let position = 0
+    let results: any[] = []
+
+    while (position < functions.length) {
+        const batch = functions.slice(position, position + batchSize)
+        results = [...results, ...(await Promise.all(batch.map((f) => f())))]
+        position += batchSize
+        if (batchDelayMs) {
+            await delay(batchDelayMs)
+        }
+    }
+    return results
+}
+
+export const shortPoll = (
+    func: Function,
+    {delayMs, timeoutMs = 2000}: {delayMs: number; timeoutMs?: number},
+) => {
+    let startTime = Date.now()
+    let shouldContinue = true
+
+    const executor = async () => {
+        while (shouldContinue && Date.now() - startTime < timeoutMs) {
+            try {
+                await func()
+            } catch {}
+            await delay(delayMs)
+        }
+        if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
+    }
+
+    const promise = executor()
+
+    return {
+        stopper: () => {
+            shouldContinue = false
+        },
+        promise,
+    }
+}
+
+export function pickRandom<T>(arr: T[], len: number) {
+    const result: T[] = []
+    const length = arr.length
+
+    for (let i = 0; i < len; i++) {
+        const randomIndex = Math.floor(Math.random() * length)
+        result.push(arr[randomIndex])
+    }
+
+    return result
+}
+
+export function durationToStr(ms: number) {
+    const duration = dayjs.duration(ms, "milliseconds")
+    const days = Math.floor(duration.asDays())
+    const hours = Math.floor(duration.asHours() % 24)
+    const mins = Math.floor(duration.asMinutes() % 60)
+    const secs = Math.floor(duration.asSeconds() % 60)
+
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${mins}m`
+    if (mins > 0) return `${mins}m ${secs}s`
+    return `${secs}s`
+}
+
+type DayjsDate = Parameters<typeof dayjs>[0]
+export function getDurationStr(date1: DayjsDate, date2: DayjsDate) {
+    const d1 = dayjs(date1)
+    const d2 = dayjs(date2)
+
+    return durationToStr(d2.diff(d1, "milliseconds"))
+}
+
+export const generateOrRetrieveDistinctId = (): string => {
+    if (typeof localStorage !== "undefined") {
+        let distinctId = localStorage.getItem("posthog_distinct_id")
+        if (!distinctId) {
+            distinctId = uuidv4()
+            localStorage.setItem("posthog_distinct_id", distinctId)
+        }
+        return distinctId
+    } else {
+        return uuidv4()
+    }
+}
+
+export const redirectIfNoLLMKeys = () => {
+    const providerKeys = getApikeys()
+    if (providerKeys?.length === 0 && !isDemo()) {
+        notification.error({
+            message: "LLM Key Missing",
+            description: "Please provide at least one LLM key to access this feature.",
+            duration: 5,
+        })
+        Router.push("/settings?tab=secrets")
+        return true
+    }
+    return false
+}
+
+export const snakeToTitle = (str: string) => {
+    return str
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
 }

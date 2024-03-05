@@ -7,7 +7,7 @@ const useStyles = createUseStyles({
     root: {
         display: "flex",
         gap: "1rem",
-        flexWrap: "wrap",
+        flexDirection: "column",
     },
     inputRow: {
         display: "flex",
@@ -16,8 +16,8 @@ const useStyles = createUseStyles({
         "& .ant-typography": {
             textTransform: "capitalize",
         },
-        "& input": {
-            width: 200,
+        "& textarea": {
+            width: "100%",
         },
     },
 })
@@ -35,7 +35,8 @@ const EvaluationInputs: React.FC<Props> = ({evaluationScenario, onInputChange}) 
             {evaluationScenario.inputs.map((ip, ix) => (
                 <div key={ip.input_name} className={classes.inputRow}>
                     <Typography.Text>{ip.input_name}:</Typography.Text>
-                    <Input
+                    <Input.TextArea
+                        rows={2}
                         placeholder={ip.input_name}
                         defaultValue={ip.input_value}
                         onChange={(e) => onInputChange(e, evaluationScenario.id, ix)}

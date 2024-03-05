@@ -1,3 +1,4 @@
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {fetchEnvironments, publishVariant} from "@/lib/services/api"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
@@ -35,6 +36,7 @@ const PublishVariantModal: React.FC<Props> = ({
         setSelectedEnvs([])
     }
     const router = useRouter()
+    const posthog = usePostHogAg()
     const appId = router.query.app_id as string
 
     const [selectedEnvs, setSelectedEnvs] = useState<string[]>([])
@@ -55,6 +57,7 @@ const PublishVariantModal: React.FC<Props> = ({
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)
+            posthog.capture("app_deployed", {app_id: appId, environment: envName})
         })
     }
 
@@ -82,17 +85,6 @@ const PublishVariantModal: React.FC<Props> = ({
                 </Checkbox>
             )
         }
-        if (env.deployed_app_variant_id === variant.variantId) {
-            return (
-                <Checkbox key={env.name} indeterminate disabled>
-                    {env.name} (already published in{" "}
-                    <Text strong disabled>
-                        {variant.variantName}
-                    </Text>{" "}
-                    environment)
-                </Checkbox>
-            )
-        }
         return (
             <Checkbox
                 key={env.name}
@@ -100,8 +92,11 @@ const PublishVariantModal: React.FC<Props> = ({
                 checked={selectedEnvs.includes(env.name)}
                 onChange={handleChange}
             >
-                {env.name} (already published in <Text strong>{env.deployed_variant_name}</Text>{" "}
-                environment)
+                {env.name} (
+                <Text strong>
+                    {env.deployed_variant_name}#{env.revision}
+                </Text>{" "}
+                is published in this environment)
             </Checkbox>
         )
     }

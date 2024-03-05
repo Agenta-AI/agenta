@@ -5,14 +5,14 @@ import {
     AppstoreOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
-    LineChartOutlined,
-    QuestionOutlined,
+    ReadOutlined,
     PhoneOutlined,
     SettingOutlined,
     LogoutOutlined,
-    ApartmentOutlined,
+    SlidersOutlined,
+    PlayCircleOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Avatar} from "antd"
+import {Divider, Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -21,9 +21,13 @@ import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
-import {getColorFromStr} from "@/lib/helpers/colors"
-import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {useLocalStorage} from "usehooks-ts"
+import Image from "next/image"
+import abTesting from "@/media/testing.png"
+import singleModel from "@/media/score.png"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
@@ -46,6 +50,11 @@ const useStyles = createUseStyles({
     }),
     siderWrapper: ({themeMode}: StyleProps) => ({
         border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
+    }),
+    evaluationImg: ({themeMode}: StyleProps) => ({
+        width: 20,
+        height: 20,
+        filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
     sliderContainer: {
         display: "flex",
@@ -75,44 +84,15 @@ const useStyles = createUseStyles({
     menuLinks: {
         width: "100%",
     },
-    menuItemNoBg: {
-        textOverflow: "unset !important",
-        "& .ant-menu-submenu-title": {display: "flex", alignItems: "center"},
-        "& .ant-select-selector": {
-            padding: "0 !important",
-        },
-        "&> span": {
-            display: "inline-block",
-            marginTop: 4,
-        },
-        "& .ant-select-selection-item": {
-            "&> span > span": {
-                width: 120,
-                marginRight: 10,
-            },
-        },
-    },
-    orgLabel: {
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        justifyContent: "flex-start",
-        "&> div": {
-            width: 18,
-            height: 18,
-            aspectRatio: "1/1",
-            borderRadius: "50%",
-        },
-        "&> span": {
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+    subMenuContainer: {
+        "& .ant-menu-submenu-title": {
+            paddingLeft: "16px !important",
         },
     },
 })
 
 const Sidebar: React.FC = () => {
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const {appTheme} = useAppTheme()
     const {
         token: {colorBgContainer},
     } = theme.useToken()
@@ -136,8 +116,8 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
-    const [collapsed, setCollapsed] = useState(false)
+    const {user} = useProfileData()
+    const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -158,6 +138,8 @@ const Sidebar: React.FC = () => {
             onOk: logout,
         })
     }
+
+    const OrgsListSubMenu = dynamicComponent("OrgsListSubMenu/OrgsListSubMenu")
 
     return (
         <div className={classes.siderWrapper}>
@@ -249,53 +231,168 @@ const Sidebar: React.FC = () => {
                                             </Menu.Item>
                                         </Tooltip>
 
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                    : ""
-                                            }
-                                            key="evaluations"
-                                        >
-                                            <Menu.Item icon={<LineChartOutlined />}>
-                                                <Link
-                                                    data-cy="app-evaluations-link"
-                                                    href={getNavigationPath("evaluations")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                        : "Evaluate"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
+                                        {collapsed && <Divider style={{margin: 0}} />}
 
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Monitor production logs to ensure seamless operations."
-                                                    : ""
-                                            }
-                                            key="endpoints"
+                                        <Menu.ItemGroup
+                                            title={!collapsed && "Automatic Evaluation"}
+                                            className={classes.subMenuContainer}
                                         >
-                                            <Menu.Item icon={<CloudUploadOutlined />}>
-                                                <Link
-                                                    data-cy="app-endpoints-link"
-                                                    href={getNavigationPath("endpoints")}
-                                                    className={classes.menuLinks}
+                                            <Tooltip
+                                                placement="right"
+                                                title={
+                                                    !collapsed
+                                                        ? "Select and customize evaluators such as custom code or regex evaluators."
+                                                        : ""
+                                                }
+                                            >
+                                                <Menu.Item
+                                                    style={{paddingLeft: 16}}
+                                                    icon={<SlidersOutlined />}
                                                 >
-                                                    <Space>
-                                                        <span>
-                                                            {collapsed
-                                                                ? "Monitor production logs to ensure seamless operations."
-                                                                : "Endpoints"}
-                                                        </span>
-                                                    </Space>
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
+                                                    <Link
+                                                        data-cy="app-evaluators-link"
+                                                        href={getNavigationPath(
+                                                            "evaluations/new-evaluator",
+                                                        )}
+                                                        className={classes.menuLinks}
+                                                    >
+                                                        {collapsed
+                                                            ? "Select and customize evaluators such as custom code or regex evaluators."
+                                                            : "Evaluators"}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                            <Tooltip
+                                                placement="right"
+                                                title={
+                                                    !collapsed
+                                                        ? "Choose your variants and evaluators to start the evaluation process."
+                                                        : ""
+                                                }
+                                            >
+                                                <Menu.Item
+                                                    style={{paddingLeft: 16}}
+                                                    icon={<PlayCircleOutlined />}
+                                                >
+                                                    <Link
+                                                        data-cy="app-evaluations-results-link"
+                                                        href={getNavigationPath(
+                                                            "evaluations/results",
+                                                        )}
+                                                        className={classes.menuLinks}
+                                                    >
+                                                        {collapsed
+                                                            ? "Choose your variants and evaluators to start the evaluation process."
+                                                            : "Results"}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                        </Menu.ItemGroup>
+                                        {collapsed && <Divider style={{margin: 0}} />}
+
+                                        <Menu.ItemGroup
+                                            title={!collapsed && "Human Evaluation"}
+                                            className={classes.subMenuContainer}
+                                        >
+                                            <Tooltip
+                                                placement="right"
+                                                title={
+                                                    !collapsed
+                                                        ? "A/B evaluation allow you to compare the performance of two different variants manually."
+                                                        : ""
+                                                }
+                                            >
+                                                <Menu.Item
+                                                    style={{paddingLeft: 16}}
+                                                    icon={
+                                                        <Image
+                                                            src={abTesting}
+                                                            alt="A/B Evaluation"
+                                                            className={classes.evaluationImg}
+                                                        />
+                                                    }
+                                                >
+                                                    <Link
+                                                        data-cy="app-human-ab-testing-link"
+                                                        href={getNavigationPath(
+                                                            "annotations/human_a_b_testing",
+                                                        )}
+                                                        className={classes.menuLinks}
+                                                    >
+                                                        {collapsed
+                                                            ? "A/B tests allow you to compare the performance of two different variants manually."
+                                                            : "A/B Evaluation"}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                            <Tooltip
+                                                placement="right"
+                                                title={
+                                                    !collapsed
+                                                        ? "Single model evaluation allows you to score the performance of a single LLM app manually."
+                                                        : ""
+                                                }
+                                            >
+                                                <Menu.Item
+                                                    style={{paddingLeft: 16}}
+                                                    icon={
+                                                        <Image
+                                                            src={singleModel}
+                                                            alt="Single Model Evaluation"
+                                                            className={classes.evaluationImg}
+                                                        />
+                                                    }
+                                                >
+                                                    <Link
+                                                        data-cy="app-single-model-test-link"
+                                                        href={getNavigationPath(
+                                                            "annotations/single_model_test",
+                                                        )}
+                                                        className={classes.menuLinks}
+                                                    >
+                                                        {collapsed
+                                                            ? "Single model test allows you to score the performance of a single LLM app manually."
+                                                            : "Single Model Eval."}
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                        </Menu.ItemGroup>
+
+                                        {collapsed && <Divider style={{margin: 0}} />}
+
+                                        <Menu.ItemGroup
+                                            title={!collapsed && "Deployment"}
+                                            className={classes.subMenuContainer}
+                                        >
+                                            <Tooltip
+                                                placement="right"
+                                                title={
+                                                    !collapsed
+                                                        ? "Deploy your applications to different environments."
+                                                        : ""
+                                                }
+                                                key="endpoints"
+                                            >
+                                                <Menu.Item
+                                                    style={{paddingLeft: 16}}
+                                                    icon={<CloudUploadOutlined />}
+                                                >
+                                                    <Link
+                                                        data-cy="app-endpoints-link"
+                                                        href={getNavigationPath("endpoints")}
+                                                        className={classes.menuLinks}
+                                                    >
+                                                        <Space>
+                                                            <span>
+                                                                {collapsed
+                                                                    ? "Deploy your applications to different environments."
+                                                                    : "Endpoints"}
+                                                            </span>
+                                                        </Space>
+                                                    </Link>
+                                                </Menu.Item>
+                                            </Tooltip>
+                                        </Menu.ItemGroup>
                                     </>
                                 )}
                             </Menu>
@@ -313,9 +410,9 @@ const Sidebar: React.FC = () => {
                                     </Menu.Item>
                                 )}
 
-                                <Menu.Item key="help" icon={<QuestionOutlined />}>
+                                <Menu.Item key="docs" icon={<ReadOutlined />}>
                                     <Link href="https://docs.agenta.ai" target="_blank">
-                                        Help
+                                        Docs
                                     </Link>
                                 </Menu.Item>
 
@@ -326,42 +423,10 @@ const Sidebar: React.FC = () => {
                                                 href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
                                                 target="_blank"
                                             >
-                                                Talk to an Expert
+                                                Book Onboarding Call
                                             </Link>
                                         </Menu.Item>
-                                        {selectedOrg && (
-                                            <Menu.SubMenu
-                                                title={selectedOrg.name}
-                                                key="workspaces"
-                                                className={classes.menuItemNoBg}
-                                                icon={<ApartmentOutlined />}
-                                            >
-                                                {orgs.map((org, index) => (
-                                                    <Menu.Item
-                                                        key={index}
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                        }}
-                                                        icon={
-                                                            <Avatar
-                                                                size={"small"}
-                                                                style={{
-                                                                    backgroundColor:
-                                                                        getColorFromStr(org.id),
-                                                                    color: "#fff",
-                                                                }}
-                                                            >
-                                                                {getInitials(org.name)}
-                                                            </Avatar>
-                                                        }
-                                                        onClick={() => changeSelectedOrg(org.id)}
-                                                    >
-                                                        <span>{org.name}</span>
-                                                    </Menu.Item>
-                                                ))}
-                                            </Menu.SubMenu>
-                                        )}
+                                        <OrgsListSubMenu key="workspaces" />
                                         {user?.username && (
                                             <Menu.Item
                                                 key="logout"

@@ -105,6 +105,7 @@ def start_container(
             labels.update(development_labels)
 
         env_vars = {} if env_vars is None else env_vars
+        extra_hosts = {"host.docker.internal": "host-gateway"}
         container = client.containers.run(
             image,
             detach=True,
@@ -112,6 +113,8 @@ def start_container(
             network="agenta-network",
             name=container_name,
             environment=env_vars,
+            extra_hosts=extra_hosts,
+            restart_policy={"Name": "always"},
         )
         # Check the container's status
         sleep(0.5)
@@ -131,6 +134,9 @@ def start_container(
             logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             logger.error(
                 f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
             )

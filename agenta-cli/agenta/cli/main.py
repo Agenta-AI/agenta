@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import sys
@@ -9,10 +10,13 @@ import questionary
 import toml
 
 from agenta.cli import helper
-from agenta.client import client
-from agenta.cli import variant_logs
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
+from agenta.cli import evaluation_commands
+
+from agenta.client.backend.client import AgentaApi
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 def print_version(ctx, param, value):
@@ -75,7 +79,9 @@ def cli():
 
 @click.command()
 @click.option("--app_name", default="")
-def init(app_name: str):
+@click.option("--backend_host", default="")
+def init(app_name: str, backend_host: str):
+    init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
     if not app_name:
         while True:
@@ -91,41 +97,97 @@ def init(app_name: str):
                     )
 
     try:
-        where_question = questionary.select(
-            "Where are you running agenta?",
-            choices=["On agenta cloud", "On my local machine", "On a remote machine"],
-        ).ask()
-
-        if where_question == "On my local machine":
-            backend_host = "http://localhost"
-        elif where_question == "On a remote machine":
-            backend_host = questionary.text(
-                "Please provide the IP or URL of your remote host"
+        backend_hosts = {
+            "https://cloud.agenta.ai": "On agenta cloud",
+            "http://localhost": "On my local machine",
+        }
+        where_question = backend_hosts.get(backend_host, "On a remote machine")
+        if not backend_host:
+            where_question = questionary.select(
+                "Where are you running agenta?",
+                choices=[
+                    "On agenta cloud",
+                    "On my local machine",
+                    "On a remote machine",
+                ],
             ).ask()
-        elif where_question == "On agenta cloud":
-            global_backend_host = helper.get_global_config("host")
-            if global_backend_host:
-                backend_host = global_backend_host
-            else:
-                backend_host = "https://cloud.agenta.ai"
 
-            api_key = helper.get_api_key(backend_host)
-            client.validate_api_key(api_key, backend_host)
+            if where_question == "On my local machine":
+                backend_host = "http://localhost"
+            elif where_question == "On a remote machine":
+                backend_host = questionary.text(
+                    "Please provide the IP or URL of your remote host"
+                ).ask()
+            elif where_question == "On agenta cloud":
+                global_backend_host = helper.get_global_config("host")
+                if global_backend_host:
+                    backend_host = global_backend_host
+                else:
+                    backend_host = "https://cloud.agenta.ai"
 
-        elif where_question is None:  # User pressed Ctrl+C
-            sys.exit(0)
+                api_key = helper.get_api_key(backend_host)
+
+            elif where_question is None:  # User pressed Ctrl+C
+                sys.exit(0)
         backend_host = (
             backend_host
             if backend_host.startswith("http://") or backend_host.startswith("https://")
             else "http://" + backend_host
         )
 
-        # Get app_id after creating new app in the backend server
-        app_id = client.create_new_app(
-            app_name,
-            backend_host,
-            api_key if where_question == "On agenta cloud" else None,
+        # initialize the client with the backend url and api key
+        client = AgentaApi(
+            base_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
+            api_key=api_key if where_question == "On agenta cloud" else "",
         )
+
+        # list of user organizations
+        user_organizations = []
+
+        # validate the api key if it is provided
+        if where_question == "On agenta cloud":
+            try:
+                key_prefix = api_key.split(".")[0]
+                client.validate_api_key(key_prefix=key_prefix)
+
+                # Make request to fetch user organizations after api key validation
+                organizations = client.list_organizations()
+                if len(organizations) >= 1:
+                    user_organizations = organizations
+            except Exception as ex:
+                if ex.status_code == 401:
+                    click.echo(click.style("Error: Invalid API key", fg="red"))
+                    sys.exit(1)
+                else:
+                    click.echo(click.style(f"Error: {ex}", fg="red"))
+                    sys.exit(1)
+
+        filtered_org = None
+        if where_question == "On agenta cloud":
+            which_organization = questionary.select(
+                "Which organization do you want to create the app for?",
+                choices=[
+                    f"{org.name}: {org.description}" for org in user_organizations
+                ],
+            ).ask()
+            filtered_org = next(
+                (
+                    org
+                    for org in user_organizations
+                    if org.name == which_organization.split(":")[0]
+                ),
+                None,
+            )
+
+        # Get app_id after creating new app in the backend server
+        try:
+            app_id = client.create_app(
+                app_name=app_name,
+                organization_id=filtered_org.id if filtered_org else None,
+            ).app_id
+        except Exception as ex:
+            click.echo(click.style(f"Error: {ex}", fg="red"))
+            sys.exit(1)
 
         # Set app toml configuration
         config = {
@@ -138,41 +200,42 @@ def init(app_name: str):
             toml.dump(config, config_file)
 
         # Ask for init option
-        init_option = questionary.select(
-            "How do you want to initialize your app?",
-            choices=["Blank App", "Start from template"],
-        ).ask()
-
-        # If the user selected the second option, show a list of available templates
-        if init_option == "Start from template":
-            current_dir = Path.cwd()
-            template_dir = Path(__file__).parent.parent / "templates"
-            templates = [
-                folder.name for folder in template_dir.iterdir() if folder.is_dir()
-            ]
-            template_desc = [
-                toml.load((template_dir / name / "template.toml"))["short_desc"]
-                for name in templates
-            ]
-
-            # Show the templates to the user
-            template = questionary.select(
-                "Which template do you want to use?",
-                choices=[
-                    questionary.Choice(
-                        title=f"{template} - {template_desc}", value=template
-                    )
-                    for template, template_desc in zip(templates, template_desc)
-                ],
+        if not init_option:
+            init_option = questionary.select(
+                "How do you want to initialize your app?",
+                choices=["Blank App", "Start from template"],
             ).ask()
 
-            # Copy the template files to the current directory
-            chosen_template_dir = template_dir / template
-            for file in chosen_template_dir.glob("*"):
-                if file.name != "template.toml" and not file.is_dir():
-                    shutil.copy(file, current_dir / file.name)
-        elif init_option is None:  # User pressed Ctrl+C
-            sys.exit(0)
+            # If the user selected the second option, show a list of available templates
+            if init_option == "Start from template":
+                current_dir = Path.cwd()
+                template_dir = Path(__file__).parent.parent / "templates"
+                templates = [
+                    folder.name for folder in template_dir.iterdir() if folder.is_dir()
+                ]
+                template_desc = [
+                    toml.load((template_dir / name / "template.toml"))["short_desc"]
+                    for name in templates
+                ]
+
+                # Show the templates to the user
+                template = questionary.select(
+                    "Which template do you want to use?",
+                    choices=[
+                        questionary.Choice(
+                            title=f"{template} - {template_desc}", value=template
+                        )
+                        for template, template_desc in zip(templates, template_desc)
+                    ],
+                ).ask()
+
+                # Copy the template files to the current directory
+                chosen_template_dir = template_dir / template
+                for file in chosen_template_dir.glob("*"):
+                    if file.name != "template.toml" and not file.is_dir():
+                        shutil.copy(file, current_dir / file.name)
+            elif init_option is None:  # User pressed Ctrl+C
+                sys.exit(0)
 
         # Create a .gitignore file and add some default environment folder names to it
         gitignore_content = (
@@ -196,6 +259,7 @@ cli.add_command(init)
 cli.add_command(variant_logs.get)
 cli.add_command(variant_configs.config)
 cli.add_command(variant_commands.variant)
+cli.add_command(evaluation_commands.evaluation)
 
 if __name__ == "__main__":
     cli()

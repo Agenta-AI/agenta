@@ -22,7 +22,6 @@ interface Props {
     variant: Variant
     handlePersistVariant: (variantName: string) => void
     environments: Environment[]
-    onAdd: () => void
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
@@ -43,7 +42,6 @@ const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
     environments,
-    onAdd,
     deleteVariant,
     getHelpers,
     onStateChange,
@@ -55,7 +53,7 @@ const ViewNavigation: React.FC<Props> = ({
     const appId = router.query.app_id as unknown as string
     const {
         inputParams,
-        optParams,
+        promptOptParams,
         refetch,
         isError,
         error,
@@ -63,7 +61,11 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
         isChatVariant,
+        historyStatus,
+        setPromptOptParams,
+        setHistoryStatus,
     } = useVariant(appId, variant)
+
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
@@ -71,6 +73,7 @@ const ViewNavigation: React.FC<Props> = ({
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -257,7 +260,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <ParametersView
                         compareMode={compareMode}
                         variant={variant}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
@@ -266,10 +269,13 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
-                        onAdd={onAdd}
                         getHelpers={getHelpers}
                         onStateChange={onStateChange}
                         tabID={tabID}
+                        setHistoryStatus={setHistoryStatus}
+                        setIsDrawerOpen={setIsDrawerOpen}
+                        isDrawerOpen={isDrawerOpen}
+                        historyStatus={historyStatus}
                     />
                 </Col>
             </Row>
@@ -279,9 +285,13 @@ const ViewNavigation: React.FC<Props> = ({
                 <Col span={24}>
                     <TestView
                         inputParams={inputParams}
-                        optParams={optParams}
+                        optParams={promptOptParams}
                         variant={variant}
                         isChatVariant={!!isChatVariant}
+                        compareMode={compareMode}
+                        onStateChange={onStateChange}
+                        setPromptOptParams={setPromptOptParams}
+                        promptOptParams={promptOptParams}
                     />
                 </Col>
             </Row>

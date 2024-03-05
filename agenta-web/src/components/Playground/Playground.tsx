@@ -14,6 +14,9 @@ import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
 import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
+import TestContextProvider from "./TestContextProvider"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import ResultComponent from "../ResultComponent/ResultComponent"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -72,7 +75,6 @@ const Playground: React.FC = () => {
             baseId: templateVariant.baseId,
             baseName: templateVariant.baseName || newTemplateVariantName,
             configName: newVariantName,
-            configId: templateVariant.configId,
         }
 
         setVariants((prevState: any) => [...prevState, newVariant])
@@ -161,8 +163,16 @@ const Playground: React.FC = () => {
         (newRoute) => !newRoute.includes("playground"),
     )
 
-    if (isError) return <div>failed to load variants for app {appId}</div>
-    if (isLoading) return <div>loading variants...</div>
+    if (isError)
+        return (
+            <ResultComponent
+                status="error"
+                title={`Failed to load variants`}
+                subtitle={`App ID: ${appId}`}
+            />
+        )
+    if (isLoading)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
 
     /**
      * Called when the variant is saved for the first time to the backend
@@ -197,6 +207,17 @@ const Playground: React.FC = () => {
             },
             onOk: async () => {
                 try {
+                    const variantId =
+                        variants.find((item) => item.variantId === tabID.current)?.variantId ||
+                        variants.find((item) => item.variantName === activeKey)?.variantId
+                    if (
+                        variantId &&
+                        !(await checkIfResourceValidForDeletion({
+                            resourceType: "variant",
+                            resourceIds: [variantId],
+                        }))
+                    )
+                        return
                     if (deleteAction) await deleteAction()
                     removeTab()
                     messageApi.open({
@@ -244,7 +265,6 @@ const Playground: React.FC = () => {
                 variant={variant}
                 handlePersistVariant={handlePersistVariant}
                 environments={environments}
-                onAdd={fetchData}
                 deleteVariant={deleteVariant}
                 onStateChange={(isDirty) =>
                     setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
@@ -259,8 +279,7 @@ const Playground: React.FC = () => {
     return (
         <div>
             {contextHolder}
-
-            <div>
+            <TestContextProvider>
                 <div
                     style={{
                         display: "flex",
@@ -292,6 +311,7 @@ const Playground: React.FC = () => {
                             setIsLoading(true)
                             fetchData()
                         }}
+                        ghost
                     >
                         Refresh
                     </Button>
@@ -359,7 +379,7 @@ const Playground: React.FC = () => {
                         )}
                     />
                 )}
-            </div>
+            </TestContextProvider>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}

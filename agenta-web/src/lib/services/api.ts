@@ -12,9 +12,10 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
+    DeploymentRevisions,
+    DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
-    ListAppsItem,
     AICritiqueCreate,
     ChatMessage,
     KeyValuePair,
@@ -24,13 +25,13 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay, getAgentaApiUrl, removeKeys} from "../helpers/utils"
-import {useProfileData} from "@/contexts/profile.context"
+import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
+import {dynamicContext} from "../helpers/dynamic"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-const fetcher = (url: string) => axios.get(url).then((res) => res.data)
+export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
 
 export async function fetchVariants(
     appId: string,
@@ -51,7 +52,6 @@ export async function fetchVariants(
                 variantId: variant.variant_id,
                 baseId: variant.base_id,
                 baseName: variant.base_name,
-                configId: variant.config_id,
                 configName: variant.config_name,
             }
             return v
@@ -72,8 +72,10 @@ export function restartAppVariantContainer(variantId: string) {
  * @param inputParametersDict A dictionary of the input parameters to be passed to the variant endpoint
  * @param inputParamDefinition A list of the parameters that are defined in the openapi.json (these are only part of the input params, the rest is defined by the user in the optparms)
  * @param optionalParameters The optional parameters (prompt, models, AND DICTINPUTS WHICH ARE TO BE USED TO ADD INPUTS )
- * @param URIPath
- * @returns
+ * @param appId - The ID of the app.
+ * @param baseId - The base ID.
+ * @param chatMessages - An optional array of chat messages.
+ * @returns A Promise that resolves with the response data from the POST request.
  */
 export async function callVariant(
     inputParametersDict: KeyValuePair,
@@ -82,11 +84,14 @@ export async function callVariant(
     appId: string,
     baseId: string,
     chatMessages?: ChatMessage[],
+    signal?: AbortSignal,
+    ignoreAxiosError?: boolean,
 ) {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
+
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -118,9 +123,14 @@ export async function callVariant(
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
-        return res.data
-    })
+    return axios
+        .post(`${appContainerURI}/generate`, requestBody, {
+            signal,
+            _ignoreError: ignoreAxiosError,
+        } as any)
+        .then((res) => {
+            return res.data
+        })
 }
 
 /**
@@ -164,14 +174,6 @@ export const getVariantParametersFromOpenAPI = async (
     }
 }
 
-// Define a type for our cache
-interface Cache {
-    [key: string]: string
-}
-
-// Create the cache object
-const urlCache: Cache = {}
-
 /**
  * Retries the container url for an app
  * @param {string} appId - The id of the app
@@ -190,21 +192,10 @@ export const getAppContainerURL = async (
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
 
-        let cacheKey = appId
-        if (variantId) cacheKey += `_${variantId}`
-        if (baseId) cacheKey += `_${baseId}`
-
-        // Check if the URL is already cached
-        if (urlCache[cacheKey]) {
-            return urlCache[cacheKey]
-        }
-
         // Retrieve container URL from backend
         const url = `${getAgentaApiUrl()}/api/containers/container_url/`
         const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
-            // Cache the URL before returning
-            urlCache[cacheKey] = response.data.uri
             return response.data.uri
         } else {
             return ""
@@ -259,8 +250,8 @@ export async function removeVariant(variantId: string) {
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
-        fetcher,
-        {revalidateOnFocus: false},
+        axiosFetcher,
+        {revalidateOnFocus: false, shouldRetryOnError: false},
     )
 
     return {
@@ -269,6 +260,11 @@ export const useLoadTestsetsList = (appId: string) => {
         isTestsetsLoadingError: error,
         mutate,
     }
+}
+
+export const fetchTestsets = async (appId: string) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+    return response.data
 }
 
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
@@ -287,7 +283,16 @@ export async function updateTestset(testsetId: String, testsetName: string, test
     return response
 }
 
-export const loadTestset = async (testsetId: string) => {
+export const loadTestset = async (testsetId: string | null) => {
+    if (!testsetId) {
+        return {
+            id: undefined,
+            name: "No Test Set Associated",
+            created_at: "",
+            updated_at: "",
+            csvdata: [],
+        }
+    }
     const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`)
     return response.data
 }
@@ -301,21 +306,19 @@ export const deleteTestsets = async (ids: string[]) => {
     return response.data
 }
 
-export const loadEvaluations = async (appId: string) => {
-    return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/?app_id=${appId}`)
-        .then((responseData) => {
-            const evaluations = responseData.data.map((item: EvaluationResponseType) => {
-                return fromEvaluationResponseToEvaluation(item)
-            })
-
-            return evaluations
-        })
+export const loadEvaluations = async (appId: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${appId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return response.data
 }
 
 export const loadEvaluation = async (evaluationId: string) => {
     return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/${evaluationId}/`)
+        .get(`${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/`)
         .then((responseData) => {
             return fromEvaluationResponseToEvaluation(responseData.data)
         })
@@ -324,7 +327,7 @@ export const loadEvaluation = async (evaluationId: string) => {
 export const deleteEvaluations = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/evaluations/`,
+        url: `${getAgentaApiUrl()}/api/human-evaluations/`,
         data: {evaluations_ids: ids},
     })
     return response.data
@@ -335,7 +338,9 @@ export const loadEvaluationsScenarios = async (
     evaluation: Evaluation,
 ) => {
     return await axios
-        .get(`${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenarios/`)
+        .get(
+            `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenarios/`,
+        )
         .then((responseData) => {
             const evaluationsRows = responseData.data.map((item: any) => {
                 return fromEvaluationScenarioResponseToEvaluationScenario(item, evaluation)
@@ -381,14 +386,17 @@ export const createNewEvaluation = async (
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/api/evaluations/`, data, {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/human-evaluations/`, data, {
         _ignoreError: ignoreAxiosError,
     } as any)
     return response.data.id
 }
 
 export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
-    const response = await axios.put(`${getAgentaApiUrl()}/api/evaluations/${evaluationId}/`, data)
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/`,
+        data,
+    )
     return response.data
 }
 
@@ -399,7 +407,7 @@ export const updateEvaluationScenario = async (
     evaluationType: EvaluationType,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/`,
         data,
     )
     return response.data
@@ -407,7 +415,7 @@ export const updateEvaluationScenario = async (
 
 export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationTableId}/evaluation_scenario/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/`,
         data,
     )
     return response.data
@@ -418,23 +426,29 @@ export const evaluateAICritiqueForEvalScenario = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/ai_critique/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/ai_critique/`,
         data,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
 }
 
-export const fetchEvaluationResults = async (evaluationId: string) => {
+export const fetchEvaluationResults = async (
+    evaluationId: string,
+    ignoreAxiosError: boolean = false,
+) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/${evaluationId}/results/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
     )
     return response.data
 }
 
 export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
     )
     return response
 }
@@ -444,7 +458,7 @@ export const saveCustomCodeEvaluation = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -457,7 +471,7 @@ export const editCustomEvaluationDetail = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${id}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -466,7 +480,7 @@ export const editCustomEvaluationDetail = async (
 
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/list/${app_id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/list/${app_id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -477,7 +491,7 @@ export const fetchCustomEvaluationDetail = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
@@ -488,7 +502,7 @@ export const fetchCustomEvaluationNames = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/${app_id}/names/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${app_id}/names/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -499,7 +513,9 @@ export const executeCustomEvaluationCode = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/execute/${
+            payload.evaluation_id
+        }/`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -512,36 +528,15 @@ export const updateEvaluationScenarioScore = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
         {score},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
 }
 
-export const useApps = () => {
-    const {selectedOrg} = useProfileData()
-    const {data, error, isLoading, mutate} = useSWR(
-        `${getAgentaApiUrl()}/api/apps/?org_id=${selectedOrg?.id}`,
-        selectedOrg?.id ? fetcher : () => {}, //doon't fetch if org is not selected
-    )
-
-    return {
-        data: (data || []) as ListAppsItem[],
-        error,
-        isLoading: selectedOrg?.id ? isLoading : true,
-        mutate,
-    }
-}
-
 export const getProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-}
-
-export const getOrgsList = async (ignoreAxiosError: boolean = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/organizations/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -581,25 +576,17 @@ export const waitForAppToStart = async ({
 }) => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
-        const shortPoll = async () => {
-            let started = false
-            while (!started) {
-                try {
-                    await getVariantParametersFromOpenAPI(
-                        appId,
-                        _variant.variantId,
-                        _variant.baseId,
-                        true,
-                    )
-                    started = true
-                } catch {}
-                await delay(interval)
-            }
-        }
-        await Promise.race([
-            shortPoll(),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), timeout)),
-        ])
+        const {stopper, promise} = shortPoll(
+            () =>
+                getVariantParametersFromOpenAPI(
+                    appId,
+                    _variant.variantId,
+                    _variant.baseId,
+                    true,
+                ).then(() => stopper()),
+            {delayMs: interval, timeoutMs: timeout},
+        )
+        await promise
     }
 }
 
@@ -607,14 +594,12 @@ export const createAndStartTemplate = async ({
     appName,
     providerKey,
     templateId,
-    orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
-    providerKey: string
+    providerKey: Array<{title: string; key: string; name: string}>
     templateId: string
-    orgId: string
     timeout?: number
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -622,7 +607,21 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
+    const apiKeys = providerKey.reduce(
+        (acc, {key, name}) => {
+            acc[name] = key
+            return acc
+        },
+        {} as Record<string, string>,
+    )
+
     try {
+        const {getOrgValues} = await dynamicContext("org.context", {
+            getOrgValues: () => ({
+                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
+            }),
+        })
+        const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
         try {
@@ -630,10 +629,9 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: providerKey,
-                    },
-                    organization_id: orgId,
+                    organization_id: selectedOrg.id,
+                    workspace_id: selectedOrg.default_workspace.id,
+                    env_vars: apiKeys,
                 },
                 true,
             )
@@ -673,9 +671,72 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
     return data
 }
 
+export const fetchDeploymentRevisionConfig = async (
+    deploymentRevisionId: string,
+): Promise<DeploymentRevisionConfig> => {
+    const response = await fetch(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`,
+    )
+
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch deployment revision configuration")
+    }
+
+    const data = (await response.json()) as DeploymentRevisionConfig
+    return data
+}
+
+export const fetchDeploymentRevisions = async (
+    appId: string,
+    environmentName: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return data
+}
+
+export const revertDeploymentRevision = async (
+    deploymentRevisionId: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert/`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
 export const publishVariant = async (variantId: string, environmentName: string) => {
     await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/`, {
         environment_name: environmentName,
         variant_id: variantId,
     })
+}
+
+export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/revisions/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
+}
+
+export const promptRevision = async (
+    variantId: string,
+    revisionNumber: number,
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/revisions/${revisionNumber}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+
+    return data
 }

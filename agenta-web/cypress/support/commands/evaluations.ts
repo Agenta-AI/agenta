@@ -16,25 +16,25 @@ Cypress.Commands.add("createVariant", () => {
 
     // Check if there are app variants present
     cy.request({
-        url: `${Cypress.env().baseApiURL}/organizations/`,
+        url: `${Cypress.env().baseApiURL}/apps`,
         method: "GET",
-    }).then((res) => {
-        cy.log(`Body: ${JSON.stringify(res.body) || "No body"}`)
-        cy.request({
-            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
-            method: "GET",
-        }).then((resp) => {
-            if (resp.body.length) {
-                cy.get('[data-cy="create-new-app-button"]').click()
-                cy.get('[data-cy="create-from-template"]').click()
-            } else {
-                cy.get('[data-cy="create-from-template__no-app"]').click()
-            }
-        })
+    }).then((resp) => {
+        if (resp.body.length) {
+            cy.get('[data-cy="create-new-app-button"]').click()
+            cy.get('[data-cy="create-from-template"]').click()
+        } else {
+            cy.get('[data-cy="create-from-template__no-app"]').click()
+        }
     })
 
-    cy.get('[data-cy="create-app-button"]').first().click()
+    cy.contains("Single Prompt")
+        .parentsUntil('[data-cy^="app-template-card"]')
+        .last()
+        .contains("create app", {matchCase: false})
+        .click()
+
     const appName = randString(5)
+    cy.task("log", `App name: ${appName}`)
 
     cy.get('[data-cy="enter-app-name-modal"]')
         .should("exist")
@@ -66,24 +66,12 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 
     cy.get(".ag-row").should("have.length", 3)
     countries.forEach((country, index) => {
-        cy.get(".ag-row")
-            .eq(index)
-            .within(() => {
-                cy.get("div.ag-cell")
-                    .eq(1)
-                    .within(() => {
-                        cy.get("span").eq(0).dblclick()
-                        cy.get(".ag-input-field-input").type(country.country)
-                    })
-                cy.get("div.ag-cell")
-                    .eq(2)
-                    .within(() => {
-                        cy.get("span").eq(0).dblclick()
-                        cy.get(".ag-input-field-input").type(
-                            `The capital of ${country.country} is ${country.capital}.`,
-                        )
-                    })
-            })
+        cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
+            cy.get(".ag-cell").eq(1).type(country.country)
+            cy.get(".ag-cell")
+                .eq(2)
+                .type(`The capital of ${country.country} is ${country.capital}.`)
+        })
     })
 
     cy.get('[data-cy="testset-save-button"]').click()
@@ -109,4 +97,32 @@ Cypress.Commands.add("addingOpenaiKey", () => {
 
 Cypress.Commands.add("removeLlmProviderKey", () => {
     removeLlmProviderKey()
+})
+
+Cypress.Commands.add("createNewEvaluation", () => {
+    cy.request({
+        url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
+        method: "GET",
+    }).then((resp) => {
+        if (resp.body.length) {
+            cy.get('[data-cy="new-evaluation-button"]').click()
+        } else {
+            cy.get('[data-cy="new-evaluation-button__no_variants"]').click()
+        }
+    })
+    cy.get(".ant-modal-content").should("exist")
+
+    cy.get('[data-cy="select-testset-group"]').click()
+    cy.get('[data-cy="select-testset-option"]').eq(0).click()
+
+    cy.get('[data-cy="select-variant-group"]').click()
+    cy.get('[data-cy="select-variant-option"]').eq(0).click()
+    cy.get('[data-cy="select-variant-group"]').click()
+
+    cy.get('[data-cy="select-evaluators-group"]').click()
+    cy.get('[data-cy="select-evaluators-option"]').eq(0).click()
+    cy.get('[data-cy="select-evaluators-group"]').click()
+
+    cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
+    cy.wait(1000)
 })

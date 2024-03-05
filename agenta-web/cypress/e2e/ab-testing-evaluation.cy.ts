@@ -39,10 +39,11 @@ describe("A/B Testing Evaluation workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.url().should("include", "/evaluations")
-            cy.clickLinkAndWait('[data-cy="abTesting-button"]')
+            cy.visit(`/apps/${app_id}/annotations/human_a_b_testing`)
+            cy.url().should("include", "/annotations/human_a_b_testing")
+            cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
 
+            cy.get(".ant-modal-content").should("exist")
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
             cy.get(".ant-dropdown")
                 .eq(0)
@@ -69,15 +70,20 @@ describe("A/B Testing Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.url().should("include", "/human_a_b_testing")
+            cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
+
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').should("not.exist")
+            cy.get(
+                '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
+            ).should("not.exist")
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
-            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]').should("not.be.disabled")
-            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]').should("not.be.disabled")
-            cy.get('[data-cy^="abTesting-both-bad-vote-button"]').should("not.be.disabled")
 
-            cy.get('[data-cy="abTesting-app-variant-1-vote-button-0"]').click()
-            cy.get('[data-cy="abTesting-app-variant-2-vote-button-1"]').click()
-            cy.get('[data-cy="abTesting-both-bad-vote-button-2"]').click()
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(0).click()
+            cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(1).click()
+            cy.get(
+                '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
+            ).click()
         })
     })
 

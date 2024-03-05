@@ -1,18 +1,20 @@
 import {useState, useEffect, useMemo} from "react"
-import {useRouter} from "next/router"
-import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {
+    getAllProviderLlmKeys,
+    getApikeys,
+    isAppNameInputValid,
+    isDemo,
+    redirectIfNoLLMKeys,
+} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
-    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -25,6 +27,9 @@ import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
+import ResultComponent from "../ResultComponent/ResultComponent"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -39,16 +44,18 @@ const useStyles = createUseStyles({
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
-        gap: 12,
+        gap: 24,
         "& .ant-card-bordered, .ant-card-actions": {
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
     }),
-    createCard: {
+    createCard: ({themeMode}: StyleProps) => ({
         fontSize: 20,
-        backgroundColor: "#1777FF",
-        borderColor: "#1777FF !important",
-        color: "#FFFFFF",
+        backgroundColor: themeMode === "dark" ? "" : "hsl(0, 0%, 100%)",
+        borderColor: themeMode === "dark" ? "hsl(0, 0%, 100%)" : "hsl(0, 0%, 10%) !important",
+        color: themeMode === "dark" ? "#fff" : "#000",
+        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
+
         width: 300,
         height: 120,
         display: "flex",
@@ -56,25 +63,28 @@ const useStyles = createUseStyles({
         justifyContent: "center",
         cursor: "pointer",
         "& .ant-card-meta-title": {
-            color: "#FFFFFF",
+            color: themeMode === "dark" ? "#fff" : "#000",
         },
-    },
-    createCardMeta: {
+    }),
+    createCardMeta: ({themeMode}: StyleProps) => ({
         height: "90%",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-evenly",
-    },
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
     closeIcon: {
         fontSize: 20,
         color: "red",
     },
     divider: ({themeMode}: StyleProps) => ({
         marginTop: 0,
+        marginBottom: 32,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
     h1: {
-        fontSize: 24,
+        fontSize: 28,
+        fontWeight: "normal",
     },
     modal: {
         "& .ant-modal-body": {
@@ -96,8 +106,7 @@ const useStyles = createUseStyles({
 const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
-    const router = useRouter()
-    const posthog = usePostHog()
+    const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
@@ -105,22 +114,32 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-
+    const {user} = useProfileData()
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const {selectedOrg} = useProfileData()
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
         details: undefined,
         appId: undefined,
     })
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg} = useOrgData()
 
-    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
+
+    useEffect(() => {
+        getAllProviderLlmKeys()
+    }, [])
+
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -183,48 +202,34 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const providerKeys = getApikeys()
-        if (!providerKeys && !isDemo()) {
-            notification.error({
-                message: "OpenAI API Key Missing",
-                description: "Please provide your OpenAI API key to access this feature.",
-                duration: 5,
-            })
-            router.push("/settings?tab=secrets")
-            return
-        }
+        if (redirectIfNoLLMKeys()) return
 
         setFetchingTemplate(true)
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
+        const apiKey = getApikeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
-            orgId: selectedOrg?.id!,
-            providerKey: isDemo() ? "" : (providerKeys as string),
+            providerKey:
+                isDemo() && apiKey?.length === 0
+                    ? []
+                    : (apiKey as {title: string; key: string; name: string}[]),
             timeout,
-            onStatusChange: (status, details, appId) => {
+            onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
-
-                    if (trackingEnabled) {
-                        // Get user profile
-                        getProfile().then((res) => {
-                            // Update distinct_id and track successfully app variant deployment
-                            posthog?.identify(res?.data?.id)
-                            posthog?.capture("app_deployment", {
-                                properties: {
-                                    app_id: appId,
-                                    environment: "UI",
-                                    deployed_by: res?.data?.id,
-                                },
-                            })
-                        })
-                    }
+                    posthog.capture("app_deployment", {
+                        properties: {
+                            app_id: appId,
+                            environment: "UI",
+                            deployed_by: user?.id,
+                        },
+                    })
                 }
             },
         })
@@ -256,7 +261,8 @@ const AppSelector: React.FC = () => {
     }
 
     const appNameExist = useMemo(
-        () => apps.some((app: GenericObject) => app.app_name === newApp),
+        () =>
+            apps.some((app: GenericObject) => app.app_name.toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
     )
 
@@ -269,30 +275,27 @@ const AppSelector: React.FC = () => {
             <div className={classes.container}>
                 {isLoading ? (
                     <div>
-                        <Spin />
-                        <h1>loading...</h1>
+                        <ResultComponent status={"info"} title="Loading..." spinner={true} />
                     </div>
                 ) : error ? (
                     <div>
-                        <CloseCircleFilled className={classes.closeIcon} />
-                        <h1>failed to load</h1>
+                        <ResultComponent status={"error"} title="Failed to load" />
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
                     <>
-                        <h1 className={classes.h1}>LLM Applications</h1>
+                        <h1 className={classes.h1}>Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    {apps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))}
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 2) {
+                                            if (
+                                                isDemo() &&
+                                                selectedOrg?.is_paying == false &&
+                                                apps.length > 2
+                                            ) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
@@ -302,10 +305,16 @@ const AppSelector: React.FC = () => {
                                         <Card.Meta
                                             data-cy="create-new-app-button"
                                             className={classes.createCardMeta}
-                                            title={<div>Create New App</div>}
+                                            title={<div>Create new app</div>}
                                             avatar={<PlusOutlined size={24} />}
                                         />
                                     </Card>
+
+                                    {apps.map((app, index: number) => (
+                                        <div key={index}>
+                                            <AppCard app={app} />
+                                        </div>
+                                    ))}
                                 </>
                             )}
                         </div>

@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from typing import List
@@ -9,10 +10,14 @@ import click
 import questionary
 import toml
 from agenta.cli import helper
-from agenta.client import client
 from agenta.cli.telemetry import event_track
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
+
+from agenta.client.api import add_variant_to_server
+from agenta.client.backend.client import AgentaApi
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 @click.group()
@@ -32,7 +37,6 @@ def add_variant(
         variant_name: the name of the variant
         app_folder: the folder of the app
         file_name: the name of the file to run.
-        host: the host to use for the variant
         config_name: the name of the config to use for now it is always default
     Returns:
         the name of the code base and variant(useful for serve)
@@ -44,7 +48,7 @@ def add_variant(
 
     app_name = config["app_name"]
     app_id = config["app_id"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
 
     config_name = "default"
     base_name = file_name.removesuffix(".py")
@@ -93,6 +97,11 @@ def add_variant(
     variant_name = f"{base_name}.{config_name}"
     overwrite = False
 
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
     if variant_name in config["variants"]:
         overwrite = questionary.confirm(
             "This variant already exists. Do you want to overwrite it?"
@@ -116,14 +125,16 @@ def add_variant(
                 fg="bright_black",
             )
         )
-        image: Image = client.send_docker_tar(
-            app_id, base_name, tar_path, host, api_key
-        )
+        with tar_path.open("rb") as tar_file:
+            built_image: Image = client.build_image(
+                app_id=app_id,
+                base_name=base_name,
+                tar_file=tar_file,
+            )
+            image = Image(**built_image.dict())
         if tar_path.exists():
             tar_path.unlink()
 
-        # docker_image: DockerImage = build_and_upload_docker_image(
-        #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg="red"))
         return None
@@ -137,12 +148,13 @@ def add_variant(
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.update_variant_image(
-                variant_id, image, host, api_key
+                variant_id=variant_id,
+                request=image,  # because Fern code uses "request: Image" instead of "image: Image"
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = client.add_variant_to_server(
-                app_id, base_name, image, host, api_key
+            response = add_variant_to_server(
+                app_id, base_name, image, f"{host}/{BACKEND_URL_SUFFIX}", api_key
             )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
@@ -160,9 +172,9 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.retrieve_user_id(host, api_key)
+            get_user_id = client.user_profile()
+            user_id = get_user_id["id"]
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
@@ -182,9 +194,9 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.retrieve_user_id(host, api_key)
+            get_user_id = client.user_profile()
+            user_id = get_user_id["id"]
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
@@ -220,8 +232,8 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
-    api_key = config.get("api_key", None)
     app_id = config["app_id"]
+    api_key = config.get("api_key", "")
 
     if len(config["variants"]) == 0:
         click.echo("No variants found. Please add a variant first.")
@@ -242,7 +254,12 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant(variant_id=variant_id, host=host, api_key=api_key)
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
+    endpoint = client.start_variant(variant_id=variant_id, action={"action": "START"})
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -278,7 +295,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
     app_name = config["app_name"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
 
     if not config["variants"]:
         click.echo(
@@ -303,8 +320,14 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
     try:
-        client.remove_variant(variant_id, host, api_key)
+        client.remove_variant(variant_id=variant_id)
     except Exception as ex:
         click.echo(
             click.style(
@@ -331,13 +354,18 @@ def list_variants(app_folder: str, host: str):
     """
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
-    app_id = config["app_id"]
     app_name = config["app_name"]
-    api_key = config.get("api_key", None)
+    app_id = config["app_id"]
+    api_key = config.get("api_key", "")
     variants = []
 
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
     try:
-        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 
@@ -434,6 +462,13 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         host = get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        return
+
+    try:
+        api_key = helper.get_global_config("api_key")
+    except Exception as e:
+        click.echo(click.style("Failed to retrieve the api key.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
 

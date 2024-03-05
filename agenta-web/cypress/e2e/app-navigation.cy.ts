@@ -18,7 +18,7 @@ describe("App Navigation without errors", () => {
         cy.location("pathname").should("include", "/playground")
         cy.get('[data-cy="playground-header"]').within(() => {
             cy.get("h2").should("contain.text", "1. Modify Parameters")
-            cy.get("button").should("have.length", 3)
+            cy.get("button").should("have.length", 4)
         })
     })
 
@@ -28,14 +28,24 @@ describe("App Navigation without errors", () => {
         cy.get('[data-cy="app-testset-list"]').should("exist")
     })
 
-    it("should navigate successfully to Evaluations", () => {
-        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-        cy.location("pathname").should("include", "/evaluations")
-        cy.get('[data-cy="evaluations-container"]').within(() => {
-            cy.contains("1. Select an evaluation type")
-            cy.contains("2. Which variants would you like to evaluate")
-            cy.contains("3. Which testset you want to use?")
-        })
+    it("should navigate successfully to Automatic Evaluation results evaluators page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluators-link"]')
+        cy.url().should("include", "/evaluations/new-evaluator")
+    })
+
+    it("should navigate successfully to Automatic Evaluation results page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluations-results-link"]')
+        cy.url().should("include", "/evaluations/results")
+    })
+
+    it("should navigate successfully to A/B Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-human-ab-testing-link"]')
+        cy.location("pathname").should("include", "/annotations/human_a_b_testing")
+    })
+
+    it("should navigate successfully to Single Model Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-single-model-test-link"]')
+        cy.location("pathname").should("include", "/annotations/single_model_test")
     })
 
     if (isDemo()) {

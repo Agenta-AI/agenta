@@ -1,4 +1,8 @@
+import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
+import {GlobalToken} from "antd"
+
+export type JSSTheme = GlobalToken & {isDark: boolean}
 
 export interface testset {
     _id: string
@@ -34,7 +38,6 @@ export interface Variant {
     variantId: string
     baseId: string
     baseName: string
-    configId: string
     configName: string
 }
 
@@ -44,6 +47,13 @@ export interface PlaygroundTabsItem {
     label: string
     children: JSX.Element
     closable: boolean
+}
+
+export interface LLMRunRateLimit {
+    batch_size: number
+    max_retries: number
+    retry_delay: number
+    delay_between_batches: number
 }
 
 export interface Evaluation {
@@ -72,6 +82,8 @@ export interface Evaluation {
         llmAppPromptTemplate?: string
         evaluationPromptTemplate?: string
     }
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export interface EvaluationScenario {
@@ -92,6 +104,10 @@ export interface EvaluationResult {
     votes_data: {
         nb_of_rows: number
         flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        positive_votes: {
             number_of_votes: number
             percentage: number
         }
@@ -153,6 +169,57 @@ export interface Parameter {
     maximum?: number
 }
 
+export interface Parameters {
+    frequence_penalty: number
+    inputs: [{}]
+    max_tokens: number
+    model: string
+    presence_penalty: number
+    prompt_system: string
+    prompt_user: string
+    temperature: number
+    top_p: number
+}
+
+export interface DeploymentRevisionConfig {
+    config_name: string
+    current_version: number
+    parameters: Parameters
+}
+
+export interface IPromptRevisions {
+    config: {
+        config_name: string
+        parameters: Parameters
+    }
+    created_at: string
+    modified_by: string
+    revision: number
+}
+
+export interface IEnvironmentRevision {
+    revision: number
+    modified_by: string
+    created_at: string
+}
+
+export interface IPromptVersioning {
+    app_id: string
+    app_name: string
+    base_id: string
+    base_name: string
+    config_name: string
+    organization_id: string
+    parameters: Parameters
+    previous_variant_name: string | null
+    revision: number
+    revisions: [IPromptRevisions]
+    uri: string
+    user_id: string
+    variant_id: string
+    variant_name: string
+}
+
 export interface EvaluationResponseType {
     id: string
     variant_ids: string[]
@@ -167,6 +234,8 @@ export interface EvaluationResponseType {
     app_id: string
     status: string
     evaluation_type: string
+    variants_revision_ids: string[]
+    revisions: string[] // The revision number
     evaluation_type_settings: {
         similarity_threshold: number
         regex_pattern: string
@@ -231,16 +300,16 @@ export interface LlmProvidersKeys {
     COHERE_API_KEY: string
     ANTHROPIC_API_KEY: string
     AZURE_API_KEY: string
+    AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
 }
 
 export interface AppTemplate {
     app_name: string
     template_id: string
-    env_vars?: {
-        OPENAI_API_KEY: string | null
-    }
+    env_vars?: Record<string, string>
     organization_id?: string
+    workspace_id?: string
 }
 
 export type GenericObject = Record<string, any>
@@ -251,6 +320,19 @@ export interface Environment {
     app_id: string
     deployed_app_variant_id: string | null
     deployed_variant_name: string | null
+    deployed_app_variant_revision_id: string | null
+    revision: string | null
+}
+
+export interface DeploymentRevisions extends Environment {
+    revisions: {
+        created_at: string
+        deployed_app_variant_revision: string
+        deployment: string
+        id: string
+        modified_by: string
+        revision: number
+    }[]
 }
 
 export interface CustomEvaluation {
@@ -269,13 +351,6 @@ export interface User {
     email: string
 }
 
-export interface Org {
-    id: string
-    name: string
-    description?: string
-    owner: string
-}
-
 export enum ChatRole {
     System = "system",
     User = "user",
@@ -287,4 +362,146 @@ export type ChatMessage = {
     role: ChatRole
     content: string
     id?: string
+}
+
+type ValueType = number | string | boolean | GenericObject | null
+type ValueTypeOptions =
+    | "text"
+    | "number"
+    | "boolean"
+    | "bool"
+    | "string"
+    | "code"
+    | "regex"
+    | "object"
+    | "error"
+
+//evaluation revamp types
+export interface EvaluationSettingsTemplate {
+    type: ValueTypeOptions
+    label: string
+    default?: ValueType
+    description: string
+}
+
+export interface Evaluator {
+    name: string
+    key: string
+    settings_template: Record<string, EvaluationSettingsTemplate>
+    icon_url?: string | StaticImageData
+    color?: string
+    direct_use?: boolean
+    description: string
+}
+
+export interface EvaluatorConfig {
+    id: string
+    evaluator_key: string
+    name: string
+    settings_values: Record<string, any>
+    created_at: string
+}
+
+export type EvaluationError = {
+    message: string
+    stacktrace: string
+}
+
+export interface TypedValue {
+    type: ValueTypeOptions
+    value: ValueType
+    error: null | EvaluationError
+}
+
+export enum EvaluationStatus {
+    INITIALIZED = "EVALUATION_INITIALIZED",
+    STARTED = "EVALUATION_STARTED",
+    FINISHED = "EVALUATION_FINISHED",
+    FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
+    ERROR = "EVALUATION_FAILED",
+}
+
+export enum EvaluationStatusType {
+    STATUS = "status",
+    ERROR = "error",
+}
+
+export interface _Evaluation {
+    id: string
+    appId: string
+    user: {
+        id: string
+        username: string
+    }
+    testset: {
+        id: string
+        name: string
+    }
+    status: {
+        type: EvaluationStatusType
+        value: EvaluationStatus
+        error: null | EvaluationError
+    }
+    variants: {variantId: string; variantName: string}[]
+    aggregated_results: {
+        evaluator_config: EvaluatorConfig
+        result: TypedValue & {error: null | EvaluationError}
+    }[]
+    created_at?: string
+    updated_at?: string
+    duration?: number
+    revisions: string[]
+    variant_revision_ids: string[]
+}
+
+export interface _EvaluationScenario {
+    id: string
+    evaluation_id: string
+    evaluation: _Evaluation
+    evaluators_configs: EvaluatorConfig[]
+    inputs: (TypedValue & {name: string})[]
+    outputs: {result: TypedValue}[]
+    correct_answer?: string
+    is_pinned?: boolean
+    note?: string
+    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
+}
+
+export interface Annotation {
+    id: string
+    app_id: string
+    variants: {variantId: string; variantName: string}[]
+    annotation_name: "flag" | "score"
+    testset: {
+        id: string
+        name: string
+    }
+    aggregated_results: string[]
+}
+
+export interface AnnotationScenario {
+    id: string
+    annotation_id: string
+    annotation: Annotation
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    is_pinned?: boolean
+    note?: string
+    result: TypedValue
+}
+
+export type ComparisonResultRow = {
+    inputs: {name: string; value: string}[]
+    correctAnswer: string
+    variants: {
+        variantId: string
+        variantName: string
+        output: {result: TypedValue}
+        evaluationId: string
+        evaluatorConfigs: {
+            evaluatorConfig: EvaluatorConfig
+            result: TypedValue & {error: null | EvaluationError}
+        }[]
+    }[]
+    id: string
 }

@@ -1,13 +1,26 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Extra, HttpUrl
+from pydantic import BaseModel, Extra, HttpUrl, Field
 
 
 class InFile:
     def __init__(self, file_name: str, file_path: str):
         self.file_name = file_name
         self.file_path = file_path
+
+
+class LLMTokenUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
+
+
+class FuncResponse(BaseModel):
+    message: str
+    usage: Optional[LLMTokenUsage]
+    cost: Optional[float]
+    latency: float
 
 
 class DictInput(dict):
@@ -27,6 +40,22 @@ class TextParam(str):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "text"})
+
+
+class BinaryParam(int):
+    def __new__(cls, value: bool = False):
+        instance = super().__new__(cls, int(value))
+        instance.default = value
+        return instance
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(
+            {
+                "x-parameter": "bool",
+                "type": "boolean",
+            }
+        )
 
 
 class IntParam(int):

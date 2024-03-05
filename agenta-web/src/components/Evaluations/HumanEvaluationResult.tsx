@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Collapse, Statistic, Table, Typography} from "antd"
+import {Button, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -10,7 +10,7 @@ import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {EvaluationTypeLabels, getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -33,9 +33,16 @@ export interface HumanEvaluationListTableDataType {
             number_of_votes: number
             percentage: number
         }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
         variants_votes_data: Record<string, VariantVotesData>
     }
     createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+    variantNames: string[]
 }
 
 type StyleProps = {
@@ -45,9 +52,6 @@ type StyleProps = {
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
-        "& svg": {
-            color: "red",
-        },
     },
     collapse: ({themeMode}: StyleProps) => ({
         margin: "10px 0",
@@ -79,11 +83,35 @@ const useStyles = createUseStyles({
             color: "#1677ff",
         },
     },
+    statGood: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#3f8600",
+        },
+    },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        margin: "20px 0",
+        gap: 10,
+        "& svg": {
+            color: "red",
+        },
+    },
 })
 
 const {Title} = Typography
 
-export default function HumanEvaluationResult() {
+interface HumanEvaluationResultProps {
+    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluationResultProps) {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -98,11 +126,11 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(`${getAgentaApiUrl()}/api/evaluations/?app_id=${app_id}`)
+                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${getAgentaApiUrl()}/api/evaluations/${item.id}/results/`,
+                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
@@ -123,6 +151,8 @@ export default function HumanEvaluationResult() {
                                                     _id: item.testset_id,
                                                     name: item.testset_name,
                                                 },
+                                                revisions: item.revisions,
+                                                variant_revision_ids: item.variants_revision_ids,
                                             }
                                         }
                                     }
@@ -153,8 +183,12 @@ export default function HumanEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
         }
+    }
+
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${app_id}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
     const columns: ColumnsType<HumanEvaluationListTableDataType> = [
@@ -180,7 +214,12 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[0]})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[0], record.revisions[0])}
+                        >
+                            ({`${value[0]} #${record.revisions[0]}`})
+                        </div>
                     </div>
                 )
             },
@@ -199,8 +238,31 @@ export default function HumanEvaluationResult() {
                             precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div>({value[1]})</div>
+                        <div
+                            style={{cursor: "pointer"}}
+                            onClick={() => handleNavigation(value[1], record.revisions[1])}
+                        >
+                            ({`${value[1]} #${record.revisions[1]}`})
+                        </div>
                     </div>
+                )
+            },
+        },
+        {
+            title: "Both are good",
+            dataIndex: "positive",
+            key: "positive",
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
+                let percentage = record.votesData.positive_votes.percentage
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.statGood}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                    </span>
                 )
             },
         },
@@ -208,7 +270,7 @@ export default function HumanEvaluationResult() {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
-            render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
+            render: (value: any, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>
@@ -281,48 +343,35 @@ export default function HumanEvaluationResult() {
         } catch {}
     }
 
-    const items = [
-        {
-            key: "1",
-            label: (
-                <div className={classes.container}>
-                    <Title level={3}>
-                        {EvaluationTypeLabels.human_a_b_testing} Evaluation Results
-                    </Title>
-                </div>
-            ),
-            children: (
-                <div>
-                    <div className={classes.container}>
-                        <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
-                            <DeleteOutlined key="delete" />
-                            Delete
-                        </Button>
-                    </div>
-
-                    <Table
-                        rowSelection={{
-                            type: selectionType,
-                            ...rowSelection,
-                        }}
-                        className="ph-no-capture"
-                        columns={columns}
-                        dataSource={evaluationsList}
-                    />
-                </div>
-            ),
-        },
-    ]
-
     return (
-        <Collapse
-            items={items}
-            ghost
-            bordered={false}
-            expandIconPosition="end"
-            className={classes.collapse}
-            collapsible="icon"
-            defaultActiveKey={["1"]}
-        />
+        <div>
+            <div className={classes.btnContainer}>
+                <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
+                    <DeleteOutlined key="delete" />
+                    Delete
+                </Button>
+                <Button
+                    type="primary"
+                    data-cy="new-annotation-modal-button"
+                    onClick={() => setIsEvalModalOpen(true)}
+                >
+                    New Evaluation
+                </Button>
+            </div>
+
+            <div className={classes.container}>
+                <Title level={3}>A/B Test Results</Title>
+            </div>
+
+            <Table
+                rowSelection={{
+                    type: selectionType,
+                    ...rowSelection,
+                }}
+                className="ph-no-capture"
+                columns={columns}
+                dataSource={evaluationsList}
+            />
+        </div>
     )
 }

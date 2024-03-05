@@ -11,11 +11,17 @@ from langchain.schema import HumanMessage, SystemMessage
 
 from pydantic import BaseModel, Field
 
-default_prompt = "What is a good name for a company that makes {product}?"
+CHAT_LLM_GPT = [
+    "gpt-3.5-turbo-16k-0613",
+    "gpt-3.5-turbo-16k",
+    "gpt-3.5-turbo-0613",
+    "gpt-3.5-turbo-0301",
+    "gpt-3.5-turbo",
+    "gpt-4",
+]
 
 ag.init()
 ag.config.default(
-    prompt_template=ag.TextParam(default_prompt),
     system_message=ag.TextParam(
         "You are a world class algorithm for extracting information in structured formats."
     ),
@@ -26,10 +32,11 @@ ag.config.default(
     company_desc_message=ag.TextParam("The name of the company"),
     position_desc_message=ag.TextParam("The name of the position"),
     salary_range_desc_message=ag.TextParam("The salary range of the position"),
-    temperature=ag.FloatParam(0.5),
-    top_p=ag.FloatParam(1.0),
+    temperature=ag.FloatParam(0.9),
+    top_p=ag.FloatParam(0.9),
     presence_penalty=ag.FloatParam(0.0),
     frequency_penalty=ag.FloatParam(0.0),
+    model=ag.MultipleChoiceParam("gpt-3.5-turbo-0613", CHAT_LLM_GPT),
 )
 
 
@@ -50,7 +57,7 @@ def generate(
 ) -> str:
     """Extract information from a job description"""
     llm = ChatOpenAI(
-        model="gpt-3.5-turbo-0613",
+        model=ag.config.model,
         temperature=ag.config.temperature,
         top_p=ag.config.top_p,
         presence_penalty=ag.config.presence_penalty,

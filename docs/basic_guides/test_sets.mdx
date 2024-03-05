@@ -1,0 +1,131 @@
+---
+title: 'Test Sets'
+---
+
+This guide will help you create, edit, and use test sets effectively.
+
+Test sets in Agenta can be loaded in the playground, used in evaluations, or for conducting human evaluations/annotations.
+
+# Creating a Test Set
+
+You can create a test set in Agenta using various methods: the API, the UI, by uploading a CSV, or directly from the playground.
+
+## Creating a Test Set from the Playground
+
+Creating a test set is simple while experimenting with your application directly from the playground:
+
+1. Navigate to the Playground.
+2. Enter an input and click "Run."
+3. Click on 'Add to test set’.
+
+The inputs and outputs from the playground will be displayed in the drawer. You can modify inputs and correct answers if necessary. Select an existing test set to add to, or choose "+Add new" if needed, then click "Add."
+
+<img height="600" className="dark:hidden" src="/images/basic_guides/14_playground_drawer_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/14_playground_drawer_dark.png" />
+
+<Note>
+When adding chat history, you have the option to include all turns from the history. For example:
+
+- User: Hi
+- Assistant: Hi, how can I help you?
+- User: I would like to book a table
+- Assistant: Sure, for how many people?
+
+If you select "Turn by Turn," two rows will be added to the test set: one for "Hi/Hi, how can I help you?" and another for "Hi/Hi, how can I help you?/I would like to book a table/Sure, for how many people?"
+</Note>
+
+## The Test Set Schema
+
+A test set in Agenta should have specific columns based on the input names of your application. For example, if your application takes a text and instruction as input, the test set should have two columns: "text" and "instruction." Optionally, you can include the correct answer under the column name "correct_answer."
+
+### Test Set Schema for Chat Applications
+
+For chat applications, format the chat column in the inputs as a list of messages:
+
+```json
+[
+    {"content": "message.", "role": "user"},
+    {"content": "message.", "role": "assistant"}
+    // Add more messages if necessary
+]
+
+```
+
+The "correct_answer" should follow a specific format as well:
+
+```json
+{"content": "message.", "role": "assistant"}
+```
+
+## Creating/Editing a Test Set from the UI
+
+To create or edit a test set from the UI:
+
+1. Go to "Test sets."
+2. Choose "Create a test set with UI."
+3. Name your test set and specify the columns for input types.
+4. Add the dataset.
+
+Remember to click "Save test set."
+
+Additional UI Features:
+
+- **Add Rows**: For new data entries.
+- **Rename Columns**: By clicking the pen icon above a column.
+- **Add Columns**: Using the '+' sign in the table header.
+
+
+## Creating a Test Set from a CSV or JSON
+To create a test set from a CSV or JSON file:
+
+Go to "Test sets.", Click "Upload test sets.", Select either CSV or JSON.
+
+
+### CSV Format
+We use CSV with "," as a separator and '"' as a quote character. The first row should contain the header with the column names. Each input name should have its column, and the correct answer should be under the "correct_answer" column. Here's an example of a valid CSV:
+
+```csv
+text,instruction,correct_answer
+Hello,How are you?,I'm good.
+"Tell me a joke.",Sure, here's one:...
+```
+## JSON Format
+
+The test set should be in JSON format with specific requirements:
+
+1. A JSON file with an array of rows.
+2. Each row in the array should be an object with column header names as keys and row data as values. Here's an example of a valid JSON file:
+```json
+[{ "recipe_name": "Chicken Parmesan","correct_answer": "Chicken" },
+{ "recipe_name": "a, special, recipe","correct_answer": "Beef" }]
+```
+
+## Creating a Test Set Using the API
+
+You can upload a test set using the Agenta API. Here's a high-level overview of how to do it:
+
+**HTTP Request:**
+
+```
+POST /testsets/{app_id}/
+
+```
+
+**Request Body:**
+
+```json
+{
+    "name": "testsetname",
+    "csvdata": [
+				{"column1": "row1col1",
+	            "column2": "row1col2"},
+				{"column1": "row2col1",
+				  "column2": "row2col2"
+                }
+		   ]
+}
+
+```
+
+If you are using the API for the cloud, you should add Bearer: `your Agenta API key` in the request.
+

@@ -1,135 +1,66 @@
-from bson import ObjectId
-from odmantic import query
-from fastapi.responses import JSONResponse
-from typing import Dict, List, Union, Optional
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.models.db_models import (
-    UserDB,
-    AppVariantDB,
-    OrganizationDB,
-    AppDB,
-    VariantBaseDB,
-)
+import os
 import logging
+from typing import Any, Callable
 
-engine = DBEngine().engine()
+from fastapi.types import DecoratedCallable
+from fastapi import APIRouter as FastAPIRouter
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-async def get_organization(org_id: str) -> OrganizationDB:
-    org = await engine.find_one(OrganizationDB, OrganizationDB.id == ObjectId(org_id))
-    if org is not None:
-        return org
-    else:
-        return None
-
-
-async def get_app_instance(
-    app_id: str, variant_name: str = None, show_deleted: bool = False
-) -> AppVariantDB:
-    if variant_name is not None:
-        query_expression = (
-            query.eq(AppVariantDB.is_deleted, show_deleted)
-            & query.eq(AppVariantDB.app, ObjectId(app_id))
-            & query.eq(AppVariantDB.variant_name, variant_name)
-        )
-    else:
-        query_expression = query.eq(AppVariantDB.is_deleted, show_deleted) & query.eq(
-            AppVariantDB.app_name, ObjectId(app_id)
-        )
-
-    print("query_expression: " + str(query_expression))
-
-    app_instance = await engine.find_one(AppVariantDB, query_expression)
-
-    print("app_instance: " + str(app_instance))
-    return app_instance
-
-
-async def check_user_org_access(
-    kwargs: dict, organization_id: str, check_owner=False
-) -> bool:
-    if check_owner:  # Check that the user is the owner of the organization
-        user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
-        organization = await get_organization(organization_id)
-        if not organization:
-            logger.error("Organization not found")
-            raise Exception("Organization not found")
-        return organization.owner == str(user.id)
-    else:
-        user_organizations: List = kwargs["organization_ids"]
-        object_organization_id = ObjectId(organization_id)
-        logger.debug(
-            f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
-        )
-        return object_organization_id in user_organizations
-
-
-async def check_access_to_app(
-    user_org_data: Dict[str, Union[str, list]],
-    app: Optional[AppDB] = None,
-    app_id: Optional[str] = None,
-    check_owner: bool = False,
-) -> bool:
+class APIRouter(FastAPIRouter):
     """
-    Check if a user has access to a specific application.
+    Extends the FastAPIRouter class to provide support for alternate paths ending with a forward slash.
 
-    Args:
-        user_org_data (Dict[str, Union[str, list]]): User-specific information.
-        app (Optional[AppDB]): An instance of the AppDB model representing the application.
-        app_id (Optional[str]): The ID of the application.
-        check_owner (bool): Whether to check if the user is the owner of the application.
-
-    Returns:
-        bool: True if the user has access, False otherwise.
-
-    Raises:
-        Exception: If neither or both `app` and `app_id` are provided.
-
+    Methods:
+    - api_route: Adds a route to the router with both the original path and an alternate path ending with a forward slash.
     """
-    if (app is None) == (app_id is None):
-        raise Exception("Provide either app or app_id, not both or neither")
 
-    # Fetch the app if only app_id is provided.
-    if app is None:
-        app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
-        if app is None:
-            logger.error("App not found")
-            return False
+    def api_route(
+        self, path: str, *, include_in_schema: bool = True, **kwargs: Any
+    ) -> Callable[[DecoratedCallable], DecoratedCallable]:
+        """
+        Decorator method that adds a route to the router with both the original path and an alternate path ending with a forward slash.
 
-    # Check user's access to the organization linked to the app.
-    organization_id = app.organization.id
-    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
+        Parameters:
+        - path (str): The original path for the route.
+        - include_in_schema (bool): Whether to include the route in the generated OpenAPI schema. Default is True.
+        - **kwargs (Any): Additional keyword arguments to pass to the underlying api_route method.
+
+        Returns:
+        - decorator (Callable[[DecoratedCallable], DecoratedCallable]): A decorator function that can be used to decorate a route function.
+        """
+        if path.endswith("/"):
+            path = path[:-1]
+
+        add_path = super().api_route(
+            path, include_in_schema=include_in_schema, **kwargs
+        )
+
+        alternate_path = path + "/"
+        add_alternate_path = super().api_route(
+            alternate_path, include_in_schema=False, **kwargs
+        )
+
+        def decorator(func: DecoratedCallable) -> DecoratedCallable:
+            add_alternate_path(func)
+            return add_path(func)
+
+        return decorator
 
 
-async def check_access_to_variant(
-    user_org_data: Dict[str, Union[str, list]],
-    variant_id: str,
-    check_owner: bool = False,
-) -> bool:
-    if variant_id is None:
-        raise Exception("No variant_id provided")
-    variant = await engine.find_one(
-        AppVariantDB, AppVariantDB.id == ObjectId(variant_id)
-    )
-    if variant is None:
-        logger.error("Variant not found")
-        return False
-    organization_id = variant.organization.id
-    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
+def isCloudEE():
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
 
 
-async def check_access_to_base(
-    user_org_data: Dict[str, Union[str, list]],
-    base_id: str,
-    check_owner: bool = False,
-) -> bool:
-    if base_id is None:
-        raise Exception("No base_id provided")
-    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
-    if base is None:
-        logger.error("Base not found")
-        return False
-    organization_id = base.organization.id
-    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
+def isCloud():
+    return os.environ["FEATURE_FLAG"] == "cloud"
+
+
+def isEE():
+    return os.environ["FEATURE_FLAG"] == "ee"
+
+
+def isOssEE():
+    return os.environ["FEATURE_FLAG"] in ["oss", "ee"]

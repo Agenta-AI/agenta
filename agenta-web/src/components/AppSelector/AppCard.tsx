@@ -7,7 +7,6 @@ import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
-import {useProfileData, Role} from "@/contexts/profile.context"
 import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles({
@@ -18,11 +17,12 @@ const useStyles = createUseStyles({
         flexDirection: "column",
         justifyContent: "space-between",
         overflow: "hidden",
+        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
         "& svg": {
-            color: "red",
+            color: "#ef4146",
         },
         "& .ant-card-meta": {
-            height: "90%",
+            height: "110%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -78,8 +78,6 @@ const AppCard: React.FC<{
 }> = ({app}) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false)
-    const {role} = useProfileData()
-    const isOwner = role === Role.OWNER
     const {mutate} = useAppsData()
 
     const showDeleteModal = () => {
@@ -108,11 +106,7 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                actions={
-                    isOwner
-                        ? [<DeleteOutlined key="delete" onClick={showDeleteModal} />]
-                        : undefined
-                }
+                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
             >
                 <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
                     <Card.Meta
@@ -120,7 +114,7 @@ const AppCard: React.FC<{
                         avatar={
                             <Avatar
                                 size="large"
-                                style={{backgroundImage: getGradientFromStr(app.app_id)}}
+                                style={{backgroundColor: "hsl(150, 52%, 62%)"}} // Example: blue in HSL
                             >
                                 {app.app_name.charAt(0).toUpperCase()}
                             </Avatar>

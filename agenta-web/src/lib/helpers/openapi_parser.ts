@@ -35,7 +35,10 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
         ([name, param]: [string, any]) => {
             const parameter = {
                 name: name,
-                input: param["x-parameter"] ? false || param["x-parameter"] === "messages" : true,
+                input:
+                    !param["x-parameter"] || ["messages", "file_url"].includes(param["x-parameter"])
+                        ? true
+                        : false,
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 default: param.default,
                 enum: param["enum"] ? param.enum : [],
@@ -60,8 +63,12 @@ const determineType = (xParam: any): string => {
             return "number"
         case "dict":
             return "object"
+        case "bool":
+            return "boolean"
         case "int":
             return "integer"
+        case "file_url":
+            return "file_url"
         default:
             return "string"
     }

@@ -8,10 +8,18 @@ export default defineConfig({
     video: false,
     screenshotOnRunFailure: false,
     e2e: {
-        baseUrl: "http://localhost",
+        baseUrl: "http://localhost:3000",
         defaultCommandTimeout: 30000,
         requestTimeout: 10000,
-        specPattern: ["*/e2e/smoke-tests.cy.ts", "*/e2e/app-navigation.cy.ts"],
+        setupNodeEvents(on) {
+            on("task", {
+                log(message) {
+                    console.log(message)
+                    return null
+                },
+            })
+        },
+        experimentalStudio: true,
     },
     env: {
         baseApiURL: "http://localhost/api",

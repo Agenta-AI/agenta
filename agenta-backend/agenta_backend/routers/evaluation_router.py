@@ -1,60 +1,87 @@
-import os
-import random
-from typing import List, Dict
+import secrets
+import logging
+from typing import Any, List
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, APIRouter, Body, Request, status, Response
+from fastapi import HTTPException, Request, status, Response, Query
 
-from agenta_backend.services.helpers import format_inputs, format_outputs
+from agenta_backend.models import converters
+from agenta_backend.tasks.evaluations import evaluate
+from agenta_backend.utils.common import APIRouter, isCloudEE
+from agenta_backend.services import evaluation_service, db_manager
 from agenta_backend.models.api.evaluation_model import (
-    AICritiqueCreate,
-    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
-    CustomEvaluationOutput,
-    CustomEvaluationDetail,
-    EvaluationScenarioScoreUpdate,
-    EvaluationScenarioUpdate,
-    ExecuteCustomEvaluationCode,
     NewEvaluation,
     DeleteEvaluation,
-    EvaluationType,
-    CreateCustomEvaluation,
-    EvaluationUpdate,
     EvaluationWebhook,
-    SimpleEvaluationOutput,
 )
-from agenta_backend.services.evaluation_service import (
-    UpdateEvaluationScenarioError,
-    evaluate_with_ai_critique,
-    fetch_custom_evaluation_names,
-    fetch_custom_evaluations,
-    fetch_custom_evaluation_detail,
-    get_evaluation_scenario_score,
-    update_evaluation_scenario,
-    update_evaluation_scenario_score,
-    update_evaluation,
-    create_custom_code_evaluation,
-    update_custom_code_evaluation,
-    execute_custom_code_evaluation,
+from agenta_backend.services.evaluator_manager import (
+    check_ai_critique_inputs,
 )
-from agenta_backend.services import evaluation_service
-from agenta_backend.utils.common import check_access_to_app
-from agenta_backend.services import db_manager
-from agenta_backend.models import converters
-from agenta_backend.services import results_service
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
-        get_user_and_org_id,
-    )
-else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+if isCloudEE():
+    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.utils.permissions import check_action_access
+
+from beanie import PydanticObjectId as ObjectId
+
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
-@router.post("/", response_model=SimpleEvaluationOutput)
+@router.get(
+    "/by_resource/",
+    response_model=List[ObjectId],
+)
+async def fetch_evaluation_ids(
+    app_id: str,
+    resource_type: str,
+    request: Request,
+    resource_ids: List[str] = Query(None),
+):
+    """Fetches evaluation ids for a given resource type and id.
+
+    Arguments:
+        app_id (str): The ID of the app for which to fetch evaluations.
+        resource_type (str): The type of resource for which to fetch evaluations.
+        resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
+
+    Raises:
+        HTTPException: If the resource_type is invalid or access is denied.
+
+    Returns:
+        List[str]: A list of evaluation ids.
+    """
+    try:
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=app_id,
+                object_type="app",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get single evaluation: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        evaluations = await evaluation_service.fetch_evaluations_by_resource(
+            resource_type, resource_ids
+        )
+        return list(map(lambda x: x.id, evaluations))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/", response_model=List[Evaluation], operation_id="create_evaluation")
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
@@ -66,27 +93,59 @@ async def create_evaluation(
         _description_
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data,
-            app_id=payload.app_id,
-            check_owner=False,
-        )
-        if not access_app:
-            error_msg = f"You do not have access to this app: {payload.app_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        new_evaluation_db = await evaluation_service.create_new_evaluation(
-            payload, **user_org_data
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.CREATE_EVALUATION,
+            )
+            logger.debug(f"User has permission to create evaluation: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        success, response = await check_ai_critique_inputs(
+            payload.evaluators_configs, payload.lm_providers_keys
         )
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        if not success:
+            return response
+
+        evaluations = []
+        correct_answer_column = (
+            "correct_answer"
+            if payload.correct_answer_column is None
+            else payload.correct_answer_column
+        )
+
+        for variant_id in payload.variant_ids:
+            evaluation = await evaluation_service.create_new_evaluation(
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluator_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+            )
+
+            evaluate.delay(
+                app_id=payload.app_id,
+                variant_id=variant_id,
+                evaluators_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+                evaluation_id=evaluation.id,
+                rate_limit_config=payload.rate_limit.dict(),
+                lm_providers_keys=payload.lm_providers_keys,
+                correct_answer_column=correct_answer_column,
+            )
+            evaluations.append(evaluation)
+
+        return evaluations
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -94,36 +153,85 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}/")
-async def update_evaluation_router(
-    request: Request,
-    evaluation_id: str,
-    update_data: EvaluationUpdate = Body(...),
-):
-    """Updates an evaluation's status.
+@router.get("/{evaluation_id}/status/", operation_id="fetch_evaluation_status")
+async def fetch_evaluation_status(evaluation_id: str, request: Request):
+    """Fetches the status of the evaluation.
 
-    Raises:
-        HTTPException: If the columns in the test set do not match with the inputs in the variant.
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
 
     Returns:
-        None: A 204 No Content status code, indicating that the update was successful.
+        (str): the evaluation status
     """
-    try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        await update_evaluation(evaluation_id, update_data, **user_org_data)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    except KeyError:
-        raise HTTPException(
-            status_code=400,
-            detail="columns in the test set should match the names of the inputs in the variant",
+    try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=evaluation,
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to fetch evaluation status: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        return {"status": evaluation.status}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/{evaluation_id}/results/", operation_id="fetch_evaluation_results")
+async def fetch_evaluation_results(evaluation_id: str, request: Request):
+    """Fetches the results of the evaluation
+
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=evaluation,
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get evaluation results: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        results = await converters.aggregated_result_to_pydantic(
+            evaluation.aggregated_results
         )
+        return {"results": results, "evaluation_id": evaluation_id}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get(
     "/{evaluation_id}/evaluation_scenarios/",
     response_model=List[EvaluationScenario],
+    operation_id="fetch_evaluation_scenarios",
 )
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
@@ -141,143 +249,34 @@ async def fetch_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-        evaluation_id, **user_org_data
-    )
-
-    return eval_scenarios
-
-
-@router.post("/{evaluation_id}/evaluation_scenario/")
-async def create_evaluation_scenario(
-    evaluation_id: str,
-    evaluation_scenario: EvaluationScenario,
-    request: Request,
-):
-    """Create a new evaluation scenario for a given evaluation ID.
-
-    Raises:
-        HTTPException: If evaluation not found or access denied.
-
-    Returns:
-        None: 204 No Content status code upon success.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    await evaluation_service.create_evaluation_scenario(
-        evaluation_id, evaluation_scenario, **user_org_data
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.put(
-    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
-)
-async def update_evaluation_scenario_router(
-    evaluation_scenario_id: str,
-    evaluation_type: EvaluationType,
-    evaluation_scenario: EvaluationScenarioUpdate,
-    request: Request,
-):
-    """Updates an evaluation scenario's vote or score based on its type.
-
-    Raises:
-        HTTPException: If update fails or unauthorized.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
-        await update_evaluation_scenario(
-            evaluation_scenario_id,
-            evaluation_scenario,
-            evaluation_type,
-            **user_org_data,
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=evaluation,
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get evaluation scenarios: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        eval_scenarios = (
+            await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
+                evaluation=evaluation
+            )
         )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateEvaluationScenarioError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        return eval_scenarios
 
-
-@router.post("/evaluation_scenario/ai_critique/", response_model=str)
-async def evaluate_ai_critique(
-    payload: AICritiqueCreate,
-    request: Request,
-) -> str:
-    """
-    Evaluate AI critique based on the given payload.
-
-    Args:
-        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-        stoken_session (SessionContainer): The session container verified by `verify_session`.
-
-    Returns:
-        str: The output of the AI critique evaluation.
-
-    Raises:
-        HTTPException: If any exception occurs during the evaluation.
-    """
-    try:
-        # Extract data from the payload
-        payload_dict = payload.dict()
-
-        # Run AI critique evaluation
-        output = evaluate_with_ai_critique(
-            llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
-            llm_app_inputs=payload_dict["inputs"],
-            correct_answer=payload_dict["correct_answer"],
-            app_variant_output=payload_dict["outputs"][0]["variant_output"],
-            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
-            open_ai_key=payload_dict["open_ai_key"],
-        )
-        return output
-
-    except Exception as e:
-        raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
-
-
-@router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def get_evaluation_scenario_score_router(
-    evaluation_scenario_id: str,
-    request: Request,
-) -> Dict[str, str]:
-    """
-    Fetch the score of a specific evaluation scenario.
-
-    Args:
-        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
-        stoken_session: Session data, verified by `verify_session`.
-
-    Returns:
-        Dictionary containing the scenario ID and its score.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
-
-
-@router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def update_evaluation_scenario_score_router(
-    evaluation_scenario_id: str,
-    payload: EvaluationScenarioScoreUpdate,
-    request: Request,
-):
-    """Updates the score of an evaluation scenario.
-
-    Raises:
-        HTTPException: Server error if the evaluation update fails.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_evaluation_scenario_score(
-            evaluation_scenario_id, payload.score, **user_org_data
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -293,13 +292,33 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_list_evaluations(
-        app_id=app_id, **user_org_data
-    )
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get list of evaluations: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        return await evaluation_service.fetch_list_evaluations(app)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/{evaluation_id}/", response_model=Evaluation)
+@router.get(
+    "/{evaluation_id}/", response_model=Evaluation, operation_id="fetch_evaluation"
+)
 async def fetch_evaluation(
     evaluation_id: str,
     request: Request,
@@ -312,11 +331,32 @@ async def fetch_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
+    try:
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get single evaluation: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        return await converters.evaluation_db_to_pydantic(evaluation)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.delete("/", response_model=List[str])
+@router.delete("/", response_model=List[str], operation_id="delete_evaluations")
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,
@@ -331,244 +371,37 @@ async def delete_evaluations(
     A list of the deleted comparison tables' IDs.
     """
 
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    await evaluation_service.delete_evaluations(
-        delete_evaluations.evaluations_ids, **user_org_data
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    try:
+        if isCloudEE():
+            for evaluation_id in delete_evaluations.evaluations_ids:
+                has_permission = await check_action_access(
+                    user_uid=request.state.user_id,
+                    object_id=evaluation_id,
+                    object_type="evaluation",
+                    permission=Permission.DELETE_EVALUATION,
+                )
+                logger.debug(
+                    f"User has permission to delete evaluation: {has_permission}"
+                )
+                if not has_permission:
+                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                    logger.error(error_msg)
+                    return JSONResponse(
+                        {"detail": error_msg},
+                        status_code=403,
+                    )
 
-
-@router.get("/{evaluation_id}/results/")
-async def fetch_results(
-    evaluation_id: str,
-    request: Request,
-):
-    """Fetch all the results for one the comparison table
-
-    Arguments:
-        evaluation_id -- _description_
-
-    Returns:
-        _description_
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    evaluation = await evaluation_service._fetch_evaluation_and_check_access(
-        evaluation_id, **user_org_data
-    )
-    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"votes_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.single_model_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await results_service.fetch_average_score_for_custom_code_run(
-            evaluation_id
-        )
-        return {"avg_score": results}
-
-
-@router.post("/custom_evaluation/")
-async def create_custom_evaluation(
-    custom_evaluation_payload: CreateCustomEvaluation,
-    request: Request,
-):
-    """Create evaluation with custom python code.
-
-    Args:
-        \n custom_evaluation_payload (CreateCustomEvaluation): the required payload
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # create custom evaluation in database
-    evaluation_id = await create_custom_code_evaluation(
-        custom_evaluation_payload, **user_org_data
-    )
-
-    return JSONResponse(
-        {
-            "status": "success",
-            "message": "Evaluation created successfully.",
-            "evaluation_id": evaluation_id,
-        },
-        status_code=200,
-    )
-
-
-@router.put("/custom_evaluation/{id}")
-async def update_custom_evaluation(
-    id: str,
-    updated_data: CreateCustomEvaluation,
-    request: Request,
-):
-    """Update a custom code evaluation.
-    Args:
-        id (str): the ID of the custom evaluation to update
-        updated_data (CreateCustomEvaluation): the payload with updated data
-        stoken_session (SessionContainer): session container for authentication
-    """
-
-    # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Update the evaluation with the provided data
-    updated_evaluation_id = await update_custom_code_evaluation(
-        id, updated_data, **kwargs
-    )
-
-    return JSONResponse(
-        {
-            "status": "success",
-            "message": "Evaluation edited successfully.",
-            "evaluation_id": updated_evaluation_id,
-        },
-        status_code=200,
-    )
-
-
-@router.get(
-    "/custom_evaluation/list/{app_id}/",
-    response_model=List[CustomEvaluationOutput],
-)
-async def list_custom_evaluations(
-    app_id: str,
-    request: Request,
-):
-    """List the custom code evaluations for a given app.
-
-    Args:
-        app_id (str): the id of the app
-
-    Returns:
-        List[CustomEvaluationOutput]: a list of custom evaluation
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Fetch custom evaluations from database
-    evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
-    return evaluations
-
-
-@router.get(
-    "/custom_evaluation/{id}/",
-    response_model=CustomEvaluationDetail,
-)
-async def get_custom_evaluation(
-    id: str,
-    request: Request,
-):
-    """Get the custom code evaluation detail.
-
-    Args:
-        id (str): the id of the custom evaluation
-
-    Returns:
-        CustomEvaluationDetail: Detail of the custom evaluation
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Fetch custom evaluations from database
-    evaluation = await fetch_custom_evaluation_detail(id, **user_org_data)
-    return evaluation
-
-
-@router.get(
-    "/custom_evaluation/{app_name}/names/",
-    response_model=List[CustomEvaluationNames],
-)
-async def get_custom_evaluation_names(app_name: str, request: Request):
-    """Get the names of custom evaluation for a given app.
-
-    Args:
-        app_name (str): the name of the app the evaluation belongs to
-
-    Returns:
-        List[CustomEvaluationNames]: the list of name of custom evaluations
-    """
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
-    return custom_eval_names
+        await evaluation_service.delete_evaluations(delete_evaluations.evaluations_ids)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post(
-    "/custom_evaluation/execute/{evaluation_id}/",
+    "/webhook_example_fake/",
+    response_model=EvaluationWebhook,
+    operation_id="webhook_example_fake",
 )
-async def execute_custom_evaluation(
-    evaluation_id: str,
-    payload: ExecuteCustomEvaluationCode,
-    request: Request,
-):
-    """Execute a custom evaluation code.
-
-    Args:
-        evaluation_id (str): the custom evaluation id
-        payload (ExecuteCustomEvaluationCode): the required payload
-
-    Returns:
-        float: the result of the evaluation custom code
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-    # Execute custom code evaluation
-    formatted_inputs = format_inputs(payload.inputs)
-    formatted_outputs = format_outputs(payload.outputs)
-    output = list(formatted_outputs.values())[
-        0
-    ]  # for now we expect one output as a string
-    result = await execute_custom_code_evaluation(
-        evaluation_id,
-        payload.app_id,
-        output,
-        payload.correct_answer,
-        payload.variant_id,
-        formatted_inputs,
-        **user_org_data,
-    )
-    return result
-
-
-@router.post("/webhook_example_fake/", response_model=EvaluationWebhook)
 async def webhook_example_fake():
     """Returns a fake score response for example webhook evaluation
 
@@ -577,4 +410,56 @@ async def webhook_example_fake():
     """
 
     # return a random score b/w 0 and 1
-    return {"score": random.random()}
+    random_generator = secrets.SystemRandom()
+    random_number = random_generator.random()
+    return {"score": random_number}
+
+
+@router.get(
+    "/evaluation_scenarios/comparison-results/",
+    response_model=Any,
+)
+async def fetch_evaluation_scenarios(
+    evaluations_ids: str,
+    request: Request,
+):
+    """Fetches evaluation scenarios for a given evaluation ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    try:
+        evaluations_ids_list = evaluations_ids.split(",")
+
+        if isCloudEE():
+            for evaluation_id in evaluations_ids_list:
+                has_permission = await check_action_access(
+                    user_uid=request.state.user_id,
+                    object_id=evaluation_id,
+                    object_type="evaluation",
+                    permission=Permission.VIEW_EVALUATION,
+                )
+                logger.debug(
+                    f"User has permission to get evaluation scenarios: {has_permission}"
+                )
+                if not has_permission:
+                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                    logger.error(error_msg)
+                    return JSONResponse(
+                        {"detail": error_msg},
+                        status_code=403,
+                    )
+
+        eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
+            evaluations_ids_list
+        )
+
+        return eval_scenarios
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
