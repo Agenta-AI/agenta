@@ -14,7 +14,7 @@ evaluators = [
         "direct_use": True,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the JSON output contains the specified JSON structure.",
         },
         "description": "Contains Json evaluator checks if the output contains the specified JSON structure."
     },
@@ -131,7 +131,7 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the output starts with the specified prefix.",
             "prefix": {
                 "label": "prefix",
                 "type": "string",
@@ -150,17 +150,17 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the output ends with the specified suffix.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
                 "default": True,
-                "description": "If the regex should match or mismatch",
+                "description": "If the evaluation should be case sensitive.",
             },
             "suffix": {
                 "label": "suffix",
                 "type": "string",
-                "description": "The string to match",
+                "description": "The string to match at the end of the output.",
             },
         },
         "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings."
@@ -171,17 +171,17 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the output contains the specified substring.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
                 "default": True,
-                "description": "If the regex should match or mismatch",
+                "description": "If the evaluation should be case sensitive.",
             },
             "substring": {
                 "label": "substring",
                 "type": "string",
-                "description": "The string to match",
+                "description": "The string to check if it is contained in the output.",
             },
         },
         "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings."
@@ -192,17 +192,17 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the output contains any of the specified substrings.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
                 "default": True,
-                "description": "If the regex should match or mismatch",
+                "description": "If the evaluation should be case sensitive.",
             },
-            "string": {
-                "label": "string",
+            "strings": {
+                "label": "strings",
                 "type": "string",
-                "description": "The string to match",
+                "description": "The list of strings to check if any is contained in the output.",
             },
         },
         "description": "Contains Any evaluator checks if the output contains any of a list of specified substrings, considering case sensitivity based on the settings."
@@ -213,17 +213,17 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Single Model Testing Settings",
-            "description": "Output starts with string",
+            "description": "Checks if the output contains all of the specified substrings.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
                 "default": True,
-                "description": "If the regex should match or mismatch",
+                "description": "If the evaluation should be case sensitive.",
             },
-            "string": {
-                "label": "string",
+            "strings": {
+                "label": "strings",
                 "type": "string",
-                "description": "The string to match",
+                "description": "The list of strings to check if all are contained in the output.",
             },
         },
         "description": "Contains All evaluator checks if the output contains all of a list of specified substrings, considering case sensitivity based on the settings."
