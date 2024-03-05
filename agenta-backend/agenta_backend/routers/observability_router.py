@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Any
 
 from fastapi import Request, Query, Depends
 
@@ -109,7 +109,7 @@ async def delete_traces(request: Request, ids: List[str]):
 
 @router.get(
     "/spans/",
-    response_model=WithPagination[Span],
+    response_model=Any,
     operation_id="get_spans_of_generation",
 )
 async def get_spans_of_trace(
