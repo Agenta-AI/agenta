@@ -250,7 +250,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             }}
                                         >
                                             <a onClick={(e) => e.preventDefault()}>
-                                                <Tooltip title="Change theme">
+                                                <Tooltip title="Change theme" placement="left">
                                                     <Image
                                                         alt={`Curren Theme: ${
                                                             isDarkTheme ? "dark" : "light"
