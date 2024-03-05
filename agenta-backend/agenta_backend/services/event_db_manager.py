@@ -245,7 +245,11 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
                     else None
                 ),
             },
-            "metadata": span_db.meta,
+            "metadata": {
+                "cost": span_db.cost,
+                "latency": span_db.duration,
+                "usage": span_db.meta,
+            },
             "user_id": str(user.id),
             "span_id": str(span_db.id),
             "content": {
