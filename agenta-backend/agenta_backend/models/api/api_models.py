@@ -1,16 +1,11 @@
 from enum import Enum
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypeVar, Generic
+from typing import Any, Dict, List, Optional
 
-from fastapi import Query
 from pydantic import BaseModel, Field
 
 from agenta_backend.models.db_models import ConfigDB
 
-
-# generic type for db models that will be
-# translated into a pydantic model(s)
-T = TypeVar("T")
 
 
 class PaginationParam(BaseModel):
@@ -22,8 +17,8 @@ class SorterParams(BaseModel):
     created_at: str = Field("desc")
 
 
-class WithPagination(BaseModel, Generic[T]):
-    data: List[T]
+class WithPagination(BaseModel):
+    data: List[Any]
     total: int
     page: int
     pageSize: int

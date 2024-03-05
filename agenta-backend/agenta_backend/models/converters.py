@@ -3,7 +3,7 @@
 
 import json
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
@@ -93,7 +93,6 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
     PaginationParam,
     WithPagination,
-    T as CustomType,
 )
 
 from fastapi import Depends
@@ -610,8 +609,8 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
     )
 
 
-def get_paginated_data(data: List[CustomType], query: PaginationParam = Depends()):
-    return WithPagination[CustomType](
+def get_paginated_data(data: List[Any], query: PaginationParam = Depends()):
+    return WithPagination(
         data=data, total=len(data), page=query.page, pageSize=query.pageSize
     )
 
