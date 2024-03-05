@@ -204,6 +204,8 @@ async def fetch_generation_spans(
     filtered_generations = filter(
         partial(filters.filter_document_by_filter_params, filters_param), spans
     )
+    if filters_param.trace_id:
+        return list(filtered_generations)
     return get_paginated_data(list(filtered_generations), pagination)
 
 
