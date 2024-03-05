@@ -162,6 +162,7 @@ def init(app_name: str, backend_host: str):
                     click.echo(click.style(f"Error: {ex}", fg="red"))
                     sys.exit(1)
 
+        filtered_org = None
         if where_question == "On agenta cloud":
             which_organization = questionary.select(
                 "Which organization do you want to create the app for?",

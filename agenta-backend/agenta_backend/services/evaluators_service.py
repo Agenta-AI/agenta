@@ -120,18 +120,16 @@ def auto_webhook_test(
 ) -> Result:
     try:
         with httpx.Client() as client:
-            webhook_body = settings_values.get("webhook_body", None)
-            if isinstance(webhook_body, str):
-                payload = json.loads(webhook_body)
-            if not webhook_body:
-                payload = {}
-            if isinstance(webhook_body, dict):
-                payload = webhook_body
+            payload = {
+                "correct_answer": correct_answer,
+                "output": output,
+                "inputs": inputs,
+            }
             response = client.post(url=settings_values["webhook_url"], json=payload)
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
-            if not score:
+            if score is None and not isinstance(score, (int, float)):
                 return Result(
                     type="error",
                     value=None,

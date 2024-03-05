@@ -1,4 +1,4 @@
-import {Environment, IPromptVersioning, Parameter, Variant} from "@/lib/Types"
+import {Environment, IPromptRevisions, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useContext, useEffect, useState} from "react"
@@ -9,6 +9,12 @@ import {promptVersioning, removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
+import {useQueryParam} from "@/hooks/useQuery"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const PromptVersioningDrawer: any = dynamicComponent(
+    `PromptVersioningDrawer/PromptVersioningDrawer`,
+)
 
 interface Props {
     variant: Variant
@@ -30,8 +36,12 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
+    isDrawerOpen: boolean
     setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
-    setPromptRevisions: React.Dispatch<React.SetStateAction<IPromptVersioning | undefined>>
+    historyStatus: {
+        loading: boolean
+        error: boolean
+    }
     setHistoryStatus: React.Dispatch<
         React.SetStateAction<{
             loading: boolean
@@ -76,15 +86,18 @@ const ParametersView: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
-    setHistoryStatus,
+    isDrawerOpen,
     setIsDrawerOpen,
-    setPromptRevisions,
+    historyStatus,
+    setHistoryStatus,
 }) => {
     const classes = useStyles()
     const posthog = usePostHogAg()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
+    const [revisionNum, setRevisionNum] = useQueryParam("revision")
+    const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions[]>([])
 
     useEffect(() => {
         onStateChange(variant.persistent === false)
@@ -153,6 +166,10 @@ const ParametersView: React.FC<Props> = ({
         }
     }
 
+    let filteredRevisions
+    if (promptRevisions !== undefined) {
+        filteredRevisions = promptRevisions.filter((item) => item.revision !== 0)
+    }
     const items: CollapseProps["items"] = [
         {
             key: "1",
@@ -270,6 +287,14 @@ const ParametersView: React.FC<Props> = ({
                 isModalOpen={isPublishModalOpen}
                 setIsModalOpen={setPublishModalOpen}
                 environments={environments}
+            />
+            <PromptVersioningDrawer
+                setIsDrawerOpen={setIsDrawerOpen}
+                setRevisionNum={setRevisionNum}
+                isDrawerOpen={isDrawerOpen}
+                historyStatus={historyStatus}
+                promptRevisions={filteredRevisions}
+                onStateChange={onStateChange}
             />
         </div>
     )
