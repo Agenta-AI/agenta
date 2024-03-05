@@ -60,12 +60,11 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
         isChatVariant,
-        promptRevisions,
         historyStatus,
         setPromptOptParams,
-        setPromptRevisions,
         setHistoryStatus,
     } = useVariant(appId, variant)
+
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
@@ -244,7 +243,8 @@ const ViewNavigation: React.FC<Props> = ({
                         tabID={tabID}
                         setHistoryStatus={setHistoryStatus}
                         setIsDrawerOpen={setIsDrawerOpen}
-                        setPromptRevisions={setPromptRevisions}
+                        isDrawerOpen={isDrawerOpen}
+                        historyStatus={historyStatus}
                     />
                 </Col>
             </Row>
@@ -259,12 +259,8 @@ const ViewNavigation: React.FC<Props> = ({
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
                         onStateChange={onStateChange}
-                        promptRevisions={promptRevisions}
-                        historyStatus={historyStatus}
                         setPromptOptParams={setPromptOptParams}
                         promptOptParams={promptOptParams}
-                        isDrawerOpen={isDrawerOpen}
-                        setIsDrawerOpen={setIsDrawerOpen}
                     />
                 </Col>
             </Row>

@@ -1,8 +1,5 @@
 FROM agentaai/templates_v2:main
 
-ARG ROOT_PATH=/
-ENV ROOT_PATH=${ROOT_PATH}
-
 WORKDIR /app
 
 COPY . .

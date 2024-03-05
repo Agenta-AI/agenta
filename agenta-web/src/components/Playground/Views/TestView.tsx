@@ -1,7 +1,7 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {callVariant} from "@/lib/services/api"
+import {callVariant, promptRevision} from "@/lib/services/api"
 import {
     ChatMessage,
     ChatRole,
@@ -10,7 +10,7 @@ import {
     Parameter,
     Variant,
 } from "@/lib/Types"
-import {batchExecute, dynamicComponent, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -29,10 +29,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
-
-const PromptVersioningDrawer: any = dynamicComponent(
-    `PromptVersioningDrawer/PromptVersioningDrawer`,
-)
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -142,15 +139,8 @@ interface TestViewProps {
     isChatVariant?: boolean
     compareMode: boolean
     onStateChange: (isDirty: boolean) => void
-    promptRevisions: IPromptVersioning | undefined
-    historyStatus: {
-        loading: boolean
-        error: boolean
-    }
     setPromptOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
     promptOptParams: Parameter[] | null
-    setIsDrawerOpen: React.Dispatch<React.SetStateAction<boolean>>
-    isDrawerOpen: boolean
 }
 
 interface BoxComponentProps {
@@ -227,6 +217,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     onParamChange={onInputParamChange}
                     form={form}
                     imageSize="large"
+                    isPlaygroundComponent={true}
                 />
             </Row>
             {additionalData?.cost || additionalData?.latency ? (
@@ -329,10 +320,6 @@ const App: React.FC<TestViewProps> = ({
     compareMode,
     onStateChange,
     setPromptOptParams,
-    promptRevisions,
-    historyStatus,
-    isDrawerOpen,
-    setIsDrawerOpen,
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
@@ -347,9 +334,10 @@ const App: React.FC<TestViewProps> = ({
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
-    const filteredRevisions = promptRevisions?.revisions.filter((item) => item.revision !== 0)
 
     const rootRef = React.useRef<HTMLDivElement>(null)
+    const [isLLMProviderMissingModalOpen, setIsLLMProviderMissingModalOpen] = useState(false)
+
     const [additionalDataList, setAdditionalDataList] = useState<
         Array<{
             cost: number | null
@@ -362,39 +350,42 @@ const App: React.FC<TestViewProps> = ({
     useEffect(() => {
         if (!revisionNum) return
 
-        const revision = filteredRevisions?.find((rev) => rev.revision === parseInt(revisionNum))
+        const fetchData = async () => {
+            const revision = await promptRevision(variant.variantId, parseInt(revisionNum))
+            if (!revision) return
 
-        if (!revision) return
-
-        setPromptOptParams((prevState: Parameter[] | null) => {
-            if (!prevState) {
-                return prevState
-            }
-
-            const parameterNames = [
-                "temperature",
-                "model",
-                "max_tokens",
-                "prompt_system",
-                "prompt_user",
-                "top_p",
-                "frequence_penalty",
-                "presence_penalty",
-                "inputs",
-            ]
-
-            return prevState.map((param: Parameter) => {
-                if (parameterNames.includes(param.name)) {
-                    const newValue = (revision?.config.parameters as Record<string, any>)[
-                        param.name
-                    ]
-                    if (newValue !== undefined) {
-                        param.default = newValue
-                    }
+            setPromptOptParams((prevState: Parameter[] | null) => {
+                if (!prevState) {
+                    return prevState
                 }
-                return param
+
+                const parameterNames = [
+                    "temperature",
+                    "model",
+                    "max_tokens",
+                    "prompt_system",
+                    "prompt_user",
+                    "top_p",
+                    "frequence_penalty",
+                    "presence_penalty",
+                    "inputs",
+                ]
+
+                return prevState.map((param: Parameter) => {
+                    if (parameterNames.includes(param.name)) {
+                        const newValue = (revision?.config.parameters as Record<string, any>)[
+                            param.name
+                        ]
+                        if (newValue !== undefined) {
+                            param.default = newValue
+                        }
+                    }
+                    return param
+                })
             })
-        })
+        }
+
+        fetchData()
     }, [revisionNum])
 
     const abortControllersRef = useRef<AbortController[]>([])
@@ -511,6 +502,9 @@ const App: React.FC<TestViewProps> = ({
                     `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
                     index,
                 )
+                if (e.response.status === 401) {
+                    setIsLLMProviderMissingModalOpen(true)
+                }
             } else {
                 setResultForIndex("", index)
                 setAdditionalDataList((prev) => {
@@ -665,14 +659,19 @@ const App: React.FC<TestViewProps> = ({
                 isChatVariant={!!isChatVariant}
             />
 
-            <PromptVersioningDrawer
-                setIsDrawerOpen={setIsDrawerOpen}
-                setRevisionNum={setRevisionNum}
-                isDrawerOpen={isDrawerOpen}
-                historyStatus={historyStatus}
-                promptRevisions={filteredRevisions}
-                onStateChange={onStateChange}
-            />
+            <Modal
+                centered
+                title="Incorrect LLM key provided"
+                open={isLLMProviderMissingModalOpen}
+                onOk={() => router.push("/settings?tab=secrets")}
+                onCancel={() => setIsLLMProviderMissingModalOpen(false)}
+                okText={"View LLM Keys"}
+            >
+                <p>
+                    The API key for the LLM is either incorrect or missing. Please ensure that you
+                    have a valid API key for the model you are using.
+                </p>
+            </Modal>
         </div>
     )
 }

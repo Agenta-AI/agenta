@@ -181,6 +181,12 @@ export interface Parameters {
     top_p: number
 }
 
+export interface DeploymentRevisionConfig {
+    config_name: string
+    current_version: number
+    parameters: Parameters
+}
+
 export interface IPromptRevisions {
     config: {
         config_name: string
@@ -189,6 +195,12 @@ export interface IPromptRevisions {
     created_at: string
     modified_by: string
     revision: number
+}
+
+export interface IEnvironmentRevision {
+    revision: number
+    modified_by: string
+    created_at: string
 }
 
 export interface IPromptVersioning {
@@ -297,6 +309,7 @@ export interface AppTemplate {
     template_id: string
     env_vars?: Record<string, string>
     organization_id?: string
+    workspace_id?: string
 }
 
 export type GenericObject = Record<string, any>
@@ -309,6 +322,17 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
+}
+
+export interface DeploymentRevisions extends Environment {
+    revisions: {
+        created_at: string
+        deployed_app_variant_revision: string
+        deployment: string
+        id: string
+        modified_by: string
+        revision: number
+    }[]
 }
 
 export interface CustomEvaluation {
@@ -325,13 +349,6 @@ export interface User {
     uid: string
     username: string
     email: string
-}
-
-export interface Org {
-    id: string
-    name: string
-    description?: string
-    owner: string
 }
 
 export enum ChatRole {
@@ -374,6 +391,7 @@ export interface Evaluator {
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
+    description: string
 }
 
 export interface EvaluatorConfig {

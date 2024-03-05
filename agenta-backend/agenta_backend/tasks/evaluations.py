@@ -1,14 +1,19 @@
+import re
+import os
 import asyncio
 import logging
-import os
-import re
 import traceback
+
 from typing import Any, Dict, List
+from celery import shared_task, states
+
+from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.services import evaluators_service, llm_apps_service
 
 from agenta_backend.models.api.evaluation_model import (
     EvaluationStatusEnum,
 )
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
@@ -23,6 +28,7 @@ from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
     deployment_manager,
+    aggregation_service,
 )
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -37,7 +43,18 @@ from agenta_backend.services.db_manager import (
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
-from celery import shared_task, states
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.commons.models.db_models import AppDB_ as AppDB
+else:
+    from agenta_backend.models.db_models import AppDB
+from agenta_backend.models.db_models import (
+    Result,
+    AggregatedResult,
+    EvaluationScenarioResult,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
+)
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -79,6 +96,9 @@ def evaluate(
         loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
+        assert (
+            app_variant_db is not None
+        ), f"App variant with id {variant_id} not found!"
         app_variant_parameters = app_variant_db.config.parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
@@ -163,10 +183,12 @@ def evaluate(
                     if correct_answer_column in data_point
                     else ""
                 )
+
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
                         user=app.user,
-                        organization=app.organization,
+                        organization=app.organization if isCloudEE() else None,
+                        workspace=app.workspace if isCloudEE() else None,
                         evaluation=new_evaluation_db,
                         variant_id=variant_id,
                         evaluators_configs=new_evaluation_db.evaluators_configs,
@@ -236,7 +258,6 @@ def evaluate(
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
-                    organization=app.organization,
                     evaluation=new_evaluation_db,
                     variant_id=variant_id,
                     evaluators_configs=new_evaluation_db.evaluators_configs,
@@ -250,6 +271,8 @@ def evaluate(
                         )
                     ],
                     results=evaluators_results,
+                    organization=app.organization if isCloudEE() else None,
+                    workspace=app.workspace if isCloudEE() else None,
                 )
             )
 
@@ -261,6 +284,7 @@ def evaluate(
                 evaluation_id,
                 {
                     "status": Result(
+                        type="status",
                         value="EVALUATION_FAILED",
                         error=Error(message="Evaluation Failed", stacktrace=str(e)),
                     )
@@ -311,45 +335,25 @@ async def aggregate_evaluator_results(
 
         if not results:
             result = Result(type="error", value=None, error=Error(message="-"))
+            continue
+
+        if evaluator_key == "auto_ai_critique":
+            result = aggregation_service.aggregate_ai_critique(results)
+
+        elif evaluator_key == "auto_regex_test":
+            result = aggregation_service.aggregate_binary(results)
+
+        elif evaluator_key in [
+            "auto_exact_match",
+            "auto_similarity_match",
+            "field_match_test",
+            "auto_webhook_test",
+            "auto_custom_code_run",
+        ]:
+            result = aggregation_service.aggregate_float(results)
+
         else:
-            if evaluator_key == "auto_ai_critique":
-                numeric_scores = []
-                for result in results:
-                    # Extract the first number found in the result value
-                    match = re.search(r"\d+", result.value)
-                    if match:
-                        try:
-                            score = int(match.group())
-                            numeric_scores.append(score)
-                        except ValueError:
-                            # Ignore if the extracted value is not an integer
-                            continue
-
-                # Calculate the average of numeric scores if any are present
-                average_value = (
-                    sum(numeric_scores) / len(numeric_scores)
-                    if numeric_scores
-                    else None
-                )
-                result = Result(
-                    type="number",
-                    value=average_value,
-                )
-
-            else:
-                # Handle boolean values for auto_regex_test and other evaluators
-                if all(isinstance(result.value, bool) for result in results):
-                    average_value = sum(result.value for result in results) / len(
-                        results
-                    )
-                else:
-                    # Handle other data types or mixed results
-                    average_value = None
-
-                result = Result(
-                    type="number",
-                    value=average_value,
-                )
+            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(

@@ -1,4 +1,5 @@
 import _ from "lodash"
+import {camelToSnake} from "./utils"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -41,13 +42,12 @@ export const getApikeys = () => {
     }
 }
 
-export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
-    if (typeof window !== "undefined") {
-        // TODO: add encryption here
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = keyValue
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
+export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
+    // TODO: add encryption here
+    const keys = getAllProviderLlmKeys()
+    const item = keys.find((item: LlmProvider) => item.title === providerName)
+    if (item) item.key = keyValue
+    localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
 }
 
 export const getLlmProviderKey = (providerName: string) =>
@@ -70,12 +70,11 @@ export const getAllProviderLlmKeys = () => {
     return providers
 }
 
-export const removeSingleLlmProviderKey = (providerIdx: number) => {
-    if (typeof window !== "undefined") {
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = ""
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
+export const removeSingleLlmProviderKey = (providerName: string) => {
+    const keys = getAllProviderLlmKeys()
+    const item = keys.find((item: LlmProvider) => item.title === providerName)
+    if (item) item.key = ""
+    localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
 }
 
 export const removeLlmProviderKey = () => {
