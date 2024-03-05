@@ -10,13 +10,13 @@ evaluators = [
     },
     {
         "name": "Contains Json",
-        "key": "contains_json",
+        "key": "auto_contains_json",
         "direct_use": True,
         "settings_template": {
             "label": "Single Model Testing Settings",
             "description": "Output starts with string",
         },
-        "description": "Webhook test evaluator"
+        "description": "Contains Json evaluator checks if the output contains the specified JSON structure."
     },
     {
         "name": "Similarity Match",
@@ -142,7 +142,7 @@ evaluators = [
                 "default": True
             },
         },
-        "description": "Webhook test evaluator"
+        "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings."
     },
     {
         "name": "Ends With",
@@ -163,7 +163,7 @@ evaluators = [
                 "description": "The string to match",
             },
         },
-        "description": "Webhook test evaluator"
+        "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings."
     },
     {
         "name": "Contains",
@@ -184,7 +184,7 @@ evaluators = [
                 "description": "The string to match",
             },
         },
-        "description": "Webhook test evaluator"
+        "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings."
     },
     {
         "name": "Contains Any",
@@ -205,7 +205,7 @@ evaluators = [
                 "description": "The string to match",
             },
         },
-        "description": "Webhook test evaluator"
+        "description": "Contains Any evaluator checks if the output contains any of a list of specified substrings, considering case sensitivity based on the settings."
     },
     {
         "name": "Contains All",
@@ -226,7 +226,7 @@ evaluators = [
                 "description": "The string to match",
             },
         },
-        "description": "Webhook test evaluator"
+        "description": "Contains All evaluator checks if the output contains all of a list of specified substrings, considering case sensitivity based on the settings."
     },
 ]
 
