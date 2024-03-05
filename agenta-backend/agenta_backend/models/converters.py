@@ -512,7 +512,11 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
             ),
             environment=span_db.environment,
             status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
-            metadata=span_db.meta,
+            metadata={
+                "cost": span_db.cost,
+                "latency": span_db.duration,
+                "usage": span_db.meta,
+            },
             user_id=str(span_db.trace.user.id),
         )
         spans.append(span.dict(exclude_unset=True))
