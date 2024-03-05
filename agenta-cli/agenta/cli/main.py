@@ -141,11 +141,19 @@ def init(app_name: str, backend_host: str):
             api_key=api_key if where_question == "On agenta cloud" else "",
         )
 
+        # list of user organizations
+        user_organizations = []
+
         # validate the api key if it is provided
         if where_question == "On agenta cloud":
             try:
                 key_prefix = api_key.split(".")[0]
                 client.validate_api_key(key_prefix=key_prefix)
+
+                # Make request to fetch user organizations after api key validation
+                organizations = client.list_organizations()
+                if len(organizations) >= 1:
+                    user_organizations = organizations
             except Exception as ex:
                 if ex.status_code == 401:
                     click.echo(click.style("Error: Invalid API key", fg="red"))
@@ -154,9 +162,29 @@ def init(app_name: str, backend_host: str):
                     click.echo(click.style(f"Error: {ex}", fg="red"))
                     sys.exit(1)
 
+        filtered_org = None
+        if where_question == "On agenta cloud":
+            which_organization = questionary.select(
+                "Which organization do you want to create the app for?",
+                choices=[
+                    f"{org.name}: {org.description}" for org in user_organizations
+                ],
+            ).ask()
+            filtered_org = next(
+                (
+                    org
+                    for org in user_organizations
+                    if org.name == which_organization.split(":")[0]
+                ),
+                None,
+            )
+
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.create_app(app_name=app_name).app_id
+            app_id = client.create_app(
+                app_name=app_name,
+                organization_id=filtered_org.id if filtered_org else None,
+            ).app_id
         except Exception as ex:
             click.echo(click.style(f"Error: {ex}", fg="red"))
             sys.exit(1)

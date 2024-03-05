@@ -9,13 +9,10 @@ from agenta_backend.models.db_models import (
     SpanDB,
     UserDB,
     TraceDB,
-    OrganizationDB,
     ImageDB,
     AppVariantDB,
     VariantBaseDB,
 )
-from agenta_backend.services import selectors
-
 import httpx
 
 
@@ -44,11 +41,8 @@ async def test_create_spans_endpoint(spans_db_data):
 @pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
     user_db = await UserDB.find_one(UserDB.uid == "0")
-    organization_db = await OrganizationDB.find_one(
-        OrganizationDB.owner == str(user_db.id)
-    )
 
-    image_db = ImageDB(**image_create_data, user=user_db, organization=organization_db)
+    image_db = ImageDB(**image_create_data, user=user_db)
     await image_db.create()
 
     assert image_db.user.id == user_db.id
@@ -58,12 +52,10 @@ async def test_create_image_in_db(image_create_data):
 @pytest.mark.asyncio
 async def test_create_appvariant_in_db(app_variant_create_data):
     user_db = await UserDB.find_one(UserDB.uid == "0")
-    organization_db = await selectors.get_user_own_org(user_db.uid)
     image_db = await ImageDB.find_one(ImageDB.user.id == user_db.id)
 
     app = AppDB(
         app_name="test_app",
-        organization=organization_db,
         user=user_db,
     )
     await app.create()
@@ -75,7 +67,6 @@ async def test_create_appvariant_in_db(app_variant_create_data):
 
     db_base = VariantBaseDB(
         app=app,
-        organization=organization_db,
         user=user_db,
         base_name="app",
         image=image_db,
@@ -87,7 +78,6 @@ async def test_create_appvariant_in_db(app_variant_create_data):
         app=app,
         image=image_db,
         user=user_db,
-        organization=organization_db,
         base_name="app",
         config_name="default",
         base=db_base,

@@ -57,3 +57,6 @@ agenta-web/cypress/videos/
 .nextjs_cache/
 
 rabbitmq_data
+
+# docker compose override
+docker-compose.*override.yaml

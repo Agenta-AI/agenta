@@ -24,6 +24,7 @@ import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {LlmProvider, getAllProviderLlmKeys, getApikeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -43,11 +44,11 @@ const useStyles = createUseStyles({
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
     }),
-    createCard: {
+    createCard: ({themeMode}: StyleProps) => ({
         fontSize: 20,
-        backgroundColor: "hsl(0, 0%, 100%)",
-        borderColor: "hsl(0, 0%, 10%) !important",
-        color: "#FFFFFF",
+        backgroundColor: themeMode === "dark" ? "" : "hsl(0, 0%, 100%)",
+        borderColor: themeMode === "dark" ? "hsl(0, 0%, 100%)" : "hsl(0, 0%, 10%) !important",
+        color: themeMode === "dark" ? "#fff" : "#000",
         boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
 
         width: 300,
@@ -57,16 +58,16 @@ const useStyles = createUseStyles({
         justifyContent: "center",
         cursor: "pointer",
         "& .ant-card-meta-title": {
-            color: "hsl(0, 0%, 10%)",
+            color: themeMode === "dark" ? "#fff" : "#000",
         },
-    },
-    createCardMeta: {
+    }),
+    createCardMeta: ({themeMode}: StyleProps) => ({
         height: "90%",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-evenly",
-        color: "hsl(0, 0%, 10%)",
-    },
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
     closeIcon: {
         fontSize: 20,
         color: "red",
@@ -115,13 +116,20 @@ const AppSelector: React.FC = () => {
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const {selectedOrg} = useProfileData()
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
         details: undefined,
         appId: undefined,
     })
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -195,7 +203,6 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
-            orgId: selectedOrg?.id!,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             timeout,
             onStatusChange: async (status, details, appId) => {
@@ -272,7 +279,11 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 2) {
+                                            if (
+                                                isDemo() &&
+                                                selectedOrg?.is_paying == false &&
+                                                apps.length > 2
+                                            ) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()

@@ -1,10 +1,10 @@
 import json
-import asyncio
+import httpx
 import logging
+import asyncio
 import traceback
 from typing import Any, Dict, List
 
-import httpx
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
 
@@ -91,13 +91,53 @@ async def invoke_app(
                 result=Result(type="text", value=app_output["message"], error=None)
             )
 
-        except httpx.HTTPError as e:
-            logger.error(f"Error occurred during request: {e}")
+        except httpx.HTTPStatusError as e:
+            # Parse error details from the API response
+            error_message = "Error in invoking the LLM App:"
+            try:
+                error_body = e.response.json()
+                if "message" in error_body:
+                    error_message = error_body["message"]
+                elif (
+                    "error" in error_body
+                ):  # Some APIs return error information under an 'error' key
+                    error_message = error_body["error"]
+            except ValueError:
+                # Fallback if the error response is not JSON or doesn't have the expected structure
+                logger.error(f"Failed to parse error response: {e}")
+
+            logger.error(f"Error occurred during request: {error_message}")
             return InvokationResult(
                 result=Result(
                     type="error",
                     error=Error(
-                        message="An error occurred while invoking the LLM App",
+                        message=error_message,
+                        stacktrace=str(e),
+                    ),
+                )
+            )
+
+        except httpx.RequestError as e:
+            # Handle other request errors (e.g., network issues)
+            logger.error(f"Request error: {e}")
+            return InvokationResult(
+                result=Result(
+                    type="error",
+                    error=Error(
+                        message="Network error while invoking the LLM App",
+                        stacktrace=str(e),
+                    ),
+                )
+            )
+
+        except Exception as e:
+            # Catch-all for any other unexpected errors
+            logger.error(f"Unexpected error: {e}")
+            return InvokationResult(
+                result=Result(
+                    type="error",
+                    error=Error(
+                        message="Unexpected error while invoking the LLM App",
                         stacktrace=str(e),
                     ),
                 )
@@ -178,9 +218,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[InvokationResult] = (
-        []
-    )  # Outputs after running all batches
+    list_of_app_outputs: List[
+        InvokationResult
+    ] = []  # Outputs after running all batches
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):

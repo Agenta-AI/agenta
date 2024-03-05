@@ -6,9 +6,11 @@ import {
     Variant,
     _Evaluation,
     EvaluationScenario,
-    EvaluationError,
 } from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
+import {fetchEvaluatonIdsByResource} from "@/services/evaluations"
+import {getAppValues} from "@/contexts/app.context"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {capitalize, round} from "lodash"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
@@ -232,11 +234,41 @@ export const getVotesPercentage = (record: HumanEvaluationListTableDataType, ind
     return record.votesData.variants_votes_data[variant]?.percentage
 }
 
+export const checkIfResourceValidForDeletion = async (
+    data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
+) => {
+    const appId = getAppValues().currentApp?.app_id
+    if (!appId) return false
+
+    const response = await fetchEvaluatonIdsByResource({...data, appId})
+    if (response.data.length > 0) {
+        const name =
+            (data.resourceType === "testset"
+                ? "Testset"
+                : data.resourceType === "evaluator_config"
+                  ? "Evaluator"
+                  : "Variant") + (data.resourceIds.length > 1 ? "s" : "")
+
+        const suffix = response.data.length > 1 ? "s" : ""
+        AlertPopup({
+            title: `${name} is in use`,
+            message: `The ${name} is currently in used by ${response.data.length} evaluation${suffix}. Please delete the evaluation${suffix} first.`,
+            cancelText: null,
+            okText: "Ok",
+        })
+        return false
+    }
+    return true
+}
+
 export function getTypedValue(res?: TypedValue) {
     const {value, type, error} = res || {}
     if (type === "error") {
         return error?.message
     }
+
+    if (value === undefined) return "-"
+
     return type === "number"
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
@@ -244,7 +276,8 @@ export function getTypedValue(res?: TypedValue) {
           : value?.toString()
 }
 
-export function getFilterParams(type: "number" | "text" | "date") {
+type CellDataType = "number" | "text" | "date"
+export function getFilterParams(type: CellDataType) {
     const filterParams: GenericObject = {}
     if (type == "date") {
         filterParams.comparator = function (
@@ -276,7 +309,7 @@ export function getFilterParams(type: "number" | "text" | "date") {
                   : "agTextColumnFilter",
         cellDataType: type === "number" ? "text" : type,
         filterParams,
-        comparator: customComparator,
+        comparator: getCustomComparator(type),
     }
 }
 
@@ -286,15 +319,13 @@ export const calcEvalDuration = (evaluation: _Evaluation) => {
     ).diff(dayjs(evaluation.created_at), "milliseconds")
 }
 
-function customComparator(valueA: string, valueB: string) {
-    if (valueA === "-" && valueB === "-") {
-        return 0
+const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: string) => {
+    const getNumber = (val: string) => {
+        const num = parseFloat(val || "0")
+        return isNaN(num) ? 0 : num
     }
-    if (valueA === "-") {
-        return 1
-    }
-    if (valueB === "-") {
-        return -1
-    }
-    return parseFloat(valueA) - parseFloat(valueB)
+    if (type === "date") return dayjs(valueA).diff(dayjs(valueB))
+    if (type === "text") return valueA.localeCompare(valueB)
+    if (type === "number") return getNumber(valueA) - getNumber(valueB)
+    return 0
 }

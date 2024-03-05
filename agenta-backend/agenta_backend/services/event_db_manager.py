@@ -34,7 +34,7 @@ logger.setLevel(logging.INFO)
 
 
 async def get_variant_traces(
-    app_id: str, variant_id: str, **kwargs: dict
+    app_id: str, variant_id: str, user_uid: str
 ) -> List[Trace]:
     """Get the traces for a given app variant.
 
@@ -46,7 +46,7 @@ async def get_variant_traces(
         List[Trace]: the list of traces for the given app variant
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
     traces = await TraceDB.find(
         TraceDB.user.id == user.id,
         TraceDB.app_id == app_id,
@@ -56,7 +56,7 @@ async def get_variant_traces(
     return [trace_db_to_pydantic(trace) for trace in traces]
 
 
-async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
+async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
     """Create a new trace.
 
     Args:
@@ -66,7 +66,7 @@ async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
         Trace: the created trace
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Ensure spans exists in the db
     for span in payload.spans:
@@ -79,7 +79,7 @@ async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
     return str(trace_db.id)
 
 
-async def get_trace_single(trace_id: str, **kwargs: dict) -> Trace:
+async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
     """Get a single trace.
 
     Args:
@@ -89,7 +89,7 @@ async def get_trace_single(trace_id: str, **kwargs: dict) -> Trace:
         Trace: the trace
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get trace
     trace = await TraceDB.find_one(
@@ -99,7 +99,7 @@ async def get_trace_single(trace_id: str, **kwargs: dict) -> Trace:
 
 
 async def trace_status_update(
-    trace_id: str, payload: UpdateTrace, **kwargs: dict
+    trace_id: str, payload: UpdateTrace, user_uid: str
 ) -> bool:
     """Update status of trace.
 
@@ -111,7 +111,7 @@ async def trace_status_update(
         bool: True if successful
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get trace
     trace = await TraceDB.find_one(
@@ -124,7 +124,7 @@ async def trace_status_update(
     return True
 
 
-async def create_trace_span(payload: CreateSpan, **kwargs: dict) -> str:
+async def create_trace_span(payload: CreateSpan) -> str:
     """Create a new span for a given trace.
 
     Args:
@@ -139,7 +139,7 @@ async def create_trace_span(payload: CreateSpan, **kwargs: dict) -> str:
     return str(span_db.id)
 
 
-async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
+async def get_trace_spans(trace_id: str, user_uid: str) -> List[Span]:
     """Get the spans for a given trace.
 
     Args:
@@ -149,7 +149,7 @@ async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
         List[Span]: the list of spans for the given trace
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get trace
     trace = await TraceDB.find_one(
@@ -162,7 +162,7 @@ async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
 
 
 async def add_feedback_to_trace(
-    trace_id: str, payload: CreateFeedback, **kwargs: dict
+    trace_id: str, payload: CreateFeedback, user_uid: str
 ) -> str:
     """Add a feedback to a trace.
 
@@ -174,12 +174,12 @@ async def add_feedback_to_trace(
         str: the feedback id
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
     feedback = FeedbackDB(
         user_id=str(user.id),
         feedback=payload.feedback,
         score=payload.score,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(),
     )
 
     trace = await TraceDB.find_one(TraceDB.id == ObjectId(trace_id), fetch_links=True)
@@ -193,7 +193,7 @@ async def add_feedback_to_trace(
     return feedback.uid
 
 
-async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
+async def get_trace_feedbacks(trace_id: str, user_uid: str) -> List[Feedback]:
     """Get the feedbacks for a given trace.
 
     Args:
@@ -203,7 +203,7 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
         List[Feedback]: the list of feedbacks for the given trace
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get feedbacks in trace
     trace = await TraceDB.find_one(
@@ -214,7 +214,7 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
 
 
 async def get_feedback_detail(
-    trace_id: str, feedback_id: str, **kwargs: dict
+    trace_id: str, feedback_id: str, user_uid: str
 ) -> Feedback:
     """Get a single feedback.
 
@@ -226,7 +226,7 @@ async def get_feedback_detail(
         Feedback: the feedback
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get trace
     trace = await TraceDB.find_one(
@@ -243,7 +243,7 @@ async def get_feedback_detail(
 
 
 async def update_trace_feedback(
-    trace_id: str, feedback_id: str, payload: UpdateFeedback, **kwargs: dict
+    trace_id: str, feedback_id: str, payload: UpdateFeedback, user_uid: str
 ) -> Feedback:
     """Update a feedback.
 
@@ -256,7 +256,7 @@ async def update_trace_feedback(
         Feedback: the feedback
     """
 
-    user = await db_manager.get_user(user_uid=kwargs["uid"])
+    user = await db_manager.get_user(user_uid)
 
     # Get trace
     trace = await TraceDB.find_one(
