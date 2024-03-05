@@ -317,15 +317,16 @@ async def start_variant(
     return url
 
 
-@router.get("/{variant_id}/logs/")
+@router.get("/{variant_id}/logs/", operation_id="retrieve_variant_logs")
 async def retrieve_variant_logs(variant_id: str, request: Request):
-    app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
-    deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
     try:
-        logs_result = logs_manager.retrieve_logs(deployment.container_name)
+        app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
+        deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
+        logs_result = await logs_manager.retrieve_logs(deployment.container_id)
+        return logs_result
     except Exception as exc:
+        logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(500, {"message": str(exc)})
-    return logs_result
 
 
 @router.get(

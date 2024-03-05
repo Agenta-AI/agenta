@@ -61,6 +61,13 @@ export async function fetchVariants(
     return []
 }
 
+export const fetchVariantLogs = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/logs`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    return response.data
+}
+
 export function restartAppVariantContainer(variantId: string) {
     return axios.post(`${getAgentaApiUrl()}/api/containers/restart_container/`, {
         variant_id: variantId,
