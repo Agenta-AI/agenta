@@ -354,12 +354,14 @@ async def aggregate_evaluator_results(
             "auto_contains",
             "auto_contains_any",
             "auto_contains_all",
-            "auto_contains_json"
+            "auto_contains_json",
         ]:
             result = aggregation_service.aggregate_float(results)
 
         else:
-            result = Result(type="error", value=None, error=Error(message="Aggregation failed"))
+            result = Result(
+                type="error", value=None, error=Error(message="Aggregation failed")
+            )
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
