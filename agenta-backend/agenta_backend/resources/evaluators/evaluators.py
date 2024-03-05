@@ -16,7 +16,7 @@ evaluators = [
             "label": "Single Model Testing Settings",
             "description": "Checks if the JSON output contains the specified JSON structure.",
         },
-        "description": "Contains Json evaluator checks if the output contains the specified JSON structure."
+        "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
     },
     {
         "name": "Similarity Match",
@@ -139,10 +139,10 @@ evaluators = [
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
-                "default": True
+                "default": True,
             },
         },
-        "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings."
+        "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
     },
     {
         "name": "Ends With",
@@ -163,7 +163,7 @@ evaluators = [
                 "description": "The string to match at the end of the output.",
             },
         },
-        "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings."
+        "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
     },
     {
         "name": "Contains",
@@ -184,7 +184,7 @@ evaluators = [
                 "description": "The string to check if it is contained in the output.",
             },
         },
-        "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings."
+        "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
     },
     {
         "name": "Contains Any",
@@ -205,7 +205,7 @@ evaluators = [
                 "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
             },
         },
-        "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings."
+        "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
     },
     {
         "name": "Contains All",
@@ -226,7 +226,7 @@ evaluators = [
                 "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
             },
         },
-        "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings."
+        "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
     },
 ]
 
