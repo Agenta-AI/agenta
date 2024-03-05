@@ -202,10 +202,10 @@ evaluators = [
             "strings": {
                 "label": "strings",
                 "type": "string",
-                "description": "The list of strings to check if any is contained in the output.",
+                "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
             },
         },
-        "description": "Contains Any evaluator checks if the output contains any of a list of specified substrings, considering case sensitivity based on the settings."
+        "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings."
     },
     {
         "name": "Contains All",
@@ -223,10 +223,10 @@ evaluators = [
             "strings": {
                 "label": "strings",
                 "type": "string",
-                "description": "The list of strings to check if all are contained in the output.",
+                "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
             },
         },
-        "description": "Contains All evaluator checks if the output contains all of a list of specified substrings, considering case sensitivity based on the settings."
+        "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings."
     },
 ]
 
