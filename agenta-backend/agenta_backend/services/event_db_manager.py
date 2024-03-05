@@ -233,7 +233,7 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
                 "variant_name": app_variant_db.variant_name,
                 "revision": app_variant_db.revision,
             },
-            "environment": "",
+            "environment": span_db.environment,
             "status": {
                 "value": span_db.status.value,
                 "error": (
