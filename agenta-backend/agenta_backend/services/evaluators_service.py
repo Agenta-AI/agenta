@@ -15,10 +15,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def adjust_case_based_on_setting(value: str, case_sensitive: bool) -> str:
-    return value if case_sensitive else value.lower()
-
-
 def auto_exact_match(
     inputs: Dict[str, Any],
     output: str,
@@ -264,7 +260,10 @@ def auto_starts_with(
     try:
         prefix = settings_values.get('prefix', '')
         case_sensitive = settings_values.get('case_sensitive', True)
-        output = adjust_case_based_on_setting(output, case_sensitive)
+
+        if not case_sensitive:
+            output = output.lower()
+            prefix = prefix.lower()
 
         result = Result(type="bool", value=output.startswith(prefix))
         return result
@@ -289,7 +288,10 @@ def auto_ends_with(
     try:
         suffix = settings_values.get('suffix', '')
         case_sensitive = settings_values.get('case_sensitive', True)
-        output = adjust_case_based_on_setting(output, case_sensitive)
+
+        if not case_sensitive:
+            output = output.lower()
+            suffix = suffix.lower()
 
         result = Result(type="bool", value=output.endswith(suffix))
         return result
@@ -315,7 +317,9 @@ def auto_contains(
         substring = settings_values.get('substring', '')
         case_sensitive = settings_values.get('case_sensitive', True)
 
-        output = adjust_case_based_on_setting(output, case_sensitive)
+        if not case_sensitive:
+            output = output.lower()
+            substring = substring.lower()
 
         result = Result(type="bool", value=substring in output)
         return result
@@ -338,8 +342,15 @@ def auto_contains_any(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        substrings = settings_values.get('substrings', [])
-        result = Result(type="bool", value=any(sub in output for sub in substrings))
+        substrings_str = settings_values.get('substrings', '')
+        substrings = [substring.strip() for substring in substrings_str.split(',')]
+        case_sensitive = settings_values.get('case_sensitive', True)
+
+        if not case_sensitive:
+            output = output.lower()
+            substrings = [substring.lower() for substring in substrings]
+
+        result = Result(type="bool", value=any(substring in output for substring in substrings))
         return result
     except Exception as e:
         return Result(
@@ -360,8 +371,15 @@ def auto_contains_all(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        substrings = settings_values.get('substrings', [])
-        result = Result(type="bool", value=all(sub in output for sub in substrings))
+        substrings_str = settings_values.get('substrings', '')
+        substrings = [substring.strip() for substring in substrings_str.split(',')]
+        case_sensitive = settings_values.get('case_sensitive', True)
+
+        if not case_sensitive:
+            output = output.lower()
+            substrings = [substring.lower() for substring in substrings]
+
+        result = Result(type="bool", value=all(substring in output for substring in substrings))
         return result
     except Exception as e:
         return Result(
