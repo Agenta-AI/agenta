@@ -10,13 +10,11 @@ from agenta_backend.models.api.api_models import (
     PaginationParam,
 )
 from agenta_backend.models.api.observability_models import (
-    Span,
     SpanDetail,
     CreateSpan,
     CreateFeedback,
     Feedback,
     UpdateFeedback,
-    Trace,
     TraceDetail,
     CreateTrace,
     UpdateTrace,
@@ -67,7 +65,7 @@ async def create_span(
 
 @router.get(
     "/traces/",
-    response_model=WithPagination[Trace],
+    response_model=WithPagination,
     operation_id="get_traces",
 )
 async def get_traces(
@@ -109,7 +107,6 @@ async def delete_traces(request: Request, ids: List[str]):
 
 @router.get(
     "/spans/",
-    response_model=Any,
     operation_id="get_spans_of_generation",
 )
 async def get_spans_of_trace(
