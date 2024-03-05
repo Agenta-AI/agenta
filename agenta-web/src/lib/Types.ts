@@ -169,28 +169,16 @@ export interface Parameter {
     maximum?: number
 }
 
-export interface Parameters {
-    frequence_penalty: number
-    inputs: [{}]
-    max_tokens: number
-    model: string
-    presence_penalty: number
-    prompt_system: string
-    prompt_user: string
-    temperature: number
-    top_p: number
-}
-
 export interface DeploymentRevisionConfig {
     config_name: string
     current_version: number
-    parameters: Parameters
+    parameters: Record<string, any>
 }
 
 export interface IPromptRevisions {
     config: {
         config_name: string
-        parameters: Parameters
+        parameters: Record<string, any>
     }
     created_at: string
     modified_by: string
@@ -210,7 +198,7 @@ export interface IPromptVersioning {
     base_name: string
     config_name: string
     organization_id: string
-    parameters: Parameters
+    parameters: Record<string, any>
     previous_variant_name: string | null
     revision: number
     revisions: [IPromptRevisions]
