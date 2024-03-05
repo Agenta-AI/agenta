@@ -3,7 +3,7 @@
 
 import json
 import logging
-from typing import List
+from typing import List, Tuple
 
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
@@ -12,10 +12,6 @@ from agenta_backend.models.api.observability_models import (
     Span,
     SpanStatus,
     SpanVariant,
-    LLMInputs,
-    LLMContent,
-    LLMModelParams,
-    SpanDetail,
     Trace,
     Feedback as FeedbackOutput,
 )
@@ -614,3 +610,9 @@ def get_paginated_data(data: List[CustomType], query: PaginationParam = Depends(
     return WithPagination[CustomType](
         data=data, total=len(data), page=query.page, pageSize=query.pageSize
     )
+
+
+def get_pagination_skip_limit(pagination: PaginationParam) -> Tuple[int, int]:
+    skip = (pagination.page - 1) * pagination.pageSize
+    limit = pagination.pageSize
+    return skip, limit
