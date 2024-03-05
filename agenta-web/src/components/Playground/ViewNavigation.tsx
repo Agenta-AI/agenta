@@ -9,14 +9,14 @@ import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {
-    getProfile,
+    fetchVariantLogs,
     getAppContainerURL,
     removeVariant,
     restartAppVariantContainer,
     waitForAppToStart,
 } from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
-import {isDemo, isCloud, isEnterprise} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface Props {
     variant: Variant
@@ -69,6 +69,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
+    const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
@@ -112,6 +113,17 @@ const ViewNavigation: React.FC<Props> = ({
             />
         )
     }
+
+    useEffect(() => {
+        if (isError) {
+            console.log("Error: ", isError)
+            const getLogs = async () => {
+                const logs = await fetchVariantLogs(variant.variantId)
+                setVariantErrorLogs(logs)
+            }
+            getLogs()
+        }
+    }, [isError, variant.variantId])
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
@@ -167,59 +179,39 @@ const ViewNavigation: React.FC<Props> = ({
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
                             {(axios.isAxiosError(error) && error.response?.status === 404 && (
-                                <span>Container is not running.</span>
+                                <span>
+                                    Container is not running. <b>See logs below:</b>
+                                </span>
                             )) || <span>{error.message}</span>}
                         </p>
-                        <p>To debug this issue, please follow the steps below:</p>
                         <ul>
-                            <li>
-                                Verify whether the API is up by checking if {apiAddress} is
-                                accessible.
-                            </li>
-                            {isCloud() && (
+                            {isDemo() && (
                                 <div>
-                                    <li>
-                                        Check if the lambda function for the variant{" "}
-                                        {variantDesignator} is active by running the following
-                                        command in your terminal:
-                                        <pre>
-                                            agenta get logs --variant {variant.variantId}
-                                        </pre> or <pre>agenta get logs {variant.variantId}</pre>
-                                        Running the above command will enable you to view the lambda
-                                        function latest logs stream events.
-                                    </li>
+                                    <p>{variantErrorLogs}</p>
                                 </div>
                             )}
-                            {isEnterprise() && (
+                            {!isDemo() && (
                                 <div>
-                                    <li></li>
-                                </div>
-                            )}
-                            {!isCloud() && (
-                                <div>
-                                    <li>
-                                        Check if the Docker container for the variant{" "}
-                                        {variantDesignator} is active by running the following
-                                        command in your terminal:
-                                        <pre>docker logs {containerName} --tail 50 -f</pre>
-                                        Running the above command will enable you to continuously
-                                        stream the container logs in real-time as they are
-                                        generated.
-                                    </li>
-                                    <p>
-                                        {" "}
-                                        In case the docker container is not running, please check
-                                        the Docker logs to understand the issue. Most of the time,
-                                        it is due to missing requirements. Also, please attempt
-                                        restarting it (using cli or docker desktop).
-                                    </p>
+                                    <pre>{variantErrorLogs}</pre>
                                 </div>
                             )}
                         </ul>
                         <p>
+                            Verify API accessibility at{" "}
+                            <a href={apiAddress} target="_blank">
+                                {apiAddress}
+                            </a>
+                        </p>
+                        <p>
                             {" "}
-                            If the issue persists please file an issue in github here:
-                            https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
+                            If the issue persists please file an issue in github
+                            <a
+                                href="https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx"
+                                target="_blank"
+                            >
+                                {" "}
+                                here
+                            </a>
                         </p>
 
                         <Button
