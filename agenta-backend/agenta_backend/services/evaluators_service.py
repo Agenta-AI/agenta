@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+def adjust_case_based_on_setting(value: str, case_sensitive: bool) -> str:
+    return value if case_sensitive else value.lower()
+
+
 def auto_exact_match(
     inputs: Dict[str, Any],
     output: str,
@@ -246,6 +250,126 @@ def auto_ai_critique(
             type="error",
             value=None,
             error=Error(message="Error during Auto AI Critique", stacktrace=str(e)),
+        )
+
+
+def auto_starts_with(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        prefix = settings_values.get('prefix', '')
+        case_sensitive = settings_values.get('case_sensitive', True)
+        output = adjust_case_based_on_setting(output, case_sensitive)
+
+        result = Result(type="bool", value=output.startswith(prefix))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Starts With evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_ends_with(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        suffix = settings_values.get('suffix', '')
+        case_sensitive = settings_values.get('case_sensitive', True)
+        output = adjust_case_based_on_setting(output, case_sensitive)
+
+        result = Result(type="bool", value=output.endswith(suffix))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Ends With evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_contains(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substring = settings_values.get('substring', '')
+        case_sensitive = settings_values.get('case_sensitive', True)
+
+        output = adjust_case_based_on_setting(output, case_sensitive)
+
+        result = Result(type="bool", value=substring in output)
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_contains_any(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substrings = settings_values.get('substrings', [])
+        result = Result(type="bool", value=any(sub in output for sub in substrings))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains Any evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_contains_all(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substrings = settings_values.get('substrings', [])
+        result = Result(type="bool", value=all(sub in output for sub in substrings))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains All evaluation", stacktrace=str(e)
+            ),
         )
 
 
