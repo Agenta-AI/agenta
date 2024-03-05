@@ -53,6 +53,7 @@ interface Props<T> {
     pagination?: boolean
     columns: DataCol<T>[]
     headerExtra?: ReactNode
+    defaultTableParams?: Partial<TableParams>
 }
 
 const ServerTable = <T extends AnyObject>(
@@ -60,7 +61,10 @@ const ServerTable = <T extends AnyObject>(
 ) => {
     const classes = useStyles()
     const [columns, setColumns] = useState<DataCol<T>[]>((props.columns || []) as DataCol<T>[])
-    const [_tableParams, setTableParams] = useQueryParam("tableParams")
+    const [_tableParams, setTableParams] = useQueryParam(
+        "tableParams",
+        props.defaultTableParams && JSON.stringify(props.defaultTableParams),
+    )
     const [_hiddenCols, _setHiddenCols] = useQueryParam("hiddenCols", "")
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(false)
