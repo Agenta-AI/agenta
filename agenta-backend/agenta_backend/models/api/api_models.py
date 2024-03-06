@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from agenta_backend.models.db_models import ConfigDB
 
 
-
 class PaginationParam(BaseModel):
     page: int = Field(default=1, ge=1)
     pageSize: int = Field(default=10, ge=1)
