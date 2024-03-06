@@ -1,16 +1,16 @@
-import React, {useMemo} from "react"
-import {useRouter} from "next/router"
-import {Layout, Menu, Tooltip} from "antd"
+import React, { useMemo } from "react"
+import { useRouter } from "next/router"
+import { Layout, Menu, Tooltip } from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {ErrorBoundary} from "react-error-boundary"
-import {createUseStyles} from "react-jss"
-import {useLocalStorage} from "usehooks-ts"
-import {SidebarConfig, useSidebarConfig} from "./config"
-import {JSSTheme} from "@/lib/Types"
+import { useAppTheme } from "../Layout/ThemeContextProvider"
+import { ErrorBoundary } from "react-error-boundary"
+import { createUseStyles } from "react-jss"
+import { useLocalStorage } from "usehooks-ts"
+import { SidebarConfig, useSidebarConfig } from "./config"
+import { JSSTheme } from "@/lib/Types"
 
-const {Sider} = Layout
+const { Sider } = Layout
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     sidebar: {
@@ -64,7 +64,7 @@ const SidebarMenu: React.FC<{
     items: SidebarConfig[]
     selectedKeys: string[]
     menuProps?: React.ComponentProps<typeof Menu>
-}> = ({items, selectedKeys, menuProps}) => {
+}> = ({ items, selectedKeys, menuProps }) => {
     return (
         <Menu mode="vertical" selectedKeys={selectedKeys} {...menuProps}>
             {items.map((item) => {
@@ -118,14 +118,14 @@ const SidebarMenu: React.FC<{
 }
 
 const Sidebar: React.FC = () => {
-    const {appTheme} = useAppTheme()
+    const { appTheme } = useAppTheme()
     const router = useRouter()
     const classes = useStyles()
 
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
     const menu = useSidebarConfig()
-    const {topItems, bottomItems} = useMemo(() => {
+    const { topItems, bottomItems } = useMemo(() => {
         const topItems: SidebarConfig[] = []
         const bottomItems: SidebarConfig[] = []
 
@@ -185,20 +185,20 @@ const Sidebar: React.FC = () => {
                     <ErrorBoundary fallback={<div />}>
                         <div>
                             <SidebarMenu
-                                menuProps={{className: classes.menuContainer}}
+                                menuProps={{ className: classes.menuContainer }}
                                 items={topItems}
                                 selectedKeys={selectedKeys}
                             />
                             <SidebarMenu
-                                menuProps={{className: classes.menuContainer2}}
+                                menuProps={{ className: classes.menuContainer2 }}
                                 items={bottomItems}
                                 selectedKeys={selectedKeys}
                             />
-                        </div>
-                    </ErrorBoundary>
-                </div>
-            </Sider>
-        </div>
+                        </div >
+                    </ErrorBoundary >
+                </div >
+            </Sider >
+        </div >
     )
 }
 

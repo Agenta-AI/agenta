@@ -1,22 +1,23 @@
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {useAppId} from "@/hooks/useAppId"
-import {EvaluationSettingsTemplate, Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
-import {evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {isValidRegex} from "@/lib/helpers/validators"
+import { useAppTheme } from "@/components/Layout/ThemeContextProvider"
+import { useAppId } from "@/hooks/useAppId"
+import { EvaluationSettingsTemplate, Evaluator, EvaluatorConfig, JSSTheme } from "@/lib/Types"
+import { evaluatorsAtom } from "@/lib/atoms/evaluation"
+import { isValidRegex } from "@/lib/helpers/validators"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/services/evaluations"
-import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
-import {Rule} from "antd/es/form"
-import {useAtom} from "jotai"
+import { ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined } from "@ant-design/icons"
+import { Editor } from "@monaco-editor/react"
+import { Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme } from "antd"
+import { Rule } from "antd/es/form"
+import { useAtom } from "jotai"
 import Image from "next/image"
-import React, {useEffect, useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
-import {ColumnsType} from "antd/es/table"
+import Link from "next/link"
+import React, { useEffect, useMemo, useState } from "react"
+import { createUseStyles } from "react-jss"
+import { ColumnsType } from "antd/es/table"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -55,6 +56,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
+    },
+    ExternalHelp: {
+        marginBottom: "20px",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.3em",
+    },
+    ExternalHelpLink: {
+        margin: "0px",
+        padding: "0px",
+        textDecoration: "underline",
+        color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+
+        "&:hover": {
+            color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+            textDecoration: "underline",
+        },
     },
     evaluatorsTable: {
         maxHeight: 550,
@@ -100,11 +118,11 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     default: defaultVal,
     description,
 }) => {
-    const {appTheme} = useAppTheme()
+    const { appTheme } = useAppTheme()
     const classes = useStyles()
-    const {token} = theme.useToken()
+    const { token } = theme.useToken()
 
-    const rules: Rule[] = [{required: true, message: "This field is required"}]
+    const rules: Rule[] = [{ required: true, message: "This field is required" }]
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
@@ -112,49 +130,69 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     isValidRegex(value) ? res("") : rej("Regex pattern is not valid"),
                 ),
         })
+
+    const ExternalHelpInfo =
+        name[1] === "webhook_url" ? (
+            <div className={classes.ExternalHelp}>
+                <span>Learn</span>
+                <Link
+                    href="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={classes.ExternalHelpLink}
+                >
+                    more
+                </Link>
+                <span>about the evaluator</span>
+            </div>
+        ) : null
+
     return (
-        <Form.Item
-            name={name}
-            label={
-                <div className={classes.label}>
-                    <span>{label}</span>
-                    {description && (
-                        <Tooltip title={description}>
-                            <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                        </Tooltip>
-                    )}
-                </div>
-            }
-            initialValue={defaultVal}
-            rules={rules}
-        >
-            {type === "string" || type === "regex" ? (
-                <Input />
-            ) : type === "number" ? (
-                <InputNumber min={0} max={1} step={0.1} />
-            ) : type === "boolean" || type === "bool" ? (
-                <Switch />
-            ) : type === "text" ? (
-                <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-            ) : type === "code" ? (
-                <Editor
-                    className={classes.editor}
-                    height={400}
-                    width="100%"
-                    language="python"
-                    theme={`vs-${appTheme}`}
-                />
-            ) : type === "object" ? (
-                <Editor
-                    className={classes.editor}
-                    height={120}
-                    width="100%"
-                    language="json"
-                    options={{lineNumbers: "off"}}
-                    theme={`vs-${appTheme}`}
-                />
-            ) : null}
-        </Form.Item>
+        <>
+            <Form.Item
+                name={name}
+                label={
+                    <div className={classes.label}>
+                        <span>{label}</span>
+                        {description && (
+                            <Tooltip title={description}>
+                                <InfoCircleOutlined style={{ color: token.colorPrimary }} />
+                            </Tooltip>
+                        )}
+                    </div>
+                }
+                initialValue={defaultVal}
+                rules={rules}
+            >
+                {type === "string" || type === "regex" ? (
+                    <Input />
+                ) : type === "number" ? (
+                    <InputNumber min={0} max={1} step={0.1} />
+                ) : type === "boolean" || type === "bool" ? (
+                    <Switch />
+                ) : type === "text" ? (
+                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
+                ) : type === "code" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={400}
+                        width="100%"
+                        language="python"
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : type === "object" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={120}
+                        width="100%"
+                        language="json"
+                        options={{ lineNumbers: "off" }}
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : null}
+            </Form.Item>
+            {ExternalHelpInfo}
+        </>
     )
 }
 
@@ -225,13 +263,13 @@ const NewEvaluatorModal: React.FC<Props> = ({
             evaluator_key: selectedEval.key,
             settings_values: values.settings_values || {},
         }
-        ;(editMode
-            ? updateEvaluatorConfig(initialValues?.id!, data)
-            : createEvaluatorConfig(appId, data)
-        )
-            .then(onSuccess)
-            .catch(console.error)
-            .finally(() => setSubmitLoading(false))
+            ; (editMode
+                ? updateEvaluatorConfig(initialValues?.id!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
     }
 
     const columns: ColumnsType<Evaluator> = [
@@ -354,7 +392,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                     <Form.Item
                         name="name"
                         label="Name"
-                        rules={[{required: true, message: "This field is required"}]}
+                        rules={[{ required: true, message: "This field is required" }]}
                     >
                         <Input data-cy="configure-new-evaluator-modal-input" />
                     </Form.Item>
@@ -367,7 +405,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                         />
                     ))}
 
-                    <Form.Item style={{marginBottom: 0}}>
+                    <Form.Item style={{ marginBottom: 0 }}>
                         <div className={classes.evalBtnContainer}>
                             {!editMode && (
                                 <Button
