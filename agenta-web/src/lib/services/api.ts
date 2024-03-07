@@ -723,9 +723,24 @@ export const publishVariant = async (variantId: string, environmentName: string)
 }
 
 export const promptVersioning = async (variantId: string, ignoreAxiosError: boolean = false) => {
-    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/`, {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/revisions/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
+
+    return data
+}
+
+export const promptRevision = async (
+    variantId: string,
+    revisionNumber: number,
+    ignoreAxiosError: boolean = false,
+) => {
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/revisions/${revisionNumber}/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
 
     return data
 }

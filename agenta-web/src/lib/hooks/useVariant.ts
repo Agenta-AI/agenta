@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
-import {Variant, Parameter, IPromptVersioning} from "@/lib/Types"
+import {Variant, Parameter, IPromptRevisions} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {isDemo} from "../helpers/utils"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
@@ -13,7 +13,6 @@ import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
  * @returns
  */
 export function useVariant(appId: string, variant: Variant) {
-    const [promptRevisions, setPromptRevisions] = useState<IPromptVersioning>()
     const [historyStatus, setHistoryStatus] = useState({loading: false, error: false})
     const [promptOptParams, setPromptOptParams] = useState<Parameter[] | null>(null)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
@@ -34,10 +33,6 @@ export function useVariant(appId: string, variant: Variant) {
                 variant,
             )
             setPromptOptParams(parameters)
-            if (variant.variantId && isDemo()) {
-                const revisions = await promptVersioning(variant.variantId)
-                setPromptRevisions(revisions)
-            }
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
@@ -115,10 +110,8 @@ export function useVariant(appId: string, variant: Variant) {
         saveOptParams,
         refetch: fetchParameters,
         isChatVariant,
-        promptRevisions,
         historyStatus,
         setPromptOptParams,
-        setPromptRevisions,
         setHistoryStatus,
     }
 }
