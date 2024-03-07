@@ -169,6 +169,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             configs.forEach(({config, variant, color}) => {
                 colDefs.push({
                     flex: 1,
+                    minWidth: 200,
                     headerName: config.name,
                     headerComponent: (props: any) => {
                         const evaluator = evaluators.find(
