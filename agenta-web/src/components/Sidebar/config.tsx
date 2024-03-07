@@ -82,7 +82,7 @@ export const useSidebarConfig = () => {
             key: "app-evaluations-link",
             title: "Evaluations",
             tooltip: "Evaluate and Compare variants programmatically.",
-            link: `/apps/${appId}/evaluations`,
+            link: `/apps/${appId}/evaluations/results`,
             icon: <BarChartOutlined />,
             isHidden: !appId,
         },
@@ -90,9 +90,17 @@ export const useSidebarConfig = () => {
             key: "app-annotations-link",
             title: "Annotations",
             tooltip: "Use human feedback to score and compare variants.",
-            link: `/apps/${appId}/annotations`,
             icon: <FormOutlined />,
             isHidden: !appId,
+            submenu: [
+                {
+                    key: "app-annotations-single-model-link",
+                    title: "Single Model Evaluation",
+                    tooltip: "Single Model Evaluation",
+                    link: `/apps/${appId}/annotations/single_model_test`,
+                    icon: <DashboardOutlined />,
+                },
+            ],
         },
         {
             key: "app-observability-link",
