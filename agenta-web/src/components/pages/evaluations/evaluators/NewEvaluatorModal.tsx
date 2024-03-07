@@ -378,7 +378,11 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 }}
                 destroyOnClose
                 onOk={form.submit}
-                title={editMode ? "Edit your evaluator" : "Configure your evaluator"}
+                title={
+                    editMode
+                        ? `Edit ${selectedEval?.name || "your evaluator"}`
+                        : `Configure ${selectedEval?.name || "your evaluator"}`
+                }
                 footer={null}
                 data-cy="configure-new-evaluator-modal"
             >
