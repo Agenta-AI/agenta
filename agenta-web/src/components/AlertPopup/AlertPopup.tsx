@@ -2,7 +2,7 @@ import React, {ReactNode} from "react"
 import {Modal, ModalFuncProps} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
-import { HookAPI } from "antd/es/modal/useModal"
+import {HookAPI} from "antd/es/modal/useModal"
 
 function handleCb(cb: AlertPopupProps["onOk"]) {
     if (typeof cb !== "function") return cb
@@ -35,7 +35,7 @@ export default function AlertPopup({
     type,
     ...ModalProps
 }: AlertPopupProps) {
-    const modalIns = modalInstance as any || Modal;
+    const modalIns = (modalInstance as any) || Modal
     return modalIns[type || "confirm"]({
         title,
         content: message,
