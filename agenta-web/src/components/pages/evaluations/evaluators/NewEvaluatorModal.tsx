@@ -380,8 +380,16 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 onOk={form.submit}
                 title={
                     editMode
-                        ? `Edit ${selectedEval?.name || "your evaluator"}`
-                        : `Configure ${selectedEval?.name || "your evaluator"}`
+                        ? `${
+                              selectedEval?.name
+                                  ? `Edit the ${selectedEval.name} evaluator`
+                                  : "Edit your evaluator"
+                          }`
+                        : `${
+                              selectedEval?.name
+                                  ? `Configure the ${selectedEval.name} evaluator`
+                                  : "Configure your evaluator"
+                          }`
                 }
                 footer={null}
                 data-cy="configure-new-evaluator-modal"
