@@ -1,6 +1,7 @@
 from enum import Enum
 from uuid import uuid4
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -312,22 +313,44 @@ class Feedback(BaseModel):
     updated_at: datetime = Field(default=datetime.now())
 
 
+class LLMTokens(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+class LLMPrompts(BaseModel):
+    prompt_user: Optional[str]
+    prompt_system: str
+
+
+class TracingEventTypes(BaseModel):
+    LLM_REQUEST = "llm_request"
+    EMBEDDING = "embedding"
+
+
 class TraceDB(Document):
-    app_id: Optional[str]
+    app_id: str
     base_id: str
     config_name: str
+    trace_name: Optional[str]
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
-    environment: Optional[str]
-    latency: Optional[float]
-    status: str  # initiated, completed, stopped, cancelled, failed
-    type: str = Field(default="generation")
-    token_consumption: Optional[int]
+    model: str
+    inputs: Optional[Dict[str, Any]]
+    outputs: Optional[List[str]]
+    variant_config: Dict[str, Any]
+    environment: Optional[str]  # request source -> playground, development, etc
+    status: str  # initiated, completed, stopped, canceled, failed
     user: Link[UserDB]
     tags: Optional[List[str]]
     feedbacks: Optional[List[Feedback]]
     created_at: datetime = Field(default=datetime.now())
+
+    @lru_cache()
+    def get_latency(cls) -> float:
+        return (cls.end_time - cls.start_time).total_seconds()
 
     class Settings:
         name = "traces"
@@ -335,25 +358,23 @@ class TraceDB(Document):
 
 class SpanDB(Document):
     trace: Link[TraceDB]
-    parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
+    parent_span_id: Optional[str]  # parent observability of span
     event_name: str  # Function or execution name
-    event_type: Optional[str]
-    start_time: datetime
-    duration: Optional[int]
+    event_type: Optional[TracingEventTypes]
     status: SpanStatus
-    environment: Optional[str]
+    input: Optional[str]
+    output: Optional[str]
+    environment: Optional[str]  # request source -> playground, development, etc
+    start_time: datetime
     end_time: datetime = Field(default=datetime.now())
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_user: Optional[str]
-    prompt_system: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
-    cost: Optional[float]
-    tags: Optional[List[str]]
+    tokens: Optional[LLMTokens]
     created_at: datetime = Field(default=datetime.now())
+
+    @lru_cache()
+    def get_latency(cls) -> float:
+        return (cls.end_time - cls.start_time).total_seconds()
 
     class Settings:
         name = "spans"
+        # use_cache = True  # Important for link indexing performance
+        indexes = [] # TODO: how to index trace given that it's a linked document?
