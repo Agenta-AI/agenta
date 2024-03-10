@@ -89,8 +89,6 @@ class AgentaSingleton:
         self.base_id = base_id
         self.host = host
         self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
-        self.app_name = app_name
-        self.base_name = base_name
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
 
