@@ -77,6 +77,7 @@ class StatefulClient(object):
         try:
             self.task_manager.add_task(
                 self.client.create_span(
+                    id=span_id,
                     trace_id=self.trace_id,
                     event_name=name,
                     event_type="llm_request",

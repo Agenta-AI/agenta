@@ -81,6 +81,7 @@ class AgentaLLMTracing(object):
         try:
             self.tasks_manager.add_task(
                 self.client.create_trace(
+                    id=trace_id,
                     app_id=app_id,
                     base_id=base_id,
                     config_name=config_name,
