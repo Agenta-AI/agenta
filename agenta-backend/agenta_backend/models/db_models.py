@@ -343,7 +343,7 @@ class TraceDB(Document):
     variant_config: Dict[str, Any]
     environment: Optional[str]  # request source -> playground, development, etc
     status: str  # initiated, completed, stopped, canceled, failed
-    user: Link[UserDB]
+    user: Optional[str]
     tags: Optional[List[str]]
     feedbacks: Optional[List[Feedback]]
     created_at: datetime = Field(default=datetime.now())
@@ -364,6 +364,7 @@ class SpanDB(Document):
     status: SpanStatus
     input: Optional[str]
     output: Optional[str]
+    user: Optional[str]
     environment: Optional[str]  # request source -> playground, development, etc
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
@@ -377,4 +378,4 @@ class SpanDB(Document):
     class Settings:
         name = "spans"
         # use_cache = True  # Important for link indexing performance
-        indexes = [] # TODO: how to index trace given that it's a linked document?
+        indexes = []  # TODO: how to index trace given that it's a linked document?
