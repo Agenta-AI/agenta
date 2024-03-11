@@ -1,12 +1,13 @@
 import {useProfileData} from "@/contexts/profile.context"
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
-import {GenericObject} from "@/lib/Types"
+import {GenericObject, JSSTheme} from "@/lib/Types"
 import {getColorFromStr} from "@/lib/helpers/colors"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {
     ApartmentOutlined,
+    ApiOutlined,
     AppstoreOutlined,
     BarChartOutlined,
     CloudUploadOutlined,
@@ -17,14 +18,28 @@ import {
     LogoutOutlined,
     PartitionOutlined,
     PhoneOutlined,
+    PlayCircleOutlined,
     ReadOutlined,
     RocketOutlined,
     SettingOutlined,
+    SlidersOutlined,
     SwapOutlined,
 } from "@ant-design/icons"
 import {Avatar} from "antd"
 import {useEffect, useState} from "react"
 import AlertPopup from "../AlertPopup/AlertPopup"
+import Image from "next/image"
+import abTesting from "@/media/testing.png"
+import singleModel from "@/media/score.png"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    evaluationImg: {
+        width: 20,
+        height: 20,
+        filter: theme.isDark ? "invert(1)" : "none",
+    },
+}))
 
 export type SidebarConfig = {
     key: string
@@ -39,6 +54,7 @@ export type SidebarConfig = {
 }
 
 export const useSidebarConfig = () => {
+    const classes = useStyles()
     const appId = useAppId()
     const {user} = useProfileData()
     const {doesSessionExist, logout} = useSession()
@@ -79,33 +95,67 @@ export const useSidebarConfig = () => {
             isHidden: !appId,
         },
         {
-            key: "app-evaluations-link",
-            title: "Evaluations",
-            tooltip: "Evaluate and Compare variants programmatically.",
-            link: `/apps/${appId}/evaluations/results`,
+            key: "app-auto-evaluations-link",
+            title: "Automatic Evaluation",
             icon: <BarChartOutlined />,
             isHidden: !appId,
+            submenu: [
+                {
+                    key: "app-evaluators-link",
+                    title: "Evaluators",
+                    tooltip:
+                        "Select and customize evaluators such as custom code or regex evaluators.",
+                    link: `/apps/${appId}/evaluations/new-evaluator`,
+                    icon: <SlidersOutlined />,
+                },
+                {
+                    key: "app-evaluations-results-link",
+                    title: "Results",
+                    tooltip: "Choose your variants and evaluators to start the evaluation process.",
+                    link: `/apps/${appId}/evaluations/results`,
+                    icon: <PlayCircleOutlined />,
+                },
+            ],
         },
         {
-            key: "app-annotations-link",
-            title: "Annotations",
-            tooltip: "Use human feedback to score and compare variants.",
+            key: "app-human-evaluations-link",
+            title: "Human Evaluation",
             icon: <FormOutlined />,
             isHidden: !appId,
             submenu: [
                 {
-                    key: "app-annotations-single-model-link",
-                    title: "Single Model Evaluation",
-                    tooltip: "Single Model Evaluation",
+                    key: "app-human-ab-testing-link",
+                    title: "A/B Evaluation",
+                    tooltip:
+                        "A/B tests allow you to compare the performance of two different variants manually.",
+                    link: `/apps/${appId}/annotations/human_a_b_testing`,
+                    icon: (
+                        <Image
+                            src={abTesting}
+                            alt="A/B Evaluation"
+                            className={classes.evaluationImg}
+                        />
+                    ),
+                },
+                {
+                    key: "app-single-model-test-link",
+                    title: "Single Model Eval.",
+                    tooltip:
+                        "Single model test allows you to score the performance of a single LLM app manually.",
                     link: `/apps/${appId}/annotations/single_model_test`,
-                    icon: <DashboardOutlined />,
+                    icon: (
+                        <Image
+                            src={singleModel}
+                            alt="Single Model Evaluation"
+                            className={classes.evaluationImg}
+                        />
+                    ),
                 },
             ],
         },
         {
             key: "app-observability-link",
             title: "Observability",
-            tooltip: "Observability and monitoring of your app",
             icon: <LineChartOutlined />,
             isHidden: !appId,
             submenu: [
@@ -133,12 +183,19 @@ export const useSidebarConfig = () => {
             ],
         },
         {
-            key: "app-endpoints-link",
-            title: "Endpoints",
-            tooltip: "Deploy your applications to different environments.",
-            link: `/apps/${appId}/endpoints`,
+            key: "app-deployment-link",
+            title: "Deployment",
             icon: <CloudUploadOutlined />,
             isHidden: !appId,
+            submenu: [
+                {
+                    key: "app-endpoints-link",
+                    title: "Endpoints",
+                    tooltip: "Deploy your applications to different environments.",
+                    link: `/apps/${appId}/endpoints`,
+                    icon: <ApiOutlined />,
+                },
+            ],
         },
         {
             key: "settings-link",
