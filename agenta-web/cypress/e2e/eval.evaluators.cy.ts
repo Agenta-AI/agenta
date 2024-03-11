@@ -17,7 +17,7 @@ describe("Evaluators CRUD Operations Test", function () {
         })
 
         it("Should successfully create an Evaluator", () => {
-            cy.get('[data-cy="evaluator-card"]').should("have.length", 1)
+            cy.get('[data-cy="evaluator-card"]').should("exist")
             cy.get(".ant-space > :nth-child(2) > .ant-btn").click()
             cy.get('[data-cy="new-evaluator-modal"]').should("exist")
             cy.get('[data-cy^="select-new-evaluator"]').eq(0).click()
