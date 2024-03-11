@@ -1,4 +1,4 @@
-import React, {useMemo} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
 import {Layout, Menu, Tooltip} from "antd"
 import Logo from "../Logo/Logo"
@@ -45,10 +45,22 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             flexDirection: "column",
             flex: 1,
         },
+        "& .ant-menu-submenu-title": {
+            paddingInlineEnd: "20px",
+            "& .ant-menu-submenu-arrow": {
+                insetInlineEnd: "8px",
+            },
+        },
+        "& .ant-menu-item,.ant-menu-submenu-title": {
+            paddingLeft: "12px !important",
+        },
+        "& .ant-menu-sub > .ant-menu-item": {
+            paddingLeft: "24px !important",
+        },
     },
     menuContainer: {
         borderRight: "0 !important",
-        maxHeight: 312,
+        maxHeight: "calc(100vh - 390px)",
         overflowY: "auto",
         position: "relative",
     },
@@ -56,17 +68,20 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRight: "0 !important",
     },
     menuLinks: {
+        display: "inline-block",
         width: "100%",
     },
 }))
 
 const SidebarMenu: React.FC<{
     items: SidebarConfig[]
-    selectedKeys: string[]
+    collapsed: boolean
     menuProps?: React.ComponentProps<typeof Menu>
-}> = ({items, selectedKeys, menuProps}) => {
+}> = ({items, menuProps, collapsed}) => {
+    const classes = useStyles()
+
     return (
-        <Menu mode="vertical" selectedKeys={selectedKeys} {...menuProps}>
+        <Menu mode="inline" {...menuProps}>
             {items.map((item) => {
                 if (item.submenu) {
                     return (
@@ -76,39 +91,56 @@ const SidebarMenu: React.FC<{
                             title={item.title}
                             onTitleClick={item.onClick}
                         >
-                            {item.submenu.map((subitem) => (
-                                <Menu.Item
-                                    icon={subitem.icon}
-                                    key={subitem.key}
-                                    onClick={subitem.onClick}
-                                >
-                                    <Tooltip title={subitem.tooltip}>
-                                        <Link
-                                            href={subitem.link || "#"}
-                                            target={
-                                                subitem.link?.startsWith("http")
-                                                    ? "_blank"
-                                                    : undefined
-                                            }
-                                        >
-                                            {subitem.title}
-                                        </Link>
-                                    </Tooltip>
-                                </Menu.Item>
-                            ))}
+                            {item.submenu.map((subitem) => {
+                                const node = (
+                                    <Link
+                                        className={classes.menuLinks}
+                                        href={subitem.link || "#"}
+                                        target={
+                                            subitem.link?.startsWith("http") ? "_blank" : undefined
+                                        }
+                                    >
+                                        {subitem.title}
+                                    </Link>
+                                )
+
+                                return (
+                                    <Menu.Item
+                                        icon={subitem.icon}
+                                        key={subitem.key}
+                                        onClick={subitem.onClick}
+                                    >
+                                        {collapsed ? (
+                                            node
+                                        ) : (
+                                            <Tooltip title={subitem.tooltip} placement="right">
+                                                {node}
+                                            </Tooltip>
+                                        )}
+                                    </Menu.Item>
+                                )
+                            })}
                         </Menu.SubMenu>
                     )
                 } else {
+                    const node = (
+                        <Link
+                            className={classes.menuLinks}
+                            href={item.link || "#"}
+                            target={item.link?.startsWith("http") ? "_blank" : undefined}
+                        >
+                            {item.title}
+                        </Link>
+                    )
                     return (
                         <Menu.Item icon={item.icon} key={item.key} onClick={item.onClick}>
-                            <Tooltip title={item.tooltip}>
-                                <Link
-                                    href={item.link || "#"}
-                                    target={item.link?.startsWith("http") ? "_blank" : undefined}
-                                >
-                                    {item.title}
-                                </Link>
-                            </Tooltip>
+                            {collapsed ? (
+                                node
+                            ) : (
+                                <Tooltip title={item.tooltip} placement="right">
+                                    {node}
+                                </Tooltip>
+                            )}
                         </Menu.Item>
                     )
                 }
@@ -121,6 +153,7 @@ const Sidebar: React.FC = () => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
     const classes = useStyles()
+    const [openKey, setOpenKey] = useState<string>()
 
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
@@ -144,34 +177,40 @@ const Sidebar: React.FC = () => {
         }
     }, [menu])
 
-    const selectedKeys = useMemo(() => {
+    const [selectedKeys, openKeys] = useMemo(() => {
         let matched: SidebarConfig
+        let openKey = ""
 
-        const executor = (items: SidebarConfig[]) => {
+        const executor = (items: SidebarConfig[], subKey?: string) => {
             items.forEach((item) => {
                 if (item.submenu?.length) {
-                    executor(item.submenu)
+                    executor(item.submenu, item.key)
                 } else if (
                     item.link &&
                     router.asPath.startsWith(item.link) &&
                     item.link.length > (matched?.link?.length || 0)
                 ) {
                     matched = item
+                    if (subKey) openKey = subKey
                 }
             })
         }
         executor([...topItems, ...bottomItems])
 
         //@ts-ignore
-        return [matched?.key]
+        return [[matched?.key], openKey ? [openKey] : []]
     }, [router.asPath, topItems, bottomItems])
+
+    useEffect(() => {
+        setOpenKey(openKeys[0])
+    }, [openKeys[0]])
 
     return (
         <div className={classes.siderWrapper}>
             <Sider
                 theme={appTheme}
                 className={classes.sidebar}
-                width={225}
+                width={236}
                 collapsible
                 collapsed={collapsed}
                 onCollapse={(value) => setCollapsed(value)}
@@ -185,14 +224,24 @@ const Sidebar: React.FC = () => {
                     <ErrorBoundary fallback={<div />}>
                         <div>
                             <SidebarMenu
-                                menuProps={{className: classes.menuContainer}}
+                                menuProps={{
+                                    className: classes.menuContainer,
+                                    selectedKeys,
+                                    openKeys: openKey ? [openKey] : [],
+                                    onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                }}
                                 items={topItems}
-                                selectedKeys={selectedKeys}
+                                collapsed={collapsed}
                             />
                             <SidebarMenu
-                                menuProps={{className: classes.menuContainer2}}
+                                menuProps={{
+                                    className: classes.menuContainer2,
+                                    selectedKeys,
+                                    openKeys: openKey ? [openKey] : [],
+                                    onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                }}
                                 items={bottomItems}
-                                selectedKeys={selectedKeys}
+                                collapsed={collapsed}
                             />
                         </div>
                     </ErrorBoundary>
