@@ -118,7 +118,7 @@ const ServerTable = <T extends AnyObject>(
         return columns.map((col) => ({
             ...col,
             hidden: hiddenCols.includes(col.key?.toString()!),
-            width: col.width || 150,
+            width: col.width || 200,
             onHeaderCell: (column: TableColumnType<T>) => ({
                 width: column.width,
                 onResize: handleResize(column.key?.toString()!),
@@ -165,7 +165,7 @@ const ServerTable = <T extends AnyObject>(
                     loading={loading}
                     pagination={
                         !!props.pagination && {
-                            pageSize: tableParams?.pagination?.pageSize || 10,
+                            pageSize: tableParams?.pagination?.pageSize || 20,
                             current: tableParams?.pagination?.page || 1,
                             total: total.current,
                         }
