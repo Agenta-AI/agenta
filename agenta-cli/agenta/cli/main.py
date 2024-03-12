@@ -83,6 +83,9 @@ def cli():
 def init(app_name: str, backend_host: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
+
+    api_key = os.getenv('AGENTA_API_KEY')
+
     if not app_name:
         while True:
             app_name = questionary.text("Please enter the app name").ask()
@@ -125,7 +128,8 @@ def init(app_name: str, backend_host: str):
                 else:
                     backend_host = "https://cloud.agenta.ai"
 
-                api_key = helper.get_api_key(backend_host)
+                if not api_key:
+                    api_key = helper.get_api_key(backend_host)
 
             elif where_question is None:  # User pressed Ctrl+C
                 sys.exit(0)
