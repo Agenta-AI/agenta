@@ -109,6 +109,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
+    min?: number
+    max?: number
 }
 
 const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
@@ -117,6 +119,8 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     type,
     default: defaultVal,
     description,
+    min,
+    max,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
@@ -166,10 +170,8 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
             >
                 {type === "string" || type === "regex" ? (
                     <Input />
-                ) : type === "number" && label === "Similarity Threshold" ? (
-                    <InputNumber min={0} max={1} step={0.1} />
-                ) : type === "number" && label === "Threshold" ? (
-                    <InputNumber />
+                ) : type === "number" ? (
+                    <InputNumber min={min} max={max} step={0.1} />
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
