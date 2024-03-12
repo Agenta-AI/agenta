@@ -84,7 +84,7 @@ def init(app_name: str, backend_host: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
 
-    api_key = os.getenv('AGENTA_API_KEY')
+    api_key = os.getenv("AGENTA_API_KEY")
 
     if not app_name:
         while True:
