@@ -36,6 +36,10 @@ const useStyles = createUseStyles({
     restartBtnMargin: {
         marginRight: "10px",
     },
+    errorLogs: {
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all"
+    }
 })
 
 const ViewNavigation: React.FC<Props> = ({
@@ -102,7 +106,15 @@ const ViewNavigation: React.FC<Props> = ({
                     setRetrying(false)
                 })
         }
-    }, [netWorkError])
+
+        if (isError) {
+            const getLogs = async () => {
+                const logs = await fetchVariantLogs(variant.variantId)
+                setVariantErrorLogs(logs)
+            }
+            getLogs()
+        }
+    }, [netWorkError, isError, variant.variantId])
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
@@ -113,17 +125,6 @@ const ViewNavigation: React.FC<Props> = ({
             />
         )
     }
-
-    useEffect(() => {
-        if (isError) {
-            console.log("Error: ", isError)
-            const getLogs = async () => {
-                const logs = await fetchVariantLogs(variant.variantId)
-                setVariantErrorLogs(logs)
-            }
-            getLogs()
-        }
-    }, [isError, variant.variantId])
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
@@ -171,7 +172,6 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const apiAddress = `${containerURI}/openapi.json`
-        const containerName = `${appName}-${variant.baseName}-${containerURI.split("/")[3]}` // [3] is the user organization id
         return (
             <div>
                 {error ? (
@@ -187,12 +187,12 @@ const ViewNavigation: React.FC<Props> = ({
                         <ul>
                             {isDemo() && (
                                 <div>
-                                    <p>{variantErrorLogs}</p>
+                                    <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
                                 </div>
                             )}
                             {!isDemo() && (
                                 <div>
-                                    <pre>{variantErrorLogs}</pre>
+                                    <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
                                 </div>
                             )}
                         </ul>
