@@ -28,6 +28,8 @@ evaluators = [
                 "type": "number",
                 "default": 0.5,
                 "description": "The threshold value for similarity comparison",
+                "min": 0,
+                "max": 1,
             }
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
@@ -227,6 +229,21 @@ evaluators = [
             },
         },
         "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Levenshtein",
+        "key": "auto_levenshtein_distance",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Levenshtein Distance Settings",
+            "description": "Evaluates if the Levenshtein distance is below a certain threshold.",
+            "threshold": {
+                "label": "Threshold",
+                "type": "number",
+                "default": 10,
+            },
+        },
+        "description": "Levenshtein Distance evaluator checks if the Levenshtein distance between the output and the correct answer is below a specified threshold.",
     },
 ]
 
