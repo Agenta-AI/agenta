@@ -38,8 +38,8 @@ const useStyles = createUseStyles({
     },
     errorLogs: {
         whiteSpace: "pre-wrap",
-        wordBreak: "break-all"
-    }
+        wordBreak: "break-all",
+    },
 })
 
 const ViewNavigation: React.FC<Props> = ({
