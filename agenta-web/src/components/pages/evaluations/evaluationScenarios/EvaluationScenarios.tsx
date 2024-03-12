@@ -92,25 +92,24 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 headerName: "Output",
                 ...getFilterParams("text"),
                 field: `outputs.0`,
-                valueGetter: (params) => {
+                cellRenderer: (params: any) => {
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
                         return `${result?.error?.message}\n${result?.error?.stacktrace}`
                     }
-                    return (
-                        <>
-                            {showDiff === "show" ? (
-                                <CompareOutputDiff
-                                    variantOutput={result?.value}
-                                    expectedOutput={params.data?.correct_answer}
-                                />
-                            ) : (
-                                result?.value
-                            )}
-                        </>
+                    return showDiff === "show" ? (
+                        <CompareOutputDiff
+                            variantOutput={result?.value}
+                            expectedOutput={params.data?.correct_answer}
+                        />
+                    ) : (
+                        LongTextCellRenderer(params)
                     )
                 },
-                cellRenderer: LongTextCellRenderer,
+                valueGetter: (params) => {
+                    const result = params.data?.outputs[index].result
+                    return result?.value
+                },
             })
         })
         scenarios[0]?.evaluators_configs.forEach((config, index) => {

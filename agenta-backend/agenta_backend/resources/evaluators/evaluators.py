@@ -9,6 +9,16 @@ evaluators = [
         },
     },
     {
+        "name": "Contains Json",
+        "key": "auto_contains_json",
+        "direct_use": True,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the JSON output contains the specified JSON structure.",
+        },
+        "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
+    },
+    {
         "name": "Similarity Match",
         "key": "auto_similarity_match",
         "direct_use": False,
@@ -92,17 +102,10 @@ evaluators = [
             "webhook_url": {
                 "label": "Webhook URL",
                 "type": "string",
-                "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
-                "description": "URL for the webhook test",
-            },
-            "webhook_body": {
-                "label": "Webhook Body",
-                "type": "object",
-                "default": "{}",
-                "description": "Request body for webhook URL",
+                "description": "https://your-webhook-url.com",
             },
         },
-        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.",
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
     },
     {
         "name": "A/B Test",
@@ -121,6 +124,109 @@ evaluators = [
             "label": "Single Model Testing Settings",
             "description": "Settings for single model testing configurations",
         },
+    },
+    {
+        "name": "Starts With",
+        "key": "auto_starts_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output starts with the specified prefix.",
+            "prefix": {
+                "label": "prefix",
+                "type": "string",
+            },
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+            },
+        },
+        "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Ends With",
+        "key": "auto_ends_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output ends with the specified suffix.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "suffix": {
+                "label": "suffix",
+                "type": "string",
+                "description": "The string to match at the end of the output.",
+            },
+        },
+        "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains",
+        "key": "auto_contains",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains the specified substring.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substring": {
+                "label": "substring",
+                "type": "string",
+                "description": "The string to check if it is contained in the output.",
+            },
+        },
+        "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains Any",
+        "key": "auto_contains_any",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains any of the specified substrings.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substrings": {
+                "label": "substrings",
+                "type": "string",
+                "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
+            },
+        },
+        "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains All",
+        "key": "auto_contains_all",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains all of the specified substrings.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substrings": {
+                "label": "substrings",
+                "type": "string",
+                "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
+            },
+        },
+        "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
     },
 ]
 

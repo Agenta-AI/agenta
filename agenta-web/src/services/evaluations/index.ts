@@ -20,6 +20,7 @@ import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
+import bracketCurlyImg from "@/media/bracket-curly.png"
 import dayjs from "dayjs"
 import {loadTestset} from "@/lib/services/api"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
@@ -40,6 +41,7 @@ const evaluatorIconsMap = {
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
+    auto_contains_json: bracketCurlyImg,
 }
 
 //Evaluators
