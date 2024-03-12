@@ -349,11 +349,19 @@ async def aggregate_evaluator_results(
             "field_match_test",
             "auto_webhook_test",
             "auto_custom_code_run",
+            "auto_starts_with",
+            "auto_ends_with",
+            "auto_contains",
+            "auto_contains_any",
+            "auto_contains_all",
+            "auto_contains_json",
         ]:
             result = aggregation_service.aggregate_float(results)
 
         else:
-            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
+            result = Result(
+                type="error", value=None, error=Error(message="Aggregation failed")
+            )
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(

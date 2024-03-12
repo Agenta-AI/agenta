@@ -125,7 +125,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
-                valueGetter: (params) => {
+                cellRenderer: (params: any) => {
                     return (
                         <>
                             {showDiff === "show" ? (
@@ -133,7 +133,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                     <CompareOutputDiff
                                         variantOutput={getTypedValue(
                                             params.data?.variants.find(
-                                                (item) =>
+                                                (item: any) =>
                                                     item.evaluationId === variant.evaluationId,
                                             )?.output?.result,
                                         )}
@@ -143,14 +143,20 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             ) : (
                                 getTypedValue(
                                     params.data?.variants.find(
-                                        (item) => item.evaluationId === variant.evaluationId,
+                                        (item: any) => item.evaluationId === variant.evaluationId,
                                     )?.output?.result,
                                 )
                             )}
                         </>
                     )
                 },
-                cellRenderer: LongTextCellRenderer,
+                valueGetter: (params) => {
+                    return getTypedValue(
+                        params.data?.variants.find(
+                            (item) => item.evaluationId === variant.evaluationId,
+                        )?.output?.result,
+                    )
+                },
             })
         })
 
@@ -169,6 +175,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             configs.forEach(({config, variant, color}) => {
                 colDefs.push({
                     flex: 1,
+                    minWidth: 200,
                     headerName: config.name,
                     headerComponent: (props: any) => {
                         const evaluator = evaluators.find(
