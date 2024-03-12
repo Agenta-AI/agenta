@@ -295,8 +295,8 @@ async def retrieve_observability_dashboard(
             ObservabilityData(
                 **{
                     "timestamp": span_db.created_at,
-                    "success_count": 0,
-                    "failure_count": 0,
+                    "success_count": 1 if span_db.status.value == "SUCCESS" else 0,
+                    "failure_count": 1 if span_db.status.value == "FAILURE" else 0,
                     "cost": span_db.cost,
                     "latency": latency.total_seconds(),
                     "total_tokens": span_db.token_total,
@@ -308,11 +308,11 @@ async def retrieve_observability_dashboard(
             )
         )
 
-    len_of_spans_db = len(list_of_observability_data)
     filtered_data = filters.filter_observability_dashboard_data_by_params(
         params, list_of_observability_data
     )
-    if filtered_data == []:
+    len_of_filtered_data = len(filtered_data)
+    if len(filtered_data) == 0:
         return ObservabilityDashboardData(
             **{
                 "data": [],
@@ -329,18 +329,18 @@ async def retrieve_observability_dashboard(
     return ObservabilityDashboardData(
         **{
             "data": filtered_data,
-            "total_count": len_of_spans_db,
-            "failure_rate": 0,
-            "total_cost": round(sum([span_db.cost for span_db in spans_db]), 5),
+            "total_count": len_of_filtered_data,
+            "failure_rate": round(sum([data.failure_count for data in filtered_data]), 5),
+            "total_cost": round(sum([data.cost for data in filtered_data]), 5),
             "avg_cost": round(
-                sum([span_db.cost for span_db in spans_db]) / len_of_spans_db, 5
+                sum([data.cost for data in filtered_data]) / len_of_filtered_data, 5
             ),
             "avg_latency": round(
-                sum([span_db.duration for span_db in spans_db]) / len_of_spans_db, 5
+                sum([data.latency for data in filtered_data]) / len_of_filtered_data, 5
             ),
-            "total_tokens": sum([span_db.token_total for span_db in spans_db]),
-            "avg_tokens": sum([span_db.token_total for span_db in spans_db])
-            / len_of_spans_db,
+            "total_tokens": sum([data.total_tokens for data in filtered_data]),
+            "avg_tokens": sum([data.total_tokens for data in filtered_data])
+            / len_of_filtered_data,
         }
     )
 
