@@ -166,8 +166,10 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
             >
                 {type === "string" || type === "regex" ? (
                     <Input />
-                ) : type === "number" ? (
+                ) : type === "number" && label === "Similarity Threshold" ? (
                     <InputNumber min={0} max={1} step={0.1} />
+                ) : type === "number" && label === "Threshold" ? (
+                    <InputNumber />
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
