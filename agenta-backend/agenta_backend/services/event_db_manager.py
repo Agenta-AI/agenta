@@ -188,10 +188,18 @@ async def fetch_generation_spans(
         pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
     )
 
+    # Fetch spans without pagination and sorting applied
+    base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
+
+    # Count of spans in db
+    spans_count = await base_spans_db.find(fetch_links=True).count()
+
     # Fetch spans with pagination and sorting applied
-    spans_db = SpanDB.find(
-        SpanDB.trace.app_id == app_id, fetch_links=True, skip=skip, limit=limit
-    ).sort([(SpanDB.created_at, sort_direction)])
+    spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
+        [(SpanDB.created_at, sort_direction)]
+    )
+
+    # Filter based on trace_id or not
     if filters_param.trace_id is not None:
         spans_db = await spans_db.find_many(
             SpanDB.trace.id == ObjectId(filters_param.trace_id), fetch_links=True
@@ -206,7 +214,7 @@ async def fetch_generation_spans(
     )
     if filters_param.trace_id:
         return list(filtered_generations)
-    return get_paginated_data(list(filtered_generations), pagination)
+    return get_paginated_data(list(filtered_generations), spans_count, pagination)
 
 
 async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
@@ -330,7 +338,9 @@ async def retrieve_observability_dashboard(
         **{
             "data": filtered_data,
             "total_count": len_of_filtered_data,
-            "failure_rate": round(sum([data.failure_count for data in filtered_data]), 5),
+            "failure_rate": round(
+                sum([data.failure_count for data in filtered_data]), 5
+            ),
             "total_cost": round(sum([data.cost for data in filtered_data]), 5),
             "avg_cost": round(
                 sum([data.cost for data in filtered_data]) / len_of_filtered_data, 5
@@ -369,11 +379,17 @@ async def fetch_traces(
         pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
     )
 
+    # Fetch traces without pagination and sorting applied
+    base_traces_db = TraceDB.find(
+        TraceDB.app_id == app_id,
+    )
+
+    # Count of traces in db
+    traces_count = await base_traces_db.count()
+
     # Fetch traces with pagination and sorting applied
     traces_db = (
-        await TraceDB.find(
-            TraceDB.app_id == app_id, fetch_links=True, skip=skip, limit=limit
-        )
+        await base_traces_db.find(fetch_links=True, skip=skip, limit=limit)
         .sort([(TraceDB.created_at, sort_direction)])
         .to_list()
     )
@@ -383,7 +399,7 @@ async def fetch_traces(
     filtered_traces = filter(
         partial(filters.filter_document_by_filter_params, filters_param), traces
     )
-    return get_paginated_data(list(filtered_traces), pagination)
+    return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 
 async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
