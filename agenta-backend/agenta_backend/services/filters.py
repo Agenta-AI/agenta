@@ -170,8 +170,7 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
 
 
 def filter_observability_dashboard_spans_db_by_filters(
-    app_id: str,
-    params: ObservabilityDashboardDataRequestParams
+    app_id: str, params: ObservabilityDashboardDataRequestParams
 ):
     if params.environment and params.variant:
         filtered_spans = SpanDB.find(
@@ -193,8 +192,9 @@ def filter_observability_dashboard_spans_db_by_filters(
             fetch_links=True,
         )
     else:
-       filtered_spans = SpanDB.find(SpanDB.trace.app_id == app_id, fetch_links=True)
+        filtered_spans = SpanDB.find(SpanDB.trace.app_id == app_id, fetch_links=True)
     return filtered_spans
+
 
 def filter_observability_dashboard_data_by_params(
     params: ObservabilityDashboardDataRequestParams,
