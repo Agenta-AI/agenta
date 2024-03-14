@@ -286,11 +286,6 @@ async def retrieve_observability_dashboard(
     app_id: str,
     params: ObservabilityDashboardDataRequestParams,
 ) -> ObservabilityDashboardData:
-    # Construct spans base query
-    spans_base = SpanDB.find(SpanDB.trace.app_id == app_id, fetch_links=True).find(
-        SpanDB.environment == params.environment
-    )
-
     # Apply filtering based on the environment and variant (base_id)
     filtered_spans = filters.filter_observability_dashboard_spans_db_by_filters(
         app_id, params
@@ -319,10 +314,14 @@ async def retrieve_observability_dashboard(
     for span in spans:
         observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
 
+    sorted_data = sorted(observability_data, key=lambda x: x.timestamp)
+    total_count = round(
+        sum(data.failure_count for data in observability_data), 5
+    ) + round(sum(data.success_count for data in observability_data), 5)
     return ObservabilityDashboardData(
         **{
-            "data": observability_data,
-            "total_count": len_of_observability_data,
+            "data": sorted_data,
+            "total_count": total_count,
             "failure_rate": round(
                 sum(data.failure_count for data in observability_data), 5
             ),
