@@ -38,7 +38,11 @@ async def get_dashboard_data(
     try:
         dashboard_data = await redis_cache_service.cache_observability_data(
             event_db_manager.retrieve_observability_dashboard,
-            **{"app_id": app_id, "parameters": parameters}
+            **{
+                "app_id": app_id,
+                "parameters": parameters,
+                "cache_key": str(request.url),
+            }
         )
         return dashboard_data
     except Exception as e:

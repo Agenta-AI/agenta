@@ -33,7 +33,6 @@ from agenta_backend.models.converters import (
 from agenta_backend.services import db_manager, filters, helpers
 from agenta_backend.models.db_models import (
     TraceDB,
-    SpanStatus,
     Feedback as FeedbackDB,
     SpanDB,
 )
@@ -188,10 +187,18 @@ async def fetch_generation_spans(
         pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
     )
 
+    # Fetch spans without pagination and sorting applied
+    base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
+
+    # Count of spans in db
+    spans_count = await base_spans_db.find(fetch_links=True).count()
+
     # Fetch spans with pagination and sorting applied
-    spans_db = SpanDB.find(
-        SpanDB.trace.app_id == app_id, fetch_links=True, skip=skip, limit=limit
-    ).sort([(SpanDB.created_at, sort_direction)])
+    spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
+        [(SpanDB.created_at, sort_direction)]
+    )
+
+    # Filter based on trace_id or not
     if filters_param.trace_id is not None:
         spans_db = await spans_db.find_many(
             SpanDB.trace.id == ObjectId(filters_param.trace_id), fetch_links=True
@@ -206,7 +213,7 @@ async def fetch_generation_spans(
     )
     if filters_param.trace_id:
         return list(filtered_generations)
-    return get_paginated_data(list(filtered_generations), pagination)
+    return get_paginated_data(list(filtered_generations), spans_count, pagination)
 
 
 async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
@@ -279,68 +286,59 @@ async def retrieve_observability_dashboard(
     app_id: str,
     params: ObservabilityDashboardDataRequestParams,
 ) -> ObservabilityDashboardData:
-    spans_db = await SpanDB.find(
-        SpanDB.trace.app_id == app_id, fetch_links=True
-    ).to_list()
-    if spans_db == []:
+    # Apply filtering based on the environment and variant (base_id)
+    filtered_spans = filters.filter_observability_dashboard_spans_db_by_filters(
+        app_id, params
+    )
+
+    # Apply datetime filter and aggregation pipeline
+    spans = None
+    if params.timeRange is not None:
+        filter_datetime = filters.filter_by_time_range(params.timeRange)
+        spans_aggregation_mapping = filters.prepares_spans_aggregation_by_timerange(
+            params.timeRange
+        )
+        pipeline = [
+            {"$match": {"created_at": {"$gte": filter_datetime}}},
+            spans_aggregation_mapping,
+        ]
+        spans = await filtered_spans.aggregate(
+            pipeline,
+        ).to_list()
+
+    if spans is None or len(spans) == 0:
         return []
 
-    list_of_observability_data: ObservabilityData = []
-    for span_db in spans_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-            span_db.trace.base_id, span_db.trace.config_name
-        )
-        latency = span_db.end_time - span_db.start_time
-        list_of_observability_data.append(
-            ObservabilityData(
-                **{
-                    "timestamp": span_db.created_at,
-                    "success_count": 0,
-                    "failure_count": 0,
-                    "cost": span_db.cost,
-                    "latency": latency.total_seconds(),
-                    "total_tokens": span_db.token_total,
-                    "prompt_tokens": span_db.tokens_input,
-                    "completion_tokens": span_db.tokens_output,
-                    "environment": span_db.environment,
-                    "variant": app_variant_db.variant_name,
-                }
-            )
-        )
+    len_of_observability_data = len(spans)
+    observability_data: ObservabilityData = []
+    for span in spans:
+        observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
 
-    len_of_spans_db = len(list_of_observability_data)
-    filtered_data = filters.filter_observability_dashboard_data_by_params(
-        params, list_of_observability_data
-    )
-    if filtered_data == []:
-        return ObservabilityDashboardData(
-            **{
-                "data": [],
-                "total_count": 0,
-                "failure_rate": 0,
-                "total_cost": 0,
-                "avg_cost": 0,
-                "avg_latency": 0,
-                "total_tokens": 0,
-                "avg_tokens": 0,
-            }
-        )
-
+    sorted_data = sorted(observability_data, key=lambda x: x.timestamp)
+    total_count = round(
+        sum(data.failure_count for data in observability_data), 5
+    ) + round(sum(data.success_count for data in observability_data), 5)
     return ObservabilityDashboardData(
         **{
-            "data": filtered_data,
-            "total_count": len_of_spans_db,
-            "failure_rate": 0,
-            "total_cost": round(sum([span_db.cost for span_db in spans_db]), 5),
+            "data": sorted_data,
+            "total_count": total_count,
+            "failure_rate": round(
+                sum(data.failure_count for data in observability_data), 5
+            ),
+            "total_cost": round(sum(data.cost for data in observability_data), 5),
             "avg_cost": round(
-                sum([span_db.cost for span_db in spans_db]) / len_of_spans_db, 5
+                sum(data.cost for data in observability_data)
+                / len_of_observability_data,
+                5,
             ),
             "avg_latency": round(
-                sum([span_db.duration for span_db in spans_db]) / len_of_spans_db, 5
+                sum(data.latency for data in observability_data)
+                / len_of_observability_data,
+                5,
             ),
-            "total_tokens": sum([span_db.token_total for span_db in spans_db]),
-            "avg_tokens": sum([span_db.token_total for span_db in spans_db])
-            / len_of_spans_db,
+            "total_tokens": sum(data.total_tokens for data in observability_data),
+            "avg_tokens": sum(data.total_tokens for data in observability_data)
+            / len_of_observability_data,
         }
     )
 
@@ -369,11 +367,17 @@ async def fetch_traces(
         pymongo.ASCENDING if sorters.created_at == "asc" else pymongo.DESCENDING
     )
 
+    # Fetch traces without pagination and sorting applied
+    base_traces_db = TraceDB.find(
+        TraceDB.app_id == app_id,
+    )
+
+    # Count of traces in db
+    traces_count = await base_traces_db.count()
+
     # Fetch traces with pagination and sorting applied
     traces_db = (
-        await TraceDB.find(
-            TraceDB.app_id == app_id, fetch_links=True, skip=skip, limit=limit
-        )
+        await base_traces_db.find(fetch_links=True, skip=skip, limit=limit)
         .sort([(TraceDB.created_at, sort_direction)])
         .to_list()
     )
@@ -383,7 +387,7 @@ async def fetch_traces(
     filtered_traces = filter(
         partial(filters.filter_document_by_filter_params, filters_param), traces
     )
-    return get_paginated_data(list(filtered_traces), pagination)
+    return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 
 async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
