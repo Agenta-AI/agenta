@@ -34,7 +34,7 @@ export default function AlertPopup({
     ...ModalProps
 }: AlertPopupProps) {
     const {modalInstance} = getAppValues()
-    
+
     return modalInstance[type || "confirm"]({
         title,
         content: message,
