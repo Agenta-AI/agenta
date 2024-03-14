@@ -1,7 +1,6 @@
 import json
 from typing import Any, Coroutine, Callable
 
-from agenta_backend.services import filters
 from agenta_backend.utils import redis_utils
 from agenta_backend.models.api.observability_models import ObservabilityDashboardData
 
@@ -22,11 +21,9 @@ async def cache_observability_data(
     cached_data = redis.get(cache_key)
     if cached_data is not None:
         loaded_data = json.loads(cached_data)
-        return filters.filter_and_aggregate_cache_observability_data(
-            parameters, loaded_data["data"]
-        )
+        return loaded_data
 
     # Retrieve observability dashboard data and cache data for re-use
     data = await data_func(app_id, parameters)
-    redis.setex(cache_key, 1800, data.json())
+    redis.setex(cache_key, 900, data.json())
     return data
