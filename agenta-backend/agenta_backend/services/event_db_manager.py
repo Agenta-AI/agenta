@@ -292,7 +292,9 @@ async def retrieve_observability_dashboard(
     )
 
     # Apply filtering based on the environment and variant (base_id)
-    filtered_spans = filters.filter_observability_dashboard_spans_db_by_filters(app_id, params)
+    filtered_spans = filters.filter_observability_dashboard_spans_db_by_filters(
+        app_id, params
+    )
 
     # Apply datetime filter and aggregation pipeline
     spans = None
