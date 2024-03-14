@@ -74,10 +74,10 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
                     }
                 },
                 "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "SUCCESS"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
                 },
                 "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "FAILURE"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
                 },
                 "cost": {"$sum": "$cost"},
                 "total_tokens": {"$sum": "$token_total"},
@@ -94,10 +94,10 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
                     }
                 },
                 "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "SUCCESS"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
                 },
                 "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "FAILURE"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
                 },
                 "cost": {"$sum": "$cost"},
                 "total_tokens": {"$sum": "$token_total"},
@@ -114,10 +114,10 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
                     }
                 },
                 "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "SUCCESS"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
                 },
                 "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "FAILURE"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
                 },
                 "cost": {"$sum": "$cost"},
                 "total_tokens": {"$sum": "$token_total"},
@@ -134,10 +134,10 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
                     }
                 },
                 "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "SUCCESS"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
                 },
                 "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "FAILURE"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
                 },
                 "cost": {"$sum": "$cost"},
                 "total_tokens": {"$sum": "$token_total"},
@@ -154,10 +154,10 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
                     }
                 },
                 "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "SUCCESS"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
                 },
                 "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "FAILURE"]}, 1, 0]}
+                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
                 },
                 "cost": {"$sum": "$cost"},
                 "total_tokens": {"$sum": "$token_total"},
