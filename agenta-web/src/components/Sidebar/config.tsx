@@ -51,6 +51,7 @@ export type SidebarConfig = {
     isBottom?: boolean
     submenu?: Omit<SidebarConfig, "submenu">[]
     onClick?: () => void
+    tag?: string
 }
 
 export const useSidebarConfig = () => {
@@ -158,6 +159,7 @@ export const useSidebarConfig = () => {
             title: "Observability",
             icon: <LineChartOutlined />,
             isHidden: !appId,
+            tag: "beta",
             submenu: [
                 {
                     key: "app-observability-dashboard-link",
