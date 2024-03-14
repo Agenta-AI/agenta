@@ -60,13 +60,11 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
     const classes = useStyles()
     const [evaluators] = useAtom(evaluatorsAtom)
     const evaluator = evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
-    const [modal, contextHolder] = Modal.useModal()
 
     const onDelete = async () => {
         AlertPopup({
             title: "Delete evaluator",
             message: "Are you sure you want to delete this evaluator?",
-            modalInstance: modal,
             onOk: async () => {
                 if (
                     !(await checkIfResourceValidForDeletion({
@@ -124,7 +122,6 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
                     {evaluatorConfig.name}
                 </Typography.Title>
             </div>
-            {contextHolder}
         </Card>
     )
 }
