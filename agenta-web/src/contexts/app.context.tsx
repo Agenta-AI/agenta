@@ -12,6 +12,9 @@ type AppContextType = {
     error: any
     isLoading: boolean
     mutate: () => void
+
+    modalInstance: any
+    setModalInstance: (context: any) => void
 }
 
 const initialValues: AppContextType = {
@@ -20,6 +23,9 @@ const initialValues: AppContextType = {
     error: null,
     isLoading: false,
     mutate: () => {},
+
+    modalInstance: null,
+    setModalInstance: (context) => {},
 }
 
 const useApps = () => {
@@ -68,14 +74,20 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         [apps, appId],
     )
 
+    const [modalInstance, setModalInstance] = useState(null)
+
     appContextValues.currentApp = currentApp
     appContextValues.apps = apps
     appContextValues.error = error
     appContextValues.isLoading = isLoading
     appContextValues.mutate = mutate
+    appContextValues.modalInstance = modalInstance
+    appContextValues.setModalInstance = setModalInstance
 
     return (
-        <AppContext.Provider value={{currentApp, apps, error, isLoading, mutate}}>
+        <AppContext.Provider
+            value={{currentApp, apps, error, isLoading, mutate, modalInstance, setModalInstance}}
+        >
             {children}
         </AppContext.Provider>
     )
