@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {Layout, Menu, Tooltip} from "antd"
+import {Layout, Menu, Tag, Tooltip} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -88,7 +88,11 @@ const SidebarMenu: React.FC<{
                         <Menu.SubMenu
                             key={item.key}
                             icon={item.icon}
-                            title={item.title}
+                            title={
+                                <>
+                                    {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                                </>
+                            }
                             onTitleClick={item.onClick}
                         >
                             {item.submenu.map((subitem) => {
@@ -129,7 +133,7 @@ const SidebarMenu: React.FC<{
                             href={item.link || "#"}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                         >
-                            {item.title}
+                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </Link>
                     )
                     return (
