@@ -13,8 +13,7 @@ class GenerationFilterParams(BaseModel):
 
 
 class ObservabilityDashboardDataRequestParams(BaseModel):
-    startTime: Optional[int]
-    endTime: Optional[int]
+    timeRange: str = Field(default="24_hours")
     environment: Optional[str]
     variant: Optional[str]
 
@@ -108,7 +107,7 @@ class TraceDetail(Trace):
 
 
 class ObservabilityData(BaseModel):
-    timestamp: datetime
+    timestamp: str
     success_count: int
     failure_count: int
     cost: float
@@ -116,8 +115,6 @@ class ObservabilityData(BaseModel):
     total_tokens: int
     prompt_tokens: int
     completion_tokens: int
-    environment: Optional[str]
-    variant: str
 
 
 class ObservabilityDashboardData(BaseModel):
