@@ -33,7 +33,6 @@ from agenta_backend.models.converters import (
 from agenta_backend.services import db_manager, filters, helpers
 from agenta_backend.models.db_models import (
     TraceDB,
-    SpanStatus,
     Feedback as FeedbackDB,
     SpanDB,
 )
@@ -287,70 +286,58 @@ async def retrieve_observability_dashboard(
     app_id: str,
     params: ObservabilityDashboardDataRequestParams,
 ) -> ObservabilityDashboardData:
-    spans_db = await SpanDB.find(
-        SpanDB.trace.app_id == app_id, fetch_links=True
-    ).to_list()
-    if spans_db == []:
+    # Construct spans base query
+    spans_base = SpanDB.find(SpanDB.trace.app_id == app_id, fetch_links=True).find(
+        SpanDB.environment == params.environment
+    )
+
+    # Apply filtering based on the environment and variant (base_id)
+    filtered_spans = filters.filter_observability_dashboard_spans_db_by_filters(app_id, params)
+
+    # Apply datetime filter and aggregation pipeline
+    spans = None
+    if params.timeRange is not None:
+        filter_datetime = filters.filter_by_time_range(params.timeRange)
+        spans_aggregation_mapping = filters.prepares_spans_aggregation_by_timerange(
+            params.timeRange
+        )
+        pipeline = [
+            {"$match": {"created_at": {"$gte": filter_datetime}}},
+            spans_aggregation_mapping,
+        ]
+        spans = await filtered_spans.aggregate(
+            pipeline,
+        ).to_list()
+
+    if spans is None or len(spans) == 0:
         return []
 
-    list_of_observability_data: ObservabilityData = []
-    for span_db in spans_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-            span_db.trace.base_id, span_db.trace.config_name
-        )
-        latency = span_db.end_time - span_db.start_time
-        list_of_observability_data.append(
-            ObservabilityData(
-                **{
-                    "timestamp": span_db.created_at,
-                    "success_count": 1 if span_db.status.value == "SUCCESS" else 0,
-                    "failure_count": 1 if span_db.status.value == "FAILURE" else 0,
-                    "cost": span_db.cost,
-                    "latency": latency.total_seconds(),
-                    "total_tokens": span_db.token_total,
-                    "prompt_tokens": span_db.tokens_input,
-                    "completion_tokens": span_db.tokens_output,
-                    "environment": span_db.environment,
-                    "variant": app_variant_db.variant_name,
-                }
-            )
-        )
-
-    filtered_data = filters.filter_observability_dashboard_data_by_params(
-        params, list_of_observability_data
-    )
-    len_of_filtered_data = len(filtered_data)
-    if len(filtered_data) == 0:
-        return ObservabilityDashboardData(
-            **{
-                "data": [],
-                "total_count": 0,
-                "failure_rate": 0,
-                "total_cost": 0,
-                "avg_cost": 0,
-                "avg_latency": 0,
-                "total_tokens": 0,
-                "avg_tokens": 0,
-            }
-        )
+    len_of_observability_data = len(spans)
+    observability_data: ObservabilityData = []
+    for span in spans:
+        observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
 
     return ObservabilityDashboardData(
         **{
-            "data": filtered_data,
-            "total_count": len_of_filtered_data,
+            "data": observability_data,
+            "total_count": len_of_observability_data,
             "failure_rate": round(
-                sum([data.failure_count for data in filtered_data]), 5
+                sum(data.failure_count for data in observability_data), 5
             ),
-            "total_cost": round(sum([data.cost for data in filtered_data]), 5),
+            "total_cost": round(sum(data.cost for data in observability_data), 5),
             "avg_cost": round(
-                sum([data.cost for data in filtered_data]) / len_of_filtered_data, 5
+                sum(data.cost for data in observability_data)
+                / len_of_observability_data,
+                5,
             ),
             "avg_latency": round(
-                sum([data.latency for data in filtered_data]) / len_of_filtered_data, 5
+                sum(data.latency for data in observability_data)
+                / len_of_observability_data,
+                5,
             ),
-            "total_tokens": sum([data.total_tokens for data in filtered_data]),
-            "avg_tokens": sum([data.total_tokens for data in filtered_data])
-            / len_of_filtered_data,
+            "total_tokens": sum(data.total_tokens for data in observability_data),
+            "avg_tokens": sum(data.total_tokens for data in observability_data)
+            / len_of_observability_data,
         }
     )
 
