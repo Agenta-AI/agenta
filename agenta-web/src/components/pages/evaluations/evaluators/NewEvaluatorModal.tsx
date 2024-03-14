@@ -393,6 +393,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 }
                 footer={null}
                 data-cy="configure-new-evaluator-modal"
+                width={selectedEval?.key === "auto_custom_code_run" ? 800 : 600}
             >
                 <Form
                     requiredMark={false}
