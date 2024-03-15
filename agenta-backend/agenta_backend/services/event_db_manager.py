@@ -46,29 +46,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-async def get_variant_traces(
-    app_id: str, variant_id: str, user_uid: str
-) -> List[Trace]:
-    """Get the traces for a given app variant.
-
-    Args:
-        app_id (str): the app id of the trace
-        variant_id (str): the id of the variant
-
-    Returns:
-        List[Trace]: the list of traces for the given app variant
-    """
-
-    user = await db_manager.get_user(user_uid)
-    traces = await TraceDB.find(
-        TraceDB.user.id == user.id,
-        TraceDB.app_id == app_id,
-        TraceDB.variant_id == variant_id,
-        fetch_links=True,
-    ).to_list()
-    return [trace_db_to_pydantic(trace) for trace in traces]
-
-
 async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
     """Create a new trace.
 
@@ -191,11 +168,7 @@ async def fetch_generation_spans(
     base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
 
     # Count of spans in db
-    spans_count = (
-        await base_spans_db.find(fetch_links=True, skip=skip, limit=limit)
-        .sort([(SpanDB.created_at, sort_direction)])
-        .count()
-    )
+    spans_count = await base_spans_db.find(fetch_links=True).count()
 
     # Fetch spans with pagination and sorting applied
     spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
@@ -371,11 +344,7 @@ async def fetch_traces(
     )
 
     # Count of traces in db
-    traces_count = (
-        await base_traces_db.find(fetch_links=True, skip=skip, limit=limit)
-        .sort([(TraceDB.created_at, sort_direction)])
-        .count()
-    )
+    traces_count = await base_traces_db.find(fetch_links=True).count()
 
     # Fetch traces with pagination and sorting applied
     traces_db = (
@@ -389,6 +358,7 @@ async def fetch_traces(
     filtered_traces = filter(
         partial(filters.filter_document_by_filter_params, filters_param), traces
     )
+
     return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 
