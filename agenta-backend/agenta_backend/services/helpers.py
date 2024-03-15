@@ -95,7 +95,7 @@ def range_of_dates_based_on_timerange(
     time_range: str, current_date: datetime
 ) -> Tuple[datetime, datetime]:
     if time_range == "24_hours":
-        start_date = current_date - timedelta(hours=24)
+        start_date = current_date - timedelta(days=1)
         end_date = current_date
     elif time_range == "7_days":
         start_date = current_date - timedelta(days=7)
@@ -113,16 +113,25 @@ def fill_missing_data(
     current_date, end_date = range_of_dates_based_on_timerange(
         time_range, datetime.now()
     )
-    result_map = {result.timestamp: result for result in data}
+    result_map = {}
+    for result in data:
+        truncated_timestamp = (
+            result.timestamp.replace(minute=0, second=0, microsecond=0)
+            if time_range == "24_hours"
+            else current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+        result_map[truncated_timestamp] = result
+
     while current_date <= end_date:
-        if current_date not in result_map:
-            result_map[current_date] = ObservabilityData(
+        truncated_current_date = (
+            current_date.strftime("%Y-%m-%d %I:00:00")
+            if time_range == "24_hours"
+            else current_date.strftime("%Y-%m-%d 00:00:00")
+        )
+        if truncated_current_date not in result_map:
+            result_map[truncated_current_date] = ObservabilityData(
                 **{
-                    "timestamp": (
-                        current_date.strftime("%Y-%m-%d %I:00:00")
-                        if time_range == "24_hours"
-                        else current_date.strftime("%Y-%m-%d %00:00:00")
-                    ),
+                    "timestamp": truncated_current_date,
                     "success_count": 0,
                     "failure_count": 0,
                     "cost": 0,

@@ -107,7 +107,7 @@ class TraceDetail(Trace):
 
 
 class ObservabilityData(BaseModel):
-    timestamp: str
+    timestamp: datetime
     success_count: int
     failure_count: int
     cost: float
