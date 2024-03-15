@@ -297,7 +297,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                                 : 1,
                                         }}
                                         icon={
-                                            evalIds.includes(v.evaluationId) ? (
+                                            evalIds.length < 2 &&
+                                            evalIds.includes(
+                                                v.evaluationId,
+                                            ) ? null : evalIds.includes(v.evaluationId) ? (
                                                 <CloseCircleOutlined style={{cursor: "pointer"}} />
                                             ) : (
                                                 <UndoOutlined style={{cursor: "pointer"}} />
