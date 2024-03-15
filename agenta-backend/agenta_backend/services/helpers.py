@@ -95,7 +95,7 @@ def range_of_dates_based_on_timerange(
     time_range: str, current_date: datetime
 ) -> Tuple[datetime, datetime]:
     if time_range == "24_hours":
-        start_date = current_date - timedelta(days=1)
+        start_date = current_date - timedelta(hours=24)
         end_date = current_date
     elif time_range == "7_days":
         start_date = current_date - timedelta(days=7)
@@ -118,7 +118,11 @@ def fill_missing_data(
         if current_date not in result_map:
             result_map[current_date] = ObservabilityData(
                 **{
-                    "timestamp": current_date.strftime("%Y-%m-%d 00:00:00"),
+                    "timestamp": (
+                        current_date.strftime("%Y-%m-%d %I:00:00")
+                        if time_range == "24_hours"
+                        else current_date.strftime("%Y-%m-%d %00:00:00")
+                    ),
                     "success_count": 0,
                     "failure_count": 0,
                     "cost": 0,
@@ -128,5 +132,8 @@ def fill_missing_data(
                     "completion_tokens": 0,
                 }
             )
-        current_date += timedelta(days=1)
+        if time_range == "24_hours":
+            current_date += timedelta(hours=1)
+        else:
+            current_date += timedelta(days=1)
     return list(result_map.values())
