@@ -25,5 +25,6 @@ async def cache_observability_data(
 
     # Retrieve observability dashboard data and cache data for re-use
     data = await data_func(app_id, parameters)
-    redis.setex(cache_key, 900, data.json())
+    if len(data) >= 1:
+        redis.setex(cache_key, 900, data.json())
     return data
