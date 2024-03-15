@@ -308,7 +308,11 @@ async def retrieve_observability_dashboard(
 
     observability_data: ObservabilityData = []
     for span in spans:
-        observability_data.append(ObservabilityData(**span, timestamp=str(span["_id"])))
+        observability_data.append(
+            ObservabilityData(
+                **span, timestamp=span["_id"].strftime("%Y-%m-%d %I:00:00")
+            )
+        )
 
     full_observability_data = helpers.fill_missing_data(
         data=observability_data,
@@ -316,13 +320,10 @@ async def retrieve_observability_dashboard(
     )
     len_of_observability_data = len(full_observability_data)
     sorted_data = sorted(full_observability_data, key=lambda x: x.timestamp)
-    total_count = round(sum(data.failure_count for data in sorted_data), 5) + round(
-        sum(data.success_count for data in sorted_data), 5
-    )
     return ObservabilityDashboardData(
         **{
             "data": sorted_data,
-            "total_count": total_count,
+            "total_count": len_of_observability_data,
             "failure_rate": round(sum(data.failure_count for data in sorted_data), 5),
             "total_cost": round(sum(data.cost for data in sorted_data), 5),
             "avg_cost": round(
