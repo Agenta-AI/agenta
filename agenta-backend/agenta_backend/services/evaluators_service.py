@@ -249,6 +249,178 @@ def auto_ai_critique(
         )
 
 
+def auto_starts_with(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        prefix = settings_values.get("prefix", "")
+        case_sensitive = settings_values.get("case_sensitive", True)
+
+        if not case_sensitive:
+            output = output.lower()
+            prefix = prefix.lower()
+
+        result = Result(type="bool", value=output.startswith(prefix))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Starts With evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_ends_with(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        suffix = settings_values.get("suffix", "")
+        case_sensitive = settings_values.get("case_sensitive", True)
+
+        if not case_sensitive:
+            output = output.lower()
+            suffix = suffix.lower()
+
+        result = Result(type="bool", value=output.endswith(suffix))
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(message="Error during Ends With evaluation", stacktrace=str(e)),
+        )
+
+
+def auto_contains(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substring = settings_values.get("substring", "")
+        case_sensitive = settings_values.get("case_sensitive", True)
+
+        if not case_sensitive:
+            output = output.lower()
+            substring = substring.lower()
+
+        result = Result(type="bool", value=substring in output)
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(message="Error during Contains evaluation", stacktrace=str(e)),
+        )
+
+
+def auto_contains_any(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substrings_str = settings_values.get("substrings", "")
+        substrings = [substring.strip() for substring in substrings_str.split(",")]
+        case_sensitive = settings_values.get("case_sensitive", True)
+
+        if not case_sensitive:
+            output = output.lower()
+            substrings = [substring.lower() for substring in substrings]
+
+        result = Result(
+            type="bool", value=any(substring in output for substring in substrings)
+        )
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains Any evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_contains_all(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        substrings_str = settings_values.get("substrings", "")
+        substrings = [substring.strip() for substring in substrings_str.split(",")]
+        case_sensitive = settings_values.get("case_sensitive", True)
+
+        if not case_sensitive:
+            output = output.lower()
+            substrings = [substring.lower() for substring in substrings]
+
+        result = Result(
+            type="bool", value=all(substring in output for substring in substrings)
+        )
+        return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains All evaluation", stacktrace=str(e)
+            ),
+        )
+
+
+def auto_contains_json(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        try:
+            start_index = output.index("{")
+            end_index = output.rindex("}") + 1
+            potential_json = output[start_index:end_index]
+
+            json.loads(potential_json)
+            contains_json = True
+        except (ValueError, json.JSONDecodeError):
+            contains_json = False
+
+        return Result(type="bool", value=contains_json)
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Contains JSON evaluation", stacktrace=str(e)
+            ),
+        )
+
+
 def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
