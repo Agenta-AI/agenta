@@ -69,9 +69,7 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
     time_range_mappings = {
         "$group": {
             "_id": {"$dateTrunc": {"date": "$created_at", "unit": date_trunc_unit}},
-            "latency": {
-                "$sum": {"$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]}
-            },
+            "latency": {"$sum": {"$divide": ["$duration", 1000]}},
             "success_count": {
                 "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
             },
