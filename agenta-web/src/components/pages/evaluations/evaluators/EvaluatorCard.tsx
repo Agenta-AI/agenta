@@ -1,7 +1,7 @@
 import React from "react"
 import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons"
-import {Card, Tag, Typography, Modal} from "antd"
+import {Card, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
 import Image from "next/image"
