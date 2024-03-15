@@ -306,10 +306,6 @@ async def retrieve_observability_dashboard(
             pipeline,
         ).to_list()
 
-    if spans is None or len(spans) == 0:
-        return []
-
-    len_of_observability_data = len(spans)
     observability_data: ObservabilityData = []
     for span in spans:
         observability_data.append(ObservabilityData(**span, timestamp=str(span["_id"])))
@@ -318,30 +314,27 @@ async def retrieve_observability_dashboard(
         data=observability_data,
         time_range=params.timeRange,
     )
+    len_of_observability_data = len(full_observability_data)
     sorted_data = sorted(full_observability_data, key=lambda x: x.timestamp)
-    total_count = round(
-        sum(data.failure_count for data in observability_data), 5
-    ) + round(sum(data.success_count for data in observability_data), 5)
+    total_count = round(sum(data.failure_count for data in sorted_data), 5) + round(
+        sum(data.success_count for data in sorted_data), 5
+    )
     return ObservabilityDashboardData(
         **{
             "data": sorted_data,
             "total_count": total_count,
-            "failure_rate": round(
-                sum(data.failure_count for data in observability_data), 5
-            ),
-            "total_cost": round(sum(data.cost for data in observability_data), 5),
+            "failure_rate": round(sum(data.failure_count for data in sorted_data), 5),
+            "total_cost": round(sum(data.cost for data in sorted_data), 5),
             "avg_cost": round(
-                sum(data.cost for data in observability_data)
-                / len_of_observability_data,
+                sum(data.cost for data in sorted_data) / len_of_observability_data,
                 5,
             ),
             "avg_latency": round(
-                sum(data.latency for data in observability_data)
-                / len_of_observability_data,
+                sum(data.latency for data in sorted_data) / len_of_observability_data,
                 5,
             ),
-            "total_tokens": sum(data.total_tokens for data in observability_data),
-            "avg_tokens": sum(data.total_tokens for data in observability_data)
+            "total_tokens": sum(data.total_tokens for data in sorted_data),
+            "avg_tokens": sum(data.total_tokens for data in sorted_data)
             / len_of_observability_data,
         }
     )
