@@ -191,7 +191,11 @@ async def fetch_generation_spans(
     base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
 
     # Count of spans in db
-    spans_count = await base_spans_db.find(fetch_links=True).count()
+    spans_count = (
+        await base_spans_db.find(fetch_links=True, skip=skip, limit=limit)
+        .sort([(SpanDB.created_at, sort_direction)])
+        .count()
+    )
 
     # Fetch spans with pagination and sorting applied
     spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
@@ -308,11 +312,7 @@ async def retrieve_observability_dashboard(
 
     observability_data: ObservabilityData = []
     for span in spans:
-        observability_data.append(
-            ObservabilityData(
-                **span, timestamp=span["_id"]
-            )
-        )
+        observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
 
     full_observability_data = helpers.fill_missing_data(
         data=observability_data,
@@ -371,7 +371,11 @@ async def fetch_traces(
     )
 
     # Count of traces in db
-    traces_count = await base_traces_db.count()
+    traces_count = (
+        await base_traces_db.find(fetch_links=True, skip=skip, limit=limit)
+        .sort([(TraceDB.created_at, sort_direction)])
+        .count()
+    )
 
     # Fetch traces with pagination and sorting applied
     traces_db = (
