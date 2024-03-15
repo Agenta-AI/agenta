@@ -310,7 +310,7 @@ async def retrieve_observability_dashboard(
     for span in spans:
         observability_data.append(
             ObservabilityData(
-                **span, timestamp=span["_id"].strftime("%Y-%m-%d %I:00:00")
+                **span, timestamp=span["_id"]
             )
         )
 

@@ -116,14 +116,14 @@ def fill_missing_data(
     result_map = {}
     for result in data:
         truncated_timestamp = (
-            result.timestamp.replace(minute=0, second=0, microsecond=0)
+            result.timestamp.replace(minute=0, second=0)
             if time_range == "24_hours"
-            else current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            else result.timestamp.replace(hour=0, minute=0, second=0)
         )
-        result_map[truncated_timestamp] = result
+        result_map[str(truncated_timestamp)] = result
 
     while current_date <= end_date:
-        truncated_current_date = (
+        truncated_current_date = str(
             current_date.strftime("%Y-%m-%d %I:00:00")
             if time_range == "24_hours"
             else current_date.strftime("%Y-%m-%d 00:00:00")
