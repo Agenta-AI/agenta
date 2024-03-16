@@ -1,8 +1,9 @@
 import React, {ReactNode} from "react"
-import {ModalFuncProps} from "antd"
+import {Modal, ModalFuncProps} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {getAppValues, useAppsData} from "@/contexts/app.context"
+import {HookAPI} from "antd/es/modal/useModal"
 
 function handleCb(cb: AlertPopupProps["onOk"]) {
     if (typeof cb !== "function") return cb
@@ -20,6 +21,7 @@ function handleCb(cb: AlertPopupProps["onOk"]) {
 export type AlertPopupProps = ModalFuncProps & {
     message: ReactNode
     cancellable?: boolean
+    type?: keyof HookAPI
 }
 
 export default function AlertPopup({
@@ -34,8 +36,9 @@ export default function AlertPopup({
     ...ModalProps
 }: AlertPopupProps) {
     const {modalInstance} = getAppValues()
+    const modal = modalInstance || Modal
 
-    return modalInstance[type || "confirm"]({
+    return modal[type || "confirm"]({
         title,
         content: message,
         okText,
