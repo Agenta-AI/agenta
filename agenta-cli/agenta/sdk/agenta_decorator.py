@@ -56,7 +56,7 @@ def ingest_file(upfile: UploadFile):
     return InFile(file_name=upfile.filename, file_path=temp_file.name)
 
 
-def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
+def entrypoint(func: Callable[..., Any], max_workers: int = 4) -> Callable[..., Any]:
     """
     Decorator to wrap a function for HTTP POST and terminal exposure.
 
@@ -72,14 +72,21 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     config_params = agenta.config.all()
     ingestible_files = extract_ingestible_files(func_signature)
 
+    # Initialize llm tracing
+    tracing = agenta.llm_tracing(max_workers=max_workers)
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
-        return await execute_function(
+        result = await execute_function(
             func, *args, **{"params": func_params, "config_params": config_params}
         )
+
+        # End tracing for playground
+        tracing.end_trace(outputs=[result["message"]], **kwargs)  # type: ignore
+        return result
 
     @functools.wraps(func)
     async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -94,14 +101,19 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             agenta.config.pull(config_name="default")
 
         config = agenta.config.all()
-        return await execute_function(
+        result = await execute_function(
             func,
             *args,
             **{
                 "params": func_params,
-                "config_params": {**config, "environment": kwargs["environment"]},
+                "config_params": config,
+                "environment": kwargs["environment"],
             },
         )
+
+        # End tracing
+        tracing.end_trace(outputs=[result["message"]], **kwargs)  # type: ignore
+        return result
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
@@ -223,9 +235,6 @@ async def execute_function(
             result = func(*args, **func_params["params"])
         end_time = time.perf_counter()
         latency = end_time - start_time
-
-        # Prepare llm arguments and begins tracing
-        await prepare_llm_params_and_begin_tracing(func_params, result)
 
         if isinstance(result, Context):
             save_context(result)
