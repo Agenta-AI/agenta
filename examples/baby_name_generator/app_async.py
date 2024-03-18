@@ -1,4 +1,3 @@
-from agenta import FloatParam, TextParam
 import agenta as ag
 from openai import AsyncOpenAI
 
@@ -10,8 +9,20 @@ default_prompt = (
 
 ag.init()
 ag.config.default(
-    temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
+    temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
+
+
+@ag.span(ag.llm_tracing, event_type="llm_request")
+async def llm_call(prompt):
+    chat_completion = await client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+    )
+    ag.llm_tracing.set_span_attribute(model="gpt-3.5-turbo")
+    return {
+        "message": chat_completion.choices[0].message.content,
+        "usage": chat_completion.usage.dict(),
+    }
 
 
 @ag.entrypoint
@@ -26,14 +37,11 @@ async def generate(country: str, gender: str) -> str:
     Returns:
         str: The generated baby name.
     """
-    prompt = ag.config.prompt_template.format(country=country, gender=gender)
 
-    chat_completion = await client.chat.completions.create(
-        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
-    )
-    token_usage = chat_completion.usage.dict()
+    prompt = ag.config.prompt_template.format(country=country, gender=gender)
+    response = await llm_call(prompt=prompt)
     return {
-        "message": chat_completion.choices[0].message.content,
-        **{"usage": token_usage},
-        "cost": ag.calculate_token_usage("gpt-3.5-turbo", token_usage),
+        "message": response["message"],
+        "usage": response["usage"],
+        "cost": ag.calculate_token_usage("gpt-3.5-turbo", response["usage"]),
     }
