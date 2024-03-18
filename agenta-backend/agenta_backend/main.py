@@ -47,12 +47,12 @@ celery_app.config_from_object(celery_config)
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
     """
+    Lifespan initializes the database engine and load the default llm templates.
 
     Args:
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    # initialize the database
     await DBEngine().init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
