@@ -183,9 +183,7 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
-async def fetch_app_variant_by_base_id(
-    base_id: str
-) -> Optional[AppVariantDB]:
+async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its base ID and config name.
 

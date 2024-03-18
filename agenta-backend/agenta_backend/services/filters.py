@@ -33,9 +33,11 @@ def filter_observability_dashboard_data_by_params(
         filtered_data = observability_data
 
     if params.startTime or params.endTime:
+
         def filter_by_timestamp(data: ObservabilityData):
             epoch_time = int(data.timestamp.timestamp()) * 1000
             return params.startTime <= epoch_time <= params.endTime
+
         filtered_data = filter(filter_by_timestamp, filtered_data)
 
     if params.environment:
