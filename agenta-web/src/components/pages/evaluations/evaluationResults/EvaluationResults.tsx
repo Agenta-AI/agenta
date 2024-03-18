@@ -281,7 +281,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {!fetching && !evaluations.length ? (
                 <EmptyEvaluations
                     onConfigureEvaluators={() =>
-                        router.push(`/apps/${appId}/evaluations?tab=evaluators`)
+                        router.push(`/apps/${appId}/evaluations/new-evaluator`)
                     }
                     onBeginEvaluation={() => {
                         setNewEvalModalOpen(true)
@@ -294,6 +294,7 @@ const EvaluationResults: React.FC<Props> = () => {
                             disabled={selected.length === 0}
                             icon={<DeleteOutlined />}
                             type="primary"
+                            data-cy="evaluation-results-delete-button"
                             danger
                             onClick={onDelete}
                         >
@@ -327,6 +328,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                 ref={gridRef as any}
                                 rowData={evaluations}
                                 columnDefs={colDefs}
+                                rowStyle={{
+                                    cursor: "pointer",
+                                }}
                                 getRowId={(params) => params.data.id}
                                 onRowClicked={(params) => {
                                     // ignore clicks on the checkbox col

@@ -10,26 +10,12 @@ describe("Evaluation Scenarios Test", function () {
 
     context("Executing Evaluation Scenarios Workflow", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.location("pathname").should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/evaluations/results`)
+            cy.location("pathname").should("include", "/evaluations/results")
         })
 
         it("Should successfully create an Evaluation", () => {
-            cy.get('[data-cy="new-evaluation-button"]').click()
-            cy.get(".ant-modal-content").should("exist")
-
-            cy.get('[data-cy="select-testset-group"]').click()
-            cy.get('[data-cy="select-testset-option"]').click()
-
-            cy.get('[data-cy="select-variant-group"]').click()
-            cy.get('[data-cy="select-variant-option"]').eq(0).click()
-            cy.get('[data-cy="select-variant-group"]').click()
-
-            cy.get('[data-cy="select-evaluators-group"]').click()
-            cy.get('[data-cy="select-evaluators-option"]').eq(0).click()
-            cy.get('[data-cy="select-evaluators-group"]').click()
-
-            cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
+            cy.createNewEvaluation()
         })
 
         it("Should verify that evalaution was created and completed successfully", () => {

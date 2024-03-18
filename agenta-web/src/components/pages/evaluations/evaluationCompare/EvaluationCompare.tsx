@@ -11,7 +11,7 @@ import {
 import {fetchAllComparisonResults} from "@/services/evaluations"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Tag, Tooltip, Typography} from "antd"
+import {Button, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
@@ -24,6 +24,7 @@ import Link from "next/link"
 import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -55,6 +56,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = "", setEvaluationIdsStr] = useQueryParam("evaluations")
+    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
@@ -123,6 +125,31 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
+                cellRenderer: (params: any) => {
+                    return (
+                        <>
+                            {showDiff === "show" ? (
+                                <span>
+                                    <CompareOutputDiff
+                                        variantOutput={getTypedValue(
+                                            params.data?.variants.find(
+                                                (item: any) =>
+                                                    item.evaluationId === variant.evaluationId,
+                                            )?.output?.result,
+                                        )}
+                                        expectedOutput={params.data?.correctAnswer}
+                                    />
+                                </span>
+                            ) : (
+                                getTypedValue(
+                                    params.data?.variants.find(
+                                        (item: any) => item.evaluationId === variant.evaluationId,
+                                    )?.output?.result,
+                                )
+                            )}
+                        </>
+                    )
+                },
                 valueGetter: (params) => {
                     return getTypedValue(
                         params.data?.variants.find(
@@ -130,7 +157,6 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         )?.output?.result,
                     )
                 },
-                cellRenderer: LongTextCellRenderer,
             })
         })
 
@@ -149,6 +175,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             configs.forEach(({config, variant, color}) => {
                 colDefs.push({
                     flex: 1,
+                    minWidth: 200,
                     headerName: config.name,
                     headerComponent: (props: any) => {
                         const evaluator = evaluators.find(
@@ -182,7 +209,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows])
+    }, [rows, showDiff])
 
     const fetcher = () => {
         setFetching(true)
@@ -257,9 +284,20 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </Spin>
                 </Space>
-                <Tooltip title="Export as CSV">
-                    <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
-                </Tooltip>
+                <Space size={10}>
+                    <Space>
+                        <Typography.Text>Show Difference: </Typography.Text>
+                        <Switch
+                            value={showDiff === "show"}
+                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
+                        />
+                    </Space>
+                    <Tooltip title="Export as CSV">
+                        <Button icon={<DownloadOutlined />} onClick={onExport}>
+                            Export
+                        </Button>
+                    </Tooltip>
+                </Space>
             </div>
 
             <Spin spinning={fetching}>

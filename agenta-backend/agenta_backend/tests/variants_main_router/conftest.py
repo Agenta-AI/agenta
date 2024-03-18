@@ -10,9 +10,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     ConfigDB,
     AppVariantDB,
-    OrganizationDB,
 )
-from agenta_backend.services import selectors
 
 import httpx
 
@@ -39,12 +37,6 @@ async def get_first_user_object():
         create_user = UserDB(uid="0")
         await create_user.create()
 
-        org = OrganizationDB(type="default", owner=str(create_user.id))
-        await org.create()
-
-        create_user.organizations.append(org.id)
-        await create_user.save()
-
         return create_user
     return user
 
@@ -60,12 +52,6 @@ async def get_second_user_object():
         )
         await create_user.create()
 
-        org = OrganizationDB(type="default", owner=str(create_user.id))
-        await org.create()
-
-        create_user.organizations.append(org.id)
-        await create_user.save()
-
         return create_user
     return user
 
@@ -73,16 +59,14 @@ async def get_second_user_object():
 @pytest.fixture()
 async def get_first_user_app(get_first_user_object):
     user = await get_first_user_object
-    organization = await selectors.get_user_own_org(user.uid)
 
-    app = AppDB(app_name="myapp", organization=organization, user=user)
+    app = AppDB(app_name="myapp", user=user)
     await app.create()
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates_v2:local_test_prompt",
         user=user,
-        organization=organization,
     )
     await db_image.create()
 
@@ -91,9 +75,7 @@ async def get_first_user_app(get_first_user_object):
         parameters={},
     )
 
-    db_base = VariantBaseDB(
-        base_name="app", image=db_image, organization=organization, user=user, app=app
-    )
+    db_base = VariantBaseDB(base_name="app", image=db_image, user=user, app=app)
     await db_base.create()
 
     appvariant = AppVariantDB(
@@ -101,7 +83,6 @@ async def get_first_user_app(get_first_user_object):
         variant_name="app",
         image=db_image,
         user=user,
-        organization=organization,
         parameters={},
         base_name="app",
         config_name="default",
@@ -111,7 +92,7 @@ async def get_first_user_app(get_first_user_object):
         config=db_config,
     )
     await appvariant.create()
-    return appvariant, user, organization, app, db_image, db_config, db_base
+    return appvariant, user, app, db_image, db_config, db_base
 
 
 @pytest.fixture()
@@ -236,17 +217,10 @@ def fetch_single_prompt_template(fetch_templates):
 
 
 @pytest.fixture()
-async def fetch_user_organization():
-    organization = await OrganizationDB.find().to_list()
-    return {"org_id": str(organization[0].id)}
-
-
-@pytest.fixture()
 def app_from_template():
     return {
         "app_name": "string",
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "organization_id": "string",
         "template_id": "string",
     }
 
