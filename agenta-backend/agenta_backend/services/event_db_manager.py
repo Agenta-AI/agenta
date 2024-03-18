@@ -168,7 +168,12 @@ async def fetch_generation_spans(
     base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
 
     # Count of spans in db
-    spans_count = await base_spans_db.find(fetch_links=True).count()
+    filters_query = {}
+    if filters_param.environment is not None:
+        filters_query["environment"] = filters_param.environment
+    # elif filters_param.variant is not None: TODO: improve in observability sdk
+    #     filters_query["base_id"] = filters_param.variant
+    spans_count = await base_spans_db.find(filters_query, fetch_links=True).count()
 
     # Fetch spans with pagination and sorting applied
     spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
@@ -344,7 +349,12 @@ async def fetch_traces(
     )
 
     # Count of traces in db
-    traces_count = await base_traces_db.find(fetch_links=True).count()
+    filters_query = {}
+    if filters_param.environment is not None:
+        filters_query["environment"] = filters_param.environment
+    # elif filters_param.variant is not None: TODO: improve in observability sdk
+    #     filters_query["base_id"] = filters_param.variant
+    traces_count = await base_traces_db.find(filters_query, fetch_links=True).count()
 
     # Fetch traces with pagination and sorting applied
     traces_db = (
