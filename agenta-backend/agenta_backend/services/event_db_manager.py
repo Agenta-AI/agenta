@@ -46,29 +46,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-async def get_variant_traces(
-    app_id: str, variant_id: str, user_uid: str
-) -> List[Trace]:
-    """Get the traces for a given app variant.
-
-    Args:
-        app_id (str): the app id of the trace
-        variant_id (str): the id of the variant
-
-    Returns:
-        List[Trace]: the list of traces for the given app variant
-    """
-
-    user = await db_manager.get_user(user_uid)
-    traces = await TraceDB.find(
-        TraceDB.user.id == user.id,
-        TraceDB.app_id == app_id,
-        TraceDB.variant_id == variant_id,
-        fetch_links=True,
-    ).to_list()
-    return [trace_db_to_pydantic(trace) for trace in traces]
-
-
 async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
     """Create a new trace.
 
@@ -191,7 +168,12 @@ async def fetch_generation_spans(
     base_spans_db = SpanDB.find(SpanDB.trace.app_id == app_id)
 
     # Count of spans in db
-    spans_count = await base_spans_db.find(fetch_links=True).count()
+    filters_query = {}
+    if filters_param.environment is not None:
+        filters_query["environment"] = filters_param.environment
+    # elif filters_param.variant is not None: TODO: improve in observability sdk
+    #     filters_query["base_id"] = filters_param.variant
+    spans_count = await base_spans_db.find(filters_query, fetch_links=True).count()
 
     # Fetch spans with pagination and sorting applied
     spans_db = base_spans_db.find(fetch_links=True, skip=skip, limit=limit).sort(
@@ -306,38 +288,32 @@ async def retrieve_observability_dashboard(
             pipeline,
         ).to_list()
 
-    if spans is None or len(spans) == 0:
-        return []
-
-    len_of_observability_data = len(spans)
     observability_data: ObservabilityData = []
     for span in spans:
         observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
 
-    sorted_data = sorted(observability_data, key=lambda x: x.timestamp)
-    total_count = round(
-        sum(data.failure_count for data in observability_data), 5
-    ) + round(sum(data.success_count for data in observability_data), 5)
+    full_observability_data = helpers.fill_missing_data(
+        data=observability_data,
+        time_range=params.timeRange,
+    )
+    len_of_observability_data = len(full_observability_data)
+    sorted_data = sorted(full_observability_data, key=lambda x: x.timestamp)
     return ObservabilityDashboardData(
         **{
             "data": sorted_data,
-            "total_count": total_count,
-            "failure_rate": round(
-                sum(data.failure_count for data in observability_data), 5
-            ),
-            "total_cost": round(sum(data.cost for data in observability_data), 5),
+            "total_count": len_of_observability_data,
+            "failure_rate": round(sum(data.failure_count for data in sorted_data), 5),
+            "total_cost": round(sum(data.cost for data in sorted_data), 5),
             "avg_cost": round(
-                sum(data.cost for data in observability_data)
-                / len_of_observability_data,
+                sum(data.cost for data in sorted_data) / len_of_observability_data,
                 5,
             ),
             "avg_latency": round(
-                sum(data.latency for data in observability_data)
-                / len_of_observability_data,
+                sum(data.latency for data in sorted_data) / len_of_observability_data,
                 5,
             ),
-            "total_tokens": sum(data.total_tokens for data in observability_data),
-            "avg_tokens": sum(data.total_tokens for data in observability_data)
+            "total_tokens": sum(data.total_tokens for data in sorted_data),
+            "avg_tokens": sum(data.total_tokens for data in sorted_data)
             / len_of_observability_data,
         }
     )
@@ -373,7 +349,12 @@ async def fetch_traces(
     )
 
     # Count of traces in db
-    traces_count = await base_traces_db.count()
+    filters_query = {}
+    if filters_param.environment is not None:
+        filters_query["environment"] = filters_param.environment
+    # elif filters_param.variant is not None: TODO: improve in observability sdk
+    #     filters_query["base_id"] = filters_param.variant
+    traces_count = await base_traces_db.find(filters_query, fetch_links=True).count()
 
     # Fetch traces with pagination and sorting applied
     traces_db = (
@@ -387,6 +368,7 @@ async def fetch_traces(
     filtered_traces = filter(
         partial(filters.filter_document_by_filter_params, filters_param), traces
     )
+
     return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 

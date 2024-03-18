@@ -59,114 +59,31 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
         Dict: mapping based on time range
     """
 
+    if time_range == "24_hours":
+        date_trunc_unit = "hour"
+    elif time_range in ["7_days", "30_days"]:
+        date_trunc_unit = "day"
+    else:  # for 60_days, 90_days, and 180_days
+        date_trunc_unit = "month"
+
     time_range_mappings = {
-        "24_hours": {
-            "$group": {
-                "_id": {
-                    "$dateToString": {
-                        "format": "%Y-%m-%dT%H",
-                        "date": "$created_at",
-                    }
-                },
-                "latency": {
-                    "$sum": {
-                        "$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]
-                    }
-                },
-                "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
-                },
-                "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
-                },
-                "cost": {"$sum": "$cost"},
-                "total_tokens": {"$sum": "$token_total"},
-                "prompt_tokens": {"$sum": "$tokens_input"},
-                "completion_tokens": {"$sum": "$tokens_output"},
-            }
-        },
-        "30_days": {
-            "$group": {
-                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
-                "latency": {
-                    "$sum": {
-                        "$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]
-                    }
-                },
-                "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
-                },
-                "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
-                },
-                "cost": {"$sum": "$cost"},
-                "total_tokens": {"$sum": "$token_total"},
-                "prompt_tokens": {"$sum": "$tokens_input"},
-                "completion_tokens": {"$sum": "$tokens_output"},
-            }
-        },
-        "60_days": {
-            "$group": {
-                "_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
-                "latency": {
-                    "$sum": {
-                        "$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]
-                    }
-                },
-                "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
-                },
-                "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
-                },
-                "cost": {"$sum": "$cost"},
-                "total_tokens": {"$sum": "$token_total"},
-                "prompt_tokens": {"$sum": "$tokens_input"},
-                "completion_tokens": {"$sum": "$tokens_output"},
-            }
-        },
-        "90_days": {
-            "$group": {
-                "_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
-                "latency": {
-                    "$sum": {
-                        "$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]
-                    }
-                },
-                "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
-                },
-                "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
-                },
-                "cost": {"$sum": "$cost"},
-                "total_tokens": {"$sum": "$token_total"},
-                "prompt_tokens": {"$sum": "$tokens_input"},
-                "completion_tokens": {"$sum": "$tokens_output"},
-            }
-        },
-        "180_days": {
-            "$group": {
-                "_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
-                "latency": {
-                    "$sum": {
-                        "$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]
-                    }
-                },
-                "success_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
-                },
-                "failure_count": {
-                    "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
-                },
-                "cost": {"$sum": "$cost"},
-                "total_tokens": {"$sum": "$token_total"},
-                "prompt_tokens": {"$sum": "$tokens_input"},
-                "completion_tokens": {"$sum": "$tokens_output"},
-            }
-        },
+        "$group": {
+            "_id": {"$dateTrunc": {"date": "$created_at", "unit": date_trunc_unit}},
+            "latency": {"$sum": {"$divide": ["$duration", 1000]}},
+            "success_count": {
+                "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
+            },
+            "failure_count": {
+                "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
+            },
+            "cost": {"$sum": "$cost"},
+            "total_tokens": {"$sum": "$token_total"},
+            "prompt_tokens": {"$sum": "$tokens_input"},
+            "completion_tokens": {"$sum": "$tokens_output"},
+        }
     }
-    return time_range_mappings.get(time_range, None)
+
+    return time_range_mappings
 
 
 def filter_observability_dashboard_spans_db_by_filters(
