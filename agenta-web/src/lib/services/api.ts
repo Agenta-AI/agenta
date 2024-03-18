@@ -12,7 +12,6 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
-    DeploymentRevisions,
     DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
@@ -25,6 +24,7 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
+import {LlmProvider} from "../helpers/llmProviders"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 import {dynamicContext} from "../helpers/dynamic"
 /**
@@ -598,7 +598,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: Array<{title: string; key: string; name: string}>
+    providerKey: Array<LlmProvider>
     templateId: string
     timeout?: number
     onStatusChange?: (
@@ -609,7 +609,7 @@ export const createAndStartTemplate = async ({
 }) => {
     const apiKeys = providerKey.reduce(
         (acc, {key, name}) => {
-            acc[name] = key
+            if (key) acc[name] = key
             return acc
         },
         {} as Record<string, string>,
