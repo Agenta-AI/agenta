@@ -240,6 +240,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "status",
                 minWidth: 185,
+                pinned: "right",
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
                     statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
