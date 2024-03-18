@@ -1,5 +1,15 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, theme} from "antd"
+import {
+    Breadcrumb,
+    Button,
+    ConfigProvider,
+    Dropdown,
+    Layout,
+    Modal,
+    Space,
+    Tooltip,
+    theme,
+} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -117,7 +127,7 @@ type LayoutProps = {
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
-    const {currentApp} = useAppsData()
+    const {currentApp, setModalInstance} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
@@ -126,6 +136,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
+    const [modal, contextHolder] = Modal.useModal()
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -192,6 +203,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
             }
         }
         githubRepo()
+
+        setModalInstance(modal)
     }, [])
 
     useEffect(() => {
@@ -250,7 +263,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             }}
                                         >
                                             <a onClick={(e) => e.preventDefault()}>
-                                                <Tooltip title="Change theme">
+                                                <Tooltip title="Change theme" placement="left">
                                                     <Image
                                                         alt={`Curren Theme: ${
                                                             isDarkTheme ? "dark" : "light"
@@ -284,6 +297,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 </Space>
                                 <ErrorBoundary FallbackComponent={ErrorFallback}>
                                     {children}
+                                    {contextHolder}
                                 </ErrorBoundary>
                             </Content>
                             <Footer ref={footerRef} className={classes.footer}>

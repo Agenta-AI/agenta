@@ -1,4 +1,3 @@
-import os
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -12,7 +11,6 @@ from agenta_backend.routers import (
     human_evaluation_router,
     evaluators_router,
     observability_router,
-    organization_router,
     testset_router,
     user_profile,
     variants_router,
@@ -20,10 +18,11 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
+from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.open_api import open_api_tags_metadata
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.services import templates_manager
 else:
     from agenta_backend.services import templates_manager
@@ -48,12 +47,12 @@ celery_app.config_from_object(celery_config)
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
     """
+    Lifespan initializes the database engine and load the default llm templates.
 
     Args:
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    # initialize the database
     await DBEngine().init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
@@ -71,12 +70,12 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
-if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+if not isCloudEE():
     from agenta_backend.services.auth_helper import authentication_middleware
 
     app.middleware("http")(authentication_middleware)
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     import agenta_backend.cloud.main as cloud
 
     app, allow_headers = cloud.extend_main(app)
@@ -102,13 +101,10 @@ app.include_router(
 app.include_router(
     observability_router.router, prefix="/observability", tags=["Observability"]
 )
-app.include_router(
-    organization_router.router, prefix="/organizations", tags=["Organizations"]
-)
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     import agenta_backend.cloud.main as cloud
 
     app = cloud.extend_app_schema(app)

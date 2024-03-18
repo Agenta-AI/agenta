@@ -20,6 +20,7 @@ import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
+import bracketCurlyImg from "@/media/bracket-curly.png"
 import dayjs from "dayjs"
 import {loadTestset} from "@/lib/services/api"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
@@ -40,6 +41,7 @@ const evaluatorIconsMap = {
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
+    auto_contains_json: bracketCurlyImg,
 }
 
 //Evaluators
@@ -207,7 +209,7 @@ export const updateAnnotationScenario = async (
 // Comparison
 export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
-    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation.testset.id)
+    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
     scenarioGroups.forEach((group) => {
@@ -266,4 +268,22 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
         testset,
         evaluations: scenarioGroups.map((group) => group[0].evaluation),
     }
+}
+
+// Evaluation IDs by resource
+export const fetchEvaluatonIdsByResource = async ({
+    resourceIds,
+    resourceType,
+    appId,
+}: {
+    resourceIds: string[]
+    resourceType: "testset" | "evaluator_config" | "variant"
+    appId: string
+}) => {
+    return axios.get(`/api/evaluations/by_resource`, {
+        params: {resource_ids: resourceIds, resource_type: resourceType, app_id: appId},
+        paramsSerializer: {
+            indexes: null, //no brackets in query params
+        },
+    })
 }

@@ -8,14 +8,16 @@ import {
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/services/evaluations"
-import {EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
+import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Divider, Form, Input, InputNumber, Modal, Radio, Switch, Tooltip, theme} from "antd"
+import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
+import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {ColumnsType} from "antd/es/table"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -42,10 +44,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             borderLeft: `1px solid ${theme.colorPrimary}`,
         },
     },
-    radioBtn: {
+    evalNameContainer: {
         display: "flex",
         alignItems: "center",
-        gap: "0.325rem",
     },
     divider: {
         margin: "1rem -1.5rem",
@@ -55,6 +56,54 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
+    },
+    ExternalHelp: {
+        marginBottom: "20px",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.3em",
+    },
+    ExternalHelpLink: {
+        margin: "0px",
+        padding: "0px",
+        textDecoration: "underline",
+        color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+
+        "&:hover": {
+            color: theme.isDark ? "rgba(255, 255, 255, 0.85)" : "#000",
+            textDecoration: "underline",
+        },
+    },
+    evaluatorsTable: {
+        maxHeight: 550,
+        overflowY: "scroll",
+        margin: "2rem 0 1rem",
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        "& .ant-table-thead": {
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+        },
+    },
+    evalModalBtns: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        width: "100%",
+        justifyContent: "flex-end",
+    },
+    evalBtnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+    },
+    searchContainer: {
+        marginTop: "1rem",
+        width: "100%",
+        display: "flex",
+        justifyContent: "flex-end",
     },
 }))
 
@@ -81,49 +130,69 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     isValidRegex(value) ? res("") : rej("Regex pattern is not valid"),
                 ),
         })
+
+    const ExternalHelpInfo =
+        name[1] === "webhook_url" ? (
+            <div className={classes.ExternalHelp}>
+                <span>Learn</span>
+                <Link
+                    href="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={classes.ExternalHelpLink}
+                >
+                    more
+                </Link>
+                <span>about the evaluator</span>
+            </div>
+        ) : null
+
     return (
-        <Form.Item
-            name={name}
-            label={
-                <div className={classes.label}>
-                    <span>{label}</span>
-                    {description && (
-                        <Tooltip title={description}>
-                            <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                        </Tooltip>
-                    )}
-                </div>
-            }
-            initialValue={defaultVal}
-            rules={rules}
-        >
-            {type === "string" || type === "regex" ? (
-                <Input />
-            ) : type === "number" ? (
-                <InputNumber min={0} max={1} step={0.1} />
-            ) : type === "boolean" || type === "bool" ? (
-                <Switch />
-            ) : type === "text" ? (
-                <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-            ) : type === "code" ? (
-                <Editor
-                    className={classes.editor}
-                    height={400}
-                    width="100%"
-                    language="python"
-                    theme={`vs-${appTheme}`}
-                />
-            ) : type === "object" ? (
-                <Editor
-                    className={classes.editor}
-                    height={120}
-                    width="100%"
-                    language="json"
-                    options={{lineNumbers: "off"}}
-                    theme={`vs-${appTheme}`}
-                />
-            ) : null}
-        </Form.Item>
+        <>
+            <Form.Item
+                name={name}
+                label={
+                    <div className={classes.label}>
+                        <span>{label}</span>
+                        {description && (
+                            <Tooltip title={description}>
+                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                            </Tooltip>
+                        )}
+                    </div>
+                }
+                initialValue={defaultVal}
+                rules={rules}
+            >
+                {type === "string" || type === "regex" ? (
+                    <Input />
+                ) : type === "number" ? (
+                    <InputNumber min={0} max={1} step={0.1} />
+                ) : type === "boolean" || type === "bool" ? (
+                    <Switch />
+                ) : type === "text" ? (
+                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                ) : type === "code" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={400}
+                        width="100%"
+                        language="python"
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : type === "object" ? (
+                    <Editor
+                        className={classes.editor}
+                        height={120}
+                        width="100%"
+                        language="json"
+                        options={{lineNumbers: "off"}}
+                        theme={`vs-${appTheme}`}
+                    />
+                ) : null}
+            </Form.Item>
+            {ExternalHelpInfo}
+        </>
     )
 }
 
@@ -131,20 +200,39 @@ type Props = {
     onSuccess?: () => void
     initialValues?: EvaluatorConfig
     editMode?: boolean
+    setNewEvalModalOpen: (value: React.SetStateAction<boolean>) => void
+    newEvalModalConfigOpen: boolean
+    setNewEvalModalConfigOpen: React.Dispatch<React.SetStateAction<boolean>>
 } & React.ComponentProps<typeof Modal>
 
 const NewEvaluatorModal: React.FC<Props> = ({
     onSuccess,
     editMode = false,
     initialValues,
+    setNewEvalModalOpen,
+    newEvalModalConfigOpen,
+    setNewEvalModalConfigOpen,
     ...props
 }) => {
     const classes = useStyles()
     const evaluators = useAtom(evaluatorsAtom)[0].filter((item) => !item.direct_use)
     const [selectedEval, setSelectedEval] = useState<Evaluator | null>(null)
     const [submitLoading, setSubmitLoading] = useState(false)
+    const [searchTerm, setSearchTerm] = useState<string>("")
     const appId = useAppId()
     const [form] = Form.useForm()
+
+    const filtered = useMemo(() => {
+        if (!searchTerm) return evaluators
+        return evaluators.filter((item) =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+    }, [searchTerm, evaluators])
+
+    const handleCloseModal = () => {
+        setSearchTerm("")
+        setNewEvalModalOpen(false)
+    }
 
     const evalFields = useMemo(
         () =>
@@ -159,15 +247,22 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
     useEffect(() => {
         form.resetFields()
-        if (initialValues) form.setFieldsValue(initialValues)
-        setSelectedEval(
-            evaluators.find((item) => item.key === initialValues?.evaluator_key) || null,
-        )
-    }, [props.open])
+        if (initialValues) {
+            form.setFieldsValue(initialValues)
+            setSelectedEval(
+                evaluators.find((item) => item.key === initialValues?.evaluator_key) || null,
+            )
+        }
+    }, [newEvalModalConfigOpen])
 
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
-        const data = {...values, settings_values: values.settings_values || {}}
+        if (!selectedEval?.key) throw new Error("No selected key")
+        const data = {
+            ...values,
+            evaluator_key: selectedEval.key,
+            settings_values: values.settings_values || {},
+        }
         ;(editMode
             ? updateEvaluatorConfig(initialValues?.id!, data)
             : createEvaluatorConfig(appId, data)
@@ -177,75 +272,190 @@ const NewEvaluatorModal: React.FC<Props> = ({
             .finally(() => setSubmitLoading(false))
     }
 
+    const columns: ColumnsType<Evaluator> = [
+        {
+            title: "Name",
+            dataIndex: "name",
+            key: "name",
+            width: 200,
+            render(_, record) {
+                return (
+                    <>
+                        <div className={classes.evalNameContainer}>
+                            {record.icon_url && (
+                                <Image
+                                    src={record.icon_url}
+                                    alt="Exact match"
+                                    className={classes.evaluationImg}
+                                />
+                            )}
+                            <span>{record.name}</span>
+                        </div>
+                    </>
+                )
+            },
+        },
+        {
+            title: "Type",
+            dataIndex: "type",
+            key: "type",
+            render(_, record) {
+                const template = Object.keys(record?.settings_template || {})
+                    .filter((key) => !!record?.settings_template[key]?.type)
+                    .map((key) => ({
+                        key,
+                        ...record?.settings_template[key]!,
+                    }))
+
+                return (
+                    <>
+                        <Tag color={record.color}>{template[0].type}</Tag>
+                    </>
+                )
+            },
+        },
+        {
+            title: "Description",
+            dataIndex: "description",
+            key: "description",
+            render(_, record) {
+                return (
+                    <>
+                        <div>{record.description}</div>
+                    </>
+                )
+            },
+        },
+    ]
+
     return (
-        <Modal
-            title="New Evaluator"
-            onOk={form.submit}
-            okText={editMode ? "Update" : "Create"}
-            okButtonProps={{
-                icon: editMode ? <EditOutlined /> : <PlusOutlined />,
-                loading: submitLoading,
-            }}
-            width={650}
-            {...props}
-        >
-            <Divider className={classes.divider} />
-            <Form
-                requiredMark={false}
-                form={form}
-                name="new-evaluator"
-                onFinish={onSubmit}
-                layout="vertical"
+        <>
+            <Modal
+                title="New Evaluator"
+                data-cy="new-evaluator-modal"
+                width={1000}
+                footer={null}
+                onCancel={handleCloseModal}
+                {...props}
             >
-                <Form.Item
-                    name="name"
-                    label="Name"
-                    rules={[{required: true, message: "This field is required"}]}
-                >
-                    <Input data-cy="new-evaluator-modal-input" />
-                </Form.Item>
-                <Form.Item
-                    name="evaluator_key"
-                    label="Template"
-                    rules={[{required: true, message: "This field is required"}]}
-                >
-                    <Radio.Group
-                        disabled={editMode}
-                        onChange={(e) =>
-                            setSelectedEval(
-                                evaluators.find((item) => item.key === e.target.value) || null,
-                            )
-                        }
-                        className={classes.radioGroup}
-                    >
-                        {evaluators.map((evaluator, index) => (
-                            <Radio.Button key={evaluator.key} value={evaluator.key}>
-                                <div
-                                    className={classes.radioBtn}
-                                    data-cy={`new-evaluator-modal-button-${index}`}
-                                >
-                                    {evaluator.icon_url && (
-                                        <Image
-                                            src={evaluator.icon_url}
-                                            alt="Exact match"
-                                            className={classes.evaluationImg}
-                                        />
-                                    )}
-                                    <span>{evaluator.name}</span>
-                                </div>
-                            </Radio.Button>
-                        ))}
-                    </Radio.Group>
-                </Form.Item>
-                {evalFields.map((field) => (
-                    <DynamicFormField
-                        {...field}
-                        key={field.key}
-                        name={["settings_values", field.key]}
+                <div className={classes.searchContainer}>
+                    <Input.Search
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search"
+                        allowClear
+                        enterButton
+                        style={{
+                            maxWidth: 300,
+                        }}
                     />
-                ))}
-            </Form>
-        </Modal>
+                </div>
+                <Table
+                    pagination={false}
+                    columns={columns}
+                    dataSource={filtered}
+                    className={classes.evaluatorsTable}
+                    onRow={(data, index) => {
+                        return {
+                            onClick: () => {
+                                setNewEvalModalOpen(false)
+                                setNewEvalModalConfigOpen(true)
+                                setSelectedEval(data)
+                            },
+                            style: {
+                                cursor: "pointer",
+                            },
+                            "data-cy": `select-new-evaluator-${index}`,
+                        }
+                    }}
+                />
+            </Modal>
+
+            <Modal
+                open={newEvalModalConfigOpen}
+                onCancel={() => {
+                    setNewEvalModalConfigOpen(false)
+                }}
+                destroyOnClose
+                onOk={form.submit}
+                title={
+                    editMode
+                        ? `${
+                              selectedEval?.name
+                                  ? `Edit the ${selectedEval.name} evaluator`
+                                  : "Edit your evaluator"
+                          }`
+                        : `${
+                              selectedEval?.name
+                                  ? `Configure the ${selectedEval.name} evaluator`
+                                  : "Configure your evaluator"
+                          }`
+                }
+                footer={null}
+                data-cy="configure-new-evaluator-modal"
+                width={selectedEval?.key === "auto_custom_code_run" ? 800 : 600}
+            >
+                <Form
+                    requiredMark={false}
+                    form={form}
+                    name="new-evaluator"
+                    onFinish={onSubmit}
+                    layout="vertical"
+                >
+                    <Form.Item
+                        name="name"
+                        label="Name"
+                        rules={[{required: true, message: "This field is required"}]}
+                    >
+                        <Input data-cy="configure-new-evaluator-modal-input" />
+                    </Form.Item>
+
+                    {evalFields.map((field) => (
+                        <DynamicFormField
+                            {...field}
+                            key={field.key}
+                            name={["settings_values", field.key]}
+                        />
+                    ))}
+
+                    <Form.Item style={{marginBottom: 0}}>
+                        <div className={classes.evalBtnContainer}>
+                            {!editMode && (
+                                <Button
+                                    icon={<ArrowLeftOutlined />}
+                                    onClick={() => {
+                                        setNewEvalModalConfigOpen(false)
+                                        setNewEvalModalOpen(true)
+                                    }}
+                                    data-cy="configure-new-evaluator-modal-back-btn"
+                                >
+                                    Back
+                                </Button>
+                            )}
+
+                            <div className={classes.evalModalBtns}>
+                                <Button
+                                    type="default"
+                                    onClick={() => setNewEvalModalConfigOpen(false)}
+                                    data-cy="configure-new-evaluator-modal-cancel-btn"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    icon={editMode ? <EditOutlined /> : <PlusOutlined />}
+                                    loading={submitLoading}
+                                    onClick={form.submit}
+                                    data-cy="configure-new-evaluator-modal-save-btn"
+                                >
+                                    {editMode ? "Update" : "Save"}
+                                </Button>
+                            </div>
+                        </div>
+                    </Form.Item>
+                </Form>
+            </Modal>
+        </>
     )
 }
 

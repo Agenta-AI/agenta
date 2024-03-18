@@ -1,5 +1,4 @@
 import {v4 as uuidv4} from "uuid"
-import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
@@ -8,43 +7,12 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import {notification} from "antd"
 import Router from "next/router"
+import {getAllProviderLlmKeys, getApikeys} from "./llmProviders"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
     if (!window.Cypress) {
         dayjs.extend(utc)
-    }
-}
-
-const llmAvailableProvidersToken = "llmAvailableProvidersToken"
-
-export type LlmProvider = {
-    title: string
-    key: string
-    name: string
-}
-
-export const llmAvailableProviders: LlmProvider[] = [
-    {title: "OpenAI", key: "", name: "OPENAI_API_KEY"},
-    {title: "Replicate", key: "", name: "REPLICATE_API_KEY"},
-    {title: "Hugging Face", key: "", name: "HUGGING_FACE_API_KEY"},
-    {title: "Cohere", key: "", name: "COHERE_API_KEY"},
-    {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
-    {title: "Azure API Key", key: "", name: "AZURE_API_KEY"},
-    {title: "Azure API Base", key: "", name: "AZURE_API_BASE"},
-    {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
-]
-
-export const getAllLlmProviderKeysAsEnvVariable = () => {
-    return {
-        OPENAI_API_KEY: getLlmProviderKey("OpenAI"),
-        REPLICATE_API_KEY: getLlmProviderKey("Replicate"),
-        HUGGING_FACE_API_KEY: getLlmProviderKey("Hugging Face"),
-        COHERE_API_KEY: getLlmProviderKey("Cohere"),
-        ANTHROPIC_API_KEY: getLlmProviderKey("Anthropic"),
-        AZURE_API_KEY: getLlmProviderKey("Azure API Key"),
-        AZURE_API_BASE: getLlmProviderKey("Azure API Base"),
-        TOGETHERAI_API_KEY: getLlmProviderKey("TogetherAI"),
     }
 }
 
@@ -77,94 +45,15 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.single_model_test]: "Single Model Test",
 }
 
-export const getApikeys = () => {
-    if (typeof window !== "undefined") {
-        const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
-        let apiKeys: Array<{title: string; key: string; name: string}> = []
-
-        if (llmAvailableProvidersTokenString !== null) {
-            const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
-
-            if (
-                Array.isArray(llmAvailableProvidersTokenArray) &&
-                llmAvailableProvidersTokenArray.length > 0
-            ) {
-                for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
-                    if (llmAvailableProvidersTokenArray[i].key !== "") {
-                        apiKeys.push(llmAvailableProvidersTokenArray[i])
-                    }
-                }
-            }
-        }
-        return apiKeys
-    }
-}
-
 export const apiKeyObject = () => {
-    const apiKey = getApikeys()
+    const apiKeys = getAllProviderLlmKeys()
 
-    if (!apiKey) return {}
+    if (!apiKeys) return {}
 
-    return apiKey.reduce(
-        (acc, {key, name}) => {
-            acc[name] = key
-            return acc
-        },
-        {} as Record<string, string>,
-    )
-}
-
-export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
-    if (typeof window !== "undefined") {
-        // TODO: add encryption here
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = keyValue
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
-}
-
-export const getLlmProviderKey = (providerName: string) =>
-    getAllProviderLlmKeys().find((item: LlmProvider) => item.title === providerName)
-
-export const getAllProviderLlmKeys = () => {
-    if (typeof window !== "undefined") {
-        const inStorage = localStorage.getItem(llmAvailableProvidersToken)
-        if (inStorage) {
-            const parsedArray = JSON.parse(inStorage)
-            const updatedLlmAvailableProviders = parsedArray.map(
-                (item: LlmProvider, index: number) => {
-                    if (!item.hasOwnProperty("name")) {
-                        item.name = llmAvailableProviders[index].name
-                    }
-                    return item
-                },
-            )
-
-            localStorage.setItem(
-                llmAvailableProvidersToken,
-                JSON.stringify(updatedLlmAvailableProviders),
-            )
-
-            return updatedLlmAvailableProviders
-        }
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
-    }
-
-    return llmAvailableProviders
-}
-
-export const removeSingleLlmProviderKey = (providerIdx: number) => {
-    if (typeof window !== "undefined") {
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
-        keys[providerIdx].key = ""
-        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-    }
-}
-
-export const removeLlmProviderKey = () => {
-    if (typeof window !== "undefined") {
-        localStorage.removeItem(llmAvailableProvidersToken)
-    }
+    return apiKeys.reduce((acc: GenericObject, {key, name}: GenericObject) => {
+        if (key) acc[name] = key
+        return acc
+    }, {})
 }
 
 export const capitalize = (s: string) => {
@@ -214,33 +103,11 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
     return result
 }
 
-export const getInitials = (str: string, limit = 2) => {
-    let initialText = "E"
-
-    try {
-        initialText = str
-            ?.split(" ")
-            .slice(0, limit)
-            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
-    } catch (error) {
-        console.log("Error using getInitials", error)
-    }
-
-    return initialText
-}
-
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
         return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
-}
-
-export function dynamicComponent<T>(path: string, fallback: any = () => null) {
-    return dynamic<T>(() => import(`@/components/${path}`), {
-        loading: fallback,
-        ssr: false,
-    })
 }
 
 export const removeKeys = (obj: GenericObject, keys: string[]) => {
@@ -434,4 +301,11 @@ export const redirectIfNoLLMKeys = () => {
         return true
     }
     return false
+}
+
+export const snakeToTitle = (str: string) => {
+    return str
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
 }

@@ -309,6 +309,7 @@ export interface AppTemplate {
     template_id: string
     env_vars?: Record<string, string>
     organization_id?: string
+    workspace_id?: string
 }
 
 export type GenericObject = Record<string, any>
@@ -348,13 +349,6 @@ export interface User {
     uid: string
     username: string
     email: string
-}
-
-export interface Org {
-    id: string
-    name: string
-    description?: string
-    owner: string
 }
 
 export enum ChatRole {
@@ -397,6 +391,7 @@ export interface Evaluator {
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
+    description: string
 }
 
 export interface EvaluatorConfig {
