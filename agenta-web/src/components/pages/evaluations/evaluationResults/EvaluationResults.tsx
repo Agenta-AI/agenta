@@ -290,7 +290,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {!fetching && !evaluations.length ? (
                 <EmptyEvaluations
                     onConfigureEvaluators={() =>
-                        router.push(`/apps/${appId}/evaluations?tab=evaluators`)
+                        router.push(`/apps/${appId}/evaluations/new-evaluator`)
                     }
                     onBeginEvaluation={() => {
                         setNewEvalModalOpen(true)
