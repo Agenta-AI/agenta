@@ -326,8 +326,7 @@ class TracingEventTypes(BaseModel):
 
 class TraceDB(Document):
     app_id: str
-    base_id: str
-    config_name: str
+    variant_id: str
     trace_name: Optional[str]
     meta: Optional[Dict[str, Any]]
     start_time: datetime
