@@ -147,8 +147,7 @@ class UpdateFeedback(BaseModel):
 
 class BaseTrace(BaseModel):
     app_id: Optional[str]
-    base_id: Optional[str]
-    config_name: Optional[str]
+    variant_id: Optional[str]
     cost: Optional[float]
     status: str = Field(default=Status.INITIATED)
     token_consumption: Optional[int]
@@ -157,6 +156,9 @@ class BaseTrace(BaseModel):
 
 
 class CreateTrace(BaseTrace):
+    id: str
+    trace_name: str
+    inputs: Dict[str, Any]
     environment: Optional[str]
 
 
