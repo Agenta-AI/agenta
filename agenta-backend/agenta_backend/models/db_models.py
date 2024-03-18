@@ -319,11 +319,6 @@ class LLMTokens(BaseModel):
     total_tokens: int
 
 
-class LLMPrompts(BaseModel):
-    prompt_user: Optional[str]
-    prompt_system: str
-
-
 class TracingEventTypes(BaseModel):
     LLM_REQUEST = "llm_request"
     EMBEDDING = "embedding"
@@ -334,10 +329,10 @@ class TraceDB(Document):
     base_id: str
     config_name: str
     trace_name: Optional[str]
+    meta: Optional[Dict[str, Any]]
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
-    model: str
     inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
     variant_config: Dict[str, Any]
@@ -345,6 +340,7 @@ class TraceDB(Document):
     status: str  # initiated, completed, stopped, canceled, failed
     user: Optional[str]
     tags: Optional[List[str]]
+    token_consumption: Optional[int]
     feedbacks: Optional[List[Feedback]]
     created_at: datetime = Field(default=datetime.now())
 
@@ -359,11 +355,13 @@ class TraceDB(Document):
 class SpanDB(Document):
     trace: Link[TraceDB]
     parent_span_id: Optional[str]  # parent observability of span
+    meta: Optional[Dict[str, Any]]
     event_name: str  # Function or execution name
     event_type: Optional[TracingEventTypes]
     status: SpanStatus
     input: Optional[str]
     output: Optional[str]
+    model: str
     user: Optional[str]
     environment: Optional[str]  # request source -> playground, development, etc
     start_time: datetime
