@@ -513,7 +513,7 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
             status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
             metadata={
                 "cost": span_db.cost,
-                "latency": span_db.duration / 100,
+                "latency": span_db.duration,
                 "usage": span_db.meta,
             },
             user_id=str(span_db.trace.user.id),
@@ -542,7 +542,7 @@ async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
             status=SpanStatus(value=trace_db.status, error=None),
             metadata={
                 "cost": trace_db.cost,
-                "latency": trace_db.latency / 100,
+                "latency": trace_db.latency,
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
             user_id=str(trace_db.user.id),
