@@ -417,8 +417,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     }
 
     const onSaveData = async () => {
-        setIsLoading(true)
         try {
+            setIsLoading(true)
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
@@ -431,6 +431,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             if (mode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
+                    setIsLoading(false)
                 } else {
                     const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
@@ -445,6 +446,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         } catch (error) {
             console.error("Error saving test set:", error)
+            setIsLoading(false)
         }
     }
 
