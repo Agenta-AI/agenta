@@ -356,7 +356,6 @@ async def aggregate_evaluator_results(
             "auto_contains_all",
             "auto_contains_json",
             "auto_levenshtein_distance",
-            "auto_levenshtein_distance_threshold",
         ]:
             result = aggregation_service.aggregate_float(results)
 
