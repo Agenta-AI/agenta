@@ -13,12 +13,15 @@ ag.config.default(
 )
 
 
-@ag.span(ag.llm_tracing, event_type="llm_request")
+tracing = ag.llm_tracing()
+
+
+@ag.span(tracing, event_type="llm_request") # su types are: llm_request, embedding
 async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    ag.llm_tracing.set_span_attribute(model="gpt-3.5-turbo")
+    tracing.set_span_attribute(model="gpt-3.5-turbo")
     return {
         "message": chat_completion.choices[0].message.content,
         "usage": chat_completion.usage.dict(),
