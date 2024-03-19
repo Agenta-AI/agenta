@@ -30,6 +30,7 @@ class Span:
         self.end_time = Optional[datetime]
         self.input = input
         self.output = Optional[Dict[str, Any]]
+        self.cost = Optional[float]
         self.tokens = Optional[Dict[str, int]]
         self.attributes: Dict[str, Any] = kwargs
 
@@ -39,13 +40,14 @@ class Span:
     def end(self, output: Dict[str, Any]):
         self.end_time = datetime.now()
         self.output = output["message"]
+        self.cost = output.get("cost", None)
         self.tokens = output.get("usage", {})
 
     def __dict__(self):
         return {
             "trace_id": self.trace_id,
             "span_id": self.span_id,
-            "name": self.name,
+            "event_name": self.name,
             "event_type": self.event_type,
             "parent_span_id": self.parent_span_id,
             "start_time": self.start_time.isoformat() if self.start_time else None,
@@ -67,6 +69,13 @@ class Tracing(object):
         llm_logger (Logger): The logger associated with the LLM tracing
         max_workers (int): The maximum number of workers to run tracing
     """
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(
         self,
@@ -200,7 +209,7 @@ class Tracing(object):
         try:
             self.tasks_manager.add_task(
                 self.client.update_trace(
-                    id=self.active_trace,
+                    trace_id=self.active_trace,
                     status="COMPLETED",
                     end_time=datetime.now(),
                     outputs=outputs,
