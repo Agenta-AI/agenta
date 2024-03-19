@@ -30,6 +30,7 @@ evaluators = [
                 "description": "The threshold value for similarity comparison",
                 "min": 0,
                 "max": 1,
+                "required": True
             }
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
@@ -45,6 +46,7 @@ evaluators = [
                 "type": "regex",
                 "default": "",
                 "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
+                "required": True
             },
             "regex_should_match": {
                 "label": "Match/Mismatch",
@@ -64,6 +66,7 @@ evaluators = [
                 "type": "string",
                 "default": "",
                 "description": "The name of the field in the JSON output that you wish to evaluate",
+                "required": True
             }
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
@@ -78,6 +81,7 @@ evaluators = [
                 "type": "text",
                 "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
                 "description": "Template for AI critique prompts",
+                "required": True
             }
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
@@ -92,6 +96,7 @@ evaluators = [
                 "type": "code",
                 "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
                 "description": "Code for evaluating submissions",
+                "required": True
             }
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
@@ -105,6 +110,7 @@ evaluators = [
                 "label": "Webhook URL",
                 "type": "string",
                 "description": "https://your-webhook-url.com",
+                "required": True
             },
         },
         "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
@@ -137,6 +143,7 @@ evaluators = [
             "prefix": {
                 "label": "prefix",
                 "type": "string",
+                "required": True
             },
             "case_sensitive": {
                 "label": "Case Sensitive",
@@ -163,6 +170,7 @@ evaluators = [
                 "label": "suffix",
                 "type": "string",
                 "description": "The string to match at the end of the output.",
+                "required": True
             },
         },
         "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
@@ -184,6 +192,7 @@ evaluators = [
                 "label": "substring",
                 "type": "string",
                 "description": "The string to check if it is contained in the output.",
+                "required": True
             },
         },
         "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
@@ -205,6 +214,7 @@ evaluators = [
                 "label": "substrings",
                 "type": "string",
                 "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
+                "required": True
             },
         },
         "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
@@ -226,13 +236,14 @@ evaluators = [
                 "label": "substrings",
                 "type": "string",
                 "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
+                "required": True
             },
         },
         "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
     },
     {
-        "name": "Levenshtein",
-        "key": "auto_levenshtein_distance",
+        "name": "Levenshtein threshold",
+        "key": "auto_levenshtein_distance_threshold",
         "direct_use": False,
         "settings_template": {
             "label": "Levenshtein Distance Settings",
@@ -241,6 +252,7 @@ evaluators = [
                 "label": "Threshold",
                 "type": "number",
                 "default": 10,
+                "required": False
             },
         },
         "description": "Levenshtein Distance evaluator checks if the Levenshtein distance between the output and the correct answer is below a specified threshold.",

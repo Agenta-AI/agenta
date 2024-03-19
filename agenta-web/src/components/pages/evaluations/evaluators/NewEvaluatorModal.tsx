@@ -300,25 +300,6 @@ const NewEvaluatorModal: React.FC<Props> = ({
             },
         },
         {
-            title: "Type",
-            dataIndex: "type",
-            key: "type",
-            render(_, record) {
-                const template = Object.keys(record?.settings_template || {})
-                    .filter((key) => !!record?.settings_template[key]?.type)
-                    .map((key) => ({
-                        key,
-                        ...record?.settings_template[key]!,
-                    }))
-
-                return (
-                    <>
-                        <Tag color={record.color}>{template[0].type}</Tag>
-                    </>
-                )
-            },
-        },
-        {
             title: "Description",
             dataIndex: "description",
             key: "description",
