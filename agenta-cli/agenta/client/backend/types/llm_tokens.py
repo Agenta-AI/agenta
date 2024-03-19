@@ -4,7 +4,6 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .observability_data import ObservabilityData
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -12,30 +11,17 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class ObservabilityDashboardData(pydantic.BaseModel):
-    data: typing.List[ObservabilityData]
-    total_count: int
-    failure_rate: float
-    total_cost: float
-    avg_cost: float
-    avg_latency: float
+class LlmTokens(pydantic.BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
     total_tokens: int
-    avg_tokens: int
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:

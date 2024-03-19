@@ -52,16 +52,8 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -95,9 +87,7 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -111,9 +101,7 @@ class TestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -138,9 +126,7 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -175,9 +161,7 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -215,9 +199,7 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -334,16 +316,8 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -377,9 +351,7 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -393,9 +365,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    async def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -420,9 +390,7 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -457,9 +425,7 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -473,9 +439,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_testset(
-        self, testset_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    async def update_testset(self, testset_id: str, *, request: NewTestset) -> typing.Any:
         """
         Update a testset with given id, update the testset in MongoDB.
 
@@ -499,9 +463,7 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -553,9 +515,7 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_testsets(
-        self, *, testset_ids: typing.List[str]
-    ) -> typing.List[str]:
+    async def delete_testsets(self, *, testset_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific testsets based on their unique IDs.
 

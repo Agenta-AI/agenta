@@ -12,9 +12,10 @@ from ...core.remove_none_from_dict import remove_none_from_dict
 from ...errors.unprocessable_entity_error import UnprocessableEntityError
 from ...types.feedback import Feedback
 from ...types.http_validation_error import HttpValidationError
-from ...types.observability_dashboard_data import ObservabilityDashboardData
+from ...types.llm_tokens import LlmTokens
 from ...types.span_detail import SpanDetail
 from ...types.span_status import SpanStatus
+from ...types.trace_detail import TraceDetail
 from ...types.with_pagination import WithPagination
 
 try:
@@ -33,48 +34,37 @@ class ObservabilityClient:
     def dashboard(
         self,
         *,
-        start_time: typing.Optional[int] = None,
-        end_time: typing.Optional[int] = None,
+        app_id: str,
+        time_range: typing.Optional[str] = None,
         environment: typing.Optional[str] = None,
         variant: typing.Optional[str] = None,
-        app_id: typing.Optional[str] = None,
-    ) -> ObservabilityDashboardData:
+    ) -> typing.Any:
         """
         Parameters:
-            - start_time: typing.Optional[int].
+            - app_id: str.
 
-            - end_time: typing.Optional[int].
+            - time_range: typing.Optional[str].
 
             - environment: typing.Optional[str].
 
             - variant: typing.Optional[str].
-
-            - app_id: typing.Optional[str].
         ---
         from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.dashboard()
+        client.dashboard(app_id="app_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
             params=remove_none_from_dict(
-                {
-                    "startTime": start_time,
-                    "endTime": end_time,
-                    "environment": environment,
-                    "variant": variant,
-                    "appId": app_id,
-                }
+                {"app_id": app_id, "timeRange": time_range, "environment": environment, "variant": variant}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ObservabilityDashboardData, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -83,84 +73,14 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_trace(
-        self,
-        *,
-        app_id: typing.Optional[str] = OMIT,
-        base_id: typing.Optional[str] = OMIT,
-        config_name: typing.Optional[str] = OMIT,
-        cost: typing.Optional[float] = OMIT,
-        status: typing.Optional[str] = OMIT,
-        token_consumption: typing.Optional[int] = OMIT,
-        tags: typing.Optional[typing.List[str]] = OMIT,
-        start_time: typing.Optional[dt.datetime] = OMIT,
-    ) -> str:
-        """
-        Parameters:
-            - app_id: typing.Optional[str].
-
-            - base_id: typing.Optional[str].
-
-            - config_name: typing.Optional[str].
-
-            - cost: typing.Optional[float].
-
-            - status: typing.Optional[str].
-
-            - token_consumption: typing.Optional[int].
-
-            - tags: typing.Optional[typing.List[str]].
-
-            - start_time: typing.Optional[dt.datetime].
-        ---
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_trace()
-        """
-        _request: typing.Dict[str, typing.Any] = {}
-        if app_id is not OMIT:
-            _request["app_id"] = app_id
-        if base_id is not OMIT:
-            _request["base_id"] = base_id
-        if config_name is not OMIT:
-            _request["config_name"] = config_name
-        if cost is not OMIT:
-            _request["cost"] = cost
-        if status is not OMIT:
-            _request["status"] = status
-        if token_consumption is not OMIT:
-            _request["token_consumption"] = token_consumption
-        if tags is not OMIT:
-            _request["tags"] = tags
-        if start_time is not OMIT:
-            _request["start_time"] = start_time
-        _response = self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
-            ),
-            json=jsonable_encoder(_request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def get_spans_of_generation(
+    def get_traces(
         self,
         *,
         app_id: str,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         type: typing.Optional[str] = None,
+        trace_id: typing.Optional[str] = None,
         environment: typing.Optional[str] = None,
         variant: typing.Optional[str] = None,
         created_at: typing.Optional[str] = None,
@@ -175,6 +95,8 @@ class ObservabilityClient:
 
             - type: typing.Optional[str].
 
+            - trace_id: typing.Optional[str].
+
             - environment: typing.Optional[str].
 
             - variant: typing.Optional[str].
@@ -184,19 +106,18 @@ class ObservabilityClient:
         from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_spans_of_generation(app_id="app_id")
+        client.get_traces(app_id="app_id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
             params=remove_none_from_dict(
                 {
                     "app_id": app_id,
                     "page": page,
                     "pageSize": page_size,
                     "type": type,
+                    "trace_id": trace_id,
                     "environment": environment,
                     "variant": variant,
                     "created_at": created_at,
@@ -215,6 +136,174 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def create_trace(
+        self,
+        *,
+        app_id: typing.Optional[str] = OMIT,
+        variant_id: typing.Optional[str] = OMIT,
+        cost: typing.Optional[float] = OMIT,
+        status: typing.Optional[str] = OMIT,
+        token_consumption: typing.Optional[int] = OMIT,
+        tags: typing.Optional[typing.List[str]] = OMIT,
+        start_time: typing.Optional[dt.datetime] = OMIT,
+        id: str,
+        trace_name: str,
+        inputs: typing.Dict[str, typing.Any],
+        environment: typing.Optional[str] = OMIT,
+    ) -> str:
+        """
+        Parameters:
+            - app_id: typing.Optional[str].
+
+            - variant_id: typing.Optional[str].
+
+            - cost: typing.Optional[float].
+
+            - status: typing.Optional[str].
+
+            - token_consumption: typing.Optional[int].
+
+            - tags: typing.Optional[typing.List[str]].
+
+            - start_time: typing.Optional[dt.datetime].
+
+            - id: str.
+
+            - trace_name: str.
+
+            - inputs: typing.Dict[str, typing.Any].
+
+            - environment: typing.Optional[str].
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.create_trace(id="id", trace_name="trace_name", inputs={})
+        """
+        _request: typing.Dict[str, typing.Any] = {"id": id, "trace_name": trace_name, "inputs": inputs}
+        if app_id is not OMIT:
+            _request["app_id"] = app_id
+        if variant_id is not OMIT:
+            _request["variant_id"] = variant_id
+        if cost is not OMIT:
+            _request["cost"] = cost
+        if status is not OMIT:
+            _request["status"] = status
+        if token_consumption is not OMIT:
+            _request["token_consumption"] = token_consumption
+        if tags is not OMIT:
+            _request["tags"] = tags
+        if start_time is not OMIT:
+            _request["start_time"] = start_time
+        if environment is not OMIT:
+            _request["environment"] = environment
+        _response = self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            json=jsonable_encoder(_request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def delete_traces(self, *, request: typing.List[str]) -> bool:
+        """
+        Parameters:
+            - request: typing.List[str].
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_traces(request=["string"])
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_spans_of_generation(
+        self,
+        *,
+        app_id: str,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+        type: typing.Optional[str] = None,
+        trace_id: typing.Optional[str] = None,
+        environment: typing.Optional[str] = None,
+        variant: typing.Optional[str] = None,
+        created_at: typing.Optional[str] = None,
+    ) -> typing.Any:
+        """
+        Parameters:
+            - app_id: str.
+
+            - page: typing.Optional[int].
+
+            - page_size: typing.Optional[int].
+
+            - type: typing.Optional[str].
+
+            - trace_id: typing.Optional[str].
+
+            - environment: typing.Optional[str].
+
+            - variant: typing.Optional[str].
+
+            - created_at: typing.Optional[str].
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_spans_of_generation(app_id="app_id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            params=remove_none_from_dict(
+                {
+                    "app_id": app_id,
+                    "page": page,
+                    "pageSize": page_size,
+                    "type": type,
+                    "trace_id": trace_id,
+                    "environment": environment,
+                    "variant": variant,
+                    "created_at": created_at,
+                }
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     def create_span(
         self,
         *,
@@ -225,16 +314,14 @@ class ObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
-        inputs: typing.Optional[typing.List[str]] = OMIT,
-        outputs: typing.Optional[typing.List[str]] = OMIT,
-        prompt_system: typing.Optional[str] = OMIT,
-        prompt_user: typing.Optional[str] = OMIT,
-        tokens_input: typing.Optional[int] = OMIT,
-        tokens_output: typing.Optional[int] = OMIT,
-        token_total: typing.Optional[int] = OMIT,
+        input: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+        output: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
-        tags: typing.Optional[typing.List[str]] = OMIT,
         trace_id: str,
+        span_id: str,
+        environment: typing.Optional[str] = OMIT,
+        end_time: dt.datetime,
+        tokens: typing.Optional[LlmTokens] = OMIT,
     ) -> str:
         """
         Parameters:
@@ -252,36 +339,42 @@ class ObservabilityClient:
 
             - status: SpanStatus.
 
-            - inputs: typing.Optional[typing.List[str]].
+            - input: typing.Optional[typing.Dict[str, typing.Any]].
 
-            - outputs: typing.Optional[typing.List[str]].
-
-            - prompt_system: typing.Optional[str].
-
-            - prompt_user: typing.Optional[str].
-
-            - tokens_input: typing.Optional[int].
-
-            - tokens_output: typing.Optional[int].
-
-            - token_total: typing.Optional[int].
+            - output: typing.Optional[str].
 
             - cost: typing.Optional[float].
 
-            - tags: typing.Optional[typing.List[str]].
-
             - trace_id: str.
+
+            - span_id: str.
+
+            - environment: typing.Optional[str].
+
+            - end_time: dt.datetime.
+
+            - tokens: typing.Optional[LlmTokens].
         ---
+        import datetime
+
         from agenta import SpanStatus
         from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
+        client.create_span(
+            event_name="event_name",
+            status=SpanStatus(),
+            trace_id="trace_id",
+            span_id="span_id",
+            end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00"),
+        )
         """
         _request: typing.Dict[str, typing.Any] = {
             "event_name": event_name,
             "status": status,
             "trace_id": trace_id,
+            "span_id": span_id,
+            "end_time": end_time,
         }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
@@ -293,29 +386,19 @@ class ObservabilityClient:
             _request["start_time"] = start_time
         if duration is not OMIT:
             _request["duration"] = duration
-        if inputs is not OMIT:
-            _request["inputs"] = inputs
-        if outputs is not OMIT:
-            _request["outputs"] = outputs
-        if prompt_system is not OMIT:
-            _request["prompt_system"] = prompt_system
-        if prompt_user is not OMIT:
-            _request["prompt_user"] = prompt_user
-        if tokens_input is not OMIT:
-            _request["tokens_input"] = tokens_input
-        if tokens_output is not OMIT:
-            _request["tokens_output"] = tokens_output
-        if token_total is not OMIT:
-            _request["token_total"] = token_total
+        if input is not OMIT:
+            _request["input"] = input
+        if output is not OMIT:
+            _request["output"] = output
         if cost is not OMIT:
             _request["cost"] = cost
-        if tags is not OMIT:
-            _request["tags"] = tags
+        if environment is not OMIT:
+            _request["environment"] = environment
+        if tokens is not OMIT:
+            _request["tokens"] = tokens
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -330,9 +413,100 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_span_of_generation(
-        self, span_id: str, *, type: typing.Optional[str] = None
-    ) -> SpanDetail:
+    def delete_spans_of_trace(self, *, request: typing.List[str]) -> bool:
+        """
+        Parameters:
+            - request: typing.List[str].
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.delete_spans_of_trace(request=["string"])
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_trace_detail(self, trace_id: str) -> TraceDetail:
+        """
+        Parameters:
+            - trace_id: str.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_trace_detail(trace_id="trace_id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(TraceDetail, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_trace(self, trace_id: str, *, status: str, end_time: dt.datetime, outputs: typing.List[str]) -> bool:
+        """
+        Parameters:
+            - trace_id: str.
+
+            - status: str.
+
+            - end_time: dt.datetime.
+
+            - outputs: typing.List[str].
+        ---
+        import datetime
+
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.update_trace(
+            trace_id="trace_id",
+            status="status",
+            end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00"),
+            outputs=["outputs"],
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "PUT",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            json=jsonable_encoder({"status": status, "end_time": end_time, "outputs": outputs}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
@@ -346,85 +520,13 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{span_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(SpanDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def delete_span_of_trace(self, span_id: str) -> bool:
-        """
-        Parameters:
-            - span_id: str.
-        ---
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.delete_span_of_trace(span_id="span_id")
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{span_id}",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def update_trace(
-        self, trace_id: str, *, status: str, end_time: dt.datetime
-    ) -> bool:
-        """
-        Parameters:
-            - trace_id: str.
-
-            - status: str.
-
-            - end_time: dt.datetime.
-        ---
-        import datetime
-
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.update_trace(
-            trace_id="trace_id", status="status", end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00")
-        )
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
-            json=jsonable_encoder({"status": status, "end_time": end_time}),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -445,10 +547,7 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -494,10 +593,7 @@ class ObservabilityClient:
             _request["meta"] = meta
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -527,8 +623,7 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -577,8 +672,7 @@ class ObservabilityClient:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -602,48 +696,37 @@ class AsyncObservabilityClient:
     async def dashboard(
         self,
         *,
-        start_time: typing.Optional[int] = None,
-        end_time: typing.Optional[int] = None,
+        app_id: str,
+        time_range: typing.Optional[str] = None,
         environment: typing.Optional[str] = None,
         variant: typing.Optional[str] = None,
-        app_id: typing.Optional[str] = None,
-    ) -> ObservabilityDashboardData:
+    ) -> typing.Any:
         """
         Parameters:
-            - start_time: typing.Optional[int].
+            - app_id: str.
 
-            - end_time: typing.Optional[int].
+            - time_range: typing.Optional[str].
 
             - environment: typing.Optional[str].
 
             - variant: typing.Optional[str].
-
-            - app_id: typing.Optional[str].
         ---
         from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.dashboard()
+        await client.dashboard(app_id="app_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/dashboard"),
             params=remove_none_from_dict(
-                {
-                    "startTime": start_time,
-                    "endTime": end_time,
-                    "environment": environment,
-                    "variant": variant,
-                    "appId": app_id,
-                }
+                {"app_id": app_id, "timeRange": time_range, "environment": environment, "variant": variant}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ObservabilityDashboardData, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -652,89 +735,14 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_trace(
-        self,
-        *,
-        app_id: typing.Optional[str] = OMIT,
-        base_id: typing.Optional[str] = OMIT,
-        config_name: typing.Optional[str] = OMIT,
-        cost: typing.Optional[float] = OMIT,
-        status: typing.Optional[str] = OMIT,
-        environment: typing.Optional[str] = OMIT,
-        token_consumption: typing.Optional[int] = OMIT,
-        tags: typing.Optional[typing.List[str]] = OMIT,
-        start_time: typing.Optional[dt.datetime] = OMIT,
-    ) -> str:
-        """
-        Parameters:
-            - app_id: typing.Optional[str].
-
-            - base_id: typing.Optional[str].
-
-            - config_name: typing.Optional[str].
-
-            - cost: typing.Optional[float].
-
-            - status: typing.Optional[str].
-
-            - environment: typing.Optional[str].
-
-            - token_consumption: typing.Optional[int].
-
-            - tags: typing.Optional[typing.List[str]].
-
-            - start_time: typing.Optional[dt.datetime].
-        ---
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_trace()
-        """
-        _request: typing.Dict[str, typing.Any] = {}
-        if app_id is not OMIT:
-            _request["app_id"] = app_id
-        if base_id is not OMIT:
-            _request["base_id"] = base_id
-        if config_name is not OMIT:
-            _request["config_name"] = config_name
-        if cost is not OMIT:
-            _request["cost"] = cost
-        if status is not OMIT:
-            _request["status"] = status
-        if environment is not OMIT:
-            _request["environment"] = environment
-        if token_consumption is not OMIT:
-            _request["token_consumption"] = token_consumption
-        if tags is not OMIT:
-            _request["tags"] = tags
-        if start_time is not OMIT:
-            _request["start_time"] = start_time
-        _response = await self._client_wrapper.httpx_client.request(
-            "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
-            ),
-            json=jsonable_encoder(_request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def get_spans_of_generation(
+    async def get_traces(
         self,
         *,
         app_id: str,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         type: typing.Optional[str] = None,
+        trace_id: typing.Optional[str] = None,
         environment: typing.Optional[str] = None,
         variant: typing.Optional[str] = None,
         created_at: typing.Optional[str] = None,
@@ -749,6 +757,8 @@ class AsyncObservabilityClient:
 
             - type: typing.Optional[str].
 
+            - trace_id: typing.Optional[str].
+
             - environment: typing.Optional[str].
 
             - variant: typing.Optional[str].
@@ -758,19 +768,18 @@ class AsyncObservabilityClient:
         from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_spans_of_generation(app_id="app_id")
+        await client.get_traces(app_id="app_id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
             params=remove_none_from_dict(
                 {
                     "app_id": app_id,
                     "page": page,
                     "pageSize": page_size,
                     "type": type,
+                    "trace_id": trace_id,
                     "environment": environment,
                     "variant": variant,
                     "created_at": created_at,
@@ -789,6 +798,174 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    async def create_trace(
+        self,
+        *,
+        app_id: typing.Optional[str] = OMIT,
+        variant_id: typing.Optional[str] = OMIT,
+        cost: typing.Optional[float] = OMIT,
+        status: typing.Optional[str] = OMIT,
+        token_consumption: typing.Optional[int] = OMIT,
+        tags: typing.Optional[typing.List[str]] = OMIT,
+        start_time: typing.Optional[dt.datetime] = OMIT,
+        id: str,
+        trace_name: str,
+        inputs: typing.Dict[str, typing.Any],
+        environment: typing.Optional[str] = OMIT,
+    ) -> str:
+        """
+        Parameters:
+            - app_id: typing.Optional[str].
+
+            - variant_id: typing.Optional[str].
+
+            - cost: typing.Optional[float].
+
+            - status: typing.Optional[str].
+
+            - token_consumption: typing.Optional[int].
+
+            - tags: typing.Optional[typing.List[str]].
+
+            - start_time: typing.Optional[dt.datetime].
+
+            - id: str.
+
+            - trace_name: str.
+
+            - inputs: typing.Dict[str, typing.Any].
+
+            - environment: typing.Optional[str].
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.create_trace(id="id", trace_name="trace_name", inputs={})
+        """
+        _request: typing.Dict[str, typing.Any] = {"id": id, "trace_name": trace_name, "inputs": inputs}
+        if app_id is not OMIT:
+            _request["app_id"] = app_id
+        if variant_id is not OMIT:
+            _request["variant_id"] = variant_id
+        if cost is not OMIT:
+            _request["cost"] = cost
+        if status is not OMIT:
+            _request["status"] = status
+        if token_consumption is not OMIT:
+            _request["token_consumption"] = token_consumption
+        if tags is not OMIT:
+            _request["tags"] = tags
+        if start_time is not OMIT:
+            _request["start_time"] = start_time
+        if environment is not OMIT:
+            _request["environment"] = environment
+        _response = await self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            json=jsonable_encoder(_request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def delete_traces(self, *, request: typing.List[str]) -> bool:
+        """
+        Parameters:
+            - request: typing.List[str].
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_traces(request=["string"])
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_spans_of_generation(
+        self,
+        *,
+        app_id: str,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+        type: typing.Optional[str] = None,
+        trace_id: typing.Optional[str] = None,
+        environment: typing.Optional[str] = None,
+        variant: typing.Optional[str] = None,
+        created_at: typing.Optional[str] = None,
+    ) -> typing.Any:
+        """
+        Parameters:
+            - app_id: str.
+
+            - page: typing.Optional[int].
+
+            - page_size: typing.Optional[int].
+
+            - type: typing.Optional[str].
+
+            - trace_id: typing.Optional[str].
+
+            - environment: typing.Optional[str].
+
+            - variant: typing.Optional[str].
+
+            - created_at: typing.Optional[str].
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_spans_of_generation(app_id="app_id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            params=remove_none_from_dict(
+                {
+                    "app_id": app_id,
+                    "page": page,
+                    "pageSize": page_size,
+                    "type": type,
+                    "trace_id": trace_id,
+                    "environment": environment,
+                    "variant": variant,
+                    "created_at": created_at,
+                }
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     async def create_span(
         self,
         *,
@@ -799,17 +976,14 @@ class AsyncObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
-        environment: typing.Optional[str] = OMIT,
-        inputs: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
-        outputs: typing.Optional[typing.List[str]] = OMIT,
-        prompt_system: typing.Optional[str] = OMIT,
-        prompt_user: typing.Optional[str] = OMIT,
-        tokens_input: typing.Optional[int] = OMIT,
-        tokens_output: typing.Optional[int] = OMIT,
-        token_total: typing.Optional[int] = OMIT,
+        input: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+        output: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
-        tags: typing.Optional[typing.List[str]] = OMIT,
         trace_id: str,
+        span_id: str,
+        environment: typing.Optional[str] = OMIT,
+        end_time: dt.datetime,
+        tokens: typing.Optional[LlmTokens] = OMIT,
     ) -> str:
         """
         Parameters:
@@ -827,38 +1001,42 @@ class AsyncObservabilityClient:
 
             - status: SpanStatus.
 
-            - environment: typing.Optional[str].
+            - input: typing.Optional[typing.Dict[str, typing.Any]].
 
-            - inputs: typing.Optional[typing.Dict[str, Any]].
-
-            - outputs: typing.Optional[typing.List[str]].
-
-            - prompt_system: typing.Optional[str].
-
-            - prompt_user: typing.Optional[str].
-
-            - tokens_input: typing.Optional[int].
-
-            - tokens_output: typing.Optional[int].
-
-            - token_total: typing.Optional[int].
+            - output: typing.Optional[str].
 
             - cost: typing.Optional[float].
 
-            - tags: typing.Optional[typing.List[str]].
-
             - trace_id: str.
+
+            - span_id: str.
+
+            - environment: typing.Optional[str].
+
+            - end_time: dt.datetime.
+
+            - tokens: typing.Optional[LlmTokens].
         ---
+        import datetime
+
         from agenta import SpanStatus
         from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_span(event_name="event_name", status=SpanStatus(), trace_id="trace_id")
+        await client.create_span(
+            event_name="event_name",
+            status=SpanStatus(),
+            trace_id="trace_id",
+            span_id="span_id",
+            end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00"),
+        )
         """
         _request: typing.Dict[str, typing.Any] = {
             "event_name": event_name,
             "status": status,
             "trace_id": trace_id,
+            "span_id": span_id,
+            "end_time": end_time,
         }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
@@ -870,31 +1048,19 @@ class AsyncObservabilityClient:
             _request["start_time"] = start_time
         if duration is not OMIT:
             _request["duration"] = duration
-        if environment is not OMIT:
-            _request["environment"] = environment
-        if inputs is not OMIT:
-            _request["inputs"] = inputs
-        if outputs is not OMIT:
-            _request["outputs"] = outputs
-        if prompt_system is not OMIT:
-            _request["prompt_system"] = prompt_system
-        if prompt_user is not OMIT:
-            _request["prompt_user"] = prompt_user
-        if tokens_input is not OMIT:
-            _request["tokens_input"] = tokens_input
-        if tokens_output is not OMIT:
-            _request["tokens_output"] = tokens_output
-        if token_total is not OMIT:
-            _request["token_total"] = token_total
+        if input is not OMIT:
+            _request["input"] = input
+        if output is not OMIT:
+            _request["output"] = output
         if cost is not OMIT:
             _request["cost"] = cost
-        if tags is not OMIT:
-            _request["tags"] = tags
+        if environment is not OMIT:
+            _request["environment"] = environment
+        if tokens is not OMIT:
+            _request["tokens"] = tokens
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -909,9 +1075,102 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_span_of_generation(
-        self, span_id: str, *, type: typing.Optional[str] = None
-    ) -> SpanDetail:
+    async def delete_spans_of_trace(self, *, request: typing.List[str]) -> bool:
+        """
+        Parameters:
+            - request: typing.List[str].
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.delete_spans_of_trace(request=["string"])
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "DELETE",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_trace_detail(self, trace_id: str) -> TraceDetail:
+        """
+        Parameters:
+            - trace_id: str.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_trace_detail(trace_id="trace_id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(TraceDetail, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_trace(
+        self, trace_id: str, *, status: str, end_time: dt.datetime, outputs: typing.List[str]
+    ) -> bool:
+        """
+        Parameters:
+            - trace_id: str.
+
+            - status: str.
+
+            - end_time: dt.datetime.
+
+            - outputs: typing.List[str].
+        ---
+        import datetime
+
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.update_trace(
+            trace_id="trace_id",
+            status="status",
+            end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00"),
+            outputs=["outputs"],
+        )
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "PUT",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            json=jsonable_encoder({"status": status, "end_time": end_time, "outputs": outputs}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_span_of_generation(self, span_id: str, *, type: typing.Optional[str] = None) -> SpanDetail:
         """
         Parameters:
             - span_id: str.
@@ -925,85 +1184,13 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{span_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{span_id}"),
             params=remove_none_from_dict({"type": type}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(SpanDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def delete_span_of_trace(self, span_id: str) -> bool:
-        """
-        Parameters:
-            - span_id: str.
-        ---
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.delete_span_of_trace(span_id="span_id")
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{span_id}",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def update_trace(
-        self, trace_id: str, *, status: str, end_time: dt.datetime
-    ) -> bool:
-        """
-        Parameters:
-            - trace_id: str.
-
-            - status: str.
-
-            - end_time: dt.datetime.
-        ---
-        import datetime
-
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.update_trace(
-            trace_id="trace_id", status="status", end_time=datetime.datetime.fromisoformat("2024-01-15 09:30:00+00:00")
-        )
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
-            json=jsonable_encoder({"status": status, "end_time": end_time}),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -1024,10 +1211,7 @@ class AsyncObservabilityClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1073,10 +1257,7 @@ class AsyncObservabilityClient:
             _request["meta"] = meta
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1106,8 +1287,7 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1156,8 +1336,7 @@ class AsyncObservabilityClient:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
