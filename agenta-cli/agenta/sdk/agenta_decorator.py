@@ -56,7 +56,7 @@ def ingest_file(upfile: UploadFile):
     return InFile(file_name=upfile.filename, file_path=temp_file.name)
 
 
-def entrypoint(func: Callable[..., Any], max_workers: int = 4) -> Callable[..., Any]:
+def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator to wrap a function for HTTP POST and terminal exposure.
 
@@ -73,19 +73,27 @@ def entrypoint(func: Callable[..., Any], max_workers: int = 4) -> Callable[..., 
     ingestible_files = extract_ingestible_files(func_signature)
 
     # Initialize llm tracing
-    tracing = agenta.llm_tracing(max_workers=max_workers)
+    tracing = agenta.llm_tracing()
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
+
+        # Start tracing
+        tracing.trace(
+            trace_name=func.__name__,
+            inputs={"prompt": [func_params, api_config_params]},
+        )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
         result = await execute_function(
             func, *args, **{"params": func_params, "config_params": config_params}
         )
 
-        # End tracing for playground
-        tracing.end_trace(outputs=[result["message"]], **kwargs)  # type: ignore
+        # End tracing
+        if isinstance(result, JSONResponse):
+            result = {"message": str(result), "usage": None}
+        tracing.end_trace(outputs=[result["message"]], **result["usage"])  # type: ignore
         return result
 
     @functools.wraps(func)
@@ -112,6 +120,8 @@ def entrypoint(func: Callable[..., Any], max_workers: int = 4) -> Callable[..., 
         )
 
         # End tracing
+        if isinstance(result, JSONResponse):
+            result = {"message": str(result), "usage": None}
         tracing.end_trace(outputs=[result["message"]], **kwargs)  # type: ignore
         return result
 

@@ -356,9 +356,8 @@ class SpanDB(Document):
     event_name: str  # Function or execution name
     event_type: Optional[TracingEventTypes]
     status: SpanStatus
-    input: Optional[str]
+    input: Optional[Dict[str, Any]]
     output: Optional[str]
-    model: str
     user: Optional[str]
     environment: Optional[str]  # request source -> playground, development, etc
     start_time: datetime

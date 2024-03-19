@@ -91,6 +91,7 @@ async def start_variant(
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
             {
+                "AGENTA_VARIANT_ID": str(db_app_variant.id),
                 "AGENTA_BASE_ID": str(db_app_variant.base.id),
                 "AGENTA_APP_ID": str(db_app_variant.app.id),
                 "AGENTA_HOST": domain_name,

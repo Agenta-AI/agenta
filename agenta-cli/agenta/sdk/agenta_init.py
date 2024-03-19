@@ -7,7 +7,6 @@ from .utils.globals import set_global
 from agenta.client.backend.client import AgentaApi
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
-from agenta.client.backend.types.base_output import BaseOutput
 
 
 logger = logging.getLogger(__name__)
@@ -81,8 +80,7 @@ class AgentaSingleton:
             else:
                 try:
                     app_id = self.get_app(app_name)
-                    variant_id = self.get_variant(app_id, base_name).variant_id
-                    base_id = self.get_app_base(app_id, base_name).base_id
+                    base_id = self.get_app_base(app_id, base_name)
                 except Exception as ex:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
@@ -91,7 +89,7 @@ class AgentaSingleton:
         self.base_id = base_id
         self.host = host
         self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
-        self.variant_id = variant_id
+        self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
 
@@ -103,16 +101,11 @@ class AgentaSingleton:
         app_id = apps[0].app_id
         return app_id
 
-    def get_app_base(self, app_id: str, base_name: str) -> BaseOutput:
+    def get_app_base(self, app_id: str, base_name: str) -> str:
         bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
         if len(bases) == 0:
             raise APIRequestError(f"No base was found for the app {app_id}")
-        return bases[0]
-
-    def get_variant(self, app_id: str, base_name: str):
-        base = self.get_app_base(app_id=app_id, base_name=base_name)
-        variant = client.variants.get_variant_using_base_id(base_id=base.base_id)
-        return variant
+        return bases[0].base_id
 
     def get_current_config(self):
         """
@@ -236,10 +229,14 @@ def init(app_name=None, base_name=None, **kwargs):
     set_global(setup=singleton.setup, config=singleton.config)
 
 
-def llm_tracing(max_workers: int) -> Tracing:
+def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
     """Function to start llm tracing."""
 
     singleton = AgentaSingleton()
     return Tracing(
-        base_url=singleton.host, api_key=singleton.api_key, max_workers=max_workers
+        base_url=singleton.host,
+        app_id=singleton.app_id,  # type: ignore
+        variant_id=singleton.variant_id,  # type: ignore
+        api_key=singleton.api_key,
+        max_workers=max_workers,
     )

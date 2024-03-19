@@ -1,5 +1,4 @@
 # Stdlib Imports
-from bson import ObjectId
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -8,6 +7,9 @@ from agenta.client.backend import client
 from agenta.sdk.tracing.logger import llm_logger
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncObservabilityClient
+
+# Third Party Imports
+from bson.objectid import ObjectId
 
 
 class Span:
@@ -29,6 +31,7 @@ class Span:
         self.start_time = datetime.now()
         self.end_time = Optional[datetime]
         self.input = input
+        self.status = Dict[str, Any]
         self.output = Optional[Dict[str, Any]]
         self.cost = Optional[float]
         self.tokens = Optional[Dict[str, int]]
@@ -36,6 +39,15 @@ class Span:
 
     def set_attribute(self, key: str, value: Any):
         self.attributes[key] = value
+
+    def update_span_status(self, status: str, exc: Optional[str]):
+        if status == "FAILED":
+            self.status = {  # type: ignore
+                "value": None,
+                "error": {"message": status, "stacktrace": str(exc)},
+            }
+        elif status == "COMPLETED":
+            self.status == {"value": status, "error": None}
 
     def end(self, output: Dict[str, Any]):
         self.end_time = datetime.now()
@@ -54,6 +66,7 @@ class Span:
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "input": self.input,
             "output": self.output,
+            "status": self.status,
             "tokens": self.tokens,
             "meta": self.attributes,
         }
@@ -80,13 +93,19 @@ class Tracing(object):
     def __init__(
         self,
         base_url: str,
+        app_id: str,
+        variant_id: str,
         api_key: Optional[str] = None,
-        max_workers: int = 4,
+        max_workers: Optional[int] = None,
     ):
         self.base_url = base_url + "/api"
         self.api_key = api_key if api_key is not None else ""
         self.llm_logger = llm_logger
-        self.tasks_manager = TaskQueue(max_workers, logger=llm_logger)
+        self.app_id = app_id
+        self.variant_id = variant_id
+        self.tasks_manager = TaskQueue(
+            max_workers if max_workers else 4, logger=llm_logger
+        )
         self.active_span = None
         self.active_trace = None
         self.tags: List[str] = []
@@ -172,8 +191,6 @@ class Tracing(object):
     def trace(
         self,
         trace_name: Optional[str],
-        app_id: str,
-        variant_id: str,
         inputs: Dict[str, Any],
         **kwargs,
     ):
@@ -188,20 +205,22 @@ class Tracing(object):
 
         trace_id = self._create_trace_id()
         try:
+            self.llm_logger.info("Starting tracing...")
             self.tasks_manager.add_task(
                 self.client.create_trace(
                     id=trace_id,
-                    app_id=app_id,
-                    variant_id=variant_id,
-                    trace_name=trace_name,
+                    app_id=self.app_id,
+                    variant_id=self.variant_id,
+                    trace_name=trace_name,  # type: ignore
                     start_time=datetime.now(),
                     inputs=inputs,
-                    environment=kwargs["environment"],  # type: ignore
+                    environment=kwargs.get("environment"),  # type: ignore
                     status="INITIATED",
                     tags=self.tags,
                 )
             )
             self.active_trace = trace_id  # type: ignore
+            self.llm_logger.info("Trace ended successfully.")
         except Exception as exc:
             self.llm_logger.error(f"Error creating trace: {str(exc)}")
 
@@ -209,11 +228,11 @@ class Tracing(object):
         try:
             self.tasks_manager.add_task(
                 self.client.update_trace(
-                    trace_id=self.active_trace,
+                    trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
+                    token_consumption=kwargs.get("total_tokens"),
                     outputs=outputs,
-                    **kwargs,
                 )
             )
         except Exception as exc:

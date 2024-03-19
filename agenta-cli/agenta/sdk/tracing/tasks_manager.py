@@ -74,9 +74,8 @@ class TaskQueue(object):
         """
 
         task = AsyncTask(coroutine)
-        with self._lock:
-            self.tasks.put(task)
-        return task
+        self.tasks.put(task)
+        return self._worker()
 
     def _worker(self):
         """
@@ -84,17 +83,16 @@ class TaskQueue(object):
         """
 
         while True:
-            with self._lock:
-                task = self.tasks.get()
+            task = self.tasks.get()
             try:
-                self._logger.info(f"Running LLM tracing: {str(task)}")
                 future = self._thread_pool.submit(asyncio.run, task.run())
                 future.add_done_callback(self._handle_task_completion)
             except Exception as exc:
-                self._logger.error(f"Error running task: {exc}")
+                self._logger.error(f"Error running task: {str(exc)}")
+                break
             finally:
                 self.tasks.task_done()
-                self._logger.info(f"Tracing completed: {str(task)}")
+                break
 
     def _handle_task_completion(self, future: Future):
         """Handles task completion or exception raise.
@@ -106,4 +104,4 @@ class TaskQueue(object):
         try:
             future.result()
         except Exception as exc:
-            self._logger.error(f"Error in completed task: {exc}")
+            self._logger.error(f"Error in completed task: {str(exc)}")
