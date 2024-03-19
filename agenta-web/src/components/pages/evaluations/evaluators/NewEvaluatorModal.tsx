@@ -109,9 +109,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
-    min?: number
-    max?: number
-    required?: boolean
 }
 
 const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
