@@ -51,9 +51,9 @@ class Span(BaseModel):
 
 
 class LLMTokens(BaseModel):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int = Field(default=0)
+    completion_tokens: int = Field(default=0)
+    total_tokens: int = Field(default=0)
 
 
 class BaseSpan(BaseModel):
@@ -150,7 +150,6 @@ class BaseTrace(BaseModel):
     variant_id: Optional[str]
     cost: Optional[float]
     status: str = Field(default=Status.INITIATED)
-    token_consumption: Optional[int]
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
 
@@ -166,3 +165,4 @@ class UpdateTrace(BaseModel):
     status: str
     end_time: datetime
     outputs: List[str]
+    token_consumption: Optional[int]

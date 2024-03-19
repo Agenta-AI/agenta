@@ -6,29 +6,30 @@ from functools import wraps
 from agenta.sdk.tracing.llm_tracing import Tracing
 
 
-async def span(tracing: Tracing, event_type: str = "llm_request"):
+def span(tracing: Tracing, event_type: str):
     """Decorator to automatically start and end spans."""
 
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            result = None
             span = tracing.start_span(
                 func.__name__,
-                input=str(args),
+                input=kwargs,
                 event_type=event_type,
                 trace_id=tracing.active_trace,
             )
-            result = None
             try:
                 is_coroutine_function = inspect.iscoroutinefunction(func)
                 if is_coroutine_function:
                     result = await func(*args, **kwargs)
                 else:
                     result = func(*args, **kwargs)
+                span.update_span_status("COMPLETED")
             except Exception as e:
                 span.set_attribute("error", True)
                 span.set_attribute("error_message", str(e))
-                raise
+                span.update_span_status("FAILED", str(e))
             finally:
                 if not isinstance(result, dict):
                     result = {"message": result}
