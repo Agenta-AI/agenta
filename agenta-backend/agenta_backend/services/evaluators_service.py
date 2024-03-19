@@ -441,7 +441,7 @@ def levenshtein_distance(s1, s2):
     return previous_row[-1]
 
 
-def auto_levenshtein_distance(
+def auto_levenshtein_distance_threshold(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -457,6 +457,32 @@ def auto_levenshtein_distance(
 
         result = Result(type="bool", value=distance <= threshold)
         return result
+    except Exception as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Levenshtein threshold evaluation",
+                stacktrace=str(e),
+            ),
+        )
+
+
+def auto_levenshtein_distance(
+    inputs: Dict[str, Any],
+    output: str,
+    correct_answer: str,
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        distance = levenshtein_distance(output, correct_answer)
+        if "threshold" in settings_values:
+
+            threshold = settings_values["threshold"]
+            is_within_threshold = distance <= threshold
+            return Result(type="bool", value=is_within_threshold)
     except Exception as e:
         return Result(
             type="error",
