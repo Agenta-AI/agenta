@@ -51,6 +51,12 @@ class Span(BaseModel):
     user_id: str
 
 
+class LLMTokens(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
 class BaseSpan(BaseModel):
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
@@ -59,20 +65,17 @@ class BaseSpan(BaseModel):
     start_time: datetime = Field(default=datetime.now())
     duration: Optional[int]
     status: SpanStatus
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_system: Optional[str]
-    prompt_user: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
+    input: Optional[Dict[str, Any]]
+    output: Optional[str]
     cost: Optional[float]
-    tags: Optional[List[str]]
 
 
 class CreateSpan(BaseSpan):
     trace_id: str
+    span_id: str
     environment: Optional[str]
+    end_time: datetime
+    tokens: Optional[LLMTokens]
 
 
 class LLMInputs(BaseModel):
@@ -165,3 +168,4 @@ class CreateTrace(BaseTrace):
 class UpdateTrace(BaseModel):
     status: str
     end_time: datetime
+    outputs: List[str]
