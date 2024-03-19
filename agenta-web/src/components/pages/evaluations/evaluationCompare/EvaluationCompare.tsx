@@ -16,12 +16,7 @@ import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
-import {
-    CloseCircleFilled,
-    CloseCircleOutlined,
-    DownloadOutlined,
-    UndoOutlined,
-} from "@ant-design/icons"
+import {CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
@@ -287,9 +282,6 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                     <Tag
                                         key={evaluationIds[vi]}
                                         color={colors[vi]}
-                                        onClick={() =>
-                                            handleToggleVariantVisibility(v.evaluationId)
-                                        }
                                         className={classes.tag}
                                         style={{
                                             opacity: hiddenVariants.includes(v.evaluationId)
@@ -301,9 +293,23 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                             evalIds.includes(
                                                 v.evaluationId,
                                             ) ? null : evalIds.includes(v.evaluationId) ? (
-                                                <CloseCircleOutlined style={{cursor: "pointer"}} />
+                                                <CloseCircleOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
                                             ) : (
-                                                <UndoOutlined style={{cursor: "pointer"}} />
+                                                <UndoOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
                                             )
                                         }
                                     >
