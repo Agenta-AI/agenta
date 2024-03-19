@@ -242,8 +242,8 @@ evaluators = [
         "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
     },
     {
-        "name": "Levenshtein threshold",
-        "key": "auto_levenshtein_distance_threshold",
+        "name": "Levenshtein Distance",
+        "key": "auto_levenshtein_distance",
         "direct_use": False,
         "settings_template": {
             "label": "Levenshtein Distance Settings",
@@ -251,7 +251,6 @@ evaluators = [
             "threshold": {
                 "label": "Threshold",
                 "type": "number",
-                "default": 10,
                 "required": False
             },
         },
