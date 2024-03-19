@@ -1,7 +1,6 @@
 from enum import Enum
 from uuid import uuid4
 from datetime import datetime
-from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -343,7 +342,6 @@ class TraceDB(Document):
     feedbacks: Optional[List[Feedback]]
     created_at: datetime = Field(default=datetime.now())
 
-    @lru_cache()
     def get_latency(cls) -> float:
         return (cls.end_time - cls.start_time).total_seconds()
 
@@ -368,7 +366,6 @@ class SpanDB(Document):
     tokens: Optional[LLMTokens]
     created_at: datetime = Field(default=datetime.now())
 
-    @lru_cache()
     def get_latency(cls) -> float:
         return (cls.end_time - cls.start_time).total_seconds()
 
