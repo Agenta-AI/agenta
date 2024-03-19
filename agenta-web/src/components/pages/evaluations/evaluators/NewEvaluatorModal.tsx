@@ -111,6 +111,7 @@ type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
     min?: number
     max?: number
+    required?: boolean
 }
 
 const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
@@ -121,12 +122,13 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     description,
     min,
     max,
+    required,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
 
-    const rules: Rule[] = [{required: true, message: "This field is required"}]
+    const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
