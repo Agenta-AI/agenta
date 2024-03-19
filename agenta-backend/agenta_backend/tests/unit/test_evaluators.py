@@ -139,10 +139,13 @@ def test_auto_contains_json(output, expected):
         ("hello world", "hola mundo", 5, False),
         ("hello world", "hello world!", 2, True),
         ("hello world", "hello wor", 10, True),
+        ("hello world", "hello worl", None, 1),
+        ("hello world", "helo world", None, 1),
     ],
 )
 def test_auto_levenshtein_distance(output, correct_answer, threshold, expected):
+    settings_values = {"threshold": threshold} if threshold is not None else {}
     result = auto_levenshtein_distance(
-        {}, output, correct_answer, {}, {"threshold": threshold}, {}
+        {}, output, correct_answer, {}, settings_values, {}
     )
     assert result.value == expected
