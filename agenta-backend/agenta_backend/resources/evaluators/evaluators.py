@@ -247,15 +247,15 @@ evaluators = [
         "direct_use": False,
         "settings_template": {
             "label": "Levenshtein Distance Settings",
-            "description": "Evaluates if the Levenshtein distance is below a certain threshold.",
+            "description": "Evaluates the Levenshtein distance between the output and the correct answer. If a threshold is specified, it checks if the distance is below this threshold and returns a boolean value. If no threshold is specified, it returns the numerical Levenshtein distance.",
             "threshold": {
                 "label": "Threshold",
                 "type": "number",
                 "required": False
             },
         },
-        "description": "Levenshtein Distance evaluator checks if the Levenshtein distance between the output and the correct answer is below a specified threshold.",
-    },
+        "description": "This evaluator calculates the Levenshtein distance between the output and the correct answer. If a threshold is provided in the settings, it returns a boolean indicating whether the distance is within the threshold. If no threshold is provided, it returns the actual Levenshtein distance as a numerical value."
+    }
 ]
 
 
