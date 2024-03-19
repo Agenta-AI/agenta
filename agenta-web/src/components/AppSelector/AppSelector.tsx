@@ -6,13 +6,7 @@ import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {
-    getAllProviderLlmKeys,
-    getApikeys,
-    isAppNameInputValid,
-    isDemo,
-    redirectIfNoLLMKeys,
-} from "@/lib/helpers/utils"
+import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -28,6 +22,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {LlmProvider, getAllProviderLlmKeys, getApikeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
@@ -136,10 +131,6 @@ const AppSelector: React.FC = () => {
         })
     }, [])
 
-    useEffect(() => {
-        getAllProviderLlmKeys()
-    }, [])
-
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -208,14 +199,11 @@ const AppSelector: React.FC = () => {
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
-        const apiKey = getApikeys()
+        const apiKeys = getAllProviderLlmKeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
-            providerKey:
-                isDemo() && apiKey?.length === 0
-                    ? []
-                    : (apiKey as {title: string; key: string; name: string}[]),
+            providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
