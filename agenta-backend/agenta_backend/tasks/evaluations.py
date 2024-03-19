@@ -209,6 +209,7 @@ def evaluate(
                             )
                         ],
                         results=error_results,
+                        rerun_count=new_evaluation_db.rerun_count,
                     )
                 )
                 continue
@@ -271,6 +272,7 @@ def evaluate(
                         )
                     ],
                     results=evaluators_results,
+                    rerun_count=new_evaluation_db.rerun_count,
                     organization=app.organization if isCloudEE() else None,
                     workspace=app.workspace if isCloudEE() else None,
                 )

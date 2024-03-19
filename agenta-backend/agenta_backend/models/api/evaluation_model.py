@@ -249,6 +249,12 @@ class NewEvaluation(BaseModel):
     correct_answer_column: Optional[str]
 
 
+class RerunEvaluation(BaseModel):
+    # rate_limit: LLMRunRateLimit
+    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+    # correct_answer_column: Optional[str]
+
+
 class NewEvaluatorConfig(BaseModel):
     app_id: str
     name: str

@@ -1862,6 +1862,7 @@ async def create_new_evaluation_scenario(
     results: List[EvaluationScenarioResult],
     organization=None,
     workspace=None,
+    rerun_count: Optional[int] = 0,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1878,6 +1879,7 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
+        rerun_count=rerun_count,
     )
 
     if isCloudEE():

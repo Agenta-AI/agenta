@@ -15,6 +15,7 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationWebhook,
+    RerunEvaluation,
 )
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
@@ -146,6 +147,73 @@ async def create_evaluation(
             evaluations.append(evaluation)
 
         return evaluations
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
+@router.post("/re-run/{evaluation_ids}/", operation_id="re_run_evaluation")
+async def re_run_evaluation(
+    evaluation_ids: str,
+    app_id: str,
+    payload: RerunEvaluation,
+    request: Request,
+):
+    """Re-runs the evaluations for the given evaluation IDs and increments their rerun count.
+    Raises:
+        HTTPException: If the app is not found or the user lacks permissions.
+    Returns:
+        HTTP response indicating the operation's outcome.
+    """
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+        print(app)
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.CREATE_EVALUATION,
+            )
+            logger.debug(f"User has permission to create evaluation: {has_permission}")
+            if not has_permission:
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        evaluation_ids = evaluation_ids.split(',')
+
+        rate_limit_config = {
+            'batch_size': 10,
+            'max_retries': 3,
+            'retry_delay': 3,
+            'delay_between_batches': 5
+        }
+
+        for evaluation_id in evaluation_ids:
+            evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+
+            await evaluation.increase_rerun_count()
+
+            evaluate.delay(
+                app_id=app_id,
+                variant_id=str(evaluation.variant),
+                evaluators_config_ids=[str(config_id) for config_id in evaluation.evaluators_configs],
+                testset_id=str(evaluation.testset.id),
+                evaluation_id=evaluation_id,
+                rate_limit_config=rate_limit_config,
+                lm_providers_keys=payload.lm_providers_keys,
+                correct_answer_column="correct_answer",
+            )
+
+        return Response(status_code=status.HTTP_200_OK)
     except KeyError:
         raise HTTPException(
             status_code=400,

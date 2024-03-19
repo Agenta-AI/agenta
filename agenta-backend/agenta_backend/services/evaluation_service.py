@@ -236,7 +236,8 @@ async def fetch_evaluation_scenarios_for_evaluation(
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
 
     scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        EvaluationScenarioDB.rerun_count == evaluation.rerun_count,
     ).to_list()
     eval_scenarios = [
         converters.evaluation_scenario_db_to_pydantic(scenario, str(evaluation.id))
