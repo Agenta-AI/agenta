@@ -451,12 +451,12 @@ def auto_levenshtein_distance(
 ) -> Result:
     try:
         distance = levenshtein_distance(output, correct_answer)
-        
+
         if "threshold" in settings_values:
             threshold = settings_values["threshold"]
             is_within_threshold = distance <= threshold
             return Result(type="bool", value=is_within_threshold)
-        
+
         return Result(type="number", value=distance)
 
     except Exception as e:
