@@ -4,7 +4,13 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
+import {
+    DeleteOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+    SyncOutlined,
+} from "@ant-design/icons"
 import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -12,7 +18,12 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
-import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
+import {
+    deleteEvaluations,
+    fetchAllEvaluations,
+    fetchEvaluationStatus,
+    reRunEvaluations,
+} from "@/services/evaluations"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
@@ -63,6 +74,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
+    const [reRunLoading, setReRunLoading] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -81,6 +93,17 @@ const EvaluationResults: React.FC<Props> = () => {
                     .catch(console.error)
                     .then(fetcher),
         })
+    }
+
+    const onReRun = () => {
+        setReRunLoading(true)
+        reRunEvaluations(
+            appId,
+            selected.map((item) => item.id),
+        )
+            .catch(console.error)
+            .then(fetcher)
+            .finally(() => setReRunLoading(false))
     }
 
     const fetcher = () => {
@@ -271,7 +294,6 @@ const EvaluationResults: React.FC<Props> = () => {
         <Button
             disabled={compareDisabled}
             icon={<SwapOutlined />}
-            type="primary"
             data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
@@ -316,6 +338,15 @@ const EvaluationResults: React.FC<Props> = () => {
                         ) : (
                             compareBtnNode
                         )}
+                        <Button
+                            disabled={selected.length === 0}
+                            icon={<SyncOutlined />}
+                            data-cy="evaluation-results-rerun-button"
+                            onClick={onReRun}
+                            loading={reRunLoading}
+                        >
+                            Rerun
+                        </Button>
                         <Button
                             icon={<PlusCircleOutlined />}
                             type="primary"

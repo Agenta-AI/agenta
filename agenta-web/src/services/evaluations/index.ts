@@ -13,7 +13,7 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
-import {stringToNumberInRange} from "@/lib/helpers/utils"
+import {apiKeyObject, stringToNumberInRange} from "@/lib/helpers/utils"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"
@@ -134,6 +134,16 @@ export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluat
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
     return axios.delete(`/api/evaluations/`, {data: {evaluations_ids: evaluationsIds}})
+}
+
+export const reRunEvaluations = async (appId: string, evaluationsIds: string[]) => {
+    return axios.post(
+        `/api/evaluations/re-run/${evaluationsIds.join(",")}`,
+        {lm_providers_keys: apiKeyObject()},
+        {
+            params: {app_id: appId},
+        },
+    )
 }
 
 // Evaluation Scenarios
