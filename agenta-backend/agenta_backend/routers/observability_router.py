@@ -97,9 +97,7 @@ async def get_trace_detail(
     request: Request,
     trace_id: str,
 ):
-    trace_detail = await event_db_manager.fetch_trace_detail(
-        trace_id, request.state.user_id
-    )
+    trace_detail = await event_db_manager.fetch_trace_detail(trace_id)
     return trace_detail
 
 
@@ -142,9 +140,7 @@ async def get_span_of_trace(
     type: str = Query(default="generation"),
 ):
     if type == "generation":
-        spans = await event_db_manager.fetch_generation_span_detail(
-            span_id, request.state.user_id
-        )
+        spans = await event_db_manager.fetch_generation_span_detail(span_id)
         return spans
     return []
 

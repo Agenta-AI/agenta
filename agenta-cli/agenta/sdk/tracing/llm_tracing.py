@@ -18,7 +18,7 @@ class Span:
         trace_id: str,
         span_id: str,
         name: str,
-        input: str,
+        input: Dict[str, Any],
         event_type: str,
         parent_span_id: Optional[str] = None,
         **kwargs: Dict[str, Any],
@@ -32,7 +32,7 @@ class Span:
         self.end_time = Optional[datetime]
         self.input = input
         self.status = Dict[str, Any]
-        self.output = Optional[Dict[str, Any]]
+        self.output = Optional[str]
         self.cost = Optional[float]
         self.tokens = Optional[Dict[str, int]]
         self.attributes: Dict[str, Any] = kwargs
@@ -40,19 +40,19 @@ class Span:
     def set_attribute(self, key: str, value: Any):
         self.attributes[key] = value
 
-    def update_span_status(self, status: str, exc: Optional[str]):
+    def update_span_status(self, status: str, exc: Optional[str] = None):
         if status == "FAILED":
             self.status = {  # type: ignore
                 "value": None,
                 "error": {"message": status, "stacktrace": str(exc)},
             }
         elif status == "COMPLETED":
-            self.status == {"value": status, "error": None}
+            self.status = {"value": status, "error": None}  # type: ignore
 
     def end(self, output: Dict[str, Any]):
         self.end_time = datetime.now()
         self.output = output["message"]
-        self.cost = output.get("cost", None)
+        self.cost = output.get("cost", 0)
         self.tokens = output.get("usage", {})
 
     def __dict__(self):
@@ -134,7 +134,7 @@ class Tracing(object):
     def start_span(
         self,
         name: str,
-        input: str,
+        input: Dict[str, Any],
         event_type: str,
         trace_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
