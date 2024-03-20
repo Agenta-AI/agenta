@@ -82,7 +82,8 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # Start tracing
         tracing.trace(
             trace_name=func.__name__,
-            inputs={"prompt": [func_params, api_config_params]},
+            inputs={"prompt": func_params},
+            variant_config=api_config_params,
         )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)

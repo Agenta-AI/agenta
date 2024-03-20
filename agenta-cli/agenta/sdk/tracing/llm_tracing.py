@@ -135,7 +135,7 @@ class Tracing(object):
         self,
         name: str,
         input: str,
-        event_type: str = "llm_request",
+        event_type: str,
         trace_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
         **kwargs: Dict[str, Any],
@@ -192,6 +192,7 @@ class Tracing(object):
         self,
         trace_name: Optional[str],
         inputs: Dict[str, Any],
+        variant_config: Dict[str, Any],
         **kwargs,
     ):
         """Creates a new trace.
@@ -214,13 +215,14 @@ class Tracing(object):
                     trace_name=trace_name,  # type: ignore
                     start_time=datetime.now(),
                     inputs=inputs,
+                    variant_config=variant_config,
                     environment=kwargs.get("environment"),  # type: ignore
                     status="INITIATED",
                     tags=self.tags,
                 )
             )
             self.active_trace = trace_id  # type: ignore
-            self.llm_logger.info("Trace ended successfully.")
+            self.llm_logger.info("Trace ended.")
         except Exception as exc:
             self.llm_logger.error(f"Error creating trace: {str(exc)}")
 
@@ -231,7 +233,7 @@ class Tracing(object):
                     trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
-                    token_consumption=kwargs.get("total_tokens"),
+                    token_consumption=kwargs.get("total_tokens"),  # typ: ignore
                     outputs=outputs,
                 )
             )
