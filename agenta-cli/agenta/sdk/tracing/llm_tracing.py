@@ -233,7 +233,9 @@ class Tracing(object):
                     trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
-                    token_consumption=kwargs.get("total_tokens"),  # typ: ignore
+                    token_consumption=kwargs["usage"].get(
+                        "total_tokens"
+                    ),  # typ: ignore
                     outputs=outputs,
                 )
             )

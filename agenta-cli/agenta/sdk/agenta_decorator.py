@@ -94,7 +94,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # End tracing
         if isinstance(result, JSONResponse):
             result = {"message": str(result), "usage": None}
-        tracing.end_trace(outputs=[result["message"]], **result["usage"])  # type: ignore
+        tracing.end_trace(outputs=[result["message"]], usage=result["usage"])  # type: ignore
         return result
 
     @functools.wraps(func)
