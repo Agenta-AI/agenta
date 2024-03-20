@@ -1818,10 +1818,13 @@ async def create_new_evaluation(
     evaluators_configs: List[str],
     organization=None,
     workspace=None,
+    started_at: Optional[datetime] = None,
+    finished_at: Optional[datetime] = None
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
+
     Returns:
-        EvaluationScenarioDB: The created evaluation scenario.
+        EvaluationDB: The created evaluation scenario.
     """
     evaluation = EvaluationDB(
         app=app,
@@ -1832,8 +1835,8 @@ async def create_new_evaluation(
         variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
+        started_at=started_at,
+        finished_at=finished_at,
     )
 
     if isCloudEE():
@@ -2081,6 +2084,12 @@ async def update_evaluation(
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
     evaluation = await EvaluationDB.get(ObjectId(evaluation_id))
+
+    print("updates")
+    print(updates)
+
+    print("evaluation")
+    print(evaluation)
 
     for key, value in updates.items():
         if hasattr(evaluation, key):

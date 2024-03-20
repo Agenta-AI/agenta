@@ -447,6 +447,8 @@ export interface _Evaluation {
         evaluator_config: EvaluatorConfig
         result: TypedValue & {error: null | EvaluationError}
     }[]
+    started_at?: string
+    finished_at?: string
     created_at?: string
     updated_at?: string
     duration?: number
