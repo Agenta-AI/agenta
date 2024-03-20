@@ -241,3 +241,11 @@ class Tracing(object):
             )
         except Exception as exc:
             self.llm_logger.error(f"Error creating trace: {str(exc)}")
+            self.tasks_manager.add_task(
+                self.client.update_trace(
+                    trace_id=self.active_trace,  # type: ignore
+                    status="FAILED",
+                    end_time=datetime.now(),
+                    outputs=[str(exc)],
+                )
+            )
