@@ -873,6 +873,7 @@ class AsyncObservabilityClient:
         id: str,
         trace_name: str,
         inputs: typing.Dict[str, typing.Any],
+        variant_config: typing.Dict[str, typing.Any],
         environment: typing.Optional[str] = OMIT,
     ) -> str:
         """
@@ -895,6 +896,8 @@ class AsyncObservabilityClient:
 
             - inputs: typing.Dict[str, typing.Any].
 
+            - variant_config: typing.Dict[str, typing.Any].
+
             - environment: typing.Optional[str].
         ---
         from agenta.client import AsyncAgentaApi
@@ -906,6 +909,7 @@ class AsyncObservabilityClient:
             "id": id,
             "trace_name": trace_name,
             "inputs": inputs,
+            "variant_config": variant_config,
         }
         if app_id is not OMIT:
             _request["app_id"] = app_id

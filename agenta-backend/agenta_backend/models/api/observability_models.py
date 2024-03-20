@@ -62,7 +62,6 @@ class BaseSpan(BaseModel):
     event_name: str
     event_type: Optional[str]
     start_time: datetime = Field(default=datetime.now())
-    duration: Optional[int]
     status: SpanStatus
     input: Optional[Dict[str, Any]]
     output: Optional[str]
@@ -158,6 +157,7 @@ class CreateTrace(BaseTrace):
     id: str
     trace_name: str
     inputs: Dict[str, Any]
+    variant_config: Dict[str, Any]
     environment: Optional[str]
 
 

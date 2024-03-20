@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
+async def create_app_trace(payload: CreateTrace) -> str:
     """Create a new trace.
 
     Args:
@@ -56,17 +56,16 @@ async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
         Trace: the created trace
     """
 
-    user = await db_manager.get_user(user_uid)
     trace_db = TraceDB(
-        **payload.dict(exclude={"environment"}),
+        **payload.dict(exclude={"environment", "id"}),
+        id=ObjectId(payload.id),
         environment="playground" if not payload.environment else payload.environment,
-        user=user,
     )
     await trace_db.create()
     return str(trace_db.id)
 
 
-async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
+async def get_trace_single(trace_id: str) -> Trace:
     """Get a single trace.
 
     Args:
@@ -76,16 +75,14 @@ async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
         Trace: the trace
     """
 
-    user = await db_manager.get_user(user_uid)
-
     # Get trace
     trace = await TraceDB.find_one(
-        TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id, fetch_links=True
+        TraceDB.id == ObjectId(trace_id),
     )
     return trace_db_to_pydantic(trace)
 
 
-async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bool:
+async def trace_update(trace_id: str, payload: UpdateTrace) -> bool:
     """Update status of trace.
 
     Args:
@@ -96,20 +93,12 @@ async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bo
         bool: True if successful
     """
 
-    user = await db_manager.get_user(user_uid)
+    trace = await TraceDB.find_one(TraceDB.id == ObjectId(trace_id))
 
-    # Get trace
-    trace = await TraceDB.find_one(
-        TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id
-    )
-
-    # Calculate latency
-    latency = payload.end_time - trace.start_time
     await trace.update(
         {
             "$set": {
                 **payload.dict(exclude_none=True),
-                "latency": latency.total_seconds(),
             },
         }
     )
@@ -126,15 +115,15 @@ async def create_trace_span(payload: CreateSpan) -> str:
         str: the created span id
     """
 
-    end_time = datetime.now()
-    duration = end_time - payload.start_time
     trace = await TraceDB.find_one(TraceDB.id == ObjectId(payload.trace_id))
     span_db = SpanDB(
-        **payload.dict(exclude={"end_time", "duration", "trace_id", "environment"}),
+        **payload.dict(
+            exclude={"end_time", "trace_id", "span_id", "end_time", "environment"}
+        ),
+        id=ObjectId(payload.span_id),
         trace=trace,
         environment="playground" if not payload.environment else payload.environment,
-        end_time=end_time,
-        duration=duration.total_seconds(),
+        end_time=payload.end_time,
     )
     await span_db.create()
     return str(span_db.id)

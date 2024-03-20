@@ -54,7 +54,7 @@ async def get_dashboard_data(
 
 @router.post("/traces/", response_model=str, operation_id="create_trace")
 async def create_trace(request: Request, payload: CreateTrace):
-    trace_id = await event_db_manager.create_app_trace(payload, request.state.user_id)
+    trace_id = await event_db_manager.create_app_trace(payload)
     return trace_id
 
 
@@ -161,9 +161,7 @@ async def update_trace(
     payload: UpdateTrace,
     request: Request,
 ):
-    trace = await event_db_manager.trace_update(
-        trace_id, payload, request.state.user_id
-    )
+    trace = await event_db_manager.trace_update(trace_id, payload)
     return trace
 
 

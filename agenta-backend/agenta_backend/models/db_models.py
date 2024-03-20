@@ -318,11 +318,6 @@ class LLMTokens(BaseModel):
     total_tokens: int
 
 
-class TracingEventTypes(BaseModel):
-    LLM_REQUEST = "llm_request"
-    EMBEDDING = "embedding"
-
-
 class TraceDB(Document):
     app_id: str
     variant_id: str
@@ -354,7 +349,7 @@ class SpanDB(Document):
     parent_span_id: Optional[str]  # parent observability of span
     meta: Optional[Dict[str, Any]]
     event_name: str  # Function or execution name
-    event_type: Optional[TracingEventTypes]
+    event_type: str
     status: SpanStatus
     input: Optional[Dict[str, Any]]
     output: Optional[str]
@@ -363,6 +358,7 @@ class SpanDB(Document):
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     tokens: Optional[LLMTokens]
+    cost: Optional[float]
     created_at: datetime = Field(default=datetime.now())
 
     def get_latency(cls) -> float:
