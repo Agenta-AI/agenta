@@ -271,13 +271,6 @@ class EvaluationDB(Document):
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
-    async def increase_rerun_count(self):
-        """
-        Increments the rerun_count by 1 and updates the document in the database.
-        """
-        self.rerun_count += 1
-        await self.save()
-
     class Settings:
         name = "new_evaluations"
 

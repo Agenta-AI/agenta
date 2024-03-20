@@ -16,9 +16,14 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationWebhook,
     RerunEvaluation,
+    EvaluationStatusEnum,
 )
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
+)
+
+from agenta_backend.models.db_models import (
+    Result,
 )
 
 if isCloudEE():
@@ -188,24 +193,37 @@ async def re_run_evaluation(
                     status_code=403,
                 )
 
-        evaluation_ids = evaluation_ids.split(',')
+        evaluation_ids = evaluation_ids.split(",")
 
         rate_limit_config = {
-            'batch_size': 10,
-            'max_retries': 3,
-            'retry_delay': 3,
-            'delay_between_batches': 5
+            "batch_size": 10,
+            "max_retries": 3,
+            "retry_delay": 3,
+            "delay_between_batches": 5,
         }
 
         for evaluation_id in evaluation_ids:
             evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
 
-            await evaluation.increase_rerun_count()
+            evaluation.rerun_count += 1
+            await db_manager.update_evaluation(
+                evaluation_id=evaluation_id,
+                updates={
+                    "status": Result(
+                        type="status",
+                        value=EvaluationStatusEnum.EVALUATION_STARTED,
+                        error=None,
+                    ),
+                    "rerun_count": evaluation.rerun_count,
+                },
+            )
 
             evaluate.delay(
                 app_id=app_id,
                 variant_id=str(evaluation.variant),
-                evaluators_config_ids=[str(config_id) for config_id in evaluation.evaluators_configs],
+                evaluators_config_ids=[
+                    str(config_id) for config_id in evaluation.evaluators_configs
+                ],
                 testset_id=str(evaluation.testset.id),
                 evaluation_id=evaluation_id,
                 rate_limit_config=rate_limit_config,
