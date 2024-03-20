@@ -152,7 +152,6 @@ class ObservabilityClient:
         variant_id: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
         status: typing.Optional[str] = OMIT,
-        token_consumption: typing.Optional[int] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
         id: str,
@@ -169,8 +168,6 @@ class ObservabilityClient:
             - cost: typing.Optional[float].
 
             - status: typing.Optional[str].
-
-            - token_consumption: typing.Optional[int].
 
             - tags: typing.Optional[typing.List[str]].
 
@@ -202,8 +199,6 @@ class ObservabilityClient:
             _request["cost"] = cost
         if status is not OMIT:
             _request["status"] = status
-        if token_consumption is not OMIT:
-            _request["token_consumption"] = token_consumption
         if tags is not OMIT:
             _request["tags"] = tags
         if start_time is not OMIT:
@@ -499,6 +494,7 @@ class ObservabilityClient:
         status: str,
         end_time: dt.datetime,
         outputs: typing.List[str],
+        token_consumption: typing.Optional[int] = OMIT,
     ) -> bool:
         """
         Parameters:
@@ -509,6 +505,8 @@ class ObservabilityClient:
             - end_time: dt.datetime.
 
             - outputs: typing.List[str].
+
+            - token_consumption: typing.Optional[int].
         ---
         import datetime
 
@@ -522,15 +520,20 @@ class ObservabilityClient:
             outputs=["outputs"],
         )
         """
+        _request: typing.Dict[str, typing.Any] = {
+            "status": status,
+            "end_time": end_time,
+            "outputs": outputs,
+        }
+        if token_consumption is not OMIT:
+            _request["token_consumption"] = token_consumption
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
                 f"observability/traces/{trace_id}",
             ),
-            json=jsonable_encoder(
-                {"status": status, "end_time": end_time, "outputs": outputs}
-            ),
+            json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -865,7 +868,6 @@ class AsyncObservabilityClient:
         variant_id: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
         status: typing.Optional[str] = OMIT,
-        token_consumption: typing.Optional[int] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
         id: str,
@@ -882,8 +884,6 @@ class AsyncObservabilityClient:
             - cost: typing.Optional[float].
 
             - status: typing.Optional[str].
-
-            - token_consumption: typing.Optional[int].
 
             - tags: typing.Optional[typing.List[str]].
 
@@ -915,8 +915,6 @@ class AsyncObservabilityClient:
             _request["cost"] = cost
         if status is not OMIT:
             _request["status"] = status
-        if token_consumption is not OMIT:
-            _request["token_consumption"] = token_consumption
         if tags is not OMIT:
             _request["tags"] = tags
         if start_time is not OMIT:
@@ -1212,6 +1210,7 @@ class AsyncObservabilityClient:
         status: str,
         end_time: dt.datetime,
         outputs: typing.List[str],
+        token_consumption: typing.Optional[int] = OMIT,
     ) -> bool:
         """
         Parameters:
@@ -1222,6 +1221,8 @@ class AsyncObservabilityClient:
             - end_time: dt.datetime.
 
             - outputs: typing.List[str].
+
+            - token_consumption: typing.Optional[int].
         ---
         import datetime
 
@@ -1235,15 +1236,20 @@ class AsyncObservabilityClient:
             outputs=["outputs"],
         )
         """
+        _request: typing.Dict[str, typing.Any] = {
+            "status": status,
+            "end_time": end_time,
+            "outputs": outputs,
+        }
+        if token_consumption is not OMIT:
+            _request["token_consumption"] = token_consumption
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
                 f"observability/traces/{trace_id}",
             ),
-            json=jsonable_encoder(
-                {"status": status, "end_time": end_time, "outputs": outputs}
-            ),
+            json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
