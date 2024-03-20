@@ -551,6 +551,7 @@ async def create_new_evaluation(
         variant=variant_id,
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
+        started_at=datetime.now(),
         organization=app.organization if isCloudEE() else None,
         workspace=app.workspace if isCloudEE() else None,
     )

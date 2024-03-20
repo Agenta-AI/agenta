@@ -71,6 +71,8 @@ class Evaluation(BaseModel):
     testset_name: Optional[str]
     status: Result
     aggregated_results: List[AggregatedResult]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 

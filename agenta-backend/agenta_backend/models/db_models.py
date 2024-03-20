@@ -267,6 +267,8 @@ class EvaluationDB(Document):
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     rerun_count: int = Field(default=0)
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
 
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())

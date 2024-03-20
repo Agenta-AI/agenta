@@ -1,5 +1,6 @@
 import secrets
 import logging
+from datetime import datetime
 from typing import Any, List
 
 from fastapi.responses import JSONResponse
@@ -174,7 +175,6 @@ async def re_run_evaluation(
     """
     try:
         app = await db_manager.fetch_app_by_id(app_id)
-        print(app)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
@@ -214,6 +214,7 @@ async def re_run_evaluation(
                         value=EvaluationStatusEnum.EVALUATION_STARTED,
                         error=None,
                     ),
+                    "started_at": datetime.now(),
                     "rerun_count": evaluation.rerun_count,
                 },
             )
