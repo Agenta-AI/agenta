@@ -71,7 +71,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-export function LongTextCellRenderer(params: ICellRendererParams) {
+export function LongTextCellRenderer(params: ICellRendererParams, output?: any) {
     const {value, api, node} = params
     const [expanded, setExpanded] = useState(
         node.rowHeight !== api.getSizesForCurrentTheme().rowHeight,
@@ -123,7 +123,7 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
             className={classes.longCell}
             style={expanded ? {textWrap: "wrap", lineHeight: "2em", paddingTop: 6.5} : undefined}
         >
-            {value}
+            {output ? output : value}
             <Space align="center" size="middle">
                 {expanded ? (
                     <FullscreenExitOutlined onClick={onExpand} />
