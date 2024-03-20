@@ -6,6 +6,7 @@ import traceback
 
 from typing import Any, Dict, List
 from celery import shared_task, states
+from datetime import datetime
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import DBEngine
@@ -289,7 +290,8 @@ def evaluate(
                         type="status",
                         value="EVALUATION_FAILED",
                         error=Error(message="Evaluation Failed", stacktrace=str(e)),
-                    )
+                    ),
+                    "finished_at": datetime.now(),
                 },
             )
         )
@@ -322,7 +324,10 @@ def evaluate(
 
     loop.run_until_complete(
         update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+            evaluation_id=new_evaluation_db.id, updates={
+                "status": evaluation_status,
+                "finished_at": datetime.now(),
+            }
         )
     )
 
