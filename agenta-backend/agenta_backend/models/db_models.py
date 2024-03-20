@@ -293,8 +293,8 @@ class EvaluationScenarioDB(Document):
 
 class SpanEnumStatus(str, Enum):
     INITIATED = "INITIATED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class SpanStatus(BaseModel):

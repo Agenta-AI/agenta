@@ -25,8 +25,8 @@ class Error(BaseModel):
 
 class Status(str, Enum):
     INITIATED = "INITIATED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class SpanVariant(BaseModel):
@@ -47,7 +47,7 @@ class Span(BaseModel):
     environment: Optional[str]
     status: SpanStatus
     metadata: Dict[str, Any]
-    user_id: str
+    user_id: Optional[str]
 
 
 class LLMTokens(BaseModel):

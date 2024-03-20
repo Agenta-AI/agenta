@@ -7,12 +7,14 @@ from fastapi import HTTPException
 
 from agenta_backend.models.api.api_models import PaginationParam, SorterParams
 from agenta_backend.models.api.observability_models import (
+    Error,
     Span,
     SpanDetail,
     CreateSpan,
     ObservabilityDashboardData,
     Feedback,
     CreateFeedback,
+    SpanStatus,
     UpdateFeedback,
     Trace,
     TraceDetail,
@@ -187,22 +189,18 @@ async def fetch_generation_spans(
     return get_paginated_data(list(filtered_generations), spans_count, pagination)
 
 
-async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
+async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
     """Get a generation span detail.
 
     Args:
         span_id (str): The ID of a span
-        user_uid (str): The user ID
 
     Returns:
         SpanDetail: span detail pydantic model
     """
 
-    user = await db_manager.get_user(user_uid)
     span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span_id), fetch_links=True)
-    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-        span_db.trace.base_id, span_db.trace.config_name
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(span_db.trace.variant_id)
 
     return SpanDetail(
         **{
@@ -227,22 +225,22 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
             },
             "metadata": {
                 "cost": span_db.cost,
-                "latency": span_db.duration,
-                "usage": span_db.meta,
+                "latency": span_db.get_latency(),
+                "usage": span_db.tokens,
             },
-            "user_id": str(user.id),
+            "user_id": "",
             "span_id": str(span_db.id),
             "content": {
                 "inputs": [
                     {"input_name": key, "input_value": value}
-                    for key, value in span_db.inputs.items()
+                    for key, value in span_db.input.items()
                 ],
-                "output": span_db.outputs[0],
+                "output": span_db.output,
             },
             "model_params": {
                 "prompt": {
-                    "system": (span_db.prompt_system),
-                    "user": span_db.prompt_user,
+                    "system": "",
+                    "user": "",
                     "variables": helpers.convert_generation_span_inputs_variables(
                         span_db
                     ),
@@ -361,7 +359,7 @@ async def fetch_traces(
     return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 
-async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
+async def fetch_trace_detail(trace_id: str) -> TraceDetail:
     """Get a trace detail.
 
     Args:
@@ -372,12 +370,14 @@ async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
         TraceDetail: trace detail pydantic model
     """
 
-    user = await db_manager.get_user(user_uid)
     trace_db = await get_single_trace(trace_id)
-    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-        trace_db.base_id, trace_db.config_name
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
 
+    span_status = (
+        SpanStatus(value=trace_db.status)
+        if trace_db.status in ["INITIATED", "COMPLETED"]
+        else SpanStatus(value=None, error=Error(message=trace_db.status))
+    )
     return TraceDetail(
         **{
             "id": str(trace_db.id),
@@ -388,13 +388,13 @@ async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
                 "revision": app_variant_db.revision,
             },
             "environment": trace_db.environment,
-            "status": {"value": trace_db.status, "error": None},
+            "status": span_status,
             "metadata": {
                 "cost": trace_db.cost,
-                "latency": trace_db.latency,
+                "latency": trace_db.get_latency(),
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
-            "user_id": str(user.id),
+            "user_id": "",
         },
     )
 

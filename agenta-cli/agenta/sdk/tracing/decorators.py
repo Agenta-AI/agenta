@@ -29,7 +29,7 @@ def span(tracing: Tracing, event_type: str):
             except Exception as e:
                 span.set_attribute("error", True)
                 span.set_attribute("error_message", str(e))
-                span.update_span_status("FAILED", str(e))
+                span.update_span_status("FAILED", exc=str(e))
             finally:
                 if not isinstance(result, dict):
                     result = {"message": result}
