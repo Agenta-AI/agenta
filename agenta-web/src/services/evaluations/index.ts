@@ -86,6 +86,8 @@ const evaluationTransformer = (item: any) => ({
     appId: item.app_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
+    started_at: item.started_at,
+    finished_at: item.finished_at,
     duration: calcEvalDuration(item),
     status: item.status,
     testset: {
