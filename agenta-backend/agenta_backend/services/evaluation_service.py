@@ -563,26 +563,24 @@ async def create_new_evaluation(
 
 async def create_new_evaluation_params(
     app_id: str,
-    variants_ids: str,
+    variants_ids: List[str],
     evaluator_config_ids: List[str],
     testset_id: str,
     rate_limit_config: dict,
 ) -> Evaluation:
     """
     Create a new evaluation in the db
-
     Args:
         app_id (str): The ID of the app.
-        variant_id (str): The ID of the variant.
+        variants_ids (List[str]): The IDs of the variants.
         evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
         testset_id (str): The ID of the testset.
-
     Returns:
         Evaluation: The newly created evaluation.
     """
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
-    evaluation_param = await db_manager.create_new_evaluation_params(
+    evaluation_params = await db_manager.create_new_evaluation_params(
         app=app,
         user=app.user,
         testset_id=testset_id,
@@ -593,21 +591,19 @@ async def create_new_evaluation_params(
         workspace=app.workspace if isCloudEE() else None,
     )
 
-    return evaluation_param
+    return evaluation_params
 
 
 async def fetch_evaluation_params(evaluation_params_id: str) -> EvaluationParamsDB:
-    """Retrieve the aggregated results for a given evaluation.
-
-    Args:
-        evaluation_id (str): the evaluation id
-
-    Returns:
-        List[dict]: evaluation aggregated results
     """
-
+    Retrieve the evaluation parameters for a given ID.
+    Args:
+        evaluation_params_id (str): The evaluation parameters ID.
+    Returns:
+        EvaluationParamsDB: The fetched evaluation parameters.
+    """
     evaluation_params = await db_manager.fetch_evaluation_params(evaluation_params_id)
-    return await evaluation_params
+    return evaluation_params
 
 
 async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
