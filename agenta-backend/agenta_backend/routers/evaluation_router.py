@@ -138,11 +138,7 @@ async def create_evaluation(
             testset_id=payload.testset_id,
             variants_ids=payload.variant_ids,
             rate_limit_config=payload.rate_limit,
-            # evaluations_ids=[evaluation.id for evaluation in evaluations]
         )
-
-        print("evaluation_params")
-        print(evaluation_params)
 
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
@@ -165,8 +161,12 @@ async def create_evaluation(
             )
             evaluations.append(evaluation)
 
-        # we need to update the evaluations_params
-        # to also include the evaluations for a full rerun later
+        # In case we need to save all data for a rerun
+        # we also need to update the evaluations_params
+        # with evaluations ids (in case of a complete rerun)
+        # evaluation_service.update_evaluation_params(
+        #     evaluations_ids=[evaluation.id for evaluation in evaluations]
+        # )
 
         return evaluations
     except KeyError:
