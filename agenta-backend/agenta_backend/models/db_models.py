@@ -264,6 +264,7 @@ class EvaluationParamsDB(Document):
     variants_ids: List[PydanticObjectId]
     evaluators_configs: List[PydanticObjectId]
     rate_limit_config: dict
+    correct_answer_column: str
     created_at: Optional[datetime] = Field(default=datetime.now())
     updated_at: Optional[datetime] = Field(default=datetime.now())
 

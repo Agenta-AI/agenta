@@ -1861,6 +1861,7 @@ async def create_new_evaluation_params(
     variants_ids: List[str],
     evaluators_configs: List[str],
     rate_limit_config: dict,
+    correct_answer_column: str,
     user: UserDB,
     organization=None,
     workspace=None,
@@ -1888,6 +1889,7 @@ async def create_new_evaluation_params(
         variants_ids=variants_ids,
         evaluators_configs=evaluators_configs,
         rate_limit_config=rate_limit_config,
+        correct_answer_column=correct_answer_column,
     )
 
     if isCloudEE():
