@@ -315,8 +315,10 @@ export function getFilterParams(type: CellDataType) {
 
 export const calcEvalDuration = (evaluation: _Evaluation) => {
     return dayjs(
-        runningStatuses.includes(evaluation.status.value) ? Date.now() : evaluation.finished_at,
-    ).diff(dayjs(evaluation.started_at), "milliseconds")
+        runningStatuses.includes(evaluation.status.value)
+            ? Date.now()
+            : evaluation.finished_at ?? evaluation.updated_at,
+    ).diff(dayjs(evaluation.started_at ?? evaluation.created_at), "milliseconds")
 }
 
 const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: string) => {
