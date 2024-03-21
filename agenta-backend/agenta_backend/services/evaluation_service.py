@@ -42,6 +42,7 @@ else:
     )
 
 from agenta_backend.models.db_models import (
+    EvaluationParamsDB,
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
     Result,
@@ -519,6 +520,7 @@ async def create_new_evaluation(
     variant_id: str,
     evaluator_config_ids: List[str],
     testset_id: str,
+    evaluation_params_id: ObjectId,
 ) -> Evaluation:
     """
     Create a new evaluation in the db
@@ -552,10 +554,60 @@ async def create_new_evaluation(
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
         started_at=datetime.now(),
+        evaluation_params_id=evaluation_params_id,
         organization=app.organization if isCloudEE() else None,
         workspace=app.workspace if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
+
+
+async def create_new_evaluation_params(
+    app_id: str,
+    variants_ids: str,
+    evaluator_config_ids: List[str],
+    testset_id: str,
+    rate_limit_config: dict,
+) -> Evaluation:
+    """
+    Create a new evaluation in the db
+
+    Args:
+        app_id (str): The ID of the app.
+        variant_id (str): The ID of the variant.
+        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
+        testset_id (str): The ID of the testset.
+
+    Returns:
+        Evaluation: The newly created evaluation.
+    """
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+
+    evaluation_param = await db_manager.create_new_evaluation_params(
+        app=app,
+        user=app.user,
+        testset_id=testset_id,
+        variants_ids=variants_ids,
+        evaluators_configs=evaluator_config_ids,
+        rate_limit_config=rate_limit_config,
+        organization=app.organization if isCloudEE() else None,
+        workspace=app.workspace if isCloudEE() else None,
+    )
+
+    return evaluation_param
+
+
+async def fetch_evaluation_params(evaluation_params_id: str) -> EvaluationParamsDB:
+    """Retrieve the aggregated results for a given evaluation.
+
+    Args:
+        evaluation_id (str): the evaluation id
+
+    Returns:
+        List[dict]: evaluation aggregated results
+    """
+
+    evaluation_params = await db_manager.fetch_evaluation_params(evaluation_params_id)
+    return await evaluation_params
 
 
 async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
