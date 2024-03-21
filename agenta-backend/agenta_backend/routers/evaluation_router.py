@@ -138,6 +138,7 @@ async def create_evaluation(
             testset_id=payload.testset_id,
             variants_ids=payload.variant_ids,
             rate_limit_config=payload.rate_limit,
+            correct_answer_column=correct_answer_column,
         )
 
         for variant_id in payload.variant_ids:
@@ -216,8 +217,6 @@ async def re_run_evaluation(
             evaluation_params = await db_manager.fetch_evaluation_params(
                 evaluation.evaluation_params_id
             )
-            print("evaluation_params")
-            print(evaluation_params)
 
             evaluation.rerun_count += 1
             await db_manager.update_evaluation(
@@ -243,7 +242,7 @@ async def re_run_evaluation(
                 evaluation_id=evaluation_id,
                 rate_limit_config=evaluation_params.rate_limit_config,
                 lm_providers_keys=payload.lm_providers_keys,
-                correct_answer_column="correct_answer",
+                correct_answer_column=evaluation_params.correct_answer_column,
             )
 
         return Response(status_code=status.HTTP_200_OK)

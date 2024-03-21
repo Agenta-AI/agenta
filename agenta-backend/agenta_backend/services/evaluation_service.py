@@ -567,6 +567,7 @@ async def create_new_evaluation_params(
     evaluator_config_ids: List[str],
     testset_id: str,
     rate_limit_config: dict,
+    correct_answer_column: str,
 ) -> Evaluation:
     """
     Create a new evaluation in the db
@@ -587,6 +588,7 @@ async def create_new_evaluation_params(
         variants_ids=variants_ids,
         evaluators_configs=evaluator_config_ids,
         rate_limit_config=rate_limit_config,
+        correct_answer_column=correct_answer_column,
         organization=app.organization if isCloudEE() else None,
         workspace=app.workspace if isCloudEE() else None,
     )
