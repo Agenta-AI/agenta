@@ -271,7 +271,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
-                field: "created_at",
+                field: "started_at",
                 headerName: "Created",
                 minWidth: 160,
                 ...getFilterParams("date"),
