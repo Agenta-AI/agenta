@@ -324,10 +324,11 @@ def evaluate(
 
     loop.run_until_complete(
         update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={
+            evaluation_id=new_evaluation_db.id,
+            updates={
                 "status": evaluation_status,
                 "finished_at": datetime.now(),
-            }
+            },
         )
     )
 

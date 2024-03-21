@@ -132,12 +132,25 @@ async def create_evaluation(
             else payload.correct_answer_column
         )
 
+        evaluation_params = await evaluation_service.create_new_evaluation_params(
+            app_id=payload.app_id,
+            evaluator_config_ids=payload.evaluators_configs,
+            testset_id=payload.testset_id,
+            variants_ids=payload.variant_ids,
+            rate_limit_config=payload.rate_limit,
+            # evaluations_ids=[evaluation.id for evaluation in evaluations]
+        )
+
+        print("evaluation_params")
+        print(evaluation_params)
+
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
                 app_id=payload.app_id,
                 variant_id=variant_id,
                 evaluator_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
+                evaluation_params_id=evaluation_params.id,
             )
 
             evaluate.delay(
@@ -151,6 +164,9 @@ async def create_evaluation(
                 correct_answer_column=correct_answer_column,
             )
             evaluations.append(evaluation)
+
+        # we need to update the evaluations_params
+        # to also include the evaluations for a full rerun later
 
         return evaluations
     except KeyError:
@@ -195,15 +211,13 @@ async def re_run_evaluation(
 
         evaluation_ids = evaluation_ids.split(",")
 
-        rate_limit_config = {
-            "batch_size": 10,
-            "max_retries": 3,
-            "retry_delay": 3,
-            "delay_between_batches": 5,
-        }
-
         for evaluation_id in evaluation_ids:
             evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+            evaluation_params = await db_manager.fetch_evaluation_params(
+                evaluation.evaluation_params_id
+            )
+            print("evaluation_params")
+            print(evaluation_params)
 
             evaluation.rerun_count += 1
             await db_manager.update_evaluation(
@@ -227,7 +241,7 @@ async def re_run_evaluation(
                 ],
                 testset_id=str(evaluation.testset.id),
                 evaluation_id=evaluation_id,
-                rate_limit_config=rate_limit_config,
+                rate_limit_config=evaluation_params.rate_limit_config,
                 lm_providers_keys=payload.lm_providers_keys,
                 correct_answer_column="correct_answer",
             )

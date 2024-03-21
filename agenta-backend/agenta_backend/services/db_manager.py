@@ -60,6 +60,7 @@ else:
     )
 from agenta_backend.models.db_models import (
     ConfigDB,
+    EvaluationParamsDB,
     TemplateDB,
     AggregatedResult,
     AppVariantRevisionsDB,
@@ -1819,7 +1820,8 @@ async def create_new_evaluation(
     organization=None,
     workspace=None,
     started_at: Optional[datetime] = None,
-    finished_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None,
+    evaluation_params_id: Optional[ObjectId] = None,
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
 
@@ -1837,6 +1839,7 @@ async def create_new_evaluation(
         aggregated_results=[],
         started_at=started_at,
         finished_at=finished_at,
+        evaluation_params_id=evaluation_params_id,
     )
 
     if isCloudEE():
@@ -1850,6 +1853,59 @@ async def create_new_evaluation(
 
     await evaluation.create()
     return evaluation
+
+
+async def create_new_evaluation_params(
+    app: AppDB,
+    testset_id: str,
+    variants_ids: List[str],
+    evaluators_configs: List[str],
+    rate_limit_config: dict,
+    user: UserDB,
+    organization=None,
+    workspace=None,
+) -> EvaluationParamsDB:
+    """Create a new evaluation parameters.
+
+    Returns:
+        EvaluationDB: The created evaluation scenario.
+    """
+    evaluation_params = EvaluationParamsDB(
+        app=app,
+        user=user,
+        testset_id=testset_id,
+        variants_ids=variants_ids,
+        evaluators_configs=evaluators_configs,
+        rate_limit_config=rate_limit_config,
+    )
+
+    if isCloudEE():
+        # assert that if organization is provided, workspace is also provided, and vice versa
+        assert (
+            organization is not None and workspace is not None
+        ), "organization and workspace must be provided together"
+
+        evaluation_params.organization = organization
+        evaluation_params.workspace = workspace
+
+    await evaluation_params.create()
+    return evaluation_params
+
+
+async def fetch_evaluation_params(evaluation_params_id: str):
+    """Fetches an evaluation params
+
+    Returns:
+        EvaluationParamsDB
+    """
+
+    try:
+        evaluation_params = await EvaluationParamsDB.find_one(
+            EvaluationParamsDB.id == ObjectId(evaluation_params_id)
+        )
+        return evaluation_params
+    except Exception as e:
+        raise e
 
 
 async def create_new_evaluation_scenario(
@@ -2084,12 +2140,6 @@ async def update_evaluation(
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
     evaluation = await EvaluationDB.get(ObjectId(evaluation_id))
-
-    print("updates")
-    print(updates)
-
-    print("evaluation")
-    print(evaluation)
 
     for key, value in updates.items():
         if hasattr(evaluation, key):
