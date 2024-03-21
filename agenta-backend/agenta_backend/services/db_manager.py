@@ -1865,10 +1865,21 @@ async def create_new_evaluation_params(
     organization=None,
     workspace=None,
 ) -> EvaluationParamsDB:
-    """Create a new evaluation parameters.
+    """
+    Create new evaluation parameters.
+
+    Args:
+        app (AppDB): The app associated with the evaluation parameters.
+        testset_id (str): The ID of the testset.
+        variants_ids (List[str]): A list of IDs for the variants.
+        evaluators_configs (List[str]): A list of evaluator configuration IDs.
+        rate_limit_config (dict): The rate limit configuration.
+        user (UserDB): The user associated with the evaluation.
+        organization: The organization associated with the evaluation, if applicable.
+        workspace: The workspace associated with the evaluation, if applicable.
 
     Returns:
-        EvaluationDB: The created evaluation params.
+        EvaluationParamsDB: The created evaluation parameters.
     """
     evaluation_params = EvaluationParamsDB(
         app=app,
@@ -1880,11 +1891,9 @@ async def create_new_evaluation_params(
     )
 
     if isCloudEE():
-        # assert that if organization is provided, workspace is also provided, and vice versa
         assert (
             organization is not None and workspace is not None
         ), "organization and workspace must be provided together"
-
         evaluation_params.organization = organization
         evaluation_params.workspace = workspace
 
@@ -1892,20 +1901,19 @@ async def create_new_evaluation_params(
     return evaluation_params
 
 
-async def fetch_evaluation_params(evaluation_params_id: str):
-    """Fetches an evaluation params
+async def fetch_evaluation_params(evaluation_params_id: str) -> EvaluationParamsDB:
+    """
+    Fetches evaluation parameters by their ID.
+
+    Args:
+        evaluation_params_id (str): The ID of the evaluation parameters to fetch.
 
     Returns:
-        EvaluationParamsDB
+        EvaluationParamsDB: The fetched evaluation parameters.
     """
-
-    try:
-        evaluation_params = await EvaluationParamsDB.find_one(
-            EvaluationParamsDB.id == ObjectId(evaluation_params_id)
-        )
-        return evaluation_params
-    except Exception as e:
-        raise e
+    return await EvaluationParamsDB.find_one(
+        EvaluationParamsDB.id == ObjectId(evaluation_params_id)
+    )
 
 
 async def create_new_evaluation_scenario(
