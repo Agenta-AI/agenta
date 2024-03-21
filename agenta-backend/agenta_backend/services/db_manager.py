@@ -1826,7 +1826,7 @@ async def create_new_evaluation(
     """Create a new evaluation scenario.
 
     Returns:
-        EvaluationDB: The created evaluation scenario.
+        EvaluationDB: The created evaluation.
     """
     evaluation = EvaluationDB(
         app=app,
@@ -1868,7 +1868,7 @@ async def create_new_evaluation_params(
     """Create a new evaluation parameters.
 
     Returns:
-        EvaluationDB: The created evaluation scenario.
+        EvaluationDB: The created evaluation params.
     """
     evaluation_params = EvaluationParamsDB(
         app=app,
