@@ -281,10 +281,10 @@ class EvaluationDB(Document):
     variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
-    rerun_count: int = Field(default=0)
+    rerun_count: int = Field(default=None)
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    evaluation_params_id: PydanticObjectId
+    evaluation_params_id: Optional[PydanticObjectId] = None
 
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
@@ -304,7 +304,7 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
-    rerun_count: int = Field(default=0)
+    rerun_count: int = Field(default=None)
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
