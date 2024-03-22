@@ -361,33 +361,38 @@ const EvaluationCardView: React.FC<Props> = ({
                             </Button>
                         </div>
 
-                        <ParamsForm
-                            isChatVariant={isChat}
-                            onParamChange={(name, value) =>
-                                isChat
-                                    ? onChatChange(value)
-                                    : onInputChange(
-                                          {target: {value}} as any,
-                                          scenarioId,
-                                          scenario.inputs.findIndex((ip) => ip.input_name === name),
-                                      )
-                            }
-                            inputParams={
-                                isChat
-                                    ? [{name: "chat", value: chat} as any]
-                                    : variantData[0].inputParams?.map((item) => ({
-                                          ...item,
-                                          value: scenario.inputs.find(
-                                              (ip) => ip.input_name === item.name,
-                                          )?.input_value,
-                                      })) || []
-                            }
-                            key={scenarioId}
-                            useChatDefaultValue
-                            form={form}
-                            onFinish={() => onRun(scenarioId)}
-                            imageSize="large"
-                        />
+                        <div>
+                            <Typography.Text style={{fontSize: 20}}>Inputs</Typography.Text>
+                            <ParamsForm
+                                isChatVariant={isChat}
+                                onParamChange={(name, value) =>
+                                    isChat
+                                        ? onChatChange(value)
+                                        : onInputChange(
+                                              {target: {value}} as any,
+                                              scenarioId,
+                                              scenario.inputs.findIndex(
+                                                  (ip) => ip.input_name === name,
+                                              ),
+                                          )
+                                }
+                                inputParams={
+                                    isChat
+                                        ? [{name: "chat", value: chat} as any]
+                                        : variantData[0].inputParams?.map((item) => ({
+                                              ...item,
+                                              value: scenario.inputs.find(
+                                                  (ip) => ip.input_name === item.name,
+                                              )?.input_value,
+                                          })) || []
+                                }
+                                key={scenarioId}
+                                useChatDefaultValue
+                                form={form}
+                                onFinish={() => onRun(scenarioId)}
+                                imageSize="large"
+                            />
+                        </div>
 
                         <div className={classes.toolBar}>
                             <Tooltip title="Instructions">
@@ -405,11 +410,17 @@ const EvaluationCardView: React.FC<Props> = ({
                         </div>
 
                         <div>
-                            {!isAbTesting && (
-                                <Typography.Text style={{fontSize: 20}}>
-                                    Model Response
-                                </Typography.Text>
-                            )}
+                            <div style={{marginBottom: "1rem"}}>
+                                {!isAbTesting ? (
+                                    <Typography.Text style={{fontSize: 20}}>
+                                        Model Response
+                                    </Typography.Text>
+                                ) : (
+                                    <Typography.Text style={{fontSize: 20}}>
+                                        Outputs
+                                    </Typography.Text>
+                                )}
+                            </div>
 
                             <EvaluationCard
                                 isChat={isChat}
