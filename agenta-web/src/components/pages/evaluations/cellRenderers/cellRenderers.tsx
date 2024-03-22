@@ -95,7 +95,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
             cellsArr.forEach((cell) => {
                 cell.setAttribute(
                     "style",
-                    "overflow: visible; white-space: pre-wrap; text-overflow: unset;",
+                    "overflow: visible; white-space: pre-wrap; text-overflow: unset; line-height: 2.5em;",
                 )
             })
             const height = Math.max(...cellsArr.map((cell) => cell.scrollHeight))
@@ -121,7 +121,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
     return (
         <div
             className={classes.longCell}
-            style={expanded ? {textWrap: "wrap", lineHeight: "2em", paddingTop: 6.5} : undefined}
+            style={expanded ? {textWrap: "wrap", paddingTop: 6.5} : undefined}
         >
             {output ? output : value}
             <Space align="center" size="middle">
