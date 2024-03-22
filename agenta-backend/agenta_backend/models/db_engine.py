@@ -19,6 +19,7 @@ if isCloudEE():
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
+        EvaluationParamsDB_ as EvaluationParamsDB,
         DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
