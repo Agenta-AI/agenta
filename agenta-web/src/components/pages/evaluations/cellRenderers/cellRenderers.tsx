@@ -99,7 +99,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
                 )
             })
             const height = Math.max(...cellsArr.map((cell) => cell.scrollHeight))
-            node.setRowHeight(height <= defaultHeight ? defaultHeight * 2 : height)
+            node.setRowHeight(height <= defaultHeight ? defaultHeight * 2 : height + 10)
         } else {
             cellsArr.forEach((cell) => {
                 cell.setAttribute(
