@@ -214,9 +214,18 @@ async def re_run_evaluation(
 
         for evaluation_id in evaluation_ids:
             evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-            evaluation_params = await db_manager.fetch_evaluation_params(
+            evaluation_params = await evaluation_service.fetch_evaluation_params(
                 evaluation.evaluation_params_id
             )
+
+            if evaluation_params == None:
+                # due to the fact that the correct answer was not persisted
+                # rerunning evaluations with "correct_answer" as a value will
+                # result in errors. Hince returning an error.
+                return JSONResponse(
+                    {"detail": "This is old evaluation that cannot be rerun."},
+                    status_code=400,
+                )
 
             evaluation.rerun_count += 1
             await db_manager.update_evaluation(
