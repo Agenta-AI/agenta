@@ -212,40 +212,19 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
                 "revision": app_variant_db.revision,
             },
             "environment": span_db.environment,
-            "status": {
-                "value": span_db.status.value,
-                "error": (
-                    {
-                        "message": span_db.status.error.message,
-                        "stacktrace": span_db.status.error.stacktrace,
-                    }
-                    if span_db.status.value == "FAILURE"
-                    else None
-                ),
-            },
+            "status": span_db.status.dict(),
             "metadata": {
                 "cost": span_db.cost,
                 "latency": span_db.get_latency(),
                 "usage": span_db.tokens,
             },
             "user_id": "",
-            "span_id": str(span_db.id),
             "content": {
                 "inputs": [
                     {"input_name": key, "input_value": value}
                     for key, value in span_db.input.items()
                 ],
                 "output": span_db.output,
-            },
-            "model_params": {
-                "prompt": {
-                    "system": "",
-                    "user": "",
-                    "variables": helpers.convert_generation_span_inputs_variables(
-                        span_db
-                    ),
-                },
-                "params": app_variant_db.config.parameters,
             },
         },
     )
@@ -381,6 +360,8 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
     return TraceDetail(
         **{
             "id": str(trace_db.id),
+            "inputs": trace_db.inputs,
+            "outputs": trace_db.outputs,
             "created_at": trace_db.created_at.isoformat(),
             "variant": {
                 "variant_id": str(app_variant_db.id),
@@ -395,6 +376,7 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
             "user_id": "",
+            "variant_config": trace_db.variant_config,
         },
     )
 
