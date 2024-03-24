@@ -83,7 +83,7 @@ class LLMInputs(BaseModel):
 
 class LLMContent(BaseModel):
     inputs: List[LLMInputs]
-    output: str
+    output: Optional[str]
 
 
 class LLMModelParams(BaseModel):
@@ -92,9 +92,7 @@ class LLMModelParams(BaseModel):
 
 
 class SpanDetail(Span):
-    span_id: str
     content: LLMContent
-    model_params: LLMModelParams
 
 
 class Trace(Span):
@@ -102,7 +100,9 @@ class Trace(Span):
 
 
 class TraceDetail(Trace):
-    pass
+    inputs: Dict[str, Any]
+    outputs: List[str]
+    variant_config: Dict[str, Any]
 
 
 class ObservabilityData(BaseModel):
