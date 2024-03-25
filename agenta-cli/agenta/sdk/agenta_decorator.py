@@ -10,10 +10,10 @@ import traceback
 import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Optional, Tuple, List, Union
+from typing import Any, Callable, Dict, Optional, Tuple, List
 
-from fastapi import Body, FastAPI, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi import Body, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 import agenta
@@ -83,22 +83,27 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # Start tracing
         tracing.trace(
             trace_name=func.__name__,
-            inputs={"prompt": func_params},
-            variant_config=api_config_params,
+            inputs=func_params,
+            config=api_config_params,
+            **{"environment": "playground"},  # type: ignore
         )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
-        result = await execute_function(
+        llm_result = await execute_function(
             func, *args, **{"params": func_params, "config_params": config_params}
         )
 
         # End tracing
-        if isinstance(result, JSONResponse):
-            result = {"message": str(result), "usage": None}
-        tracing.end_trace(
-            outputs=[result["message"]], usage=result["usage"]
-        )  # type: ignore
-        return result
+        if isinstance(llm_result, JSONResponse):
+            result = {"message": str(llm_result), "total_tokens": 0, "cost": 0}
+        else:
+            result = {
+                "message": llm_result.message,
+                "total_tokens": llm_result.usage.total_tokens,
+                "cost": llm_result.cost,
+            }
+        tracing.end_trace(outputs=[result["message"]], total_tokens=result["total_tokens"], cost=result["cost"])  # type: ignore
+        return llm_result
 
     @functools.wraps(func)
     async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -113,21 +118,36 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             agenta.config.pull(config_name="default")
 
         config = agenta.config.all()
-        result = await execute_function(
+
+        # Start tracing
+        tracing.trace(
+            trace_name=func.__name__,
+            inputs=func_params,
+            config=config,
+            **{"environment": kwargs["environment"]},
+        )
+        llm_result = await execute_function(
             func,
             *args,
             **{
                 "params": func_params,
                 "config_params": config,
-                "environment": kwargs["environment"],
             },
         )
 
         # End tracing
-        if isinstance(result, JSONResponse):
-            result = {"message": str(result), "usage": None}
-        tracing.end_trace(outputs=[result["message"]], **kwargs)  # type: ignore
-        return result
+        if isinstance(llm_result, JSONResponse):
+            result = {"message": str(llm_result), "total_tokens": 0, "cost": 0}
+        else:
+            result = {
+                "message": llm_result.message,
+                "total_tokens": (
+                    llm_result.usage.total_tokens if llm_result.usage else None
+                ),
+                "cost": llm_result.cost,
+            }
+        tracing.end_trace(outputs=[result["message"]], total_tokens=result["total_tokens"], cost=result["cost"])  # type: ignore
+        return llm_result
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
@@ -189,50 +209,7 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
-async def prepare_llm_params_and_begin_tracing(
-    params: Dict[str, Any], result: Union[str, dict]
-) -> None:
-    """Prepares LLM parameters and begins tracing.
-
-    Args:
-        params (Dict[str, Any]): the LLM app parameters
-        result (Union[str, dict]): the output of the llm run
-    """
-
-    def get_prompt_system(config_params: Dict[str, Any]) -> Union[str, None]:
-        if "prompt_template" in config_params:
-            return config_params["prompt_template"]
-
-        if "prompt_system" in config_params:
-            return config_params["prompt_system"]
-
-        if "base_prompt" in config_params:
-            return config_params["base_prompt"]
-
-        return None
-
-    if "config_params" in params:
-        trace_data = {
-            "inputs": params["params"],
-            "environment": params["config_params"].get("environment", None),
-            "prompt_system": get_prompt_system(params["config_params"]),
-            "prompt_user": params["config_params"].get("prompt_user"),
-        }
-
-        if isinstance(result, dict):
-            trace_data["outputs"] = [result.get("message")]
-            trace_data["cost"] = result.get("cost")
-            trace_data["meta"] = result.get("usage")
-            trace_data.update(result["usage"])
-        else:
-            trace_data["outputs"] = [result]
-
-        await agenta.trace(**trace_data)
-
-
-async def execute_function(
-    func: Callable[..., Any], *args, **func_params
-) -> Union[Dict[str, Any], JSONResponse]:
+async def execute_function(func: Callable[..., Any], *args, **func_params):
     """Execute the function and handle any exceptions."""
 
     try:
@@ -247,22 +224,19 @@ async def execute_function(
             result = await func(*args, **func_params["params"])
         else:
             result = func(*args, **func_params["params"])
+
         end_time = time.perf_counter()
         latency = end_time - start_time
 
         if isinstance(result, Context):
             save_context(result)
         if isinstance(result, Dict):
-            return FuncResponse(**result, latency=round(latency, 4)).dict()
+            return FuncResponse(**result, latency=round(latency, 4))
         if isinstance(result, str):
-            # type: ignore
-            return FuncResponse(message=result, latency=round(latency, 4)).dict()
+            return FuncResponse(message=result, latency=round(latency, 4))  # type: ignore
     except Exception as e:
         return handle_exception(e)
-    # type: ignore
-    return FuncResponse(
-        message="Unexpected error occurred", latency=round(latency, 4)
-    ).dict()
+    return FuncResponse(message="Unexpected error occurred", latency=0)  # type: ignore
 
 
 def handle_exception(e: Exception) -> JSONResponse:

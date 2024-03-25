@@ -866,14 +866,13 @@ class AsyncObservabilityClient:
         *,
         app_id: typing.Optional[str] = OMIT,
         variant_id: typing.Optional[str] = OMIT,
-        cost: typing.Optional[float] = OMIT,
         status: typing.Optional[str] = OMIT,
         tags: typing.Optional[typing.List[str]] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
         id: str,
         trace_name: str,
         inputs: typing.Dict[str, typing.Any],
-        variant_config: typing.Dict[str, typing.Any],
+        config: typing.Dict[str, typing.Any],
         environment: typing.Optional[str] = OMIT,
     ) -> str:
         """
@@ -881,8 +880,6 @@ class AsyncObservabilityClient:
             - app_id: typing.Optional[str].
 
             - variant_id: typing.Optional[str].
-
-            - cost: typing.Optional[float].
 
             - status: typing.Optional[str].
 
@@ -896,7 +893,7 @@ class AsyncObservabilityClient:
 
             - inputs: typing.Dict[str, typing.Any].
 
-            - variant_config: typing.Dict[str, typing.Any].
+            - config: typing.Dict[str, typing.Any].
 
             - environment: typing.Optional[str].
         ---
@@ -909,14 +906,12 @@ class AsyncObservabilityClient:
             "id": id,
             "trace_name": trace_name,
             "inputs": inputs,
-            "variant_config": variant_config,
+            "config": config,
         }
         if app_id is not OMIT:
             _request["app_id"] = app_id
         if variant_id is not OMIT:
             _request["variant_id"] = variant_id
-        if cost is not OMIT:
-            _request["cost"] = cost
         if status is not OMIT:
             _request["status"] = status
         if tags is not OMIT:
@@ -1048,6 +1043,7 @@ class AsyncObservabilityClient:
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
+        config: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         input: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         output: typing.Optional[str] = OMIT,
         cost: typing.Optional[float] = OMIT,
@@ -1072,6 +1068,8 @@ class AsyncObservabilityClient:
             - duration: typing.Optional[int].
 
             - status: SpanStatus.
+
+            - config: typing.Optional[typing.Dict[str, typing.Any]].
 
             - input: typing.Optional[typing.Dict[str, typing.Any]].
 
@@ -1120,6 +1118,8 @@ class AsyncObservabilityClient:
             _request["start_time"] = start_time
         if duration is not OMIT:
             _request["duration"] = duration
+        if config is not OMIT:
+            _request["config"] = config
         if input is not OMIT:
             _request["input"] = input
         if output is not OMIT:
@@ -1214,6 +1214,7 @@ class AsyncObservabilityClient:
         status: str,
         end_time: dt.datetime,
         outputs: typing.List[str],
+        cost: typing.Optional[float] = OMIT,
         token_consumption: typing.Optional[int] = OMIT,
     ) -> bool:
         """
@@ -1225,6 +1226,8 @@ class AsyncObservabilityClient:
             - end_time: dt.datetime.
 
             - outputs: typing.List[str].
+
+            - cost: typing.Optional[float].
 
             - token_consumption: typing.Optional[int].
         ---
@@ -1245,6 +1248,8 @@ class AsyncObservabilityClient:
             "end_time": end_time,
             "outputs": outputs,
         }
+        if cost is not OMIT:
+            _request["cost"] = cost
         if token_consumption is not OMIT:
             _request["token_consumption"] = token_consumption
         _response = await self._client_wrapper.httpx_client.request(
