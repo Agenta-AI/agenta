@@ -229,21 +229,9 @@ async def re_run_evaluation(
                     status_code=400,
                 )
 
-            if evaluation.rerun_count is None:
-                evaluation.rerun_count = 0
-            evaluation.rerun_count += 1
-
-            await db_manager.update_evaluation(
+            await evaluation_service.update_on_evaluation_rerun(
                 evaluation_id=evaluation_id,
-                updates={
-                    "status": Result(
-                        type="status",
-                        value=EvaluationStatusEnum.EVALUATION_STARTED,
-                        error=None,
-                    ),
-                    "started_at": datetime.now(),
-                    "rerun_count": evaluation.rerun_count,
-                },
+                evaluation=evaluation,
             )
 
             evaluate.delay(
