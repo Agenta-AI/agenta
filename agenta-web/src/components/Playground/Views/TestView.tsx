@@ -217,6 +217,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     onParamChange={onInputParamChange}
                     form={form}
                     imageSize="large"
+                    isPlaygroundComponent={true}
                 />
             </Row>
             {additionalData?.cost || additionalData?.latency ? (

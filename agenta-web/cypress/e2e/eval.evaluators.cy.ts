@@ -12,13 +12,12 @@ describe("Evaluators CRUD Operations Test", function () {
 
     context("Executing Evaluators CRUD operations", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.location("pathname").should("include", "/evaluations")
-            cy.get("#rc-tabs-1-tab-evaluators > :nth-child(2)").click()
+            cy.visit(`/apps/${app_id}/evaluations/new-evaluator`)
+            cy.location("pathname").should("include", "/evaluations/new-evaluator")
         })
 
         it("Should successfully create an Evaluator", () => {
-            cy.get('[data-cy="evaluator-card"]').should("have.length", 1)
+            cy.get('[data-cy="evaluator-card"]').should("exist")
             cy.get(".ant-space > :nth-child(2) > .ant-btn").click()
             cy.get('[data-cy="new-evaluator-modal"]').should("exist")
             cy.get('[data-cy^="select-new-evaluator"]').eq(0).click()

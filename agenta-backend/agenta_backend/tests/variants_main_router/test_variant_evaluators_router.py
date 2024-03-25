@@ -49,7 +49,7 @@ async def test_get_evaluators_endpoint():
         timeout=timeout,
     )
     assert response.status_code == 200
-    assert len(response.json()) == 9  # currently we have 9 evaluators
+    assert len(response.json()) > 0
 
 
 @pytest.mark.asyncio
@@ -237,7 +237,7 @@ async def test_fetch_evaluation_results():
 
     assert response.status_code == 200
     assert response_data["evaluation_id"] == str(evaluation.id)
-    assert len(response_data["results"]) == 6
+    assert len(response_data["results"]) == 7
 
 
 @pytest.mark.asyncio

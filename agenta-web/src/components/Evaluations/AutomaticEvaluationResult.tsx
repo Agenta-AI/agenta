@@ -44,9 +44,6 @@ type StyleProps = {
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
-        "& svg": {
-            color: "red",
-        },
     },
     collapse: ({themeMode}: StyleProps) => ({
         margin: "10px 0",
@@ -68,11 +65,25 @@ const useStyles = createUseStyles({
             color: "#1677ff",
         },
     },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        margin: "20px 0",
+        gap: 10,
+        "& svg": {
+            color: "red",
+        },
+    },
 })
 
 const {Title} = Typography
-
-export default function AutomaticEvaluationResult() {
+interface AutomaticEvaluationResultProps {
+    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+export default function AutomaticEvaluationResult({
+    setIsEvalModalOpen,
+}: AutomaticEvaluationResultProps) {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -256,47 +267,36 @@ export default function AutomaticEvaluationResult() {
         }
     }
 
-    const items = [
-        {
-            key: "1",
-            label: (
-                <div className={classes.container}>
-                    <Title level={3}>Single Model Test Results</Title>
-                </div>
-            ),
-            children: (
-                <div>
-                    <div className={classes.container}>
-                        <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
-                            <DeleteOutlined key="delete" />
-                            Delete
-                        </Button>
-                    </div>
-
-                    <Table
-                        rowSelection={{
-                            type: selectionType,
-                            ...rowSelection,
-                        }}
-                        className="ph-no-capture"
-                        data-cy="automatic-evaluation-result"
-                        columns={columns}
-                        dataSource={evaluationsList}
-                    />
-                </div>
-            ),
-        },
-    ]
-
     return (
-        <Collapse
-            items={items}
-            ghost
-            bordered={false}
-            expandIconPosition="end"
-            className={classes.collapse}
-            collapsible="icon"
-            defaultActiveKey={["1"]}
-        />
+        <div>
+            <div className={classes.btnContainer}>
+                <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
+                    <DeleteOutlined key="delete" />
+                    Delete
+                </Button>
+                <Button
+                    type="primary"
+                    data-cy="new-annotation-modal-button"
+                    onClick={() => setIsEvalModalOpen(true)}
+                >
+                    New Evaluation
+                </Button>
+            </div>
+
+            <div className={classes.container}>
+                <Title level={3}>Single Model Test Results</Title>
+            </div>
+
+            <Table
+                rowSelection={{
+                    type: selectionType,
+                    ...rowSelection,
+                }}
+                className="ph-no-capture"
+                data-cy="automatic-evaluation-result"
+                columns={columns}
+                dataSource={evaluationsList}
+            />
+        </div>
     )
 }
