@@ -16,7 +16,7 @@ import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
-import {DownloadOutlined} from "@ant-design/icons"
+import {CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
@@ -55,7 +55,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
-    const [evaluationIdsStr = "", setEvaluationIdsStr] = useQueryParam("evaluations")
+    const [evaluationIdsStr = ""] = useQueryParam("evaluations")
+    const [evalIds, setEvalIds] = useState(evaluationIdsStr.split(",").filter((item) => !!item))
+    const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
     const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
@@ -112,6 +114,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         variants.forEach((variant, vi) => {
+            const isHidden = evalIds.includes(variant.evaluationId)
+
             colDefs.push({
                 headerComponent: (props: any) => (
                     <AgCustomHeader {...props}>
@@ -125,6 +129,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
+                hide: !isHidden,
                 cellRenderer: (params: any) => {
                     return (
                         <>
@@ -176,6 +181,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
         Object.entries(confgisMap).forEach(([_, configs]) => {
             configs.forEach(({config, variant, color}) => {
+                const isHidden = evalIds.includes(variant.evaluationId)
                 colDefs.push({
                     flex: 1,
                     minWidth: 200,
@@ -198,6 +204,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     },
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
+                    hide: !isHidden,
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -212,7 +219,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, showDiff])
+    }, [rows, showDiff, evalIds])
 
     const fetcher = () => {
         setFetching(true)
@@ -239,8 +246,14 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         fetcher()
     }, [appId, evaluationIdsStr])
 
-    const handleDeleteVariant = (evalId: string) => {
-        setEvaluationIdsStr(evaluationIds.filter((item) => item !== evalId).join(","))
+    const handleToggleVariantVisibility = (evalId: string) => {
+        if (hiddenVariants.includes(evalId)) {
+            setHiddenVariants(hiddenVariants.filter((item) => item !== evalId))
+            setEvalIds([...evalIds, evalId])
+        } else {
+            setHiddenVariants([...hiddenVariants, evalId])
+            setEvalIds(evalIds.filter((val) => val !== evalId))
+        }
     }
 
     const onExport = () => {
@@ -272,9 +285,36 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                     <Tag
                                         key={evaluationIds[vi]}
                                         color={colors[vi]}
-                                        onClose={() => handleDeleteVariant(v.evaluationId)}
-                                        closable={evaluationIds.length > 1}
                                         className={classes.tag}
+                                        style={{
+                                            opacity: hiddenVariants.includes(v.evaluationId)
+                                                ? 0.4
+                                                : 1,
+                                        }}
+                                        icon={
+                                            evalIds.length < 2 &&
+                                            evalIds.includes(
+                                                v.evaluationId,
+                                            ) ? null : evalIds.includes(v.evaluationId) ? (
+                                                <CloseCircleOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
+                                            ) : (
+                                                <UndoOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
+                                            )
+                                        }
                                     >
                                         <Link
                                             href={`/apps/${appId}/playground/?variant=${v.variantName}`}
