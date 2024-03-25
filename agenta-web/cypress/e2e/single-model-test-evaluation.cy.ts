@@ -33,7 +33,7 @@ describe("Single Model Test workflow", () => {
 
             cy.intercept("POST", "**/app/generate", {
                 statusCode: 200,
-                fixture: "human-evaluation.json",
+                fixture: "single-prompt-openai/human-evaluation.json",
             }).as("generateRequest")
 
             cy.wait(1000)

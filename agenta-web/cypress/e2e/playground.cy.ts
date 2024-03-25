@@ -8,7 +8,7 @@ describe("Playground Prompt Test", function () {
         cy.get('[data-cy="testview-input-parameters-run-button"]').click()
         cy.intercept("POST", "**/demo/app/generate", {
             statusCode: 200,
-            fixture: "playground.json",
+            fixture: "single-prompt-openai/playground.json",
         })
         cy.get('[data-cy="testview-input-parameters-result"]').should(
             "contain.text",
