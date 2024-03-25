@@ -94,6 +94,7 @@ class LLMModelParams(BaseModel):
 
 class SpanDetail(Span):
     content: LLMContent
+    config: Optional[Dict[str, Any]]
 
 
 class Trace(Span):

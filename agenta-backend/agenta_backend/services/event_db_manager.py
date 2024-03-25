@@ -226,6 +226,7 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
                 ],
                 "output": span_db.output,
             },
+            "config": span_db.config,
         },
     )
 
@@ -381,7 +382,7 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
             "user_id": "",
-            "variant_config": trace_db.variant_config,
+            "config": trace_db.config,
         },
     )
 
