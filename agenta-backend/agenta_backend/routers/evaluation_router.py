@@ -162,9 +162,11 @@ async def create_evaluation(
             )
             evaluations.append(evaluation)
 
-        # In case we need to save all data for a rerun
-        # we also need to update the evaluations_params
-        # with evaluations ids (in case of a complete rerun)
+        # In case we want to persist all evaluations' data
+        # to be able to rerun it later (exactly how the user
+        # created it especially with selecting the multiple
+        #  variants) then we also need to update the
+        # evaluations_params with evaluations ids like: 
         # evaluation_service.update_evaluation_params(
         #     evaluations_ids=[evaluation.id for evaluation in evaluations]
         # )
