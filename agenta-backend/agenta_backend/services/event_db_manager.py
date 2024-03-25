@@ -360,8 +360,13 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
     return TraceDetail(
         **{
             "id": str(trace_db.id),
-            "inputs": trace_db.inputs,
-            "outputs": trace_db.outputs,
+            "content": {
+                "inputs": [
+                    {"input_name": key, "input_value": value}
+                    for key, value in trace_db.input.items()
+                ],
+                "output": trace_db.output,
+            },
             "created_at": trace_db.created_at.isoformat(),
             "variant": {
                 "variant_id": str(app_variant_db.id),
