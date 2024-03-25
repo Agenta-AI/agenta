@@ -226,7 +226,7 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
                 ],
                 "output": span_db.output,
             },
-            "config": span_db.config,
+            "config": span_db.meta.get("model_config"),
         },
     )
 

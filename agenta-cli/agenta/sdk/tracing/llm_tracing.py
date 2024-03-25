@@ -130,10 +130,10 @@ class Tracing(object):
         ).observability
 
     def set_span_attribute(
-        self, parent_key: Optional[str] = None, **kwargs: Dict[str, Any]
+        self, parent_key: Optional[str] = None, attributes: Dict[str, Any] = {}
     ):
         span = self.span_dict[self.active_span]  # type: ignore
-        for key, value in kwargs.items():
+        for key, value in attributes.items():
             span.set_attribute(key, value, parent_key)
 
     def set_trace_tags(self, tags: List[str]):
@@ -234,17 +234,20 @@ class Tracing(object):
         except Exception as exc:
             self.llm_logger.error(f"Error creating trace: {str(exc)}")
 
-    def end_trace(self, outputs: List[str], **kwargs: Dict[str, Any]):
+    def end_trace(
+        self,
+        outputs: List[str],
+        cost: Optional[float] = None,
+        total_tokens: Optional[int] = None,
+    ):
         try:
             self.tasks_manager.add_task(
                 self.client.update_trace(
                     trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
-                    cost=kwargs.get("cost"),  # type: ignore
-                    token_consumption=kwargs["usage"].get(
-                        "total_tokens"
-                    ),  # type: ignore
+                    cost=cost,
+                    token_consumption=total_tokens,
                     outputs=outputs,
                 )
             )

@@ -356,7 +356,6 @@ class SpanDB(Document):
     user: Optional[str]
     environment: Optional[str]  # request source -> playground, development, etc
     start_time: datetime
-    config: Optional[Dict[str, Any]]
     end_time: datetime = Field(default=datetime.now())
     tokens: Optional[LLMTokens]
     cost: Optional[float]
