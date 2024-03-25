@@ -147,6 +147,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const {testset_id} = router.query
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [loading, setLoading] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState<KeyValuePair[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -417,17 +418,20 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const onSaveData = async () => {
         try {
+            setIsLoading(true)
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
                     })
+                    setIsLoading(false)
                 }
             }
 
             if (mode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
+                    setIsLoading(false)
                 } else {
                     const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
@@ -442,6 +446,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         } catch (error) {
             console.error("Error saving test set:", error)
+            setIsLoading(false)
         }
     }
 
@@ -508,7 +513,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     placeholder="Test Set Name"
                     data-cy="testset-name-input"
                 />
-                <Button data-cy="testset-save-button" onClick={() => onSaveData()} type="primary">
+                <Button
+                    loading={isLoading}
+                    data-cy="testset-save-button"
+                    onClick={() => onSaveData()}
+                    type="primary"
+                >
                     Save Test Set
                 </Button>
             </div>

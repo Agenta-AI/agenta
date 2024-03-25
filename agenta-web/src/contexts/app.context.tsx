@@ -5,6 +5,7 @@ import {useRouter} from "next/router"
 import {PropsWithChildren, createContext, useContext, useEffect, useMemo, useState} from "react"
 import useSWR from "swr"
 import {dynamicContext} from "@/lib/helpers/dynamic"
+import {HookAPI} from "antd/es/modal/useModal"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -12,6 +13,9 @@ type AppContextType = {
     error: any
     isLoading: boolean
     mutate: () => void
+
+    modalInstance?: HookAPI
+    setModalInstance: (context: any) => void
 }
 
 const initialValues: AppContextType = {
@@ -20,6 +24,8 @@ const initialValues: AppContextType = {
     error: null,
     isLoading: false,
     mutate: () => {},
+
+    setModalInstance: (context) => {},
 }
 
 const useApps = () => {
@@ -68,14 +74,20 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         [apps, appId],
     )
 
+    const [modalInstance, setModalInstance] = useState()
+
     appContextValues.currentApp = currentApp
     appContextValues.apps = apps
     appContextValues.error = error
     appContextValues.isLoading = isLoading
     appContextValues.mutate = mutate
+    appContextValues.modalInstance = modalInstance
+    appContextValues.setModalInstance = setModalInstance
 
     return (
-        <AppContext.Provider value={{currentApp, apps, error, isLoading, mutate}}>
+        <AppContext.Provider
+            value={{currentApp, apps, error, isLoading, mutate, modalInstance, setModalInstance}}
+        >
             {children}
         </AppContext.Provider>
     )

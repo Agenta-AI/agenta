@@ -4,7 +4,8 @@ import {
     removeSingleLlmProviderKey,
     getAllProviderLlmKeys,
     LlmProvider,
-} from "@/lib/helpers/utils"
+    getApikeys,
+} from "@/lib/helpers/llmProviders"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -68,9 +69,9 @@ export default function Secrets() {
                                 />
                                 <Button
                                     data-cy="openai-api-save"
-                                    disabled={key === getLlmProviderKey(key) || !key}
+                                    disabled={key === getLlmProviderKey(title) || !key}
                                     onClick={() => {
-                                        saveLlmProviderKey(i, key)
+                                        saveLlmProviderKey(title, key)
                                         messageAPI.success("The secret is saved")
                                     }}
                                 >
@@ -78,7 +79,7 @@ export default function Secrets() {
                                 </Button>
                                 <Button
                                     onClick={() => {
-                                        removeSingleLlmProviderKey(i)
+                                        removeSingleLlmProviderKey(title)
 
                                         const newLlmProviderKeys = [...llmProviderKeys]
                                         newLlmProviderKeys[i].key = ""
