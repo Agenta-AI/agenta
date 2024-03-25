@@ -99,7 +99,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 field: `inputs.${ix}.value` as any,
                 ...getFilterParams("text"),
                 pinned: "left",
-                cellRenderer: LongTextCellRenderer,
+                cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
 
@@ -110,7 +110,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             field: "correctAnswer",
             ...getFilterParams("text"),
             pinned: "left",
-            cellRenderer: LongTextCellRenderer,
+            cellRenderer: (params: any) => LongTextCellRenderer(params),
         })
 
         variants.forEach((variant, vi) => {
@@ -133,25 +133,28 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     return (
                         <>
-                            {showDiff === "show" ? (
-                                <span>
-                                    <CompareOutputDiff
-                                        variantOutput={getTypedValue(
-                                            params.data?.variants.find(
-                                                (item: any) =>
-                                                    item.evaluationId === variant.evaluationId,
-                                            )?.output?.result,
-                                        )}
-                                        expectedOutput={params.data?.correctAnswer}
-                                    />
-                                </span>
-                            ) : (
-                                getTypedValue(
-                                    params.data?.variants.find(
-                                        (item: any) => item.evaluationId === variant.evaluationId,
-                                    )?.output?.result,
-                                )
-                            )}
+                            {showDiff === "show"
+                                ? LongTextCellRenderer(
+                                      params,
+                                      <CompareOutputDiff
+                                          variantOutput={getTypedValue(
+                                              params.data?.variants.find(
+                                                  (item: any) =>
+                                                      item.evaluationId === variant.evaluationId,
+                                              )?.output?.result,
+                                          )}
+                                          expectedOutput={params.data?.correctAnswer}
+                                      />,
+                                  )
+                                : LongTextCellRenderer(
+                                      params,
+                                      getTypedValue(
+                                          params.data?.variants.find(
+                                              (item: any) =>
+                                                  item.evaluationId === variant.evaluationId,
+                                          )?.output?.result,
+                                      ),
+                                  )}
                         </>
                     )
                 },

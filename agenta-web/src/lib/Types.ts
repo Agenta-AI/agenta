@@ -382,6 +382,9 @@ export interface EvaluationSettingsTemplate {
     label: string
     default?: ValueType
     description: string
+    min?: number
+    max?: number
+    required?: boolean
 }
 
 export interface Evaluator {
