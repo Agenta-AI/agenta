@@ -223,7 +223,9 @@ async def re_run_evaluation(
                 # rerunning evaluations with "correct_answer" as a value will
                 # result in errors. Hince returning an error.
                 return JSONResponse(
-                    {"detail": "This is an old evaluation that cannot be rerun. Please select a newer evaluation!"},
+                    {
+                        "detail": "This is an old evaluation that cannot be rerun. Please select a newer evaluation!"
+                    },
                     status_code=400,
                 )
 
