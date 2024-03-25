@@ -218,7 +218,7 @@ export const LinkCellRenderer = React.memo(
 
 export const DateFromNowRenderer = React.memo(
     (params: ICellRendererParams) => {
-        const [date, setDate] = useState(params.value)
+        const [date, setDate] = useState(params.value ?? params.data.created_at)
 
         useEffect(() => {
             const interval = setInterval(() => {
