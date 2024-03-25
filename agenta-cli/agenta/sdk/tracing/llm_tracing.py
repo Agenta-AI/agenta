@@ -215,7 +215,6 @@ class Tracing(object):
         trace_id = self._create_trace_id()
         try:
             self.llm_logger.info("Starting tracing...")
-            print("Config: ", config)
             self.tasks_manager.add_task(
                 self.client.create_trace(
                     id=trace_id,
