@@ -162,6 +162,7 @@ class Tracing(object):
         )
         self.span_dict[span_id] = span
         self.active_span = span_id  # type: ignore
+        self.llm_logger.info(f"Creating span {span.span_id}...")
         return span
 
     def end_span(self, output: Dict[str, Any], span: Span):
@@ -170,6 +171,7 @@ class Tracing(object):
         try:
             self.tasks_manager.add_task(self._send_span(span=span))
             self.parent_span_id = span.span_id
+            self.llm_logger.info(f"Created span {span.span_id} successfully.")
         except Exception as exc:
             self.llm_logger.error(
                 f"Error creating span of trace {str(span.trace_id)}: {str(exc)}"
