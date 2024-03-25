@@ -21,7 +21,9 @@ async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    tracing.set_span_attribute(model="gpt-3.5-turbo")
+    tracing.set_span_attribute(
+        "model", name="gpt-3.5-turbo"
+    )  # translate to {"model": {"name": "gpt-3.5-turbo"}}
     return {
         "message": chat_completion.choices[0].message.content,
         "usage": chat_completion.usage.dict(),

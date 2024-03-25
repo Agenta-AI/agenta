@@ -360,7 +360,7 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
     return TraceDetail(
         **{
             "id": str(trace_db.id),
-             "content": {
+            "content": {
                 "inputs": [
                     {"input_name": key, "input_value": value}
                     for key, value in trace_db.inputs.items()

@@ -82,8 +82,8 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # Start tracing
         tracing.trace(
             trace_name=func.__name__,
-            inputs={"prompt": func_params},
-            variant_config=api_config_params,
+            inputs=func_params,
+            config=api_config_params,
         )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
@@ -93,8 +93,8 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
 
         # End tracing
         if isinstance(result, JSONResponse):
-            result = {"message": str(result), "usage": None}
-        tracing.end_trace(outputs=[result["message"]], usage=result["usage"])  # type: ignore
+            result = {"message": str(result), "usage": None, "cost": None}
+        tracing.end_trace(outputs=[result["message"]], usage=result["usage"], cost=result["cost"])  # type: ignore
         return result
 
     @functools.wraps(func)
@@ -110,13 +110,20 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             agenta.config.pull(config_name="default")
 
         config = agenta.config.all()
+
+        # Start tracing
+        tracing.trace(
+            trace_name=func.__name__,
+            inputs=func_params,
+            config=config,
+            **{"environment": kwargs["environment"]},
+        )
         result = await execute_function(
             func,
             *args,
             **{
                 "params": func_params,
                 "config_params": config,
-                "environment": kwargs["environment"],
             },
         )
 
@@ -184,47 +191,6 @@ def ingest_files(
     for name in ingestible_files:
         if name in func_params and func_params[name] is not None:
             func_params[name] = ingest_file(func_params[name])
-
-
-async def prepare_llm_params_and_begin_tracing(
-    params: Dict[str, Any], result: Union[str, dict]
-) -> None:
-    """Prepares LLM parameters and begins tracing.
-
-    Args:
-        params (Dict[str, Any]): the LLM app parameters
-        result (Union[str, dict]): the output of the llm run
-    """
-
-    def get_prompt_system(config_params: Dict[str, Any]) -> Union[str, None]:
-        if "prompt_template" in config_params:
-            return config_params["prompt_template"]
-
-        if "prompt_system" in config_params:
-            return config_params["prompt_system"]
-
-        if "base_prompt" in config_params:
-            return config_params["base_prompt"]
-
-        return None
-
-    if "config_params" in params:
-        trace_data = {
-            "inputs": params["params"],
-            "environment": params["config_params"].get("environment", None),
-            "prompt_system": get_prompt_system(params["config_params"]),
-            "prompt_user": params["config_params"].get("prompt_user"),
-        }
-
-        if isinstance(result, dict):
-            trace_data["outputs"] = [result.get("message")]
-            trace_data["cost"] = result.get("cost")
-            trace_data["meta"] = result.get("usage")
-            trace_data.update(result["usage"])
-        else:
-            trace_data["outputs"] = [result]
-
-        await agenta.trace(**trace_data)
 
 
 async def execute_function(

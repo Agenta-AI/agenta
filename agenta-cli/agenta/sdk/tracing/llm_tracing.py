@@ -37,8 +37,14 @@ class Span:
         self.tokens = Optional[Dict[str, int]]
         self.attributes: Dict[str, Any] = kwargs
 
-    def set_attribute(self, key: str, value: Any):
-        self.attributes[key] = value
+    def set_attribute(self, key: str, value: Any, parent_key: Optional[str] = None):
+        if parent_key is not None:
+            model_config = self.attributes.get(parent_key, None)
+            if not model_config:
+                self.attributes[parent_key] = {}
+            self.attributes[parent_key][key] = value
+        else:
+            self.attributes[key] = value
 
     def update_span_status(self, status: str, exc: Optional[str] = None):
         if status == "FAILED":
@@ -123,10 +129,12 @@ class Tracing(object):
             base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
-    def set_span_attribute(self, **kwargs: Dict[str, Any]):
+    def set_span_attribute(
+        self, parent_key: Optional[str] = None, **kwargs: Dict[str, Any]
+    ):
         span = self.span_dict[self.active_span]  # type: ignore
-        for k, v in kwargs.items():
-            span.set_attribute(k, v)
+        for key, value in kwargs.items():
+            span.set_attribute(key, value, parent_key)
 
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
@@ -192,21 +200,22 @@ class Tracing(object):
         self,
         trace_name: Optional[str],
         inputs: Dict[str, Any],
-        variant_config: Dict[str, Any],
-        **kwargs,
+        config: Dict[str, Any],
+        **kwargs: Dict[str, Any],
     ):
         """Creates a new trace.
 
         Args:
             trace_name (Optional[str]): The identifier for the trace.
             app_id (str): The ID of the app.
-            base_id (str): The ID of the base.
-            config_name (str): The name of the config.
+            config (Dict): The configuration of the app.
+            **kwargs (Dict): Additional information.
         """
 
         trace_id = self._create_trace_id()
         try:
             self.llm_logger.info("Starting tracing...")
+            print("Config: ", config)
             self.tasks_manager.add_task(
                 self.client.create_trace(
                     id=trace_id,
@@ -215,7 +224,7 @@ class Tracing(object):
                     trace_name=trace_name,  # type: ignore
                     start_time=datetime.now(),
                     inputs=inputs,
-                    variant_config=variant_config,
+                    config=config,
                     environment=kwargs.get("environment"),  # type: ignore
                     status="INITIATED",
                     tags=self.tags,
@@ -233,9 +242,10 @@ class Tracing(object):
                     trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
+                    cost=kwargs.get("cost"),  # type: ignore
                     token_consumption=kwargs["usage"].get(
                         "total_tokens"
-                    ),  # typ: ignore
+                    ),  # type: ignore
                     outputs=outputs,
                 )
             )
