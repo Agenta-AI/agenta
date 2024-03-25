@@ -725,3 +725,36 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
             detail=f"resource_type {resource_type} is not supported",
         )
     return res
+
+
+async def update_on_evaluation_rerun(
+    evaluation_id: str, evaluation: EvaluationDB
+) -> EvaluationDB:
+    """
+    Update the status and other details of an evaluation.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation to be updated.
+        evaluation (Any): The evaluation object containing the current state.
+
+    Returns:
+        Any: The updated evaluation object.
+    """
+    if evaluation.rerun_count is None:
+        evaluation.rerun_count = 0
+
+    evaluation.rerun_count += 1
+    updates = {
+        "status": Result(
+            type="status",
+            value=EvaluationStatusEnum.EVALUATION_STARTED,
+            error=None,
+        ),
+        "started_at": datetime.now(),
+        "rerun_count": evaluation.rerun_count,
+    }
+    updated_evaluation = await db_manager.update_evaluation(
+        evaluation_id=evaluation_id,
+        updates=updates,
+    )
+    return updated_evaluation
