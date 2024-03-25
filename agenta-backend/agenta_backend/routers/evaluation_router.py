@@ -166,7 +166,7 @@ async def create_evaluation(
         # to be able to rerun it later (exactly how the user
         # created it especially with selecting the multiple
         #  variants) then we also need to update the
-        # evaluations_params with evaluations ids like: 
+        # evaluations_params with evaluations ids like:
         # evaluation_service.update_evaluation_params(
         #     evaluations_ids=[evaluation.id for evaluation in evaluations]
         # )
