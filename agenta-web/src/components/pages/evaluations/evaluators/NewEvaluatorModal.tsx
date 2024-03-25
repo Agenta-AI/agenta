@@ -117,12 +117,15 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     type,
     default: defaultVal,
     description,
+    min,
+    max,
+    required,
 }) => {
     const { appTheme } = useAppTheme()
     const classes = useStyles()
     const { token } = theme.useToken()
 
-    const rules: Rule[] = [{ required: true, message: "This field is required" }]
+    const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
@@ -167,7 +170,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 {type === "string" || type === "regex" ? (
                     <Input />
                 ) : type === "number" ? (
-                    <InputNumber min={0} max={1} step={0.1} />
+                    <InputNumber min={min} max={max} step={0.1} />
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
@@ -296,25 +299,6 @@ const NewEvaluatorModal: React.FC<Props> = ({
             },
         },
         {
-            title: "Type",
-            dataIndex: "type",
-            key: "type",
-            render(_, record) {
-                const template = Object.keys(record?.settings_template || {})
-                    .filter((key) => !!record?.settings_template[key]?.type)
-                    .map((key) => ({
-                        key,
-                        ...record?.settings_template[key]!,
-                    }))
-
-                return (
-                    <>
-                        <Tag color={record.color}>{template[0].type}</Tag>
-                    </>
-                )
-            },
-        },
-        {
             title: "Description",
             dataIndex: "description",
             key: "description",
@@ -378,9 +362,22 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 }}
                 destroyOnClose
                 onOk={form.submit}
-                title={editMode ? "Edit your evaluator" : "Configure your evaluator"}
+                title={
+                    editMode
+                        ? `${
+                              selectedEval?.name
+                                  ? `Edit the ${selectedEval.name} evaluator`
+                                  : "Edit your evaluator"
+                          }`
+                        : `${
+                              selectedEval?.name
+                                  ? `Configure the ${selectedEval.name} evaluator`
+                                  : "Configure your evaluator"
+                          }`
+                }
                 footer={null}
                 data-cy="configure-new-evaluator-modal"
+                width={selectedEval?.key === "auto_custom_code_run" ? 800 : 600}
             >
                 <Form
                     requiredMark={false}
