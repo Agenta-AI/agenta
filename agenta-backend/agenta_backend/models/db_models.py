@@ -328,7 +328,7 @@ class TraceDB(Document):
     cost: Optional[float]
     inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
-    variant_config: Dict[str, Any]
+    config: Dict[str, Any]
     environment: Optional[str]  # request source -> playground, development, etc
     status: str  # initiated, completed, stopped, canceled, failed
     user: Optional[str]
