@@ -223,11 +223,14 @@ async def re_run_evaluation(
                 # rerunning evaluations with "correct_answer" as a value will
                 # result in errors. Hince returning an error.
                 return JSONResponse(
-                    {"detail": "This is old evaluation that cannot be rerun."},
+                    {"detail": "This is an old evaluation that cannot be rerun. Please select a newer evaluation!"},
                     status_code=400,
                 )
 
+            if evaluation.rerun_count is None:
+                evaluation.rerun_count = 0
             evaluation.rerun_count += 1
+
             await db_manager.update_evaluation(
                 evaluation_id=evaluation_id,
                 updates={
