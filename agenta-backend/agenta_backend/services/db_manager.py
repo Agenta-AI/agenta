@@ -31,6 +31,7 @@ if isCloudEE():
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
+        EvaluationParamsDB_ as EvaluationParamsDB,
         DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
@@ -49,6 +50,7 @@ else:
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
+        EvaluationParamsDB,
         DeploymentDB,
         VariantBaseDB,
         AppEnvironmentDB,
@@ -60,7 +62,6 @@ else:
     )
 from agenta_backend.models.db_models import (
     ConfigDB,
-    EvaluationParamsDB,
     TemplateDB,
     AggregatedResult,
     AppVariantRevisionsDB,

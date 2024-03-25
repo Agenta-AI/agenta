@@ -27,6 +27,7 @@ if isCloudEE():
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         EvaluationDB_ as EvaluationDB,
+        EvaluationParamsDB_ as EvaluationParamsDB,
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
@@ -36,13 +37,13 @@ else:
         AppDB,
         UserDB,
         EvaluationDB,
+        EvaluationParamsDB,
         HumanEvaluationDB,
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
 
 from agenta_backend.models.db_models import (
-    EvaluationParamsDB,
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
     Result,
