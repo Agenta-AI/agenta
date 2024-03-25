@@ -100,8 +100,7 @@ class Trace(Span):
 
 
 class TraceDetail(Trace):
-    inputs: Dict[str, Any]
-    outputs: List[str]
+    content: Dict[str, Any]
     variant_config: Dict[str, Any]
 
 
