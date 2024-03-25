@@ -294,12 +294,10 @@ async def remove_app_related_resources(app_id: str):
         )
         for environment_db in environments:
             await db_manager.remove_environment(environment_db)
-            logger.info(
-                f"Successfully deleted environment {environment_db.name}.")
+            logger.info(f"Successfully deleted environment {environment_db.name}.")
         # Delete associated testsets
         await db_manager.remove_app_testsets(app_id)
-        logger.info(
-            f"Successfully deleted test sets associated with app {app_id}.")
+        logger.info(f"Successfully deleted test sets associated with app {app_id}.")
 
         await db_manager.remove_app_by_id(app_id)
         logger.info(f"Successfully remove app object {app_id}.")
@@ -409,8 +407,7 @@ async def add_variant_based_on_image(
         or variant_name in [None, ""]
         or docker_id_or_template_uri in [None, ""]
     ):
-        raise ValueError(
-            "App variant, variant name or docker_id/template_uri is None")
+        raise ValueError("App variant, variant name or docker_id/template_uri is None")
 
     if not isCloudEE():
         if tags in [None, ""]:
@@ -423,8 +420,7 @@ async def add_variant_based_on_image(
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
     variants = await db_manager.list_app_variants_for_app_id(app_id=str(app.id))
-    already_exists = any(
-        av for av in variants if av.variant_name == variant_name)
+    already_exists = any(av for av in variants if av.variant_name == variant_name)
     if already_exists:
         logger.error("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
@@ -506,6 +502,5 @@ async def add_variant_based_on_image(
         config=config_db,
     )
 
-    logger.debug("End: Successfully created db_app_variant: %s",
-                 db_app_variant)
+    logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant

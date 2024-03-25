@@ -18,7 +18,7 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss
+from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.open_api import open_api_tags_metadata
 
@@ -83,8 +83,7 @@ if isCloudEE():
 app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps", tags=["Apps"])
-app.include_router(variants_router.router,
-                   prefix="/variants", tags=["Variants"])
+app.include_router(variants_router.router, prefix="/variants", tags=["Variants"])
 app.include_router(
     evaluation_router.router, prefix="/evaluations", tags=["Evaluations"]
 )
@@ -93,12 +92,9 @@ app.include_router(
     prefix="/human-evaluations",
     tags=["Human-Evaluations"],
 )
-app.include_router(evaluators_router.router,
-                   prefix="/evaluators", tags=["Evaluators"])
-app.include_router(testset_router.router,
-                   prefix="/testsets", tags=["Testsets"])
-app.include_router(container_router.router,
-                   prefix="/containers", tags=["Containers"])
+app.include_router(evaluators_router.router, prefix="/evaluators", tags=["Evaluators"])
+app.include_router(testset_router.router, prefix="/testsets", tags=["Testsets"])
+app.include_router(container_router.router, prefix="/containers", tags=["Containers"])
 app.include_router(
     environment_router.router, prefix="/environments", tags=["Environments"]
 )
