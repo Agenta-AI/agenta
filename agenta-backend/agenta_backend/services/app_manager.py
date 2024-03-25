@@ -25,14 +25,17 @@ from agenta_backend.services import (
 from agenta_backend.utils.common import (
     isEE,
     isOssEE,
-    isCloud,
+    isCloudProd,
+    isCloudDev,
     isCloudEE,
 )
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
+elif isCloudDev():
+    from agenta_backend.services import deployment_manager
 elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,

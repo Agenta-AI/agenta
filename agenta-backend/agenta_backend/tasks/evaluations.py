@@ -44,7 +44,7 @@ from agenta_backend.services.db_manager import (
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
@@ -379,7 +379,8 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in app_variant_parameters
