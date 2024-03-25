@@ -328,7 +328,7 @@ class TraceDB(Document):
     cost: Optional[float]
     inputs: Optional[Dict[str, Any]]
     outputs: Optional[List[str]]
-    variant_config: Dict[str, Any]
+    config: Dict[str, Any]
     environment: Optional[str]  # request source -> playground, development, etc
     status: str  # initiated, completed, stopped, canceled, failed
     user: Optional[str]
@@ -356,6 +356,7 @@ class SpanDB(Document):
     user: Optional[str]
     environment: Optional[str]  # request source -> playground, development, etc
     start_time: datetime
+    config: Optional[Dict[str, Any]]
     end_time: datetime = Field(default=datetime.now())
     tokens: Optional[LLMTokens]
     cost: Optional[float]
