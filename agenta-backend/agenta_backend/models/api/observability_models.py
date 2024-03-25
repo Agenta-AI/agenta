@@ -71,6 +71,7 @@ class BaseSpan(BaseModel):
 class CreateSpan(BaseSpan):
     trace_id: str
     span_id: str
+    config: Optional[dict]
     environment: Optional[str]
     end_time: datetime
     tokens: Optional[LLMTokens]
@@ -83,7 +84,7 @@ class LLMInputs(BaseModel):
 
 class LLMContent(BaseModel):
     inputs: List[LLMInputs]
-    output: str
+    output: Optional[str]
 
 
 class LLMModelParams(BaseModel):
@@ -92,9 +93,8 @@ class LLMModelParams(BaseModel):
 
 
 class SpanDetail(Span):
-    span_id: str
     content: LLMContent
-    model_params: LLMModelParams
+    config: Optional[Dict[str, Any]]
 
 
 class Trace(Span):
@@ -102,7 +102,8 @@ class Trace(Span):
 
 
 class TraceDetail(Trace):
-    pass
+    content: Dict[str, Any]
+    config: Dict[str, Any]
 
 
 class ObservabilityData(BaseModel):
@@ -147,7 +148,6 @@ class UpdateFeedback(BaseModel):
 class BaseTrace(BaseModel):
     app_id: Optional[str]
     variant_id: Optional[str]
-    cost: Optional[float]
     status: str = Field(default=Status.INITIATED)
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
@@ -157,7 +157,7 @@ class CreateTrace(BaseTrace):
     id: str
     trace_name: str
     inputs: Dict[str, Any]
-    variant_config: Dict[str, Any]
+    config: Dict[str, Any]
     environment: Optional[str]
 
 
@@ -165,4 +165,5 @@ class UpdateTrace(BaseModel):
     status: str
     end_time: datetime
     outputs: List[str]
+    cost: Optional[float]
     token_consumption: Optional[int]

@@ -37,8 +37,14 @@ class Span:
         self.tokens = Optional[Dict[str, int]]
         self.attributes: Dict[str, Any] = kwargs
 
-    def set_attribute(self, key: str, value: Any):
-        self.attributes[key] = value
+    def set_attribute(self, key: str, value: Any, parent_key: Optional[str] = None):
+        if parent_key is not None:
+            model_config = self.attributes.get(parent_key, None)
+            if not model_config:
+                self.attributes[parent_key] = {}
+            self.attributes[parent_key][key] = value
+        else:
+            self.attributes[key] = value
 
     def update_span_status(self, status: str, exc: Optional[str] = None):
         if status == "FAILED":
@@ -123,10 +129,12 @@ class Tracing(object):
             base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
-    def set_span_attribute(self, **kwargs: Dict[str, Any]):
+    def set_span_attribute(
+        self, parent_key: Optional[str] = None, attributes: Dict[str, Any] = {}
+    ):
         span = self.span_dict[self.active_span]  # type: ignore
-        for k, v in kwargs.items():
-            span.set_attribute(k, v)
+        for key, value in attributes.items():
+            span.set_attribute(key, value, parent_key)
 
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
@@ -154,6 +162,7 @@ class Tracing(object):
         )
         self.span_dict[span_id] = span
         self.active_span = span_id  # type: ignore
+        self.llm_logger.info(f"Creating span {span.span_id}...")
         return span
 
     def end_span(self, output: Dict[str, Any], span: Span):
@@ -162,6 +171,7 @@ class Tracing(object):
         try:
             self.tasks_manager.add_task(self._send_span(span=span))
             self.parent_span_id = span.span_id
+            self.llm_logger.info(f"Created span {span.span_id} successfully.")
         except Exception as exc:
             self.llm_logger.error(
                 f"Error creating span of trace {str(span.trace_id)}: {str(exc)}"
@@ -192,16 +202,16 @@ class Tracing(object):
         self,
         trace_name: Optional[str],
         inputs: Dict[str, Any],
-        variant_config: Dict[str, Any],
-        **kwargs,
+        config: Dict[str, Any],
+        **kwargs: Dict[str, Any],
     ):
         """Creates a new trace.
 
         Args:
             trace_name (Optional[str]): The identifier for the trace.
             app_id (str): The ID of the app.
-            base_id (str): The ID of the base.
-            config_name (str): The name of the config.
+            config (Dict): The configuration of the app.
+            **kwargs (Dict): Additional information.
         """
 
         trace_id = self._create_trace_id()
@@ -215,7 +225,7 @@ class Tracing(object):
                     trace_name=trace_name,  # type: ignore
                     start_time=datetime.now(),
                     inputs=inputs,
-                    variant_config=variant_config,
+                    config=config,
                     environment=kwargs.get("environment"),  # type: ignore
                     status="INITIATED",
                     tags=self.tags,
@@ -226,16 +236,20 @@ class Tracing(object):
         except Exception as exc:
             self.llm_logger.error(f"Error creating trace: {str(exc)}")
 
-    def end_trace(self, outputs: List[str], **kwargs: Dict[str, Any]):
+    def end_trace(
+        self,
+        outputs: List[str],
+        cost: Optional[float] = None,
+        total_tokens: Optional[int] = None,
+    ):
         try:
             self.tasks_manager.add_task(
                 self.client.update_trace(
                     trace_id=self.active_trace,  # type: ignore
                     status="COMPLETED",
                     end_time=datetime.now(),
-                    token_consumption=kwargs["usage"].get(
-                        "total_tokens"
-                    ),  # typ: ignore
+                    cost=cost,
+                    token_consumption=total_tokens,
                     outputs=outputs,
                 )
             )
