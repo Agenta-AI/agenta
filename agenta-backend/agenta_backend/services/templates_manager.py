@@ -11,6 +11,7 @@ from agenta_backend.config import settings
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloud, isOss
+
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
@@ -66,8 +67,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
             image_res = await container_manager.pull_docker_image(
                 repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
             )
-            print(
-                f"Template Image {image_res[0]['id']} pulled from DockerHub.")
+            print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
     await db_manager.remove_old_template_from_db(templates_ids_not_to_remove)

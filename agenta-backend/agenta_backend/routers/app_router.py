@@ -106,8 +106,7 @@ async def list_app_variants(
                 object_type="app",
                 permission=Permission.VIEW_APPLICATION,
             )
-            logger.debug(
-                f"User has Permission to list app variants: {has_permission}")
+            logger.debug(f"User has Permission to list app variants: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
@@ -174,8 +173,7 @@ async def get_variant_by_env(
 
         # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
-            raise HTTPException(
-                status_code=500, detail="App Variant not found")
+            raise HTTPException(status_code=500, detail="App Variant not found")
         return await converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
@@ -407,8 +405,7 @@ async def remove_app(app_id: str, request: Request):
                 object=app,
                 permission=Permission.DELETE_APPLICATION,
             )
-            logger.debug(
-                f"User has Permission to delete app: {has_permission}")
+            logger.debug(f"User has Permission to delete app: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
@@ -419,8 +416,7 @@ async def remove_app(app_id: str, request: Request):
         await app_manager.remove_app(app)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
-        logger.exception(
-            f"Docker error while trying to remove the app: {str(e)}")
+        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
@@ -521,8 +517,7 @@ async def create_app_and_variant_from_template(
             else "Step 3: Retrieve template from db"
         )
         template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get(
-            "AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
@@ -620,8 +615,7 @@ async def list_environments(
                 object_type="app",
                 permission=Permission.VIEW_APPLICATION,
             )
-            logger.debug(
-                f"User has Permission to list environments: {has_permission}")
+            logger.debug(f"User has Permission to list environments: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
@@ -659,8 +653,7 @@ async def list_app_environment_revisions(
                 object_type="app",
                 permission=Permission.VIEW_APPLICATION,
             )
-            logger.debug(
-                f"User has Permission to list environments: {has_permission}")
+            logger.debug(f"User has Permission to list environments: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
