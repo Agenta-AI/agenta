@@ -95,8 +95,7 @@ def evaluate(
         # 1. Fetch data from the database
         loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
-        app_variant_db = loop.run_until_complete(
-            fetch_app_variant_by_id(variant_id))
+        app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
             app_variant_db is not None
         ), f"App variant with id {variant_id} not found!"
@@ -143,8 +142,7 @@ def evaluate(
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):
             # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
-            list_inputs = get_app_inputs(
-                app_variant_parameters, openapi_parameters)
+            list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
 
             inputs = [
@@ -218,8 +216,7 @@ def evaluate(
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
-                logger.debug(
-                    f"Evaluating with evaluator: {evaluator_config_db}")
+                logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 if correct_answer_column in data_point:
                     result = evaluators_service.evaluate(
                         evaluator_key=evaluator_config_db.evaluator_key,
@@ -270,8 +267,7 @@ def evaluate(
                     correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
-                            result=Result(
-                                type="text", value=app_output.result.value)
+                            result=Result(type="text", value=app_output.result.value)
                         )
                     ],
                     results=evaluators_results,
@@ -290,8 +286,7 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed",
-                                    stacktrace=str(e)),
+                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
                     )
                 },
             )
@@ -309,8 +304,7 @@ def evaluate(
     )
 
     failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(
-            new_evaluation_db.id)
+        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
     )
 
     evaluation_status = Result(
@@ -326,8 +320,7 @@ def evaluate(
 
     loop.run_until_complete(
         update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={
-                "status": evaluation_status}
+            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
         )
     )
 
@@ -360,8 +353,7 @@ async def aggregate_evaluator_results(
             result = aggregation_service.aggregate_float(results)
 
         else:
-            raise Exception(
-                f"Evaluator {evaluator_key} aggregation does not exist")
+            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
@@ -393,8 +385,7 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
             if (
                 param["name"] in app_variant_parameters
             ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
-                input_names = [_["name"]
-                               for _ in app_variant_parameters[param["name"]]]
+                input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
             else:  # otherwise we use the default from the openapi
                 input_names = param["default"]
             for input_name in input_names:

@@ -1,5 +1,6 @@
 import os
 from agenta_backend.utils.common import isCloud
+
 if isCloud():
     from agenta_backend.commons.models.db_models import UserDB_ as UserDB
 else:
