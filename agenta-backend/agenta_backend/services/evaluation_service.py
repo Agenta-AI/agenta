@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import HTTPException
 
@@ -758,3 +758,18 @@ async def update_on_evaluation_rerun(
         updates=updates,
     )
     return updated_evaluation
+
+
+async def get_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+    """
+    Retrieves an evaluation by its ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation to be fetched.
+
+    Returns:
+        Optional[Any]: The fetched evaluation object or None if not found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+    return evaluation

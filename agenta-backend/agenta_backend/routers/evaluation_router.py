@@ -213,7 +213,7 @@ async def re_run_evaluation(
         evaluation_ids = evaluation_ids.split(",")
 
         for evaluation_id in evaluation_ids:
-            evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+            evaluation = await evaluation_service.get_evaluation_by_id(evaluation_id)
             evaluation_params = await evaluation_service.fetch_evaluation_params(
                 evaluation.evaluation_params_id
             )
