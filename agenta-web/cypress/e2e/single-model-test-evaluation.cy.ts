@@ -13,9 +13,11 @@ describe("Single Model Test workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/annotations`)
-            cy.url().should("include", "/annotations")
-            cy.clickLinkAndWait('[data-cy="singleModel-button"]')
+            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
+            cy.url().should("include", "/annotations/single_model_test")
+            cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
+
+            cy.get(".ant-modal-content").should("exist")
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
             cy.get('[data-cy="variant-0"]').click()
