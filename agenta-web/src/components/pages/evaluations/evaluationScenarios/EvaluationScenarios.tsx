@@ -71,7 +71,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 valueGetter: (params) => {
                     return getTypedValue(params.data?.inputs[index])
                 },
-                cellRenderer: LongTextCellRenderer,
+                cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
         colDefs.push({
@@ -83,7 +83,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             valueGetter: (params) => {
                 return params.data?.correct_answer?.toString() || ""
             },
-            cellRenderer: LongTextCellRenderer,
+            cellRenderer: (params: any) => LongTextCellRenderer(params),
         })
         evalaution?.variants.forEach((_, index) => {
             colDefs.push({
@@ -97,14 +97,15 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     if (result && result.type == "error") {
                         return `${result?.error?.message}\n${result?.error?.stacktrace}`
                     }
-                    return showDiff === "show" ? (
-                        <CompareOutputDiff
-                            variantOutput={result?.value}
-                            expectedOutput={params.data?.correct_answer}
-                        />
-                    ) : (
-                        result?.value
-                    )
+                    return showDiff === "show"
+                        ? LongTextCellRenderer(
+                              params,
+                              <CompareOutputDiff
+                                  variantOutput={result?.value}
+                                  expectedOutput={params.data?.correct_answer}
+                              />,
+                          )
+                        : LongTextCellRenderer(params)
                 },
                 valueGetter: (params) => {
                     const result = params.data?.outputs[index].result
