@@ -5,6 +5,7 @@ import sys
 import time
 import inspect
 import argparse
+import asyncio
 import traceback
 import functools
 from pathlib import Path
@@ -94,7 +95,9 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # End tracing
         if isinstance(result, JSONResponse):
             result = {"message": str(result), "usage": None}
-        tracing.end_trace(outputs=[result["message"]], usage=result["usage"])  # type: ignore
+        tracing.end_trace(
+            outputs=[result["message"]], usage=result["usage"]
+        )  # type: ignore
         return result
 
     @functools.wraps(func)
@@ -252,10 +255,14 @@ async def execute_function(
         if isinstance(result, Dict):
             return FuncResponse(**result, latency=round(latency, 4)).dict()
         if isinstance(result, str):
-            return FuncResponse(message=result, latency=round(latency, 4)).dict()  # type: ignore
+            # type: ignore
+            return FuncResponse(message=result, latency=round(latency, 4)).dict()
     except Exception as e:
         return handle_exception(e)
-    return FuncResponse(message="Unexpected error occurred", latency=round(latency, 4)).dict()  # type: ignore
+    # type: ignore
+    return FuncResponse(
+        message="Unexpected error occurred", latency=round(latency, 4)
+    ).dict()
 
 
 def handle_exception(e: Exception) -> JSONResponse:
@@ -430,6 +437,14 @@ def handle_terminal_run(
             file_path=args_func_params[name],
         )
     agenta.config.set(**args_config_params)
+
+    loop = asyncio.get_event_loop()
+    result = loop.run_until_complete(
+        execute_function(
+            func, **{"params": args_func_params, "config_params": args_config_params}
+        )
+    )
+    print(result)
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):
