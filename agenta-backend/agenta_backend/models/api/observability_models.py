@@ -103,7 +103,7 @@ class Trace(Span):
 
 class TraceDetail(Trace):
     content: Dict[str, Any]
-    variant_config: Dict[str, Any]
+    config: Dict[str, Any]
 
 
 class ObservabilityData(BaseModel):

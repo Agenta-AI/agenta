@@ -22,8 +22,8 @@ async def llm_call(prompt):
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
     tracing.set_span_attribute(
-        "model", name="gpt-3.5-turbo"
-    )  # translate to {"model": {"name": "gpt-3.5-turbo"}}
+        "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
+    )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     return {
         "message": chat_completion.choices[0].message.content,
         "usage": chat_completion.usage.dict(),
@@ -31,16 +31,13 @@ async def llm_call(prompt):
 
 
 @ag.entrypoint
-async def generate(country: str, gender: str) -> str:
+async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.
 
     Args:
         country (str): The country to generate the name from.
         gender (str): The gender of the baby.
-
-    Returns:
-        str: The generated baby name.
     """
 
     prompt = ag.config.prompt_template.format(country=country, gender=gender)
