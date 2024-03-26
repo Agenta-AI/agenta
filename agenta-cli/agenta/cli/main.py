@@ -10,6 +10,7 @@ import questionary
 import toml
 
 from agenta.cli import helper
+from agenta.cli import variant_logs
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 from agenta.cli import evaluation_commands
