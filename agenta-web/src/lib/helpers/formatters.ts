@@ -17,5 +17,5 @@ export const formatCurrency = (value = 0) => {
 }
 
 export const formatLatency = (value = 0) => {
-    return `${intlNumber}s`
+    return `${intlNumber.format(value)}s`
 }
