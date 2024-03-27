@@ -1,68 +1,57 @@
-import os
-from typing import List
+from typing import List, Any
 
-from fastapi import Request
+from fastapi import Request, Query, Depends
+
 from agenta_backend.utils.common import APIRouter
-
-from agenta_backend.services.event_db_manager import (
-    get_variant_traces,
-    create_app_trace,
-    create_trace_span,
-    get_trace_single,
-    trace_status_update,
-    get_trace_spans,
-    add_feedback_to_trace,
-    get_trace_feedbacks,
-    get_feedback_detail,
-    update_trace_feedback,
+from agenta_backend.services import event_db_manager, redis_cache_service
+from agenta_backend.models.api.api_models import (
+    WithPagination,
+    SorterParams,
+    PaginationParam,
 )
 from agenta_backend.models.api.observability_models import (
-    Span,
+    SpanDetail,
     CreateSpan,
     CreateFeedback,
     Feedback,
     UpdateFeedback,
-    Trace,
+    TraceDetail,
     CreateTrace,
     UpdateTrace,
+    GenerationFilterParams,
+    ObservabilityDashboardDataRequestParams,
 )
 
 
 router = APIRouter()
 
 
-@router.post("/traces/", response_model=str, operation_id="create_trace")
-async def create_trace(
-    payload: CreateTrace,
-    request: Request,
-):
-    trace = await create_app_trace(payload, request.state.user_id)
-    return trace
-
-
 @router.get(
-    "/traces/{app_id}/{variant_id}/",
-    response_model=List[Trace],
-    operation_id="get_traces",
+    "/dashboard/",
+    operation_id="observability_dashboard",
 )
-async def get_traces(
+async def get_dashboard_data(
+    request: Request,
     app_id: str,
-    variant_id: str,
-    request: Request,
+    parameters: ObservabilityDashboardDataRequestParams = Depends(),
 ):
-    traces = await get_variant_traces(app_id, variant_id, request.state.user_id)
-    return traces
+    try:
+        dashboard_data = await redis_cache_service.cache_observability_data(
+            event_db_manager.retrieve_observability_dashboard,
+            **{"app_id": app_id, "parameters": parameters}
+        )
+        return dashboard_data
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return []
 
 
-@router.get(
-    "/traces/{trace_id}/", response_model=Trace, operation_id="get_single_trace"
-)
-async def get_single_trace(
-    trace_id: str,
-    request: Request,
-):
-    trace = await get_trace_single(trace_id, request.state.user_id)
-    return trace
+@router.post("/traces/", response_model=str, operation_id="create_trace")
+async def create_trace(request: Request, payload: CreateTrace):
+    trace_id = await event_db_manager.create_app_trace(payload, request.state.user_id)
+    return trace_id
 
 
 @router.post("/spans/", response_model=str, operation_id="create_span")
@@ -70,30 +59,107 @@ async def create_span(
     payload: CreateSpan,
     request: Request,
 ):
-    spans_id = await create_trace_span(payload)
+    spans_id = await event_db_manager.create_trace_span(payload)
     return spans_id
 
 
 @router.get(
-    "/spans/{trace_id}/", response_model=List[Span], operation_id="get_spans_of_trace"
+    "/traces/",
+    response_model=WithPagination,
+    operation_id="get_traces",
 )
-async def get_spans_of_trace(
-    trace_id: str,
+async def get_traces(
     request: Request,
+    app_id: str,
+    pagination: PaginationParam = Depends(),
+    filters: GenerationFilterParams = Depends(),
+    sorters: SorterParams = Depends(),
 ):
-    spans = await get_trace_spans(trace_id, request.state.user_id)
+    spans = await event_db_manager.fetch_traces(
+        app_id,
+        pagination,
+        filters,
+        sorters,
+    )
     return spans
 
 
-@router.put(
-    "/traces/{trace_id}/", response_model=bool, operation_id="update_trace_status"
+@router.get(
+    "/traces/{trace_id}/",
+    response_model=TraceDetail,
+    operation_id="get_trace_detail",
 )
-async def update_trace_status(
+async def get_trace_detail(
+    request: Request,
+    trace_id: str,
+):
+    trace_detail = await event_db_manager.fetch_trace_detail(
+        trace_id, request.state.user_id
+    )
+    return trace_detail
+
+
+@router.delete("/traces/", response_model=bool, operation_id="delete_traces")
+async def delete_traces(request: Request, ids: List[str]):
+    await event_db_manager.delete_traces(ids)
+    return True
+
+
+@router.get(
+    "/spans/",
+    operation_id="get_spans_of_generation",
+)
+async def get_spans_of_trace(
+    request: Request,
+    app_id: str,
+    pagination: PaginationParam = Depends(),
+    filters: GenerationFilterParams = Depends(),
+    sorters: SorterParams = Depends(),
+):
+    if filters and filters.type == "generation":
+        spans = await event_db_manager.fetch_generation_spans(
+            app_id,
+            pagination,
+            filters,
+            sorters,
+        )
+        return spans
+    return []
+
+
+@router.get(
+    "/spans/{span_id}/",
+    response_model=SpanDetail,
+    operation_id="get_span_of_generation",
+)
+async def get_span_of_trace(
+    request: Request,
+    span_id: str,
+    type: str = Query(default="generation"),
+):
+    if type == "generation":
+        spans = await event_db_manager.fetch_generation_span_detail(
+            span_id, request.state.user_id
+        )
+        return spans
+    return []
+
+
+@router.delete("/spans/", response_model=bool, operation_id="delete_spans_of_trace")
+async def delete_spans_of_trace(request: Request, ids: List[str]):
+    await event_db_manager.delete_spans(ids)
+    return True
+
+
+@router.put("/traces/{trace_id}/", response_model=bool, operation_id="update_trace")
+async def update_trace(
     trace_id: str,
     payload: UpdateTrace,
     request: Request,
 ):
-    trace = await trace_status_update(trace_id, payload, request.state.user_id)
+    trace = await event_db_manager.trace_update(
+        trace_id, payload, request.state.user_id
+    )
     return trace
 
 
@@ -105,7 +171,9 @@ async def create_feedback(
     payload: CreateFeedback,
     request: Request,
 ):
-    feedback = await add_feedback_to_trace(trace_id, payload, request.state.user_id)
+    feedback = await event_db_manager.add_feedback_to_trace(
+        trace_id, payload, request.state.user_id
+    )
     return feedback
 
 
@@ -115,7 +183,9 @@ async def create_feedback(
     operation_id="get_feedbacks",
 )
 async def get_feedbacks(trace_id: str, request: Request):
-    feedbacks = await get_trace_feedbacks(trace_id, request.state.user_id)
+    feedbacks = await event_db_manager.get_trace_feedbacks(
+        trace_id, request.state.user_id
+    )
     return feedbacks
 
 
@@ -129,7 +199,9 @@ async def get_feedback(
     feedback_id: str,
     request: Request,
 ):
-    feedback = await get_feedback_detail(trace_id, feedback_id, request.state.user_id)
+    feedback = await event_db_manager.get_feedback_detail(
+        trace_id, feedback_id, request.state.user_id
+    )
     return feedback
 
 
@@ -144,7 +216,7 @@ async def update_feedback(
     payload: UpdateFeedback,
     request: Request,
 ):
-    feedback = await update_trace_feedback(
+    feedback = await event_db_manager.update_trace_feedback(
         trace_id, feedback_id, payload, request.state.user_id
     )
     return feedback

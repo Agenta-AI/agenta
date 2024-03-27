@@ -4,7 +4,9 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .feedback import Feedback
+from .human_evaluation_scenario_input import HumanEvaluationScenarioInput
+from .human_evaluation_scenario_output import HumanEvaluationScenarioOutput
+from .score import Score
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -12,19 +14,14 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class Trace(pydantic.BaseModel):
-    app_id: typing.Optional[str]
-    variant_id: typing.Optional[str]
-    cost: typing.Optional[float]
-    latency: float
-    status: str
-    token_consumption: typing.Optional[int]
-    tags: typing.Optional[typing.List[str]]
-    start_time: dt.datetime
-    end_time: dt.datetime
-    trace_id: str
-    spans: typing.List[str]
-    feedbacks: typing.Optional[typing.List[Feedback]]
+class HumanEvaluationScenarioUpdate(pydantic.BaseModel):
+    vote: typing.Optional[str]
+    score: typing.Optional[Score]
+    correct_answer: typing.Optional[str]
+    outputs: typing.Optional[typing.List[HumanEvaluationScenarioOutput]]
+    inputs: typing.Optional[typing.List[HumanEvaluationScenarioInput]]
+    is_pinned: typing.Optional[bool]
+    note: typing.Optional[str]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

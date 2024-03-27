@@ -11,11 +11,10 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class ListApiKeysOutput(pydantic.BaseModel):
-    prefix: str
-    created_at: dt.datetime
-    last_used_at: typing.Optional[dt.datetime]
-    expiration_date: typing.Optional[dt.datetime]
+class SpanVariant(pydantic.BaseModel):
+    variant_id: str
+    variant_name: str
+    revision: int
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

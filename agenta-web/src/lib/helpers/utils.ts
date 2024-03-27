@@ -303,9 +303,27 @@ export const redirectIfNoLLMKeys = () => {
     return false
 }
 
+export const randNum = (min: number, max: number) =>
+    Math.floor(Math.random() * (max - min + 1) + min)
+
 export const snakeToTitle = (str: string) => {
     return str
         .split("_")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ")
+}
+
+export const getInitials = (str: string, limit = 2) => {
+    let initialText = "E"
+
+    try {
+        initialText = str
+            ?.split(" ")
+            .slice(0, limit)
+            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
+    } catch (error) {
+        console.log("Error using getInitials", error)
+    }
+
+    return initialText
 }

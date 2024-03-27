@@ -90,7 +90,11 @@ async def start_variant(
             # domain_name = "http://localhost"
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
-            {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
+            {
+                "AGENTA_BASE_ID": str(db_app_variant.base.id),
+                "AGENTA_APP_ID": str(db_app_variant.app.id),
+                "AGENTA_HOST": domain_name,
+            }
         )
         if isCloudEE():
             api_key = await api_key_service.create_api_key(

@@ -1,6 +1,8 @@
 import json
 from typing import List, Dict, Any
 
+from agenta_backend.models.db_models import SpanDB
+
 
 def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
     """
@@ -56,3 +58,32 @@ def include_dynamic_values(json_data: Dict, inputs: Dict[str, Any]) -> Dict:
         json_data = json_data.replace(f"{key}", value)
 
     return json_data
+
+
+def convert_generation_span_inputs_variables(span_db: SpanDB) -> List[Dict[str, str]]:
+    """
+    Converts a list of span generation inputs variables \
+      to a list of dictionaries with name and type information.
+
+    Args:
+        span_db: The span db document.
+
+    Returns:
+        A list of dictionaries, where each dictionary has the following keys:
+            name: The name of the variable.
+            type: The type of the variable (string, number, or boolean).
+    """
+
+    variables: List[Dict[str, str]] = []
+    for variable in span_db.inputs:
+        if isinstance(variable, str):
+            variable_type = "string"
+        elif isinstance(variable, (int, float)):
+            variable_type = "number"
+        elif isinstance(variable, bool):
+            variable_type = "boolean"
+        else:
+            raise ValueError(f"Unsupported variable type: {type(variable)}")
+
+        variables.append({"name": variable, "type": variable_type})
+    return variables

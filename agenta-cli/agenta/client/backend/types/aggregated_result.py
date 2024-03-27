@@ -4,7 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .evaluator_config import EvaluatorConfig
+from .aggregated_result_evaluator_config import AggregatedResultEvaluatorConfig
 from .result import Result
 
 try:
@@ -14,7 +14,7 @@ except ImportError:
 
 
 class AggregatedResult(pydantic.BaseModel):
-    evaluator_config: EvaluatorConfig
+    evaluator_config: AggregatedResultEvaluatorConfig
     result: Result
 
     def json(self, **kwargs: typing.Any) -> str:

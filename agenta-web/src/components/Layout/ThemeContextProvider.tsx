@@ -2,6 +2,20 @@ import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 
+export const AntdThemeConfig = {
+    token: {
+        // Seed Token
+        colorPrimary: "#4AA081",
+        borderRadius: 8,
+    },
+    components: {
+        Button: {
+            colorPrimary: "#4AA081",
+            colorErrorText: "#ef4146",
+        },
+    },
+}
+
 export enum ThemeMode {
     Light = "light",
     Dark = "dark",
@@ -68,17 +82,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 theme={{
                     algorithm:
                         val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                    token: {
-                        // Seed Token
-                        colorPrimary: "#4AA081",
-                        borderRadius: 8,
-                    },
-                    components: {
-                        Button: {
-                            colorPrimary: "#4AA081",
-                            colorErrorText: "#ef4146",
-                        },
-                    },
+                    ...AntdThemeConfig,
                 }}
             >
                 {children}

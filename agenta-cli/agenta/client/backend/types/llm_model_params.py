@@ -11,11 +11,9 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class GetConfigReponse(pydantic.BaseModel):
-    config_id: str
-    config_name: str
-    current_version: int
-    parameters: typing.Dict[str, typing.Any]
+class LlmModelParams(pydantic.BaseModel):
+    prompt: typing.Dict[str, typing.Any]
+    params: typing.Dict[str, typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .evaluation_status_enum import EvaluationStatusEnum
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -11,19 +12,8 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class AppVariantOutput(pydantic.BaseModel):
-    app_id: str
-    app_name: str
-    variant_id: str
-    variant_name: str
-    parameters: typing.Optional[typing.Dict[str, typing.Any]]
-    previous_variant_name: typing.Optional[str]
-    organization_id: str
-    user_id: str
-    base_name: str
-    base_id: str
-    config_name: str
-    uri: typing.Optional[str]
+class HumanEvaluationUpdate(pydantic.BaseModel):
+    status: typing.Optional[EvaluationStatusEnum]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

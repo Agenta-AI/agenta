@@ -1,23 +1,23 @@
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {useAppId} from "@/hooks/useAppId"
-import {EvaluationSettingsTemplate, Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
-import {evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {isValidRegex} from "@/lib/helpers/validators"
+import { useAppTheme } from "@/components/Layout/ThemeContextProvider"
+import { useAppId } from "@/hooks/useAppId"
+import { EvaluationSettingsTemplate, Evaluator, EvaluatorConfig, JSSTheme } from "@/lib/Types"
+import { evaluatorsAtom } from "@/lib/atoms/evaluation"
+import { isValidRegex } from "@/lib/helpers/validators"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/services/evaluations"
-import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
-import {Rule} from "antd/es/form"
-import {useAtom} from "jotai"
+import { ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined } from "@ant-design/icons"
+import { Editor } from "@monaco-editor/react"
+import { Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme } from "antd"
+import { Rule } from "antd/es/form"
+import { useAtom } from "jotai"
 import Image from "next/image"
 import Link from "next/link"
-import React, {useEffect, useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
-import {ColumnsType} from "antd/es/table"
+import React, { useEffect, useMemo, useState } from "react"
+import { createUseStyles } from "react-jss"
+import { ColumnsType } from "antd/es/table"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -121,9 +121,9 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     max,
     required,
 }) => {
-    const {appTheme} = useAppTheme()
+    const { appTheme } = useAppTheme()
     const classes = useStyles()
-    const {token} = theme.useToken()
+    const { token } = theme.useToken()
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -159,7 +159,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         <span>{label}</span>
                         {description && (
                             <Tooltip title={description}>
-                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                                <InfoCircleOutlined style={{ color: token.colorPrimary }} />
                             </Tooltip>
                         )}
                     </div>
@@ -174,7 +174,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
-                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} />
                 ) : type === "code" ? (
                     <Editor
                         className={classes.editor}
@@ -189,7 +189,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         height={120}
                         width="100%"
                         language="json"
-                        options={{lineNumbers: "off"}}
+                        options={{ lineNumbers: "off" }}
                         theme={`vs-${appTheme}`}
                     />
                 ) : null}
@@ -266,13 +266,13 @@ const NewEvaluatorModal: React.FC<Props> = ({
             evaluator_key: selectedEval.key,
             settings_values: values.settings_values || {},
         }
-        ;(editMode
-            ? updateEvaluatorConfig(initialValues?.id!, data)
-            : createEvaluatorConfig(appId, data)
-        )
-            .then(onSuccess)
-            .catch(console.error)
-            .finally(() => setSubmitLoading(false))
+            ; (editMode
+                ? updateEvaluatorConfig(initialValues?.id!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
     }
 
     const columns: ColumnsType<Evaluator> = [
@@ -389,7 +389,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                     <Form.Item
                         name="name"
                         label="Name"
-                        rules={[{required: true, message: "This field is required"}]}
+                        rules={[{ required: true, message: "This field is required" }]}
                     >
                         <Input data-cy="configure-new-evaluator-modal-input" />
                     </Form.Item>
@@ -402,7 +402,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                         />
                     ))}
 
-                    <Form.Item style={{marginBottom: 0}}>
+                    <Form.Item style={{ marginBottom: 0 }}>
                         <div className={classes.evalBtnContainer}>
                             {!editMode && (
                                 <Button
