@@ -190,7 +190,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                     )
 
                     // if cols mismatch (playground cols not a superset of testset cols)
-                    if (missingColsTestset.length) {
+                    if (missingColsTestset.length && missingColsPlayground.length) {
                         AlertPopup({
                             type: "error",
                             title: "Columns mismatch",
