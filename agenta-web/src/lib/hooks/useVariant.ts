@@ -1,8 +1,7 @@
 import {useState, useEffect} from "react"
-import {promptVersioning, saveNewVariant, updateVariantParams} from "@/lib/services/api"
-import {Variant, Parameter, IPromptRevisions} from "@/lib/Types"
+import {saveNewVariant, updateVariantParams} from "@/lib/services/api"
+import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
-import {isDemo} from "../helpers/utils"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
 
 /**

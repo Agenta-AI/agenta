@@ -2,14 +2,7 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant, promptRevision} from "@/lib/services/api"
-import {
-    ChatMessage,
-    ChatRole,
-    GenericObject,
-    IPromptVersioning,
-    Parameter,
-    Variant,
-} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -29,7 +22,6 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)

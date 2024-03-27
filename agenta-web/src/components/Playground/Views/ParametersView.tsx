@@ -1,7 +1,7 @@
 import {Environment, IPromptRevisions, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useContext, useEffect, useState} from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
