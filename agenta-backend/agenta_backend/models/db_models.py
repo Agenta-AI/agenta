@@ -338,7 +338,7 @@ class TraceDB(Document):
     created_at: datetime = Field(default=datetime.now())
 
     def get_latency(cls) -> float:
-        return (cls.end_time - cls.start_time).total_seconds()
+        return (cls.end_time - cls.start_time).total_seconds() * 1000
 
     class Settings:
         name = "traces"
@@ -362,7 +362,7 @@ class SpanDB(Document):
     created_at: datetime = Field(default=datetime.now())
 
     def get_latency(cls) -> float:
-        return (cls.end_time - cls.start_time).total_seconds()
+        return (cls.end_time - cls.start_time).total_seconds() * 1000
 
     class Settings:
         name = "spans"
