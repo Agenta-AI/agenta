@@ -84,7 +84,7 @@ class LLMInputs(BaseModel):
 
 class LLMContent(BaseModel):
     inputs: List[LLMInputs]
-    output: Optional[str]
+    outputs: Optional[str]
 
 
 class LLMModelParams(BaseModel):
