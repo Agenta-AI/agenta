@@ -455,7 +455,7 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: {result: TypedValue}[]
+    outputs: {result: TypedValue; cost?: number; latency?: number}[]
     correct_answer?: string
     is_pinned?: boolean
     note?: string
