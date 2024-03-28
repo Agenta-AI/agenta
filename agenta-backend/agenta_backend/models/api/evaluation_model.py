@@ -102,6 +102,8 @@ class EvaluationScenarioInput(BaseModel):
 
 class EvaluationScenarioOutput(BaseModel):
     result: Result
+    cost: Optional[float]
+    latency: Optional[float]
 
 
 class HumanEvaluationScenarioInput(BaseModel):
