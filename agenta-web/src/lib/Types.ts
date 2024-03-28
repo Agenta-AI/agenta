@@ -363,6 +363,8 @@ type ValueTypeOptions =
     | "regex"
     | "object"
     | "error"
+    | "cost"
+    | "latency"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -442,6 +444,8 @@ export interface _Evaluation {
     updated_at?: string
     duration?: number
     revisions: string[]
+    average_latency?: TypedValue & {error: null | EvaluationError}
+    average_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
 }
 
