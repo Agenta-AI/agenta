@@ -144,10 +144,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Cost",
-            field: "cost",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return params.data.outputs[0].cost == undefined
+                return params.data?.outputs[0].cost == undefined
                     ? "-"
                     : formatCurrency(params.data.outputs[0].cost)
             },
@@ -157,10 +156,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Latency",
-            field: "latency",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return params.data.outputs[0].latency == undefined
+                return params.data?.outputs[0].latency == undefined
                     ? "-"
                     : formatLatency(params.data.outputs[0].latency)
             },
