@@ -147,7 +147,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             field: "cost",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return formatCurrency(params.data.outputs[0].result.value.cost);
+                return formatCurrency(params.data.outputs[0].cost);
             },
         });
         
@@ -158,7 +158,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             field: "latency",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return formatLatency(params.data.outputs[0].result.value.latency);
+                return formatLatency(params.data.outputs[0].latency);
             },
         });
         return colDefs
