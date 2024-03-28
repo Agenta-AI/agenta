@@ -115,18 +115,18 @@ const EvaluationResults: React.FC<Props> = () => {
     }
 
     const customDateSort = (rowA: _Evaluation, rowB: _Evaluation): number => {
-        const a = rowA ? rowA.started_at : null;
-        const b = rowB ? rowB.started_at : null;
-    
+        const a = rowA ? rowA.started_at : null
+        const b = rowB ? rowB.started_at : null
+
         if (!a) {
-            return 1;
+            return 1
         }
         if (!b) {
-            return -1;
+            return -1
         }
-    
-        return new Date(b).getTime() - new Date(a).getTime();
-    };
+
+        return new Date(b).getTime() - new Date(a).getTime()
+    }
 
     useEffect(() => {
         fetcher()
