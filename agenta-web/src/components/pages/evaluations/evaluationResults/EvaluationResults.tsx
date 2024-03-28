@@ -252,7 +252,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerName: "Latency",
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data.average_latency),
+                valueGetter: (params) => getTypedValue(params?.data?.average_latency),
             },
             {
                 flex: 1,
@@ -260,7 +260,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerName: "Cost",
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data.average_cost),
+                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
             },
             {
                 flex: 1,
