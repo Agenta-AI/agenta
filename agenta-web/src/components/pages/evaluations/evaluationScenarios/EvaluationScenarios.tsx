@@ -23,7 +23,7 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {useQueryParam} from "@/hooks/useQuery"
-import {formatCost, formatLatency} from "@/lib/helpers/utils"
+import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -147,7 +147,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             field: "cost",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return formatCost(params.data.outputs[0].result.value.cost);
+                return formatCurrency(params.data.outputs[0].result.value.cost);
             },
         });
         
