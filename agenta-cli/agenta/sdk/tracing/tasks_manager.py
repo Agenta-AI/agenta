@@ -3,11 +3,13 @@ import queue
 import asyncio
 import threading
 from logging import Logger
-from typing import Coroutine, Optional, Union
+from datetime import datetime
+from typing import Coroutine, Optional, Union, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, Future
 
 # Own Imports
 from agenta.client.backend.types.error import Error
+from agenta.client.backend.client import AsyncObservabilityClient
 
 
 class AsyncTask(object):
@@ -17,9 +19,18 @@ class AsyncTask(object):
         coroutine (Coroutine): asynchronous function
     """
 
-    def __init__(self, coroutine: Coroutine):
+    def __init__(
+        self,
+        coroutine_id: str,
+        coroutine_type: str,
+        coroutine: Coroutine,
+        client: AsyncObservabilityClient,
+    ):
+        self.coroutine_id = coroutine_id
+        self.coroutine_type = coroutine_type
         self.coroutine = coroutine
         self.task: Optional[asyncio.Task] = None
+        self.client = client
 
     async def run(self) -> Union[asyncio.Task, Error]:
         """Creates an asyncio Task from the coroutine and starts it
@@ -63,17 +74,26 @@ class TaskQueue(object):
         self._logger = logger
         self._thread_pool = ThreadPoolExecutor(max_workers=num_workers)
 
-    def add_task(self, coroutine: Coroutine) -> AsyncTask:
+    def add_task(
+        self,
+        coroutine_id: str,
+        coroutine_type: str,
+        coroutine: Coroutine,
+        obs_client: AsyncObservabilityClient,
+    ) -> AsyncTask:
         """Adds a new task to be executed.
 
         Args:
+            coroutine_id (str): The Id of the coroutine
+            coroutine_type (str): The type of coroutine
             coroutine (Coroutine): async task
+            obs_client (AsyncObservabilityClient): The async observability client
 
         Returns:
             AsyncTask: task to be executed
         """
 
-        task = AsyncTask(coroutine)
+        task = AsyncTask(coroutine_id, coroutine_type, coroutine, obs_client)
         self.tasks.put(task)
         return self._worker()
 
@@ -83,25 +103,35 @@ class TaskQueue(object):
         """
 
         while True:
-            task = self.tasks.get()
+            task: AsyncTask = self.tasks.get()  # type: ignore
             try:
                 future = self._thread_pool.submit(asyncio.run, task.run())
-                future.add_done_callback(self._handle_task_completion)
+                future.result()
             except Exception as exc:
                 self._logger.error(f"Error running task: {str(exc)}")
+
+                self._logger.error(f"Updating {task.coroutine_type} status to FAILED.")
+                self._handle_error_completion(
+                    client=task.client, type=task.coroutine_type, exc=exc
+                )
                 break
             finally:
                 self.tasks.task_done()
                 break
 
-    def _handle_task_completion(self, future: Future):
-        """Handles task completion or exception raise.
+    def _handle_error_completion(
+        self, client: AsyncObservabilityClient, type: str, exc: Exception
+    ):
+        if type == None:
+            return
 
-        Args:
-            future (Future): asynchronous task in progress
-        """
+        if type == "trace":
+            task = client.update_trace(
+                trace_id=trace,  # type: ignore
+                status="FAILED",
+                end_time=datetime.now(),
+                outputs=[str(exc)],
+            )
 
-        try:
-            future.result()
-        except Exception as exc:
-            self._logger.error(f"Error in completed task: {str(exc)}")
+        future = self._thread_pool.submit(asyncio.run, task)  # type: ignore
+        future.result()

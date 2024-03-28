@@ -24,9 +24,11 @@ async def llm_call(prompt):
     tracing.set_span_attribute(
         "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
     )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
+    tokens_usage = chat_completion.usage.dict()
     return {
+        "cost": ag.calculate_token_usage("gpt-3.5-turbo", tokens_usage),
         "message": chat_completion.choices[0].message.content,
-        "usage": chat_completion.usage.dict(),
+        "usage": tokens_usage,
     }
 
 
@@ -45,5 +47,5 @@ async def generate(country: str, gender: str):
     return {
         "message": response["message"],
         "usage": response["usage"],
-        "cost": ag.calculate_token_usage("gpt-3.5-turbo", response["usage"]),
+        "cost": response["cost"],
     }
