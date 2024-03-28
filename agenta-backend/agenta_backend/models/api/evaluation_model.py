@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 from agenta_backend.models.api.api_models import Result
 
@@ -253,6 +253,9 @@ class NewEvaluation(BaseModel):
 
 class RerunEvaluation(BaseModel):
     lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+    evaluation_ids: List[str] = Field(
+        ..., description="List of evaluation IDs to re-run"
+    )
 
 
 class NewEvaluatorConfig(BaseModel):

@@ -140,8 +140,11 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
 
 export const reRunEvaluations = async (appId: string, evaluationsIds: string[]) => {
     return axios.post(
-        `/api/evaluations/re-run/${evaluationsIds.join(",")}`,
-        {lm_providers_keys: apiKeyObject()},
+        `/api/evaluations/re-run/`,
+        {
+            evaluation_ids: evaluationsIds,
+            lm_providers_keys: apiKeyObject(),
+        },
         {
             params: {app_id: appId},
         },
