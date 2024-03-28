@@ -84,7 +84,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
-    const [hiddenEvalConfigs, setHiddenEvalConfigs] = useState<string[]>([])
+    const [hiddenCols, setHiddenCols] = useState<string[]>([])
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -190,6 +190,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 160,
                 pinned: "left",
                 headerCheckboxSelection: true,
+                hide: hiddenCols.includes("Variant"),
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
                 cellRenderer: (params: any) => {
@@ -210,6 +211,8 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 field: "testset.name",
+                hide: hiddenCols.includes("Testset"),
+                headerName: "Testset",
                 cellRenderer: (params: any) => (
                     <LinkCellRenderer
                         {...params}
@@ -226,8 +229,9 @@ const EvaluationResults: React.FC<Props> = () => {
                     ({
                         flex: 1,
                         minWidth: 190,
-                        hide: hiddenEvalConfigs.includes(config.id),
+                        hide: hiddenCols.includes(config.name),
                         field: "aggregated_results",
+                        headerName: config.name,
                         headerComponent: (props: any) => (
                             <AgCustomHeader {...props}>
                                 <Space
@@ -261,6 +265,8 @@ const EvaluationResults: React.FC<Props> = () => {
             ),
             {
                 flex: 1,
+                headerName: "Status",
+                hide: hiddenCols.includes("Status"),
                 field: "status",
                 minWidth: 185,
                 pinned: "right",
@@ -273,6 +279,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "created_at",
                 headerName: "Created",
+                hide: hiddenCols.includes("Created"),
                 minWidth: 160,
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
@@ -280,7 +287,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs, hiddenEvalConfigs])
+    }, [evaluatorConfigs, hiddenCols])
 
     const compareBtnNode = (
         <Button
@@ -300,19 +307,19 @@ const EvaluationResults: React.FC<Props> = () => {
         </Button>
     )
     const onToggleEvaluatorVisibility = (evalConfigId: string) => {
-        if (!hiddenEvalConfigs.includes(evalConfigId)) {
-            setHiddenEvalConfigs([...hiddenEvalConfigs, evalConfigId])
+        if (!hiddenCols.includes(evalConfigId)) {
+            setHiddenCols([...hiddenCols, evalConfigId])
         } else {
-            setHiddenEvalConfigs(hiddenEvalConfigs.filter((item) => item !== evalConfigId))
+            setHiddenCols(hiddenCols.filter((item) => item !== evalConfigId))
         }
     }
 
-    const shownEvalConfigs = useMemo(
+    const shownCols = useMemo(
         () =>
-            evaluatorConfigs
-                .map((item) => item.id)
-                .filter((item) => !hiddenEvalConfigs.includes(item)),
-        [evaluatorConfigs, hiddenEvalConfigs],
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
+        [colDefs],
     )
 
     return (
@@ -362,13 +369,13 @@ const EvaluationResults: React.FC<Props> = () => {
                         <Dropdown
                             trigger={["click"]}
                             menu={{
-                                selectedKeys: shownEvalConfigs,
-                                items: evaluatorConfigs.map((configs) => ({
-                                    key: configs.id,
+                                selectedKeys: shownCols,
+                                items: colDefs.map((configs) => ({
+                                    key: configs.headerName as string,
                                     label: (
                                         <Space>
                                             <CheckOutlined />
-                                            <>{configs.evaluator?.name}</>
+                                            <>{configs.headerName}</>
                                         </Space>
                                     ),
                                 })),
