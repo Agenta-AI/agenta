@@ -218,9 +218,14 @@ def evaluate(
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 if correct_answer_column in data_point:
+                    output_value = (
+                        app_output.result.value["output"]
+                        if isinstance(app_output.result.value, dict)
+                        else app_output.result.value
+                    )
                     result = evaluators_service.evaluate(
                         evaluator_key=evaluator_config_db.evaluator_key,
-                        output=app_output.result.value,
+                        output=output_value,
                         correct_answer=data_point[correct_answer_column],
                         settings_values=evaluator_config_db.settings_values,
                         app_params=app_variant_parameters,
@@ -275,6 +280,20 @@ def evaluate(
                     workspace=app.workspace if isCloudEE() else None,
                 )
             )
+
+        # Add average cost and latency
+        average_latency = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "latency"
+        )
+        average_cost = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {"average_latency": average_latency, "average_cost": average_cost},
+            )
+        )
 
     except Exception as e:
         logger.error(f"An error occurred during evaluation: {e}")
