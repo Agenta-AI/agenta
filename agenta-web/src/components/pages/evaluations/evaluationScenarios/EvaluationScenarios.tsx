@@ -23,6 +23,7 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {useQueryParam} from "@/hooks/useQuery"
+import {formatCost, formatLatency} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -139,6 +140,27 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 },
             })
         })
+        colDefs.push({
+            flex: 1,
+            minWidth: 120,
+            headerName: "Cost",
+            field: "cost",
+            ...getFilterParams("text"),
+            valueGetter: (params) => {
+                return formatCost(params.data.outputs[0].result.value.cost);
+            },
+        });
+        
+        colDefs.push({
+            flex: 1,
+            minWidth: 120,
+            headerName: "Latency",
+            field: "latency",
+            ...getFilterParams("text"),
+            valueGetter: (params) => {
+                return formatLatency(params.data.outputs[0].result.value.latency);
+            },
+        });
         return colDefs
     }, [evalaution, scenarios, showDiff])
 
