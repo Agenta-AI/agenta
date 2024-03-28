@@ -86,9 +86,15 @@ async def invoke_app(
                 url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
             )
             response.raise_for_status()
-            app_output = response.json()
+            app_response = response.json()
             return InvokationResult(
-                result=Result(type="text", value=app_output["message"], error=None)
+                result=Result(
+                    type="text",
+                    value=app_response["message"],
+                    error=None,
+                ),
+                latency=app_response["latency"],
+                cost=app_response["cost"],
             )
 
         except httpx.HTTPStatusError as e:

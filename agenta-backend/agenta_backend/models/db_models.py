@@ -193,6 +193,8 @@ class Result(BaseModel):
 
 class InvokationResult(BaseModel):
     result: Result
+    cost: Optional[float] = None
+    latency: Optional[float] = None
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -213,6 +215,8 @@ class EvaluationScenarioInputDB(BaseModel):
 
 class EvaluationScenarioOutputDB(BaseModel):
     result: Result
+    cost: Optional[float] = None
+    latency: Optional[float] = None
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -266,6 +270,8 @@ class EvaluationDB(Document):
     variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
+    average_cost: Optional[Result] = None
+    average_latency: Optional[Result] = None
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
@@ -284,6 +290,8 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
+    latency: Optional[int] = None
+    cost: Optional[int] = None
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
