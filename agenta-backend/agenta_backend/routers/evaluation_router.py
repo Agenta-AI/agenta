@@ -1,5 +1,6 @@
 import secrets
 import logging
+from datetime import datetime
 from typing import Any, List
 
 from fastapi.responses import JSONResponse
@@ -15,9 +16,15 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationWebhook,
+    RerunEvaluation,
+    EvaluationStatusEnum,
 )
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
+)
+
+from agenta_backend.models.db_models import (
+    Result,
 )
 
 if isCloudEE():
@@ -125,12 +132,22 @@ async def create_evaluation(
             else payload.correct_answer_column
         )
 
+        evaluation_params = await evaluation_service.create_new_evaluation_params(
+            app_id=payload.app_id,
+            evaluator_config_ids=payload.evaluators_configs,
+            testset_id=payload.testset_id,
+            variants_ids=payload.variant_ids,
+            rate_limit_config=payload.rate_limit,
+            correct_answer_column=correct_answer_column,
+        )
+
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
                 app_id=payload.app_id,
                 variant_id=variant_id,
                 evaluator_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
+                evaluation_params_id=evaluation_params.id,
             )
 
             evaluate.delay(
@@ -145,7 +162,94 @@ async def create_evaluation(
             )
             evaluations.append(evaluation)
 
+        # In case we want to persist all evaluations' data
+        # to be able to rerun it later (exactly how the user
+        # created it especially with selecting the multiple
+        #  variants) then we also need to update the
+        # evaluations_params with evaluations ids like:
+        # evaluation_service.update_evaluation_params(
+        #     evaluations_ids=[evaluation.id for evaluation in evaluations]
+        # )
+
         return evaluations
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
+@router.post("/re-run/", operation_id="re_run_evaluation")
+async def re_run_evaluation(
+    app_id: str,
+    payload: RerunEvaluation,
+    request: Request,
+):
+    """Re-runs the evaluations for the given evaluation IDs and increments their rerun count.
+    Raises:
+        HTTPException: If the app is not found or the user lacks permissions.
+    Returns:
+        HTTP response indicating the operation's outcome.
+    """
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.CREATE_EVALUATION,
+            )
+            logger.debug(f"User has permission to create evaluation: {has_permission}")
+            if not has_permission:
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        # Directly use payload.evaluation_ids as it is already a list
+        evaluation_ids = payload.evaluation_ids
+
+        for evaluation_id in evaluation_ids:
+            evaluation = await evaluation_service.get_evaluation_by_id(evaluation_id)
+            evaluation_params = await evaluation_service.fetch_evaluation_params(
+                evaluation.evaluation_params_id
+            )
+
+            if evaluation_params == None:
+                # due to the fact that the correct answer was not persisted
+                # rerunning evaluations with "correct_answer" as a value will
+                # result in errors. Hince returning an error.
+                return JSONResponse(
+                    {
+                        "detail": "This is an old evaluation that cannot be rerun. Please select a newer evaluation!"
+                    },
+                    status_code=400,
+                )
+
+            await evaluation_service.update_on_evaluation_rerun(
+                evaluation_id=evaluation_id,
+                evaluation=evaluation,
+            )
+
+            evaluate.delay(
+                app_id=app_id,
+                variant_id=str(evaluation.variant),
+                evaluators_config_ids=[
+                    str(config_id) for config_id in evaluation.evaluators_configs
+                ],
+                testset_id=str(evaluation.testset.id),
+                evaluation_id=evaluation_id,
+                rate_limit_config=evaluation_params.rate_limit_config,
+                lm_providers_keys=payload.lm_providers_keys,
+                correct_answer_column=evaluation_params.correct_answer_column,
+            )
+
+        return Response(status_code=status.HTTP_200_OK)
     except KeyError:
         raise HTTPException(
             status_code=400,

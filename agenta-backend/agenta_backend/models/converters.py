@@ -143,6 +143,8 @@ async def evaluation_db_to_pydantic(
             else str(evaluation_db.testset.name)
         ),
         aggregated_results=aggregated_results,
+        started_at=evaluation_db.started_at,
+        finished_at=evaluation_db.finished_at,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )

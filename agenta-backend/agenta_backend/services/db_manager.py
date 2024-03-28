@@ -31,6 +31,7 @@ if isCloudEE():
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
+        EvaluationParamsDB_ as EvaluationParamsDB,
         DeploymentDB_ as DeploymentDB,
         VariantBaseDB_ as VariantBaseDB,
         AppEnvironmentDB_ as AppEnvironmentDB,
@@ -49,6 +50,7 @@ else:
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
+        EvaluationParamsDB,
         DeploymentDB,
         VariantBaseDB,
         AppEnvironmentDB,
@@ -1818,10 +1820,14 @@ async def create_new_evaluation(
     evaluators_configs: List[str],
     organization=None,
     workspace=None,
+    started_at: Optional[datetime] = None,
+    finished_at: Optional[datetime] = None,
+    evaluation_params_id: Optional[ObjectId] = None,
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
+
     Returns:
-        EvaluationScenarioDB: The created evaluation scenario.
+        EvaluationDB: The created evaluation.
     """
     evaluation = EvaluationDB(
         app=app,
@@ -1832,8 +1838,9 @@ async def create_new_evaluation(
         variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
+        started_at=started_at,
+        finished_at=finished_at,
+        evaluation_params_id=evaluation_params_id,
     )
 
     if isCloudEE():
@@ -1849,6 +1856,69 @@ async def create_new_evaluation(
     return evaluation
 
 
+async def create_new_evaluation_params(
+    app: AppDB,
+    testset_id: str,
+    variants_ids: List[str],
+    evaluators_configs: List[str],
+    rate_limit_config: dict,
+    correct_answer_column: str,
+    user: UserDB,
+    organization=None,
+    workspace=None,
+) -> EvaluationParamsDB:
+    """
+    Create new evaluation parameters.
+
+    Args:
+        app (AppDB): The app associated with the evaluation parameters.
+        testset_id (str): The ID of the testset.
+        variants_ids (List[str]): A list of IDs for the variants.
+        evaluators_configs (List[str]): A list of evaluator configuration IDs.
+        rate_limit_config (dict): The rate limit configuration.
+        user (UserDB): The user associated with the evaluation.
+        organization: The organization associated with the evaluation, if applicable.
+        workspace: The workspace associated with the evaluation, if applicable.
+
+    Returns:
+        EvaluationParamsDB: The created evaluation parameters.
+    """
+    evaluation_params = EvaluationParamsDB(
+        app=app,
+        user=user,
+        testset_id=testset_id,
+        variants_ids=variants_ids,
+        evaluators_configs=evaluators_configs,
+        rate_limit_config=rate_limit_config,
+        correct_answer_column=correct_answer_column,
+    )
+
+    if isCloudEE():
+        assert (
+            organization is not None and workspace is not None
+        ), "organization and workspace must be provided together"
+        evaluation_params.organization = organization
+        evaluation_params.workspace = workspace
+
+    await evaluation_params.create()
+    return evaluation_params
+
+
+async def fetch_evaluation_params(evaluation_params_id: str) -> EvaluationParamsDB:
+    """
+    Fetches evaluation parameters by their ID.
+
+    Args:
+        evaluation_params_id (str): The ID of the evaluation parameters to fetch.
+
+    Returns:
+        EvaluationParamsDB: The fetched evaluation parameters.
+    """
+    return await EvaluationParamsDB.find_one(
+        EvaluationParamsDB.id == ObjectId(evaluation_params_id)
+    )
+
+
 async def create_new_evaluation_scenario(
     user: UserDB,
     evaluation: EvaluationDB,
@@ -1862,6 +1932,7 @@ async def create_new_evaluation_scenario(
     results: List[EvaluationScenarioResult],
     organization=None,
     workspace=None,
+    rerun_count: Optional[int] = 0,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1878,6 +1949,7 @@ async def create_new_evaluation_scenario(
         note=note,
         evaluators_configs=evaluators_configs,
         results=results,
+        rerun_count=rerun_count,
     )
 
     if isCloudEE():

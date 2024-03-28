@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import HTTPException
 
@@ -27,6 +27,7 @@ if isCloudEE():
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         EvaluationDB_ as EvaluationDB,
+        EvaluationParamsDB_ as EvaluationParamsDB,
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
@@ -36,6 +37,7 @@ else:
         AppDB,
         UserDB,
         EvaluationDB,
+        EvaluationParamsDB,
         HumanEvaluationDB,
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
@@ -236,7 +238,8 @@ async def fetch_evaluation_scenarios_for_evaluation(
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
 
     scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        EvaluationScenarioDB.rerun_count == evaluation.rerun_count,
     ).to_list()
     eval_scenarios = [
         converters.evaluation_scenario_db_to_pydantic(scenario, str(evaluation.id))
@@ -518,6 +521,7 @@ async def create_new_evaluation(
     variant_id: str,
     evaluator_config_ids: List[str],
     testset_id: str,
+    evaluation_params_id: ObjectId,
 ) -> Evaluation:
     """
     Create a new evaluation in the db
@@ -550,10 +554,59 @@ async def create_new_evaluation(
         variant=variant_id,
         variant_revision=str(variant_revision.id),
         evaluators_configs=evaluator_config_ids,
+        started_at=datetime.now(),
+        evaluation_params_id=evaluation_params_id,
         organization=app.organization if isCloudEE() else None,
         workspace=app.workspace if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
+
+
+async def create_new_evaluation_params(
+    app_id: str,
+    variants_ids: List[str],
+    evaluator_config_ids: List[str],
+    testset_id: str,
+    rate_limit_config: dict,
+    correct_answer_column: str,
+) -> Evaluation:
+    """
+    Create a new evaluation in the db
+    Args:
+        app_id (str): The ID of the app.
+        variants_ids (List[str]): The IDs of the variants.
+        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
+        testset_id (str): The ID of the testset.
+    Returns:
+        Evaluation: The newly created evaluation.
+    """
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+
+    evaluation_params = await db_manager.create_new_evaluation_params(
+        app=app,
+        user=app.user,
+        testset_id=testset_id,
+        variants_ids=variants_ids,
+        evaluators_configs=evaluator_config_ids,
+        rate_limit_config=rate_limit_config,
+        correct_answer_column=correct_answer_column,
+        organization=app.organization if isCloudEE() else None,
+        workspace=app.workspace if isCloudEE() else None,
+    )
+
+    return evaluation_params
+
+
+async def fetch_evaluation_params(evaluation_params_id: str) -> EvaluationParamsDB:
+    """
+    Retrieve the evaluation parameters for a given ID.
+    Args:
+        evaluation_params_id (str): The evaluation parameters ID.
+    Returns:
+        EvaluationParamsDB: The fetched evaluation parameters.
+    """
+    evaluation_params = await db_manager.fetch_evaluation_params(evaluation_params_id)
+    return evaluation_params
 
 
 async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
@@ -673,3 +726,51 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
             detail=f"resource_type {resource_type} is not supported",
         )
     return res
+
+
+async def update_on_evaluation_rerun(
+    evaluation_id: str, evaluation: EvaluationDB
+) -> EvaluationDB:
+    """
+    Update the status and other details of an evaluation.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation to be updated.
+        evaluation (Any): The evaluation object containing the current state.
+
+    Returns:
+        Any: The updated evaluation object.
+    """
+    if evaluation.rerun_count is None:
+        evaluation.rerun_count = 0
+
+    evaluation.rerun_count += 1
+    updates = {
+        "status": Result(
+            type="status",
+            value=EvaluationStatusEnum.EVALUATION_STARTED,
+            error=None,
+        ),
+        "started_at": datetime.now(),
+        "rerun_count": evaluation.rerun_count,
+    }
+    updated_evaluation = await db_manager.update_evaluation(
+        evaluation_id=evaluation_id,
+        updates=updates,
+    )
+    return updated_evaluation
+
+
+async def get_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+    """
+    Retrieves an evaluation by its ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation to be fetched.
+
+    Returns:
+        Optional[Any]: The fetched evaluation object or None if not found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+    return evaluation

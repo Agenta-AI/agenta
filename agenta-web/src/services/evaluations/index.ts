@@ -13,7 +13,7 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
-import {stringToNumberInRange} from "@/lib/helpers/utils"
+import {apiKeyObject, stringToNumberInRange} from "@/lib/helpers/utils"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"
@@ -86,6 +86,8 @@ const evaluationTransformer = (item: any) => ({
     appId: item.app_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
+    started_at: item.started_at,
+    finished_at: item.finished_at,
     duration: calcEvalDuration(item),
     status: item.status,
     testset: {
@@ -134,6 +136,19 @@ export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluat
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
     return axios.delete(`/api/evaluations/`, {data: {evaluations_ids: evaluationsIds}})
+}
+
+export const reRunEvaluations = async (appId: string, evaluationsIds: string[]) => {
+    return axios.post(
+        `/api/evaluations/re-run/`,
+        {
+            evaluation_ids: evaluationsIds,
+            lm_providers_keys: apiKeyObject(),
+        },
+        {
+            params: {app_id: appId},
+        },
+    )
 }
 
 // Evaluation Scenarios

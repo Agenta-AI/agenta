@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 from agenta_backend.models.api.api_models import Result
 
@@ -71,6 +71,8 @@ class Evaluation(BaseModel):
     testset_name: Optional[str]
     status: Result
     aggregated_results: List[AggregatedResult]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
@@ -247,6 +249,13 @@ class NewEvaluation(BaseModel):
     rate_limit: LLMRunRateLimit
     lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
     correct_answer_column: Optional[str]
+
+
+class RerunEvaluation(BaseModel):
+    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
+    evaluation_ids: List[str] = Field(
+        ..., description="List of evaluation IDs to re-run"
+    )
 
 
 class NewEvaluatorConfig(BaseModel):

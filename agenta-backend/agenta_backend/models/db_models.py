@@ -257,6 +257,21 @@ class HumanEvaluationScenarioDB(Document):
         name = "human_evaluations_scenarios"
 
 
+class EvaluationParamsDB(Document):
+    app: Link[AppDB]
+    user: Link[UserDB]
+    testset_id: PydanticObjectId
+    variants_ids: List[PydanticObjectId]
+    evaluators_configs: List[PydanticObjectId]
+    rate_limit_config: dict
+    correct_answer_column: str
+    created_at: Optional[datetime] = Field(default=datetime.now())
+    updated_at: Optional[datetime] = Field(default=datetime.now())
+
+    class Settings:
+        name = "evaluations_params"
+
+
 class EvaluationDB(Document):
     app: Link[AppDB]
     user: Link[UserDB]
@@ -266,6 +281,11 @@ class EvaluationDB(Document):
     variant_revision: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
+    rerun_count: int = Field(default=None)
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    evaluation_params_id: Optional[PydanticObjectId] = None
+
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
@@ -284,6 +304,7 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
+    rerun_count: int = Field(default=None)
     created_at: datetime = Field(default=datetime.now())
     updated_at: datetime = Field(default=datetime.now())
 
