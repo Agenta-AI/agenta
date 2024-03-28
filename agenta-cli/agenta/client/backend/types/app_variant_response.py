@@ -23,6 +23,7 @@ class AppVariantResponse(pydantic.BaseModel):
     base_id: str
     config_name: str
     uri: typing.Optional[str]
+    revision: int
     organization_id: typing.Optional[str]
     workspace_id: typing.Optional[str]
 

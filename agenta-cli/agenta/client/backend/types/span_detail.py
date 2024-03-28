@@ -19,7 +19,7 @@ class SpanDetail(pydantic.BaseModel):
     id: str
     created_at: dt.datetime
     variant: SpanVariant
-    environment: str
+    environment: typing.Optional[str]
     status: SpanStatus
     metadata: typing.Dict[str, typing.Any]
     user_id: str

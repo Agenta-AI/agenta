@@ -4,7 +4,8 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .observability_data import ObservabilityData
+from .span_status import SpanStatus
+from .span_variant import SpanVariant
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -12,15 +13,14 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class ObservabilityDashboardData(pydantic.BaseModel):
-    data: typing.List[ObservabilityData]
-    total_count: int
-    failure_rate: float
-    total_cost: float
-    avg_cost: float
-    avg_latency: float
-    total_tokens: int
-    avg_tokens: int
+class TraceDetail(pydantic.BaseModel):
+    id: str
+    created_at: dt.datetime
+    variant: SpanVariant
+    environment: typing.Optional[str]
+    status: SpanStatus
+    metadata: typing.Dict[str, typing.Any]
+    user_id: str
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

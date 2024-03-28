@@ -7,12 +7,14 @@ from fastapi import HTTPException
 
 from agenta_backend.models.api.api_models import PaginationParam, SorterParams
 from agenta_backend.models.api.observability_models import (
+    Error,
     Span,
     SpanDetail,
     CreateSpan,
     ObservabilityDashboardData,
     Feedback,
     CreateFeedback,
+    SpanStatus,
     UpdateFeedback,
     Trace,
     TraceDetail,
@@ -46,7 +48,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
+async def create_app_trace(payload: CreateTrace) -> str:
     """Create a new trace.
 
     Args:
@@ -56,17 +58,16 @@ async def create_app_trace(payload: CreateTrace, user_uid: str) -> str:
         Trace: the created trace
     """
 
-    user = await db_manager.get_user(user_uid)
     trace_db = TraceDB(
-        **payload.dict(exclude={"environment"}),
+        **payload.dict(exclude={"environment", "id"}),
+        id=ObjectId(payload.id),
         environment="playground" if not payload.environment else payload.environment,
-        user=user,
     )
     await trace_db.create()
     return str(trace_db.id)
 
 
-async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
+async def get_trace_single(trace_id: str) -> Trace:
     """Get a single trace.
 
     Args:
@@ -76,16 +77,14 @@ async def get_trace_single(trace_id: str, user_uid: str) -> Trace:
         Trace: the trace
     """
 
-    user = await db_manager.get_user(user_uid)
-
     # Get trace
     trace = await TraceDB.find_one(
-        TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id, fetch_links=True
+        TraceDB.id == ObjectId(trace_id),
     )
     return trace_db_to_pydantic(trace)
 
 
-async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bool:
+async def trace_update(trace_id: str, payload: UpdateTrace) -> bool:
     """Update status of trace.
 
     Args:
@@ -96,20 +95,12 @@ async def trace_update(trace_id: str, payload: UpdateTrace, user_uid: str) -> bo
         bool: True if successful
     """
 
-    user = await db_manager.get_user(user_uid)
+    trace = await TraceDB.find_one(TraceDB.id == ObjectId(trace_id))
 
-    # Get trace
-    trace = await TraceDB.find_one(
-        TraceDB.id == ObjectId(trace_id), TraceDB.user.id == user.id
-    )
-
-    # Calculate latency
-    latency = payload.end_time - trace.start_time
     await trace.update(
         {
             "$set": {
                 **payload.dict(exclude_none=True),
-                "latency": latency.total_seconds(),
             },
         }
     )
@@ -126,15 +117,15 @@ async def create_trace_span(payload: CreateSpan) -> str:
         str: the created span id
     """
 
-    end_time = datetime.now()
-    duration = end_time - payload.start_time
     trace = await TraceDB.find_one(TraceDB.id == ObjectId(payload.trace_id))
     span_db = SpanDB(
-        **payload.dict(exclude={"end_time", "duration", "trace_id", "environment"}),
+        **payload.dict(
+            exclude={"end_time", "trace_id", "span_id", "end_time", "environment"}
+        ),
+        id=ObjectId(payload.span_id),
         trace=trace,
         environment="playground" if not payload.environment else payload.environment,
-        end_time=end_time,
-        duration=duration.total_seconds(),
+        end_time=payload.end_time,
     )
     await span_db.create()
     return str(span_db.id)
@@ -198,22 +189,18 @@ async def fetch_generation_spans(
     return get_paginated_data(list(filtered_generations), spans_count, pagination)
 
 
-async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetail:
+async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
     """Get a generation span detail.
 
     Args:
         span_id (str): The ID of a span
-        user_uid (str): The user ID
 
     Returns:
         SpanDetail: span detail pydantic model
     """
 
-    user = await db_manager.get_user(user_uid)
     span_db = await SpanDB.find_one(SpanDB.id == ObjectId(span_id), fetch_links=True)
-    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-        span_db.trace.base_id, span_db.trace.config_name
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(span_db.trace.variant_id)
 
     return SpanDetail(
         **{
@@ -225,41 +212,21 @@ async def fetch_generation_span_detail(span_id: str, user_uid: str) -> SpanDetai
                 "revision": app_variant_db.revision,
             },
             "environment": span_db.environment,
-            "status": {
-                "value": span_db.status.value,
-                "error": (
-                    {
-                        "message": span_db.status.error.message,
-                        "stacktrace": span_db.status.error.stacktrace,
-                    }
-                    if span_db.status.value == "FAILURE"
-                    else None
-                ),
-            },
+            "status": span_db.status.dict(),
             "metadata": {
                 "cost": span_db.cost,
-                "latency": span_db.duration,
-                "usage": span_db.meta,
+                "latency": span_db.get_latency(),
+                "usage": span_db.tokens,
             },
-            "user_id": str(user.id),
-            "span_id": str(span_db.id),
+            "user_id": "",
             "content": {
                 "inputs": [
                     {"input_name": key, "input_value": value}
-                    for key, value in span_db.inputs.items()
+                    for key, value in span_db.input.items()
                 ],
-                "output": span_db.outputs[0],
+                "outputs": [span_db.output],
             },
-            "model_params": {
-                "prompt": {
-                    "system": (span_db.prompt_system),
-                    "user": span_db.prompt_user,
-                    "variables": helpers.convert_generation_span_inputs_variables(
-                        span_db
-                    ),
-                },
-                "params": app_variant_db.config.parameters,
-            },
+            "config": span_db.meta.get("model_config"),
         },
     )
 
@@ -372,7 +339,7 @@ async def fetch_traces(
     return get_paginated_data(list(filtered_traces), traces_count, pagination)
 
 
-async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
+async def fetch_trace_detail(trace_id: str) -> TraceDetail:
     """Get a trace detail.
 
     Args:
@@ -383,15 +350,24 @@ async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
         TraceDetail: trace detail pydantic model
     """
 
-    user = await db_manager.get_user(user_uid)
     trace_db = await get_single_trace(trace_id)
-    app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-        trace_db.base_id, trace_db.config_name
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
 
+    span_status = (
+        SpanStatus(value=trace_db.status)
+        if trace_db.status in ["INITIATED", "COMPLETED"]
+        else SpanStatus(value=None, error=Error(message=trace_db.status))
+    )
     return TraceDetail(
         **{
             "id": str(trace_db.id),
+            "content": {
+                "inputs": [
+                    {"input_name": key, "input_value": value}
+                    for key, value in trace_db.inputs.items()
+                ],
+                "outputs": trace_db.outputs,
+            },
             "created_at": trace_db.created_at.isoformat(),
             "variant": {
                 "variant_id": str(app_variant_db.id),
@@ -399,13 +375,14 @@ async def fetch_trace_detail(trace_id: str, user_uid: str) -> TraceDetail:
                 "revision": app_variant_db.revision,
             },
             "environment": trace_db.environment,
-            "status": {"value": trace_db.status, "error": None},
+            "status": span_status,
             "metadata": {
                 "cost": trace_db.cost,
-                "latency": trace_db.latency,
+                "latency": trace_db.get_latency(),
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
-            "user_id": str(user.id),
+            "user_id": "",
+            "config": trace_db.config,
         },
     )
 

@@ -10,6 +10,7 @@ from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.api.observability_models import (
     Span,
+    Error,
     SpanStatus,
     SpanVariant,
     Trace,
@@ -497,8 +498,8 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
 async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
     spans: List[Span] = []
     for span_db in spans_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-            span_db.trace.base_id, span_db.trace.config_name
+        app_variant_db = await db_manager.fetch_app_variant_by_id(
+            span_db.trace.variant_id
         )
 
         span = Span(
@@ -513,10 +514,10 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
             status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
             metadata={
                 "cost": span_db.cost,
-                "latency": span_db.duration,
-                "usage": span_db.meta,
+                "latency": span_db.get_latency(),
+                "usage": span_db.tokens,
             },
-            user_id=str(span_db.trace.user.id),
+            user_id="",
         )
         spans.append(span.dict(exclude_unset=True))
 
@@ -526,10 +527,13 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
 async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
     traces: List[Trace] = []
     for trace_db in traces_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_base_id_and_config_name(
-            trace_db.base_id, trace_db.config_name
-        )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
 
+        trace_span_status = (
+            SpanStatus(value=trace_db.status)
+            if trace_db.status in ["INITIATED", "COMPLETED"]
+            else SpanStatus(value=None, error=Error(message=trace_db.status))
+        )
         trace = Trace(
             id=str(trace_db.id),
             created_at=trace_db.created_at.isoformat(),
@@ -539,13 +543,13 @@ async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
                 revision=app_variant_db.revision,
             ),
             environment=trace_db.environment,
-            status=SpanStatus(value=trace_db.status, error=None),
+            status=trace_span_status,
             metadata={
                 "cost": trace_db.cost,
-                "latency": trace_db.latency,
+                "latency": trace_db.get_latency(),
                 "usage": {"total_tokens": trace_db.token_consumption},
             },
-            user_id=str(trace_db.user.id),
+            user_id="",
         )
         traces.append(trace.dict(exclude_unset=True))
 

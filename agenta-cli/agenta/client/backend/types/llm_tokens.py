@@ -4,7 +4,6 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
-from .app_variant_revision import AppVariantRevision
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -12,22 +11,10 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class AppVariantOutputExtended(pydantic.BaseModel):
-    app_id: str
-    app_name: str
-    variant_id: str
-    variant_name: str
-    parameters: typing.Optional[typing.Dict[str, typing.Any]]
-    previous_variant_name: typing.Optional[str]
-    user_id: str
-    base_name: str
-    base_id: str
-    config_name: str
-    uri: typing.Optional[str]
-    revision: int
-    revisions: typing.List[AppVariantRevision]
-    organization_id: typing.Optional[str]
-    workspace_id: typing.Optional[str]
+class LlmTokens(pydantic.BaseModel):
+    prompt_tokens: typing.Optional[int]
+    completion_tokens: typing.Optional[int]
+    total_tokens: typing.Optional[int]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

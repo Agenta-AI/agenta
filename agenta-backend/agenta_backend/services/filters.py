@@ -69,17 +69,19 @@ def prepares_spans_aggregation_by_timerange(time_range: str):
     time_range_mappings = {
         "$group": {
             "_id": {"$dateTrunc": {"date": "$created_at", "unit": date_trunc_unit}},
-            "latency": {"$sum": {"$divide": ["$duration", 1000]}},
+            "latency": {
+                "$sum": {"$divide": [{"$subtract": ["$end_time", "$start_time"]}, 1000]}
+            },
             "success_count": {
-                "$sum": {"$cond": [{"$eq": ["$status.value", "SUCCESS"]}, 1, 0]}
+                "$sum": {"$cond": [{"$eq": ["$status.value", "COMPLETED"]}, 1, 0]}
             },
             "failure_count": {
-                "$sum": {"$cond": [{"$eq": ["$status.value", "FAILURE"]}, 1, 0]}
+                "$sum": {"$cond": [{"$eq": ["$status.value", "FAILED"]}, 1, 0]}
             },
             "cost": {"$sum": "$cost"},
-            "total_tokens": {"$sum": "$token_total"},
-            "prompt_tokens": {"$sum": "$tokens_input"},
-            "completion_tokens": {"$sum": "$tokens_output"},
+            "total_tokens": {"$sum": "$tokens.total_tokens"},
+            "prompt_tokens": {"$sum": "$tokens.prompt_tokens"},
+            "completion_tokens": {"$sum": "$tokens.completion_tokens"},
         }
     }
 

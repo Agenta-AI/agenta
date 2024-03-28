@@ -29,6 +29,7 @@ importlib-metadata = "^6.7.0"
 posthog = "^3.1.0"
 pydantic = "1.10.13"
 httpx = "^0.27.0"
+pymongo = "^4.6.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

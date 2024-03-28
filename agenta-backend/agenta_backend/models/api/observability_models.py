@@ -25,8 +25,8 @@ class Error(BaseModel):
 
 class Status(str, Enum):
     INITIATED = "INITIATED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class SpanVariant(BaseModel):
@@ -47,7 +47,13 @@ class Span(BaseModel):
     environment: Optional[str]
     status: SpanStatus
     metadata: Dict[str, Any]
-    user_id: str
+    user_id: Optional[str]
+
+
+class LLMTokens(BaseModel):
+    prompt_tokens: int = Field(default=0)
+    completion_tokens: int = Field(default=0)
+    total_tokens: int = Field(default=0)
 
 
 class BaseSpan(BaseModel):
@@ -56,22 +62,19 @@ class BaseSpan(BaseModel):
     event_name: str
     event_type: Optional[str]
     start_time: datetime = Field(default=datetime.now())
-    duration: Optional[int]
     status: SpanStatus
-    inputs: Optional[Dict[str, Any]]
-    outputs: Optional[List[str]]
-    prompt_system: Optional[str]
-    prompt_user: Optional[str]
-    tokens_input: Optional[int]
-    tokens_output: Optional[int]
-    token_total: Optional[int]
+    input: Optional[Dict[str, Any]]
+    output: Optional[str]
     cost: Optional[float]
-    tags: Optional[List[str]]
 
 
 class CreateSpan(BaseSpan):
     trace_id: str
+    span_id: str
+    config: Optional[dict]
     environment: Optional[str]
+    end_time: datetime
+    tokens: Optional[LLMTokens]
 
 
 class LLMInputs(BaseModel):
@@ -81,7 +84,7 @@ class LLMInputs(BaseModel):
 
 class LLMContent(BaseModel):
     inputs: List[LLMInputs]
-    output: str
+    output: Optional[str]
 
 
 class LLMModelParams(BaseModel):
@@ -90,9 +93,8 @@ class LLMModelParams(BaseModel):
 
 
 class SpanDetail(Span):
-    span_id: str
-    content: LLMContent
-    model_params: LLMModelParams
+    content: Dict[str, Any]
+    config: Optional[Dict[str, Any]]
 
 
 class Trace(Span):
@@ -100,7 +102,8 @@ class Trace(Span):
 
 
 class TraceDetail(Trace):
-    pass
+    content: Dict[str, Any]
+    config: Dict[str, Any]
 
 
 class ObservabilityData(BaseModel):
@@ -144,19 +147,23 @@ class UpdateFeedback(BaseModel):
 
 class BaseTrace(BaseModel):
     app_id: Optional[str]
-    base_id: Optional[str]
-    config_name: Optional[str]
-    cost: Optional[float]
+    variant_id: Optional[str]
     status: str = Field(default=Status.INITIATED)
-    token_consumption: Optional[int]
     tags: Optional[List[str]]
     start_time: datetime = Field(default=datetime.now())
 
 
 class CreateTrace(BaseTrace):
+    id: str
+    trace_name: str
+    inputs: Dict[str, Any]
+    config: Dict[str, Any]
     environment: Optional[str]
 
 
 class UpdateTrace(BaseModel):
     status: str
     end_time: datetime
+    outputs: List[str]
+    cost: Optional[float]
+    token_consumption: Optional[int]

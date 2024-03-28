@@ -25,14 +25,17 @@ from agenta_backend.services import (
 from agenta_backend.utils.common import (
     isEE,
     isOssEE,
-    isCloud,
+    isCloudProd,
+    isCloudDev,
     isCloudEE,
 )
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
+elif isCloudDev():
+    from agenta_backend.services import deployment_manager
 elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,
@@ -91,6 +94,7 @@ async def start_variant(
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
             {
+                "AGENTA_VARIANT_ID": str(db_app_variant.id),
                 "AGENTA_BASE_ID": str(db_app_variant.base.id),
                 "AGENTA_APP_ID": str(db_app_variant.app.id),
                 "AGENTA_HOST": domain_name,

@@ -1,11 +1,11 @@
 import os
 import logging
-from typing import Any, Optional, Dict
+from typing import Any, Optional
 
 from .utils.globals import set_global
 
-from agenta.sdk.agenta_tracing import LLMTracing
 from agenta.client.backend.client import AgentaApi
+from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
 
@@ -89,8 +89,7 @@ class AgentaSingleton:
         self.base_id = base_id
         self.host = host
         self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
-        self.app_name = app_name
-        self.base_name = base_name
+        self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
 
@@ -106,9 +105,7 @@ class AgentaSingleton:
         bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
         if len(bases) == 0:
             raise APIRequestError(f"No base was found for the app {app_id}")
-
-        base_id = bases[0].base_id
-        return base_id
+        return bases[0].base_id
 
     def get_current_config(self):
         """
@@ -232,11 +229,14 @@ def init(app_name=None, base_name=None, **kwargs):
     set_global(setup=singleton.setup, config=singleton.config)
 
 
-async def trace(**kwargs):
+def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
     """Function to start llm tracing."""
 
     singleton = AgentaSingleton()
-    llm_tracing = LLMTracing(singleton.host, singleton.api_key)
-    await llm_tracing.start_tracing(
-        singleton.app_id, singleton.base_id, "default", **kwargs
+    return Tracing(
+        base_url=singleton.host,
+        app_id=singleton.app_id,  # type: ignore
+        variant_id=singleton.variant_id,  # type: ignore
+        api_key=singleton.api_key,
+        max_workers=max_workers,
     )

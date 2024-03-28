@@ -3,7 +3,6 @@
 from .aggregated_result import AggregatedResult
 from .aggregated_result_evaluator_config import AggregatedResultEvaluatorConfig
 from .app import App
-from .app_variant_output_extended import AppVariantOutputExtended
 from .app_variant_response import AppVariantResponse
 from .app_variant_revision import AppVariantRevision
 from .base_output import BaseOutput
@@ -42,10 +41,9 @@ from .llm_content import LlmContent
 from .llm_inputs import LlmInputs
 from .llm_model_params import LlmModelParams
 from .llm_run_rate_limit import LlmRunRateLimit
+from .llm_tokens import LlmTokens
 from .new_human_evaluation import NewHumanEvaluation
 from .new_testset import NewTestset
-from .observability_dashboard_data import ObservabilityDashboardData
-from .observability_data import ObservabilityData
 from .organization import Organization
 from .organization_output import OrganizationOutput
 from .permission import Permission
@@ -60,6 +58,7 @@ from .template import Template
 from .template_image_info import TemplateImageInfo
 from .test_set_output_response import TestSetOutputResponse
 from .test_set_simple_response import TestSetSimpleResponse
+from .trace_detail import TraceDetail
 from .uri import Uri
 from .validation_error import ValidationError
 from .validation_error_loc_item import ValidationErrorLocItem
@@ -76,7 +75,6 @@ __all__ = [
     "AggregatedResult",
     "AggregatedResultEvaluatorConfig",
     "App",
-    "AppVariantOutputExtended",
     "AppVariantResponse",
     "AppVariantRevision",
     "BaseOutput",
@@ -115,10 +113,9 @@ __all__ = [
     "LlmInputs",
     "LlmModelParams",
     "LlmRunRateLimit",
+    "LlmTokens",
     "NewHumanEvaluation",
     "NewTestset",
-    "ObservabilityDashboardData",
-    "ObservabilityData",
     "Organization",
     "OrganizationOutput",
     "Permission",
@@ -133,6 +130,7 @@ __all__ = [
     "TemplateImageInfo",
     "TestSetOutputResponse",
     "TestSetSimpleResponse",
+    "TraceDetail",
     "Uri",
     "ValidationError",
     "ValidationErrorLocItem",

@@ -16,6 +16,7 @@ class Evaluator(pydantic.BaseModel):
     key: str
     direct_use: bool
     settings_template: typing.Dict[str, typing.Any]
+    description: typing.Optional[str]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

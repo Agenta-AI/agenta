@@ -20,7 +20,7 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import docker_utils
-from agenta_backend.utils.common import isCloud
+from agenta_backend.utils.common import isCloudProd
 
 client = docker.from_env()
 
@@ -100,7 +100,7 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
-        if isCloud():
+        if isCloudProd():
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"

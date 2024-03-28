@@ -1,6 +1,7 @@
 import os
+from agenta_backend.utils.common import isCloud
 
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
+if isCloud():
     from agenta_backend.commons.models.db_models import UserDB_ as UserDB
 else:
     from agenta_backend.models.db_models import UserDB

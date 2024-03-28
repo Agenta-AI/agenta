@@ -12,8 +12,9 @@ from .sdk.types import (
     FileInputURL,
     BinaryParam,
 )
+from .sdk.tracing.decorators import span
 from .sdk.utils.preinit import PreInitObject
-from .sdk.agenta_init import Config, init, trace
+from .sdk.agenta_init import Config, init, llm_tracing
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 
 config = PreInitObject("agenta.config", Config)

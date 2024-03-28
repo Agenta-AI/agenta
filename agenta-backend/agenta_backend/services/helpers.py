@@ -77,7 +77,7 @@ def convert_generation_span_inputs_variables(span_db: SpanDB) -> List[Dict[str, 
     """
 
     variables: List[Dict[str, str]] = []
-    for variable in span_db.inputs:
+    for variable in span_db.input:
         if isinstance(variable, str):
             variable_type = "string"
         elif isinstance(variable, (int, float)):

@@ -8,7 +8,8 @@ from ...core.api_error import ApiError
 from ...core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ...core.jsonable_encoder import jsonable_encoder
 from ...errors.unprocessable_entity_error import UnprocessableEntityError
-from ...types.app_variant_output_extended import AppVariantOutputExtended
+from ...types.app_variant_response import AppVariantResponse
+from ...types.app_variant_revision import AppVariantRevision
 from ...types.docker_env_vars import DockerEnvVars
 from ...types.http_validation_error import HttpValidationError
 from ...types.image import Image
@@ -88,7 +89,7 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_variant(self, variant_id: str) -> AppVariantOutputExtended:
+    def get_variant(self, variant_id: str) -> AppVariantResponse:
         """
         Parameters:
             - variant_id: str.
@@ -107,7 +108,7 @@ class VariantsClient:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AppVariantOutputExtended, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -302,6 +303,96 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def get_variant_using_base_id(self, base_id: str) -> AppVariantResponse:
+        """
+        Parameters:
+            - base_id: str.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_variant_using_base_id(base_id="base_id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{base_id}"
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_variant_revisions(self, variant_id: str) -> typing.List[AppVariantRevision]:
+        """
+        Parameters:
+            - variant_id: str.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_variant_revisions(variant_id="variant_id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/revisions",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[AppVariantRevision], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_variant_revision(
+        self, variant_id: str, revision_number: int
+    ) -> AppVariantRevision:
+        """
+        Parameters:
+            - variant_id: str.
+
+            - revision_number: int.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.get_variant_revision(variant_id="variant_id", revision_number=1)
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/revisions/{revision_number}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(AppVariantRevision, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
 
 class AsyncVariantsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -364,7 +455,7 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant(self, variant_id: str) -> AppVariantOutputExtended:
+    async def get_variant(self, variant_id: str) -> AppVariantResponse:
         """
         Parameters:
             - variant_id: str.
@@ -383,7 +474,7 @@ class AsyncVariantsClient:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AppVariantOutputExtended, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -572,6 +663,98 @@ class AsyncVariantsClient:
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_variant_using_base_id(self, base_id: str) -> AppVariantResponse:
+        """
+        Parameters:
+            - base_id: str.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_variant_using_base_id(base_id="base_id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{base_id}"
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_variant_revisions(
+        self, variant_id: str
+    ) -> typing.List[AppVariantRevision]:
+        """
+        Parameters:
+            - variant_id: str.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_variant_revisions(variant_id="variant_id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/revisions",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[AppVariantRevision], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_variant_revision(
+        self, variant_id: str, revision_number: int
+    ) -> AppVariantRevision:
+        """
+        Parameters:
+            - variant_id: str.
+
+            - revision_number: int.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.get_variant_revision(variant_id="variant_id", revision_number=1)
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/revisions/{revision_number}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(AppVariantRevision, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
