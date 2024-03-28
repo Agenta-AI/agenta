@@ -147,10 +147,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
             field: "cost",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return formatCurrency(params.data.outputs[0].cost);
+                return formatCurrency(params.data.outputs[0].cost)
             },
-        });
-        
+        })
+
         colDefs.push({
             flex: 1,
             minWidth: 120,
@@ -158,9 +158,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
             field: "latency",
             ...getFilterParams("text"),
             valueGetter: (params) => {
-                return formatLatency(params.data.outputs[0].latency);
+                return formatLatency(params.data.outputs[0].latency)
             },
-        });
+        })
         return colDefs
     }, [evalaution, scenarios, showDiff])
 

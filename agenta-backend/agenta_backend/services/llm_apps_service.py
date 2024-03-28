@@ -93,7 +93,7 @@ async def invoke_app(
                     value=app_response["message"],
                     error=None,
                 ),
-                latency=app_response["latency"],    
+                latency=app_response["latency"],
                 cost=app_response["cost"],
             )
 

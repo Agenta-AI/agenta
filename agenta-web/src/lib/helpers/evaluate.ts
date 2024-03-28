@@ -14,7 +14,7 @@ import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {capitalize, round} from "lodash"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
-import { formatCurrency, formatLatency } from "./formatters"
+import {formatCurrency, formatLatency} from "./formatters"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -272,16 +272,16 @@ export function getTypedValue(res?: TypedValue) {
 
     switch (type) {
         case "number":
-            return round(Number(value), 2);
+            return round(Number(value), 2)
         case "boolean":
         case "bool":
-            return capitalize(value?.toString());
+            return capitalize(value?.toString())
         case "cost":
-            return formatCurrency(Number(value));
+            return formatCurrency(Number(value))
         case "latency":
-            return formatLatency(Number(value));
+            return formatLatency(Number(value))
         default:
-            return value?.toString();
+            return value?.toString()
     }
 }
 
