@@ -83,14 +83,13 @@ def aggregate_float_from_llm_app_response(
             raise ValueError("Key is required to aggregate InvokationResult objects.")
 
         values = [
-            inv_result.result.value[key]
+            getattr(inv_result, key)
             for inv_result in invocation_results
-            if isinstance(inv_result.result.value, dict)
-            and key in inv_result.result.value
+            if hasattr(inv_result, key) and getattr(inv_result, key) is not None
         ]
 
         if not values:
-            raise ValueError("No valid values found for aggregation.")
+            raise ValueError(f"No valid values found for {key} aggregation.")
 
         average_value = sum(values) / len(values)
         return Result(type=key, value=average_value)
