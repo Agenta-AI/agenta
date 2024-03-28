@@ -35,7 +35,7 @@ const NewVariantModal: React.FC<Props> = ({
     const [isInputValid, setIsInputValid] = useState(false)
 
     const handleTemplateVariantChange = (value: string) => {
-        let newValue = value.includes(".") ? value.split(".")[0] : value
+        let newValue = value.includes(".") ? value.output.split(".")[0] : value
         setTemplateVariantName(value)
         setVariantPlaceHolder(`${newValue}`)
         setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant")
