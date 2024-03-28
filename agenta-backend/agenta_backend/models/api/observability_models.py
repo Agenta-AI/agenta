@@ -84,7 +84,7 @@ class LLMInputs(BaseModel):
 
 class LLMContent(BaseModel):
     inputs: List[LLMInputs]
-    outputs: Optional[str]
+    output: Optional[str]
 
 
 class LLMModelParams(BaseModel):
@@ -93,7 +93,7 @@ class LLMModelParams(BaseModel):
 
 
 class SpanDetail(Span):
-    content: LLMContent
+    content: Dict[str, Any]
     config: Optional[Dict[str, Any]]
 
 
