@@ -193,6 +193,8 @@ class Result(BaseModel):
 
 class InvokationResult(BaseModel):
     result: Result
+    cost: Optional[float] = None
+    latency: Optional[float] = None
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -213,6 +215,8 @@ class EvaluationScenarioInputDB(BaseModel):
 
 class EvaluationScenarioOutputDB(BaseModel):
     result: Result
+    cost: Optional[float] = None
+    latency: Optional[float] = None
 
 
 class HumanEvaluationScenarioInput(BaseModel):
