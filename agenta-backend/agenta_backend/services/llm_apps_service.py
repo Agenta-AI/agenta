@@ -89,14 +89,12 @@ async def invoke_app(
             app_response = response.json()
             return InvokationResult(
                 result=Result(
-                    type="object",
-                    value={
-                        "output": app_response["message"],
-                        "latency": app_response["latency"],
-                        "cost": app_response["cost"],
-                    },
+                    type="text",
+                    value=app_response["message"],
                     error=None,
-                )
+                ),
+                latency=app_response["latency"],    
+                cost=app_response["cost"],
             )
 
         except httpx.HTTPStatusError as e:
