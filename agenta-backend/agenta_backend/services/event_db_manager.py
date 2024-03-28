@@ -224,7 +224,7 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
                     {"input_name": key, "input_value": value}
                     for key, value in span_db.input.items()
                 ],
-                "output": span_db.output,
+                "outputs": [span_db.output],
             },
             "config": span_db.meta.get("model_config"),
         },
@@ -366,7 +366,7 @@ async def fetch_trace_detail(trace_id: str) -> TraceDetail:
                     {"input_name": key, "input_value": value}
                     for key, value in trace_db.inputs.items()
                 ],
-                "output": trace_db.outputs,
+                "outputs": trace_db.outputs,
             },
             "created_at": trace_db.created_at.isoformat(),
             "variant": {
