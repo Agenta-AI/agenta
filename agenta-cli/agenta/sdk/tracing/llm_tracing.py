@@ -168,14 +168,11 @@ class Tracing(object):
     def end_span(self, output: Dict[str, Any], span: Span):
         span.end(output=output)
         self.active_span = span.parent_span_id  # type: ignore
-        try:
-            self.tasks_manager.add_task(self._send_span(span=span))
-            self.parent_span_id = span.span_id
-            self.llm_logger.info(f"Created span {span.span_id} successfully.")
-        except Exception as exc:
-            self.llm_logger.error(
-                f"Error creating span of trace {str(span.trace_id)}: {str(exc)}"
-            )
+        self.tasks_manager.add_task(
+            span.span_id, "span", self._send_span(span=span), self.client
+        )
+        self.parent_span_id = span.span_id
+        self.llm_logger.info(f"Created span {span.span_id} successfully.")
 
     async def _send_span(self, span: Span):
         return await self.client.create_span(**span.__dict__())
@@ -215,26 +212,26 @@ class Tracing(object):
         """
 
         trace_id = self._create_trace_id()
-        try:
-            self.llm_logger.info("Starting tracing...")
-            self.tasks_manager.add_task(
-                self.client.create_trace(
-                    id=trace_id,
-                    app_id=self.app_id,
-                    variant_id=self.variant_id,
-                    trace_name=trace_name,  # type: ignore
-                    start_time=datetime.now(),
-                    inputs=inputs,
-                    config=config,
-                    environment=kwargs.get("environment"),  # type: ignore
-                    status="INITIATED",
-                    tags=self.tags,
-                )
-            )
-            self.active_trace = trace_id  # type: ignore
-            self.llm_logger.info("Trace ended.")
-        except Exception as exc:
-            self.llm_logger.error(f"Error creating trace: {str(exc)}")
+        self.llm_logger.info(f"Starting tracing for trace {trace_id}...")
+        self.tasks_manager.add_task(
+            trace_id,
+            "trace",
+            self.client.create_trace(
+                id=trace_id,
+                app_id=self.app_id,
+                variant_id=self.variant_id,
+                trace_name=trace_name,  # type: ignore
+                start_time=datetime.now(),
+                inputs=inputs,
+                config=config,
+                environment=kwargs.get("environment"),  # type: ignore
+                status="INITIATED",
+                tags=self.tags,
+            ),
+            self.client,
+        )
+        self.active_trace = trace_id  # type: ignore
+        self.llm_logger.info(f"Trace {trace_id} ended successfully.")
 
     def end_trace(
         self,
@@ -242,24 +239,19 @@ class Tracing(object):
         cost: Optional[float] = None,
         total_tokens: Optional[int] = None,
     ):
-        try:
-            self.tasks_manager.add_task(
-                self.client.update_trace(
-                    trace_id=self.active_trace,  # type: ignore
-                    status="COMPLETED",
-                    end_time=datetime.now(),
-                    cost=cost,
-                    token_consumption=total_tokens,
-                    outputs=outputs,
-                )
-            )
-        except Exception as exc:
-            self.llm_logger.error(f"Error creating trace: {str(exc)}")
-            self.tasks_manager.add_task(
-                self.client.update_trace(
-                    trace_id=self.active_trace,  # type: ignore
-                    status="FAILED",
-                    end_time=datetime.now(),
-                    outputs=[str(exc)],
-                )
-            )
+        if not self.active_trace:
+            return
+
+        self.tasks_manager.add_task(
+            self.active_trace,
+            "trace",
+            self.client.update_trace(
+                trace_id=self.active_trace,  # type: ignore
+                status="COMPLETED",
+                end_time=datetime.now(),
+                cost=cost,
+                token_consumption=total_tokens,
+                outputs=outputs,
+            ),
+            self.client,
+        )
