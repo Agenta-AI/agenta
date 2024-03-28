@@ -179,9 +179,8 @@ async def create_evaluation(
         )
 
 
-@router.post("/re-run/{evaluation_ids}/", operation_id="re_run_evaluation")
+@router.post("/re-run/", operation_id="re_run_evaluation")
 async def re_run_evaluation(
-    evaluation_ids: str,
     app_id: str,
     payload: RerunEvaluation,
     request: Request,
@@ -212,7 +211,8 @@ async def re_run_evaluation(
                     status_code=403,
                 )
 
-        evaluation_ids = evaluation_ids.split(",")
+        # Directly use payload.evaluation_ids as it is already a list
+        evaluation_ids = payload.evaluation_ids
 
         for evaluation_id in evaluation_ids:
             evaluation = await evaluation_service.get_evaluation_by_id(evaluation_id)
