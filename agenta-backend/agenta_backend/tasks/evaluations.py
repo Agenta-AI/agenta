@@ -272,7 +272,9 @@ def evaluate(
                     correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
-                            result=Result(type="text", value=app_output.result.value)
+                            result=Result(type="text", value=app_output.result.value),
+                            latency=app_output.latency,
+                            cost=app_output.cost
                         )
                     ],
                     results=evaluators_results,
