@@ -114,6 +114,20 @@ const EvaluationResults: React.FC<Props> = () => {
             .finally(() => setFetching(false))
     }
 
+    const customDateSort = (rowA: _Evaluation, rowB: _Evaluation): number => {
+        const a = rowA ? rowA.started_at : null;
+        const b = rowB ? rowB.started_at : null;
+    
+        if (!a) {
+            return 1;
+        }
+        if (!b) {
+            return -1;
+        }
+    
+        return new Date(b).getTime() - new Date(a).getTime();
+    };
+
     useEffect(() => {
         fetcher()
     }, [appId])
@@ -277,6 +291,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
                 sort: "desc",
+                comparator: customDateSort,
             },
         ]
         return colDefs
