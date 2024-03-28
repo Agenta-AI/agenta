@@ -9,7 +9,7 @@ interface CompareOutputDiffProps {
 
 const CompareOutputDiff = ({variantOutput, expectedOutput}: CompareOutputDiffProps) => {
     const {appTheme} = useAppTheme()
-    const results = diffWords(variantOutput, expectedOutput)
+    const results = diffWords(variantOutput.output, expectedOutput)
 
     const display = results.map((part, index) => {
         if (part.removed) {
