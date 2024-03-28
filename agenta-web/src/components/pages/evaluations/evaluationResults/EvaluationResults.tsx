@@ -3,8 +3,14 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
+import {Button, Dropdown, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {
+    CheckOutlined,
+    DeleteOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
 import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -46,6 +52,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginTop: "1rem",
         alignSelf: "flex-end",
     },
+    dropdownMenu: {
+        "&>.ant-dropdown-menu-item": {
+            "& .anticon-check": {
+                display: "none",
+            },
+        },
+        "&>.ant-dropdown-menu-item-selected": {
+            "&:not(:hover)": {
+                backgroundColor: "transparent !important",
+            },
+            "& .anticon-check": {
+                display: "inline-flex !important",
+            },
+        },
+    },
 }))
 
 interface Props {}
@@ -63,6 +84,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
+    const [hiddenEvalConfigs, setHiddenEvalConfigs] = useState<string[]>([])
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -204,6 +226,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     ({
                         flex: 1,
                         minWidth: 190,
+                        hide: hiddenEvalConfigs.includes(config.id),
                         field: "aggregated_results",
                         headerComponent: (props: any) => (
                             <AgCustomHeader {...props}>
@@ -257,7 +280,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs])
+    }, [evaluatorConfigs, hiddenEvalConfigs])
 
     const compareBtnNode = (
         <Button
@@ -275,6 +298,21 @@ const EvaluationResults: React.FC<Props> = () => {
         >
             Compare
         </Button>
+    )
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!hiddenEvalConfigs.includes(evalConfigId)) {
+            setHiddenEvalConfigs([...hiddenEvalConfigs, evalConfigId])
+        } else {
+            setHiddenEvalConfigs(hiddenEvalConfigs.filter((item) => item !== evalConfigId))
+        }
+    }
+
+    const shownEvalConfigs = useMemo(
+        () =>
+            evaluatorConfigs
+                .map((item) => item.id)
+                .filter((item) => !hiddenEvalConfigs.includes(item)),
+        [evaluatorConfigs, hiddenEvalConfigs],
     )
 
     return (
@@ -319,6 +357,29 @@ const EvaluationResults: React.FC<Props> = () => {
                             New Evaluation
                         </Button>
                     </Space>
+
+                    <Space className={classes.buttonsGroup}>
+                        <Dropdown
+                            trigger={["click"]}
+                            menu={{
+                                selectedKeys: shownEvalConfigs,
+                                items: evaluatorConfigs.map((configs) => ({
+                                    key: configs.id,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{configs.evaluator?.name}</>
+                                        </Space>
+                                    ),
+                                })),
+                                onClick: ({key}) => onToggleEvaluatorVisibility(key),
+                                className: classes.dropdownMenu,
+                            }}
+                        >
+                            <Button>Filter Evaluators</Button>
+                        </Dropdown>
+                    </Space>
+
                     <Spin spinning={fetching}>
                         <div
                             className={`${
