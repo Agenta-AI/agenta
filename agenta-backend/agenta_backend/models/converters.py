@@ -145,6 +145,8 @@ async def evaluation_db_to_pydantic(
         aggregated_results=aggregated_results,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
+        average_cost=evaluation_db.average_cost,
+        average_latency=evaluation_db.average_latency,
     )
 
 
