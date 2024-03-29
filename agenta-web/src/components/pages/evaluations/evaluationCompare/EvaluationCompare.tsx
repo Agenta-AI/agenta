@@ -25,7 +25,7 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
-import { formatCurrency, formatLatency } from "@/lib/helpers/formatters"
+import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -412,4 +412,3 @@ export default EvaluationCompareMode
 function formatCost(cost: any) {
     throw new Error("Function not implemented.")
 }
-
