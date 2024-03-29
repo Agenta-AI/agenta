@@ -383,7 +383,7 @@ const EvaluationResults: React.FC<Props> = () => {
                                 className: classes.dropdownMenu,
                             }}
                         >
-                            <Button>Filter Evaluators</Button>
+                            <Button>Filter Columns</Button>
                         </Dropdown>
                     </Space>
 
