@@ -491,7 +491,7 @@ export type ComparisonResultRow = {
     variants: {
         variantId: string
         variantName: string
-        output: {result: TypedValue}
+        output: {result: TypedValue; cost?: number; latency?: number}
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig
