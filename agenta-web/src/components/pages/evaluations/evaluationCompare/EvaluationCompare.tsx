@@ -235,7 +235,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     const latency = params.data?.variants.find(
                         (item) => item.evaluationId === variant.evaluationId,
                     )?.output?.latency
-                    return latency === "undefined" ? "-" : formatLatency(latency)
+                    return latency === undefined ? "-" : formatLatency(latency)
                 },
                 ...getFilterParams("text"),
             })
@@ -257,7 +257,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     const cost = params.data?.variants.find(
                         (item) => item.evaluationId === variant.evaluationId,
                     )?.output?.cost
-                    return cost === "undefined" ? "-" : formatCurrency(cost)
+                    return cost === undefined ? "-" : formatCurrency(cost)
                 },
                 ...getFilterParams("text"),
             })
