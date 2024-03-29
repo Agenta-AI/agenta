@@ -93,8 +93,8 @@ async def invoke_app(
                     value=app_response["message"],
                     error=None,
                 ),
-                latency=app_response["latency"],
-                cost=app_response["cost"],
+                latency=app_response.get("latency"),
+                cost=app_response.get("cost"),
             )
 
         except httpx.HTTPStatusError as e:
