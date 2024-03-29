@@ -25,6 +25,7 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
+import { formatCurrency, formatLatency } from "@/lib/helpers/formatters"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -218,6 +219,50 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             })
         })
 
+        variants.forEach((variant, vi) => {
+            colDefs.push({
+                headerComponent: (props: any) => (
+                    <AgCustomHeader {...props}>
+                        <Space direction="vertical">
+                            <span>Latency</span>
+                            <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                        </Space>
+                    </AgCustomHeader>
+                ),
+                minWidth: 120,
+                flex: 1,
+                valueGetter: (params) => {
+                    const latency = params.data?.variants.find(
+                        (item) => item.evaluationId === variant.evaluationId,
+                    )?.output?.latency
+                    return latency == "undefined" ? "-" : formatLatency(latency)
+                },
+                ...getFilterParams("text"),
+            })
+        })
+
+        variants.forEach((variant, vi) => {
+            colDefs.push({
+                headerComponent: (props: any) => (
+                    <AgCustomHeader {...props}>
+                        <Space direction="vertical">
+                            <span>Cost</span>
+                            <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                        </Space>
+                    </AgCustomHeader>
+                ),
+                minWidth: 120,
+                flex: 1,
+                valueGetter: (params) => {
+                    const cost = params.data?.variants.find(
+                        (item) => item.evaluationId === variant.evaluationId,
+                    )?.output?.cost
+                    return cost == "undefined" ? "-" : formatCurrency(cost)
+                },
+                ...getFilterParams("text"),
+            })
+        })
+
         return colDefs
     }, [rows, showDiff, evalIds])
 
@@ -364,3 +409,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 }
 
 export default EvaluationCompareMode
+function formatCost(cost: any) {
+    throw new Error("Function not implemented.")
+}
+
