@@ -218,14 +218,9 @@ def evaluate(
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 if correct_answer_column in data_point:
-                    output_value = (
-                        app_output.result.value["output"]
-                        if isinstance(app_output.result.value, dict)
-                        else app_output.result.value
-                    )
                     result = evaluators_service.evaluate(
                         evaluator_key=evaluator_config_db.evaluator_key,
-                        output=output_value,
+                        output=app_output.result.value,
                         correct_answer=data_point[correct_answer_column],
                         settings_values=evaluator_config_db.settings_values,
                         app_params=app_variant_parameters,
