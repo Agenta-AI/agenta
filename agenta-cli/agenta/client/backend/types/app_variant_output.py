@@ -18,7 +18,7 @@ class AppVariantOutput(pydantic.BaseModel):
     variant_name: str
     parameters: typing.Optional[typing.Dict[str, typing.Any]]
     previous_variant_name: typing.Optional[str]
-    organization_id: str
+    organization_id: typing.Optional[str]
     user_id: str
     base_name: str
     base_id: str
