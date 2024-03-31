@@ -103,11 +103,9 @@ export async function callVariant(
             mainInputParams[key] = inputParametersDict[key]
         }
     }
-
     optionalParameters = optionalParameters || []
 
     const optParams = optionalParameters
-        .filter((param) => param.default)
         .filter((param) => param.type !== "object") // remove dicts from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
