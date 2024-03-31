@@ -363,6 +363,8 @@ type ValueTypeOptions =
     | "regex"
     | "object"
     | "error"
+    | "cost"
+    | "latency"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -442,6 +444,8 @@ export interface _Evaluation {
     updated_at?: string
     duration?: number
     revisions: string[]
+    average_latency?: TypedValue & {error: null | EvaluationError}
+    average_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
 }
 
@@ -451,7 +455,7 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: {result: TypedValue}[]
+    outputs: {result: TypedValue; cost?: number; latency?: number}[]
     correct_answer?: string
     is_pinned?: boolean
     note?: string
@@ -487,7 +491,7 @@ export type ComparisonResultRow = {
     variants: {
         variantId: string
         variantName: string
-        output: {result: TypedValue}
+        output: {result: TypedValue; cost?: number; latency?: number}
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig

@@ -104,6 +104,8 @@ const evaluationTransformer = (item: any) => ({
     revisions: item.revisions,
     variant_revision_ids: item.variant_revision_ids,
     variant_ids: item.variant_ids,
+    average_cost: item.average_cost,
+    average_latency: item.average_latency,
 })
 export const fetchAllEvaluations = async (appId: string) => {
     const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
