@@ -169,12 +169,6 @@ export interface Parameter {
     maximum?: number
 }
 
-export interface DeploymentRevisionConfig {
-    config_name: string
-    current_version: number
-    parameters: Record<string, any>
-}
-
 export interface IPromptRevisions {
     config: {
         config_name: string
@@ -183,29 +177,6 @@ export interface IPromptRevisions {
     created_at: string
     modified_by: string
     revision: number
-}
-
-export interface IEnvironmentRevision {
-    revision: number
-    modified_by: string
-    created_at: string
-}
-
-export interface IPromptVersioning {
-    app_id: string
-    app_name: string
-    base_id: string
-    base_name: string
-    config_name: string
-    organization_id: string
-    parameters: Record<string, any>
-    previous_variant_name: string | null
-    revision: number
-    revisions: [IPromptRevisions]
-    uri: string
-    user_id: string
-    variant_id: string
-    variant_name: string
 }
 
 export interface EvaluationResponseType {
@@ -310,17 +281,6 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
-}
-
-export interface DeploymentRevisions extends Environment {
-    revisions: {
-        created_at: string
-        deployed_app_variant_revision: string
-        deployment: string
-        id: string
-        modified_by: string
-        revision: number
-    }[]
 }
 
 export interface CustomEvaluation {
