@@ -277,6 +277,22 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
+                field: "average_latency",
+                headerName: "Latency",
+                minWidth: 120,
+                ...getFilterParams("number"),
+                valueGetter: (params) => getTypedValue(params?.data?.average_latency),
+            },
+            {
+                flex: 1,
+                field: "average_cost",
+                headerName: "Cost",
+                minWidth: 120,
+                ...getFilterParams("number"),
+                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
+            },
+            {
+                flex: 1,
                 field: "created_at",
                 headerName: "Created",
                 hide: hiddenCols.includes("Created"),
