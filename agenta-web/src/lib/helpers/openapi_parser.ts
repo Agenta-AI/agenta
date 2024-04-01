@@ -1,18 +1,7 @@
 // parser.ts
 
-import {GenericObject} from "../Types"
+import {GenericObject, Parameter} from "../Types"
 
-export interface Parameter {
-    name: string
-    type: string
-    input: boolean
-    required: boolean
-    default?: any
-    enum?: Array<string>
-    choices?: {[key: string]: Array<string>}
-    minimum?: number
-    maximum?: number
-}
 
 const getBodySchemaName = (schema: GenericObject): string => {
     return (

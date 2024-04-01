@@ -74,13 +74,13 @@ const useStyles = createUseStyles({
     },
 })
 
-interface ModelParametersProps {
-    optParams: Parameter[] | null
-    onChange: (param: Parameter, value: number | string) => void
-    handleParamChange: (name: string, value: number | string | boolean) => void
+interface GroupedSelectProps {
+    choices: { [group: string]: string[] };
+    defaultValue: string;
+    handleChange: (value: string) => void;
 }
 
-const GroupedSelect = ({ choices, defaultValue, handleChange }) => (
+const GroupedSelect: React.FC<GroupedSelectProps> = ({ choices, defaultValue, handleChange }) => (
     <Select
         defaultValue={defaultValue}
         style={{ width: 200 }}
@@ -94,6 +94,12 @@ const GroupedSelect = ({ choices, defaultValue, handleChange }) => (
         }))}
     />
 )
+
+interface ModelParametersProps {
+    optParams: Parameter[] | null
+    onChange: (param: Parameter, value: number | string) => void
+    handleParamChange: (name: string, value: number | string | boolean) => void
+}
 
 export const ModelParameters: React.FC<ModelParametersProps> = ({
     optParams,
@@ -157,7 +163,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         )}
                                         {param.type === "grouped_choice" && (
                                             <GroupedSelect
-                                                choices={param.choices}
+                                                choices={param.choices || {}}
                                                 defaultValue={param.default}
                                                 handleChange={(value) =>
                                                     handleParamChange(param.name, value)
