@@ -9,6 +9,7 @@ from .types import (
     InFile,
     IntParam,
     MultipleChoiceParam,
+    GroupedMultipleChoiceParam,
     TextParam,
     MessagesInput,
     FileInputURL,

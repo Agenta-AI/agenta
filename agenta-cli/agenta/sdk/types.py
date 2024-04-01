@@ -134,13 +134,11 @@ class GroupedMultipleChoiceParam(str):
 
         # Check if default is in the options
         if default and not any(default in choices for choices in options.values()):
-            # If options are empty and default is not, allow instantiation but raise a warning or error later
             if not options:
                 print(f"Warning: Default value {default} provided but options are empty.")
             else:
                 raise ValueError(f"Default value {default} is not in the provided options")
 
-        # If no default is provided, take the first choice from the first group
         if not default:
             for choices in options.values():
                 if choices:
@@ -156,7 +154,6 @@ class GroupedMultipleChoiceParam(str):
         return instance
 
     def validate(self, value):
-        # Check if the value is in any of the option groups
         if not any(value in group for group in self.options.values()):
             raise ValueError(f"{value} is not a valid choice. Available choices are: {self.options}")
 
