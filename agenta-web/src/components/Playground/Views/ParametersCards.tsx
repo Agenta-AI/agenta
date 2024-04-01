@@ -1,8 +1,8 @@
 import React from "react"
-import { createUseStyles } from "react-jss"
-import { renameVariables } from "@/lib/helpers/utils"
-import { Parameter, InputParameter } from "@/lib/Types"
-import { DownOutlined } from "@ant-design/icons"
+import {createUseStyles} from "react-jss"
+import {renameVariables} from "@/lib/helpers/utils"
+import {Parameter, InputParameter} from "@/lib/Types"
+import {DownOutlined} from "@ant-design/icons"
 import {
     Row,
     Card,
@@ -75,15 +75,15 @@ const useStyles = createUseStyles({
 })
 
 interface GroupedSelectProps {
-    choices: { [group: string]: string[] };
-    defaultValue: string;
-    handleChange: (value: string) => void;
+    choices: {[group: string]: string[]}
+    defaultValue: string
+    handleChange: (value: string) => void
 }
 
-const GroupedSelect: React.FC<GroupedSelectProps> = ({ choices, defaultValue, handleChange }) => (
+const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => (
     <Select
         defaultValue={defaultValue}
-        style={{ width: 200 }}
+        style={{width: 200}}
         onChange={handleChange}
         options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
             label: groupLabel,

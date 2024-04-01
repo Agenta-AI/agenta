@@ -2,7 +2,6 @@
 
 import {GenericObject, Parameter} from "../Types"
 
-
 const getBodySchemaName = (schema: GenericObject): string => {
     return (
         schema?.paths?.["/generate"]?.post?.requestBody?.content["application/json"]?.schema["$ref"]
