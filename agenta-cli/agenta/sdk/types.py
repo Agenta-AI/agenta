@@ -127,6 +127,49 @@ class MultipleChoiceParam(str):
         )
 
 
+class GroupedMultipleChoiceParam(str):
+    def __new__(cls, default: str = None, options: Dict[str, List[str]] = None):
+        if options is None:
+            options = {}
+
+        # Check if default is in the options
+        if default and not any(default in choices for choices in options.values()):
+            # If options are empty and default is not, allow instantiation but raise a warning or error later
+            if not options:
+                print(f"Warning: Default value {default} provided but options are empty.")
+            else:
+                raise ValueError(f"Default value {default} is not in the provided options")
+
+        # If no default is provided, take the first choice from the first group
+        if not default:
+            for choices in options.values():
+                if choices:
+                    default = choices[0]
+                    break
+
+        if default is None:
+            raise ValueError("No choices available in the provided options or default not set")
+
+        instance = super().__new__(cls, default)
+        instance.options = options
+        instance.default = default
+        return instance
+
+    def validate(self, value):
+        # Check if the value is in any of the option groups
+        if not any(value in group for group in self.options.values()):
+            raise ValueError(f"{value} is not a valid choice. Available choices are: {self.options}")
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any], **kwargs):
+        options = kwargs.get('options', {})
+        field_schema.update({
+            "x-parameter": "grouped_choice",
+            "type": "string",
+            "choices": options,
+        })
+
+
 class Message(BaseModel):
     role: str
     content: str
