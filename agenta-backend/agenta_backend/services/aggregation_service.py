@@ -1,8 +1,8 @@
 import re
 import traceback
-from typing import List
+from typing import List, Optional
 
-from agenta_backend.models.db_models import Result, Error
+from agenta_backend.models.db_models import InvokationResult, Result, Error
 
 
 def aggregate_ai_critique(results: List[Result]) -> Result:
@@ -67,6 +67,32 @@ def aggregate_float(results: List[Result]) -> Result:
     try:
         average_value = sum(result.value for result in results) / len(results)
         return Result(type="number", value=average_value)
+    except Exception as exc:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(message=str(exc), stacktrace=str(traceback.format_exc())),
+        )
+
+
+def aggregate_float_from_llm_app_response(
+    invocation_results: List[InvokationResult], key: Optional[str]
+) -> Result:
+    try:
+        if not key:
+            raise ValueError("Key is required to aggregate InvokationResult objects.")
+
+        values = [
+            getattr(inv_result, key)
+            for inv_result in invocation_results
+            if hasattr(inv_result, key) and getattr(inv_result, key) is not None
+        ]
+
+        if not values:
+            raise ValueError(f"No valid values found for {key} aggregation.")
+
+        average_value = sum(values) / len(values)
+        return Result(type=key, value=average_value)
     except Exception as exc:
         return Result(
             type="error",
