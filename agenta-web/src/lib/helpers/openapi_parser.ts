@@ -9,6 +9,9 @@ export interface Parameter {
     required: boolean
     default?: any
     enum?: Array<string>
+    choices?: {[key: string]: Array<string>}
+    minimum?: number
+    maximum?: number
 }
 
 const getBodySchemaName = (schema: GenericObject): string => {
@@ -33,7 +36,7 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
     // get the actual schema for the body parameters
     Object.entries(schema.components.schemas[bodySchemaName].properties || {}).forEach(
         ([name, param]: [string, any]) => {
-            const parameter = {
+            let parameter: Parameter = {
                 name: name,
                 input:
                     !param["x-parameter"] || ["messages", "file_url"].includes(param["x-parameter"])
@@ -45,6 +48,10 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
                 minimum: param["minimum"] ? param.minimum : 0,
                 maximum: param["maximum"] ? param.maximum : 1,
                 required: !!schema.components.schemas[bodySchemaName]?.required?.includes(name),
+            }
+            // above should be refactored to include only appropriate fields per x-parameter type
+            if (parameter.type === "grouped_choice") {
+                parameter.choices = param["choices"]
             }
 
             parameters.push(parameter)
@@ -59,6 +66,8 @@ const determineType = (xParam: any): string => {
             return "string"
         case "choice":
             return "array"
+        case "grouped_choice":
+            return "grouped_choice"
         case "float":
             return "number"
         case "dict":
