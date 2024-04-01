@@ -167,6 +167,7 @@ export interface Parameter {
     enum?: Array<string>
     minimum?: number
     maximum?: number
+    choices?: {[key: string]: Array<string>}
 }
 
 export interface DeploymentRevisionConfig {
