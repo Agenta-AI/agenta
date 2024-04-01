@@ -26,6 +26,7 @@ services:
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
         command:
             [
                 "uvicorn",
