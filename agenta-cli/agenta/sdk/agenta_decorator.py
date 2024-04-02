@@ -400,7 +400,7 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         if isinstance(param_val, GroupedMultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "grouped_choice")
             if subschema:
-                subschema["choices"] = param_val.options
+                subschema["choices"] = param_val.choices
                 subschema["default"] = param_val.default
         if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "choice")

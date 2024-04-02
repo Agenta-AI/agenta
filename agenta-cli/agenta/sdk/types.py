@@ -128,34 +128,34 @@ class MultipleChoiceParam(str):
 
 
 class GroupedMultipleChoiceParam(str):
-    def __new__(cls, default: str = None, options: Dict[str, List[str]] = None):
-        if options is None:
-            options = {}
+    def __new__(cls, default: str = None, choices: Dict[str, List[str]] = None):
+        if choices is None:
+            choices = {}
 
-        # Check if default is in the options
-        if default and not any(default in choices for choices in options.values()):
-            if not options:
+        # Check if default is in the choices
+        if default and not any(default in choices for choices in choices.values()):
+            if not choices:
                 print(
-                    f"Warning: Default value {default} provided but options are empty."
+                    f"Warning: Default value {default} provided but choices are empty."
                 )
             else:
                 raise ValueError(
-                    f"Default value {default} is not in the provided options"
+                    f"Default value {default} is not in the provided choices"
                 )
 
         if not default:
-            for choices in options.values():
+            for choices in choices.values():
                 if choices:
                     default = choices[0]
                     break
 
         if default is None:
             raise ValueError(
-                "No choices available in the provided options or default not set"
+                "No choices available in the provided choices or default not set"
             )
 
         instance = super().__new__(cls, default)
-        instance.options = options
+        instance.choices = choices
         instance.default = default
         return instance
 
