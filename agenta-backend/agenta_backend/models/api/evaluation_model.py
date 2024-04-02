@@ -241,6 +241,7 @@ class LMProvidersEnum(str, Enum):
     azure_base = "AZURE_API_BASE"
     azure_key = "AZURE_API_KEY"
     togetherai = "TOGETHERAI_API_KEY"
+    mistralai = "MISTRAL_API_KEY"
 
 
 class NewEvaluation(BaseModel):
