@@ -261,7 +261,7 @@ export interface LlmProvidersKeys {
     AZURE_API_KEY: string
     AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
-    MISTRALAI_API_KEY: string
+    MISTRAL_API_KEY: string
 }
 
 export interface AppTemplate {
