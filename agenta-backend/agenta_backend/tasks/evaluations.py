@@ -267,7 +267,9 @@ def evaluate(
                     correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
-                            result=Result(type="text", value=app_output.result.value)
+                            result=Result(type="text", value=app_output.result.value),
+                            latency=app_output.latency,
+                            cost=app_output.cost,
                         )
                     ],
                     results=evaluators_results,
@@ -275,6 +277,20 @@ def evaluate(
                     workspace=app.workspace if isCloudEE() else None,
                 )
             )
+
+        # Add average cost and latency
+        average_latency = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "latency"
+        )
+        average_cost = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {"average_latency": average_latency, "average_cost": average_cost},
+            )
+        )
 
     except Exception as e:
         logger.error(f"An error occurred during evaluation: {e}")
