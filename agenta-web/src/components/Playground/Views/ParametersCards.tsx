@@ -161,6 +161,21 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                 className={classes.colSlider}
                                             />
                                         )}
+                                        {param.type === "array" && (
+                                            <Select
+                                                value={param.default}
+                                                onChange={(value) =>
+                                                    handleParamChange(param.name, value)
+                                                }
+                                                className={classes.select}
+                                            >
+                                                {param.enum?.map((value: string, index: number) => (
+                                                    <Select.Option key={index} value={value}>
+                                                        {value}
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        )}
                                         {param.type === "grouped_choice" && (
                                             <GroupedSelect
                                                 choices={param.choices || {}}
