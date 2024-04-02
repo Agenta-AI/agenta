@@ -153,12 +153,6 @@ class GroupedMultipleChoiceParam(str):
         instance.default = default
         return instance
 
-    def validate(self, value):
-        if not any(value in group for group in self.choices.values()):
-            raise ValueError(
-                f"{value} is not a valid choice. Available choices are: {self.choices}"
-            )
-
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any], **kwargs):
         choices = kwargs.get("choices", {})
