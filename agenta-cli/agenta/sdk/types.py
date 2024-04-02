@@ -132,7 +132,6 @@ class GroupedMultipleChoiceParam(str):
         if choices is None:
             choices = {}
 
-        # Check if default is in the choices
         if default and not any(default in choices for choices in choices.values()):
             if not choices:
                 print(
@@ -149,30 +148,25 @@ class GroupedMultipleChoiceParam(str):
                     default = choices[0]
                     break
 
-        if default is None:
-            raise ValueError(
-                "No choices available in the provided choices or default not set"
-            )
-
         instance = super().__new__(cls, default)
         instance.choices = choices
         instance.default = default
         return instance
 
     def validate(self, value):
-        if not any(value in group for group in self.options.values()):
+        if not any(value in group for group in self.choices.values()):
             raise ValueError(
-                f"{value} is not a valid choice. Available choices are: {self.options}"
+                f"{value} is not a valid choice. Available choices are: {self.choices}"
             )
 
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any], **kwargs):
-        options = kwargs.get("options", {})
+        choices = kwargs.get("choices", {})
         field_schema.update(
             {
                 "x-parameter": "grouped_choice",
                 "type": "string",
-                "choices": options,
+                "choices": choices,
             }
         )
 
