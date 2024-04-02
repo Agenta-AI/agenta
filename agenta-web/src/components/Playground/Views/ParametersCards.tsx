@@ -80,20 +80,23 @@ interface GroupedSelectProps {
     handleChange: (value: string) => void
 }
 
-const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => (
-    <Select
-        defaultValue={defaultValue}
-        style={{width: 200}}
-        onChange={handleChange}
-        options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
-            label: groupLabel,
-            options: groupChoices.map((choice) => ({
-                label: choice,
-                value: choice,
-            })),
-        }))}
-    />
-)
+const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
+    const classes = useStyles()
+    return (
+        <Select
+            defaultValue={defaultValue}
+            className={classes.select}
+            onChange={handleChange}
+            options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
+                label: groupLabel,
+                options: groupChoices.map((choice) => ({
+                    label: choice,
+                    value: choice,
+                })),
+            }))}
+        />
+    )
+}
 
 interface ModelParametersProps {
     optParams: Parameter[] | null
