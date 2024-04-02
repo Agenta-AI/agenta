@@ -17,6 +17,7 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
     {title: "Azure", key: "", name: "AZURE_API_KEY"},
     {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
+    {title: "Mistral AI", key: "", name: "MISTRAL_API_KEY"},
 ]
 
 export const getApikeys = () => {
