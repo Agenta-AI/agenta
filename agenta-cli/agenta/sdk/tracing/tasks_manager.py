@@ -112,7 +112,10 @@ class TaskQueue(object):
 
                 self._logger.error(f"Updating {task.coroutine_type} status to FAILED.")
                 self._handle_error_completion(
-                    client=task.client, type=task.coroutine_type, exc=exc
+                    client=task.client,
+                    trace=task.coroutine_id,
+                    type=task.coroutine_type,
+                    exc=exc,
                 )
                 break
             finally:
@@ -120,7 +123,7 @@ class TaskQueue(object):
                 break
 
     def _handle_error_completion(
-        self, client: AsyncObservabilityClient, type: str, exc: Exception
+        self, client: AsyncObservabilityClient, trace: str, type: str, exc: Exception
     ):
         if type == None:
             return

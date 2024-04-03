@@ -58,9 +58,9 @@ class LLMTokens(BaseModel):
 
 class BaseSpan(BaseModel):
     parent_span_id: Optional[str]
-    meta: Optional[Dict[str, Any]]
-    event_name: str
-    event_type: Optional[str]
+    attributes: Optional[Dict[str, Any]]
+    name: str
+    type: Optional[str]
     start_time: datetime = Field(default=datetime.now())
     status: SpanStatus
     input: Optional[Dict[str, Any]]
@@ -150,7 +150,7 @@ class BaseTrace(BaseModel):
     variant_id: Optional[str]
     status: str = Field(default=Status.INITIATED)
     tags: Optional[List[str]]
-    start_time: datetime = Field(default=datetime.now())
+    start_time: datetime
 
 
 class CreateTrace(BaseTrace):

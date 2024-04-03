@@ -73,15 +73,12 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     config_params = agenta.config.all()
     ingestible_files = extract_ingestible_files(func_signature)
 
-    # Initialize llm tracing
-    tracing = agenta.llm_tracing()
-
     @functools.wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
 
         # Start tracing
-        tracing.trace(
+        agenta.tracing.trace(
             trace_name=func.__name__,
             inputs=func_params,
             config=api_config_params,
