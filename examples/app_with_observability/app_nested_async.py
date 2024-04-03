@@ -37,10 +37,7 @@ ag.config.default(
 )
 
 
-tracing = ag.llm_tracing()
-
-
-@ag.span(tracing, event_type="llm_request")
+@ag.span(type="llm_request")
 async def llm_call(
     prompt: str,
     model: str,
@@ -59,7 +56,7 @@ async def llm_call(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
     )
-    tracing.set_span_attribute(
+    ag.tracing.set_span_attribute(
         "model_config", {"model": model, "temperature": temperature}
     )
     tokens_usage = response.usage.dict()  # type: ignore
@@ -70,7 +67,7 @@ async def llm_call(
     }
 
 
-@ag.span(tracing, event_type="llm_request")
+@ag.span(type="llm_request")
 async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     prompt = ag.config.prompt_user_2.format(topics=llm_response, context_1=context_1)
     response = await llm_call(
@@ -85,7 +82,7 @@ async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     return response
 
 
-@ag.span(tracing, event_type="llm_request")
+@ag.span(type="llm_request")
 async def wrapper(context_1: str, max_tokens: int):
     prompt = ag.config.prompt_user_1.format(context_1=context_1)
 

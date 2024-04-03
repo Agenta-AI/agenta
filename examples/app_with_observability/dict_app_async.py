@@ -32,10 +32,8 @@ ag.config.default(
     force_json=ag.BinaryParam(False),
 )
 
-tracing = ag.llm_tracing()
 
-
-@ag.span(tracing, event_type="llm_request")
+@ag.span(type="llm_request")
 async def litellm_call(prompt_system: str, prompt_user: str):
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     if ag.config.force_json and ag.config.model not in GPT_FORMAT_RESPONSE:
