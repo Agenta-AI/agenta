@@ -267,7 +267,9 @@ def evaluate(
                     correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
-                            result=Result(type="text", value=app_output.result.value)
+                            result=Result(type="text", value=app_output.result.value),
+                            latency=app_output.latency,
+                            cost=app_output.cost,
                         )
                     ],
                     results=evaluators_results,
@@ -275,6 +277,20 @@ def evaluate(
                     workspace=app.workspace if isCloudEE() else None,
                 )
             )
+
+        # Add average cost and latency
+        average_latency = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "latency"
+        )
+        average_cost = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {"average_latency": average_latency, "average_cost": average_cost},
+            )
+        )
 
     except Exception as e:
         logger.error(f"An error occurred during evaluation: {e}")
@@ -349,11 +365,20 @@ async def aggregate_evaluator_results(
             "field_match_test",
             "auto_webhook_test",
             "auto_custom_code_run",
+            "auto_starts_with",
+            "auto_ends_with",
+            "auto_contains",
+            "auto_contains_any",
+            "auto_contains_all",
+            "auto_contains_json",
+            "auto_levenshtein_distance",
         ]:
             result = aggregation_service.aggregate_float(results)
 
         else:
-            raise Exception(f"Evaluator {evaluator_key} aggregation does not exist")
+            result = Result(
+                type="error", value=None, error=Error(message="Aggregation failed")
+            )
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(

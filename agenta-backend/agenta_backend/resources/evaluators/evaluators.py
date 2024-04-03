@@ -9,6 +9,16 @@ evaluators = [
         },
     },
     {
+        "name": "Contains Json",
+        "key": "auto_contains_json",
+        "direct_use": True,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the JSON output contains the specified JSON structure.",
+        },
+        "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
+    },
+    {
         "name": "Similarity Match",
         "key": "auto_similarity_match",
         "direct_use": False,
@@ -18,6 +28,9 @@ evaluators = [
                 "type": "number",
                 "default": 0.5,
                 "description": "The threshold value for similarity comparison",
+                "min": 0,
+                "max": 1,
+                "required": True,
             }
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
@@ -33,6 +46,7 @@ evaluators = [
                 "type": "regex",
                 "default": "",
                 "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)",
+                "required": True,
             },
             "regex_should_match": {
                 "label": "Match/Mismatch",
@@ -52,6 +66,7 @@ evaluators = [
                 "type": "string",
                 "default": "",
                 "description": "The name of the field in the JSON output that you wish to evaluate",
+                "required": True,
             }
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
@@ -66,6 +81,7 @@ evaluators = [
                 "type": "text",
                 "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below: Evaluation strategy: 0 to 10 0 is very bad and 10 is very good. Prompt: {llm_app_prompt_template} Inputs: country: {country} Correct Answer:{correct_answer} Evaluate this: {variant_output} Answer ONLY with one of the given grading or evaluation options.",
                 "description": "Template for AI critique prompts",
+                "required": True,
             }
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
@@ -80,6 +96,7 @@ evaluators = [
                 "type": "code",
                 "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
                 "description": "Code for evaluating submissions",
+                "required": True,
             }
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
@@ -92,17 +109,11 @@ evaluators = [
             "webhook_url": {
                 "label": "Webhook URL",
                 "type": "string",
-                "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
-                "description": "URL for the webhook test",
-            },
-            "webhook_body": {
-                "label": "Webhook Body",
-                "type": "object",
-                "default": "{}",
-                "description": "Request body for webhook URL",
+                "description": "https://your-webhook-url.com",
+                "required": True,
             },
         },
-        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook.",
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
     },
     {
         "name": "A/B Test",
@@ -121,6 +132,121 @@ evaluators = [
             "label": "Single Model Testing Settings",
             "description": "Settings for single model testing configurations",
         },
+    },
+    {
+        "name": "Starts With",
+        "key": "auto_starts_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output starts with the specified prefix.",
+            "prefix": {"label": "prefix", "type": "string", "required": True},
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+            },
+        },
+        "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Ends With",
+        "key": "auto_ends_with",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output ends with the specified suffix.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "suffix": {
+                "label": "suffix",
+                "type": "string",
+                "description": "The string to match at the end of the output.",
+                "required": True,
+            },
+        },
+        "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains",
+        "key": "auto_contains",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains the specified substring.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substring": {
+                "label": "substring",
+                "type": "string",
+                "description": "The string to check if it is contained in the output.",
+                "required": True,
+            },
+        },
+        "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains Any",
+        "key": "auto_contains_any",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains any of the specified substrings.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substrings": {
+                "label": "substrings",
+                "type": "string",
+                "description": "Provide a comma-separated list of strings to check if any is contained in the output.",
+                "required": True,
+            },
+        },
+        "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Contains All",
+        "key": "auto_contains_all",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Single Model Testing Settings",
+            "description": "Checks if the output contains all of the specified substrings.",
+            "case_sensitive": {
+                "label": "Case Sensitive",
+                "type": "boolean",
+                "default": True,
+                "description": "If the evaluation should be case sensitive.",
+            },
+            "substrings": {
+                "label": "substrings",
+                "type": "string",
+                "description": "Provide a comma-separated list of strings to check if all are contained in the output.",
+                "required": True,
+            },
+        },
+        "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
+    },
+    {
+        "name": "Levenshtein Distance",
+        "key": "auto_levenshtein_distance",
+        "direct_use": False,
+        "settings_template": {
+            "label": "Levenshtein Distance Settings",
+            "description": "Evaluates the Levenshtein distance between the output and the correct answer. If a threshold is specified, it checks if the distance is below this threshold and returns a boolean value. If no threshold is specified, it returns the numerical Levenshtein distance.",
+            "threshold": {"label": "Threshold", "type": "number", "required": False},
+        },
+        "description": "This evaluator calculates the Levenshtein distance between the output and the correct answer. If a threshold is provided in the settings, it returns a boolean indicating whether the distance is within the threshold. If no threshold is provided, it returns the actual Levenshtein distance as a numerical value.",
     },
 ]
 

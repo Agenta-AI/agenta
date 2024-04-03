@@ -20,6 +20,7 @@ import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
+import bracketCurlyImg from "@/media/bracket-curly.png"
 import dayjs from "dayjs"
 import {loadTestset} from "@/lib/services/api"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
@@ -40,6 +41,7 @@ const evaluatorIconsMap = {
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
+    auto_contains_json: bracketCurlyImg,
 }
 
 //Evaluators
@@ -102,6 +104,8 @@ const evaluationTransformer = (item: any) => ({
     revisions: item.revisions,
     variant_revision_ids: item.variant_revision_ids,
     variant_ids: item.variant_ids,
+    average_cost: item.average_cost,
+    average_latency: item.average_latency,
 })
 export const fetchAllEvaluations = async (appId: string) => {
     const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
