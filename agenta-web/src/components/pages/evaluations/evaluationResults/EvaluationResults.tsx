@@ -3,8 +3,14 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
+import {Button, Dropdown, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {
+    CheckOutlined,
+    DeleteOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
 import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -46,6 +52,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginTop: "1rem",
         alignSelf: "flex-end",
     },
+    dropdownMenu: {
+        "&>.ant-dropdown-menu-item": {
+            "& .anticon-check": {
+                display: "none",
+            },
+        },
+        "&>.ant-dropdown-menu-item-selected": {
+            "&:not(:hover)": {
+                backgroundColor: "transparent !important",
+            },
+            "& .anticon-check": {
+                display: "inline-flex !important",
+            },
+        },
+    },
 }))
 
 interface Props {}
@@ -63,6 +84,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
+    const [hiddenCols, setHiddenCols] = useState<string[]>([])
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -168,6 +190,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 160,
                 pinned: "left",
                 headerCheckboxSelection: true,
+                hide: hiddenCols.includes("Variant"),
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
                 cellRenderer: (params: any) => {
@@ -188,6 +211,8 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 field: "testset.name",
+                hide: hiddenCols.includes("Testset"),
+                headerName: "Testset",
                 cellRenderer: (params: any) => (
                     <LinkCellRenderer
                         {...params}
@@ -204,7 +229,9 @@ const EvaluationResults: React.FC<Props> = () => {
                     ({
                         flex: 1,
                         minWidth: 190,
+                        hide: hiddenCols.includes(config.name),
                         field: "aggregated_results",
+                        headerName: config.name,
                         headerComponent: (props: any) => (
                             <AgCustomHeader {...props}>
                                 <Space
@@ -238,6 +265,8 @@ const EvaluationResults: React.FC<Props> = () => {
             ),
             {
                 flex: 1,
+                headerName: "Status",
+                hide: hiddenCols.includes("Status"),
                 field: "status",
                 minWidth: 185,
                 pinned: "right",
@@ -250,6 +279,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "created_at",
                 headerName: "Created",
+                hide: hiddenCols.includes("Created"),
                 minWidth: 160,
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
@@ -257,7 +287,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs])
+    }, [evaluatorConfigs, hiddenCols])
 
     const compareBtnNode = (
         <Button
@@ -275,6 +305,21 @@ const EvaluationResults: React.FC<Props> = () => {
         >
             Compare
         </Button>
+    )
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!hiddenCols.includes(evalConfigId)) {
+            setHiddenCols([...hiddenCols, evalConfigId])
+        } else {
+            setHiddenCols(hiddenCols.filter((item) => item !== evalConfigId))
+        }
+    }
+
+    const shownCols = useMemo(
+        () =>
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
+        [colDefs],
     )
 
     return (
@@ -319,6 +364,29 @@ const EvaluationResults: React.FC<Props> = () => {
                             New Evaluation
                         </Button>
                     </Space>
+
+                    <Space className={classes.buttonsGroup}>
+                        <Dropdown
+                            trigger={["click"]}
+                            menu={{
+                                selectedKeys: shownCols,
+                                items: colDefs.map((configs) => ({
+                                    key: configs.headerName as string,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{configs.headerName}</>
+                                        </Space>
+                                    ),
+                                })),
+                                onClick: ({key}) => onToggleEvaluatorVisibility(key),
+                                className: classes.dropdownMenu,
+                            }}
+                        >
+                            <Button>Filter Columns</Button>
+                        </Dropdown>
+                    </Space>
+
                     <Spin spinning={fetching}>
                         <div
                             className={`${
