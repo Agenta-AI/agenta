@@ -15,6 +15,8 @@ from agenta_backend.utils.common import isCloud, isOss
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
+templates_base_url = os.getenv("TEMPLATES_BASE_URL")
+
 from typing import Union
 
 
@@ -119,9 +121,7 @@ async def retrieve_templates_info_from_s3(
             return json.loads(cached_data)
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
-    response = await get_templates_info_from_s3(
-        "https://llm-app-json.s3.eu-central-1.amazonaws.com/llm_info.json"
-    )
+    response = await get_templates_info_from_s3(f"{templates_base_url}/llm_info.json")
 
     # Cache the data in Redis for 60 minutes
     r.set("temp_data", json.dumps(response), ex=900)

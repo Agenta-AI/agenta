@@ -12,8 +12,6 @@ import {
     AppTemplate,
     GenericObject,
     Environment,
-    DeploymentRevisions,
-    DeploymentRevisionConfig,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     AICritiqueCreate,
@@ -25,6 +23,7 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
+import {LlmProvider} from "../helpers/llmProviders"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 import {dynamicContext} from "../helpers/dynamic"
 /**
@@ -103,11 +102,9 @@ export async function callVariant(
             mainInputParams[key] = inputParametersDict[key]
         }
     }
-
     optionalParameters = optionalParameters || []
 
     const optParams = optionalParameters
-        .filter((param) => param.default)
         .filter((param) => param.type !== "object") // remove dicts from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
@@ -598,7 +595,7 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    providerKey: Array<{title: string; key: string; name: string}>
+    providerKey: Array<LlmProvider>
     templateId: string
     timeout?: number
     onStatusChange?: (
@@ -609,7 +606,7 @@ export const createAndStartTemplate = async ({
 }) => {
     const apiKeys = providerKey.reduce(
         (acc, {key, name}) => {
-            acc[name] = key
+            if (key) acc[name] = key
             return acc
         },
         {} as Record<string, string>,
@@ -669,46 +666,6 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
 
     const data: Environment[] = await response.json()
     return data
-}
-
-export const fetchDeploymentRevisionConfig = async (
-    deploymentRevisionId: string,
-): Promise<DeploymentRevisionConfig> => {
-    const response = await fetch(
-        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/`,
-    )
-
-    if (response.status !== 200) {
-        throw new Error("Failed to fetch deployment revision configuration")
-    }
-
-    const data = (await response.json()) as DeploymentRevisionConfig
-    return data
-}
-
-export const fetchDeploymentRevisions = async (
-    appId: string,
-    environmentName: string,
-    ignoreAxiosError: boolean = false,
-) => {
-    const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}/`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
-    return data
-}
-
-export const revertDeploymentRevision = async (
-    deploymentRevisionId: string,
-    ignoreAxiosError: boolean = false,
-) => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert/`,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response
 }
 
 export const publishVariant = async (variantId: string, environmentName: string) => {

@@ -1,5 +1,4 @@
-import {Button, Tooltip, Spin, Table} from "antd"
-
+import {Button, Table, Space} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import {ColumnsType} from "antd/es/table"
@@ -34,7 +33,9 @@ const useStyles = createUseStyles({
         flexWrap: "wrap",
     },
     startLink: {
-        marginLeft: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
     },
 })
 
@@ -115,9 +116,17 @@ export default function Testsets() {
                         )}
                     </div>
 
-                    <Link href={`/apps/${appId}/evaluations`} className={classes.startLink}>
-                        {testsets.length > 0 && <Button>Start an evaluation</Button>}
-                    </Link>
+                    {testsets.length > 0 && (
+                        <Space className={classes.startLink}>
+                            <Link href={`/apps/${appId}/evaluations/results`}>
+                                <Button>Start an Automatic Evaluation</Button>
+                            </Link>
+
+                            <Link href={`/apps/${appId}/annotations/human_a_b_testing`}>
+                                <Button>Start a Human Evaluation</Button>
+                            </Link>
+                        </Space>
+                    )}
                 </div>
 
                 {selectedRowKeys.length > 0 && (

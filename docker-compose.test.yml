@@ -27,6 +27,7 @@ services:
             - OPENAI_API_KEY=${OPENAI_API_KEY}
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
+            - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
