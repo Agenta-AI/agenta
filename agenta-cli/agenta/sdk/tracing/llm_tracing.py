@@ -1,5 +1,5 @@
 # Stdlib Imports
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 # Own Imports
@@ -19,16 +19,16 @@ class Span:
         span_id: str,
         name: str,
         input: Dict[str, Any],
-        event_type: str,
+        type: str,
         parent_span_id: Optional[str] = None,
         **kwargs: Dict[str, Any],
     ):
         self.trace_id = trace_id
         self.span_id = span_id
         self.name = name
-        self.event_type = event_type
+        self.type = type
         self.parent_span_id = parent_span_id
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(timezone.utc)
         self.end_time = Optional[datetime]
         self.input = input
         self.status = Dict[str, Any]
@@ -56,7 +56,7 @@ class Span:
             self.status = {"value": status, "error": None}  # type: ignore
 
     def end(self, output: Dict[str, Any]):
-        self.end_time = datetime.now()
+        self.end_time = datetime.now(timezone.utc)
         self.output = output["message"]
         self.cost = output.get("cost", 0)
         self.tokens = output.get("usage", {})
@@ -65,8 +65,8 @@ class Span:
         return {
             "trace_id": self.trace_id,
             "span_id": self.span_id,
-            "event_name": self.name,
-            "event_type": self.event_type,
+            "name": self.name,
+            "type": self.type,
             "parent_span_id": self.parent_span_id,
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
@@ -74,7 +74,7 @@ class Span:
             "output": self.output,
             "status": self.status,
             "tokens": self.tokens,
-            "meta": self.attributes,
+            "attributes": self.attributes,
         }
 
 
@@ -143,7 +143,7 @@ class Tracing(object):
         self,
         name: str,
         input: Dict[str, Any],
-        event_type: str,
+        type: str,
         trace_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
         **kwargs: Dict[str, Any],
@@ -155,7 +155,7 @@ class Tracing(object):
             trace_id=trace_id,
             span_id=span_id,
             name=name,
-            event_type=event_type,
+            type=type,
             parent_span_id=parent_span_id,
             input=input,
             **kwargs,
@@ -221,7 +221,7 @@ class Tracing(object):
                 app_id=self.app_id,
                 variant_id=self.variant_id,
                 trace_name=trace_name,  # type: ignore
-                start_time=datetime.now(),
+                start_time=datetime.now(timezone.utc),
                 inputs=inputs,
                 config=config,
                 environment=kwargs.get("environment"),  # type: ignore
@@ -248,7 +248,7 @@ class Tracing(object):
             self.client.update_trace(
                 trace_id=self.active_trace,  # type: ignore
                 status="COMPLETED",
-                end_time=datetime.now(),
+                end_time=datetime.now(timezone.utc),
                 cost=cost,
                 token_consumption=total_tokens,
                 outputs=outputs,

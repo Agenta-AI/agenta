@@ -15,7 +15,7 @@ from .types import (
     BinaryParam,
 )
 from .tracing.decorators import span
-from .agenta_init import Config, init, llm_tracing
+from .agenta_init import Config, init, tracing
 from .utils.helper.openai_cost import calculate_token_usage
 
 config = PreInitObject("agenta.config", Config)

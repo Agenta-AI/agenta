@@ -322,7 +322,7 @@ class TraceDB(Document):
     app_id: str
     variant_id: str
     trace_name: Optional[str]
-    meta: Optional[Dict[str, Any]]
+    attributes: Optional[Dict[str, Any]]
     start_time: datetime
     end_time: datetime = Field(default=datetime.now())
     cost: Optional[float]
@@ -347,9 +347,9 @@ class TraceDB(Document):
 class SpanDB(Document):
     trace: Link[TraceDB]
     parent_span_id: Optional[str]  # parent observability of span
-    meta: Optional[Dict[str, Any]]
-    event_name: str  # Function or execution name
-    event_type: str
+    attributes: Optional[Dict[str, Any]]
+    name: str  # Function or execution name
+    type: str
     status: SpanStatus
     input: Optional[Dict[str, Any]]
     output: Optional[str]

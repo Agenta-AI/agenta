@@ -1037,9 +1037,9 @@ class AsyncObservabilityClient:
         self,
         *,
         parent_span_id: typing.Optional[str] = OMIT,
-        meta: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
-        event_name: str,
-        event_type: typing.Optional[str] = OMIT,
+        attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
+        name: str,
+        type: typing.Optional[str] = OMIT,
         start_time: typing.Optional[dt.datetime] = OMIT,
         duration: typing.Optional[int] = OMIT,
         status: SpanStatus,
@@ -1057,11 +1057,11 @@ class AsyncObservabilityClient:
         Parameters:
             - parent_span_id: typing.Optional[str].
 
-            - meta: typing.Optional[typing.Dict[str, typing.Any]].
+            - attributes: typing.Optional[typing.Dict[str, typing.Any]].
 
-            - event_name: str.
+            - name: str.
 
-            - event_type: typing.Optional[str].
+            - type: typing.Optional[str].
 
             - start_time: typing.Optional[dt.datetime].
 
@@ -1102,7 +1102,7 @@ class AsyncObservabilityClient:
         )
         """
         _request: typing.Dict[str, typing.Any] = {
-            "event_name": event_name,
+            "name": name,
             "status": status,
             "trace_id": trace_id,
             "span_id": span_id,
@@ -1110,10 +1110,10 @@ class AsyncObservabilityClient:
         }
         if parent_span_id is not OMIT:
             _request["parent_span_id"] = parent_span_id
-        if meta is not OMIT:
-            _request["meta"] = meta
-        if event_type is not OMIT:
-            _request["event_type"] = event_type
+        if attributes is not OMIT:
+            _request["attributes"] = attributes
+        if type is not OMIT:
+            _request["type"] = type
         if start_time is not OMIT:
             _request["start_time"] = start_time
         if duration is not OMIT:
