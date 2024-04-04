@@ -32,6 +32,7 @@
         "@next/mdx": "^13.4.13",
         "@remixicon/react": "^4.1.1",
         "@sentry/nextjs": "^7.77.0",
+        "@tailwindcss/forms": "^0.5.7",
         "@types/diff": "^5.0.9",
         "@types/js-beautify": "^1.14.0",
         "@types/lodash": "^4.14.201",
