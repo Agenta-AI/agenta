@@ -19,6 +19,7 @@ CHAT_LLM_GPT = [
 ]
 
 ag.init()
+tracing = ag.llm_tracing()
 ag.config.default(
     temperature_1=ag.FloatParam(default=1, minval=0.0, maxval=2.0),
     model_1=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
@@ -56,7 +57,7 @@ async def llm_call(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
     )
-    ag.tracing.set_span_attribute(
+    tracing.set_span_attribute(
         "model_config", {"model": model, "temperature": temperature}
     )
     tokens_usage = response.usage.dict()  # type: ignore

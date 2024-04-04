@@ -8,6 +8,7 @@ default_prompt = (
 )
 
 ag.init()
+tracing = ag.llm_tracing()
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
@@ -18,7 +19,7 @@ async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    ag.tracing.set_span_attribute(
+    tracing.set_span_attribute(
         "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
     )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()

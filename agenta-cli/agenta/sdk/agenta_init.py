@@ -240,6 +240,3 @@ def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
         api_key=singleton.api_key,
         max_workers=max_workers,
     )
-
-
-tracing = llm_tracing()

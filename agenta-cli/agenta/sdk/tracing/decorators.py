@@ -9,15 +9,17 @@ import agenta as ag
 def span(type: str):
     """Decorator to automatically start and end spans."""
 
+    tracing = ag.llm_tracing()
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             result = None
-            span = ag.tracing.start_span(
+            span = tracing.start_span(
                 func.__name__,
                 input=kwargs,
                 type=type,
-                trace_id=ag.tracing.active_trace,
+                trace_id=tracing.active_trace,
             )
             try:
                 is_coroutine_function = inspect.iscoroutinefunction(func)
@@ -33,7 +35,7 @@ def span(type: str):
             finally:
                 if not isinstance(result, dict):
                     result = {"message": result}
-                ag.tracing.end_span(output=result, span=span)
+                tracing.end_span(output=result, span=span)
             return result
 
         return wrapper
