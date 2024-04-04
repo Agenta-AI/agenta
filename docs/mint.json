@@ -126,7 +126,8 @@
       "pages": [
         "developer_guides/tutorials/first-app-with-langchain",
         "developer_guides/tutorials/build-rag-application",
-        "developer_guides/tutorials/deploy-mistral-model"
+        "developer_guides/tutorials/deploy-mistral-model",
+        "developer_guides/tutorials/first-app-with-cohere"
       ]
     },
     {
