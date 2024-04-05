@@ -162,8 +162,8 @@ async def fetch_generation_spans(
     filters_query = {}
     if filters_param.environment is not None:
         filters_query["environment"] = filters_param.environment
-    # elif filters_param.variant is not None: TODO: improve in observability sdk
-    #     filters_query["base_id"] = filters_param.variant
+    elif filters_param.variant is not None:
+        filters_query["variant_id"] = filters_param.variant
     spans_count = await base_spans_db.find(filters_query, fetch_links=True).count()
 
     # Fetch spans with pagination and sorting applied
@@ -205,6 +205,7 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
     return SpanDetail(
         **{
             "id": str(span_db.id),
+            "name": span_db.name,
             "created_at": span_db.created_at.isoformat(),
             "variant": {
                 "variant_id": str(app_variant_db.id),
@@ -226,7 +227,7 @@ async def fetch_generation_span_detail(span_id: str) -> SpanDetail:
                 ],
                 "outputs": [span_db.output],
             },
-            "config": span_db.meta.get("model_config"),
+            "config": span_db.attributes.get("model_config"),
         },
     )
 
@@ -258,6 +259,20 @@ async def retrieve_observability_dashboard(
     observability_data: ObservabilityData = []
     for span in spans:
         observability_data.append(ObservabilityData(**span, timestamp=span["_id"]))
+
+    if observability_data == []:
+        return ObservabilityDashboardData(
+        **{
+            "data": [],
+            "total_count": 0,
+            "failure_rate": 0.0,
+            "total_cost": 0.0,
+            "avg_cost": 0.0,
+            "avg_latency": 0.0,
+            "total_tokens": 0,
+            "avg_tokens": 0,
+        }
+    )
 
     full_observability_data = helpers.fill_missing_data(
         data=observability_data,
@@ -319,8 +334,8 @@ async def fetch_traces(
     filters_query = {}
     if filters_param.environment is not None:
         filters_query["environment"] = filters_param.environment
-    # elif filters_param.variant is not None: TODO: improve in observability sdk
-    #     filters_query["base_id"] = filters_param.variant
+    elif filters_param.variant is not None:
+        filters_query["variant_id"] = filters_param.variant
     traces_count = await base_traces_db.find(filters_query, fetch_links=True).count()
 
     # Fetch traces with pagination and sorting applied
