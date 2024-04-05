@@ -42,12 +42,15 @@ class SpanStatus(BaseModel):
 
 class Span(BaseModel):
     id: str
+    name: str
+    parent_span_id: Optional[str]
     created_at: datetime
     variant: SpanVariant
     environment: Optional[str]
     status: SpanStatus
     metadata: Dict[str, Any]
     user_id: Optional[str]
+    children: Optional[List["Span"]]
 
 
 class LLMTokens(BaseModel):
