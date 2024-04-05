@@ -32,12 +32,16 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
                         : false,
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 default: param.default,
-                enum: param["enum"] ? param.enum : [],
-                minimum: param["minimum"] ? param.minimum : 0,
-                maximum: param["maximum"] ? param.maximum : 1,
                 required: !!schema.components.schemas[bodySchemaName]?.required?.includes(name),
             }
-            // above should be refactored to include only appropriate fields per x-parameter type
+
+            if (parameter.type === "array") {
+                parameter.enum = param["enum"]
+            }
+            if (parameter.type === "float" || parameter.type === "int") {
+                parameter.minimum = param["minimum"]
+                parameter.maximum = param["maximum"]
+            }
             if (parameter.type === "grouped_choice") {
                 parameter.choices = param["choices"]
             }
