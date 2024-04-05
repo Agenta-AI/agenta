@@ -74,6 +74,7 @@ async def generate(
             "Model {} does not support JSON response format".format(ag.config.model)
         )
 
+    print("model: ", ag.config.model)
     response_format = (
         {"type": "json_object"}
         if ag.config.force_json and ag.config.model in GPT_FORMAT_RESPONSE
