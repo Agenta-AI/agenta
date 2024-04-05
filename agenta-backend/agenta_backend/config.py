@@ -22,5 +22,4 @@ class Settings(BaseSettings):
     docker_hub_url: str
 
 
-
 settings = Settings()

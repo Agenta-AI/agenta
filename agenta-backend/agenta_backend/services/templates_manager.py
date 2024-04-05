@@ -61,7 +61,6 @@ async def update_and_sync_templates(cache: bool = True) -> None:
             )
             print(f"Template {template_id} added to the database.")
 
-
             # Pull image from DockerHub
             image_res = await container_manager.pull_docker_image(
                 repo_name=f"{agenta_template_repo}", tag=temp["name"]
@@ -143,9 +142,7 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{url}/{repo_name}/tags", timeout=10
-        )
+        response = await client.get(f"{url}/{repo_name}/tags", timeout=10)
         if response.status_code == 200:
             response_data = response.json()
             return response_data
