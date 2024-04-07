@@ -12,9 +12,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
 
-from fastapi.responses import JSONResponse
-from fastapi import Body, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta
 from .context import save_context
@@ -85,7 +84,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             trace_name=func.__name__,
             inputs=func_params,
             config=api_config_params,
-            **{"environment": "playground"},  # type: ignore
+            environment="playground" # type: ignore #NOTE: wrapper is only called in playground
         )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
@@ -94,15 +93,11 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         )
 
         # End tracing
-        if isinstance(llm_result, JSONResponse):
-            result = {"message": str(llm_result), "total_tokens": 0, "cost": 0}
-        else:
-            result = {
-                "message": llm_result.message,
-                "total_tokens": llm_result.usage.total_tokens,
-                "cost": llm_result.cost,
-            }
-        tracing.end_trace(outputs=[result["message"]], total_tokens=result["total_tokens"], cost=result["cost"])  # type: ignore
+        tracing.end_trace(
+            outputs=[llm_result.message],
+            total_tokens=llm_result.usage.total_tokens,
+            cost=llm_result.cost
+        )
         return llm_result
 
     @functools.wraps(func)
@@ -235,18 +230,18 @@ async def execute_function(func: Callable[..., Any], *args, **func_params):
         if isinstance(result, str):
             return FuncResponse(message=result, latency=round(latency, 4))  # type: ignore
     except Exception as e:
-        return handle_exception(e)
+        handle_exception(e)
     return FuncResponse(message="Unexpected error occurred", latency=0)  # type: ignore
 
 
-def handle_exception(e: Exception) -> JSONResponse:
-    """Handle exceptions and return a JSONResponse."""
+def handle_exception(e: Exception):
+    """Handle exceptions."""
 
     status_code: int = e.status_code if hasattr(e, "status_code") else 500
-    traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)
-    return JSONResponse(
+    traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+    raise HTTPException(
         status_code=status_code,
-        content={"error": str(e), "traceback": "".join(traceback_str)},
+        detail={"error": str(e), "traceback": "".join(traceback_str)},
     )
 
 
