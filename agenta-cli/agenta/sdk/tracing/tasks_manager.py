@@ -70,7 +70,6 @@ class TaskQueue(object):
 
     def __init__(self, num_workers: int, logger: Logger):
         self.tasks = queue.Queue()  # type: ignore
-        self._lock = threading.Lock()
         self._logger = logger
         self._thread_pool = ThreadPoolExecutor(max_workers=num_workers)
 
@@ -138,3 +137,18 @@ class TaskQueue(object):
 
         future = self._thread_pool.submit(asyncio.run, task)  # type: ignore
         future.result()
+
+    def _get_size(self) -> int:
+        """Returns the approximate number of items in the queue."""
+
+        return self.tasks.qsize()
+
+    def flush(self) -> None:
+        """Clears all items from the queue."""
+
+        q_size = self._get_size()
+        self._logger.info("Flushing queue...")
+        with self.tasks.mutex:  # acts as a lock to ensure that only one thread can access the queue
+            self.tasks.join()
+            self._logger.info(f"Queue with {q_size} items flushed successfully")
+            return
