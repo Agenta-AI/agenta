@@ -562,16 +562,24 @@ async def create_app_and_variant_from_template(
             else "Step 7: Starting variant and injecting environment variables"
         )
         if isCloudEE():
-            if not os.environ["OPENAI_API_KEY"]:
+            supported_llm_prodviders_keys = [
+                "OPENAI_API_KEY",
+                "MISTRAL_API_KEY",
+                "COHERE_API_KEY",
+            ]
+            missing_keys = [
+                key for key in supported_llm_prodviders_keys if not os.environ.get(key)
+            ]
+            if missing_keys:
+                missing_keys_str = ", ".join(missing_keys)
                 raise Exception(
-                    "Unable to start app container. Please file an issue by clicking on the button below.",
+                    f"Unable to start app container. The following environment variables are missing: {missing_keys_str}. Please file an issue by clicking on the button below."
                 )
-            envvars = {
-                **(payload.env_vars or {}),
-                "OPENAI_API_KEY": os.environ[
-                    "OPENAI_API_KEY"
-                ],  # order is important here
-            }
+
+            envvars = {**(payload.env_vars or {})}
+            for key in supported_llm_prodviders_keys:
+                if os.environ.get(key):
+                    envvars[key] = os.environ[key]
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
         await app_manager.start_variant(app_variant_db, envvars)
