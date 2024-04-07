@@ -1,6 +1,4 @@
 docker_registry_url="registry:5001"
 registry="agentaai"
 database_url="sqlite:////db/deploy.db"
-docker_hub_url="https://hub.docker.com/v2/repositories/{}/{}"
-docker_hub_repo_owner="agentaai"
-docker_hub_repo_name="templates_v2"
+docker_hub_url="https://hub.docker.com/v2/repositories"

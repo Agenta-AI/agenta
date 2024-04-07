@@ -1,15 +1,6 @@
 // parser.ts
 
-import {GenericObject} from "../Types"
-
-export interface Parameter {
-    name: string
-    type: string
-    input: boolean
-    required: boolean
-    default?: any
-    enum?: Array<string>
-}
+import {GenericObject, Parameter} from "../Types"
 
 const getBodySchemaName = (schema: GenericObject): string => {
     return (
@@ -33,7 +24,7 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
     // get the actual schema for the body parameters
     Object.entries(schema.components.schemas[bodySchemaName].properties || {}).forEach(
         ([name, param]: [string, any]) => {
-            const parameter = {
+            let parameter: Parameter = {
                 name: name,
                 input:
                     !param["x-parameter"] || ["messages", "file_url"].includes(param["x-parameter"])
@@ -41,10 +32,18 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
                         : false,
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 default: param.default,
-                enum: param["enum"] ? param.enum : [],
-                minimum: param["minimum"] ? param.minimum : 0,
-                maximum: param["maximum"] ? param.maximum : 1,
                 required: !!schema.components.schemas[bodySchemaName]?.required?.includes(name),
+            }
+
+            if (parameter.type === "array") {
+                parameter.enum = param["enum"]
+            }
+            if (parameter.type === "float" || parameter.type === "int") {
+                parameter.minimum = param["minimum"]
+                parameter.maximum = param["maximum"]
+            }
+            if (parameter.type === "grouped_choice") {
+                parameter.choices = param["choices"]
             }
 
             parameters.push(parameter)
@@ -59,6 +58,8 @@ const determineType = (xParam: any): string => {
             return "string"
         case "choice":
             return "array"
+        case "grouped_choice":
+            return "grouped_choice"
         case "float":
             return "number"
         case "dict":
