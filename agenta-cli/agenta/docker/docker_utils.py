@@ -3,19 +3,15 @@ import shutil
 import tarfile
 import tempfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-import docker
-from agenta.config import settings
-from docker.models.images import Image
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-DEBUG = True
+DEBUG = False
 
 
-def create_dockerfile(out_folder: Path):
+def create_dockerfile(out_folder: Path) -> Path:
     """Creates a dockerfile based on the template in the out_folder.
 
     Arguments:
