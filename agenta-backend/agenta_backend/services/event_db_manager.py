@@ -262,17 +262,17 @@ async def retrieve_observability_dashboard(
 
     if observability_data == []:
         return ObservabilityDashboardData(
-        **{
-            "data": [],
-            "total_count": 0,
-            "failure_rate": 0.0,
-            "total_cost": 0.0,
-            "avg_cost": 0.0,
-            "avg_latency": 0.0,
-            "total_tokens": 0,
-            "avg_tokens": 0,
-        }
-    )
+            **{
+                "data": [],
+                "total_count": 0,
+                "failure_rate": 0.0,
+                "total_cost": 0.0,
+                "avg_cost": 0.0,
+                "avg_latency": 0.0,
+                "total_tokens": 0,
+                "avg_tokens": 0,
+            }
+        )
 
     full_observability_data = helpers.fill_missing_data(
         data=observability_data,

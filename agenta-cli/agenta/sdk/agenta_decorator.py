@@ -84,7 +84,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             trace_name=func.__name__,
             inputs=func_params,
             config=api_config_params,
-            environment="playground" # type: ignore #NOTE: wrapper is only called in playground
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
@@ -96,7 +96,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         tracing.end_trace(
             outputs=[llm_result.message],
             total_tokens=llm_result.usage.total_tokens,
-            cost=llm_result.cost
+            cost=llm_result.cost,
         )
         return llm_result
 
