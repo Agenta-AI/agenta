@@ -253,7 +253,7 @@ evaluators = [
 
 def get_all_evaluators():
     """
-    Returns a list of evaluators.
+    Returns a list of evaluators
 
     Returns:
         List[dict]: A list of evaluator dictionaries.
