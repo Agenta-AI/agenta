@@ -38,8 +38,8 @@ origins = [
     "http://localhost:3001",
     "http://0.0.0.0:3000",
     "http://0.0.0.0:3001",
-    "https://*.vercel.app",
 ]
+
 
 celery_app = Celery("agenta_app")
 celery_app.config_from_object(celery_config)
@@ -66,6 +66,7 @@ allow_headers = ["Content-Type"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex="https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=allow_headers,
