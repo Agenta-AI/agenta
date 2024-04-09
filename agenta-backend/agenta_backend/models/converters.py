@@ -20,10 +20,6 @@ from agenta_backend.models.api.evaluation_model import (
 )
 
 if isCloudEE():
-    from agenta_backend.cloud.observability.models.db import (
-        SpanDB,
-        Feedback as FeedbackDB,
-    )
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -38,14 +34,6 @@ if isCloudEE():
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
-    )
-    from agenta_backend.cloud.observability.models.api import (
-        Span,
-        Error,
-        SpanStatus,
-        SpanVariant,
-        Trace,
-        Feedback as FeedbackOutput,
     )
     from agenta_backend.commons.models.api.api_models import (
         AppVariant_ as AppVariant,
@@ -496,93 +484,6 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
         updated_at=str(test_set_db.updated_at),
         id=str(test_set_db.id),
     )
-
-
-async def spans_to_pydantic(spans_db: List["SpanDB"]) -> List["Span"]:
-    child_spans: List[Span] = []
-    spans_dict: Dict[str, Span] = {}
-
-    for span_db in spans_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            span_db.trace.variant_id
-        )
-        spans_dict[str(span_db.id)] = Span(
-            id=str(span_db.id),
-            name=span_db.name,
-            created_at=span_db.created_at.isoformat(),
-            variant=SpanVariant(
-                variant_id=str(span_db.trace.variant_id),
-                variant_name=app_variant_db.variant_name,
-                revision=app_variant_db.revision,
-            ),
-            environment=span_db.environment,
-            status=SpanStatus(value=span_db.status.value, error=span_db.status.error),
-            metadata={
-                "cost": span_db.cost,
-                "latency": span_db.get_latency(),
-                "usage": span_db.tokens,
-            },
-            user_id=span_db.user,
-            parent_span_id=span_db.parent_span_id,
-        )
-
-    for span_db in spans_db:
-        if span_db.parent_span_id:
-            parent_span = spans_dict.get(span_db.parent_span_id)
-            child_span = spans_dict[str(span_db.id)]
-            if parent_span:
-                if hasattr(parent_span, "children") and not parent_span.children:
-                    parent_span.children = []
-
-                parent_span.children.append(child_span)
-                child_spans.append(child_span)
-
-    top_level_spans = [span for span in spans_dict.values() if span not in child_spans]
-    return [
-        span.dict(exclude_unset=True, exclude_none=True) for span in top_level_spans
-    ]
-
-
-async def traces_to_pydantic(traces_db: List["TraceDB"]) -> List["Trace"]:
-    traces: List[Trace] = []
-    for trace_db in traces_db:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
-
-        trace_span_status = (
-            SpanStatus(value=trace_db.status)
-            if trace_db.status in ["INITIATED", "COMPLETED"]
-            else SpanStatus(value=None, error=Error(message=trace_db.status))
-        )
-        trace = Trace(
-            id=str(trace_db.id),
-            created_at=trace_db.created_at.isoformat(),
-            variant=SpanVariant(
-                variant_id=str(app_variant_db.id),
-                variant_name=app_variant_db.variant_name,
-                revision=app_variant_db.revision,
-            ),
-            environment=trace_db.environment,
-            status=trace_span_status,
-            metadata={
-                "cost": trace_db.cost,
-                "latency": trace_db.get_latency(),
-                "usage": {"total_tokens": trace_db.token_consumption},
-            },
-            user_id="",
-        )
-        traces.append(trace.dict(exclude_unset=True))
-
-    return traces
-
-
-def feedback_db_to_pydantic(feedback_db: "FeedbackDB") -> "FeedbackOutput":
-    return FeedbackOutput(
-        feedback_id=str(feedback_db.uid),
-        feedback=feedback_db.feedback,
-        score=feedback_db.score,
-        meta=feedback_db.meta,
-        created_at=feedback_db.created_at,
-    ).dict(exclude_unset=True)
 
 
 def user_db_to_pydantic(user_db: UserDB) -> User:
