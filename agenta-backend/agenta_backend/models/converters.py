@@ -8,14 +8,6 @@ from typing import List, Tuple, Any
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
-from agenta_backend.models.api.observability_models import (
-    Span,
-    Error,
-    SpanStatus,
-    SpanVariant,
-    Trace,
-    Feedback as FeedbackOutput,
-)
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     HumanEvaluation,
@@ -28,6 +20,10 @@ from agenta_backend.models.api.evaluation_model import (
 )
 
 if isCloudEE():
+    from agenta_backend.cloud.observability.models.db import (
+        SpanDB,
+        Feedback as FeedbackDB,
+    )
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -42,6 +38,14 @@ if isCloudEE():
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+    from agenta_backend.cloud.observability.models.api import (
+        Span,
+        Error,
+        SpanStatus,
+        SpanVariant,
+        Trace,
+        Feedback as FeedbackOutput,
     )
     from agenta_backend.commons.models.api.api_models import (
         AppVariant_ as AppVariant,
@@ -77,12 +81,9 @@ else:
     )
 
 from agenta_backend.models.db_models import (
-    SpanDB,
-    TraceDB,
     TemplateDB,
     AggregatedResult,
     AppVariantRevisionsDB,
-    Feedback as FeedbackDB,
     EvaluationScenarioResult,
 )
 from agenta_backend.models.api.api_models import (
@@ -497,7 +498,7 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
     )
 
 
-async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
+async def spans_to_pydantic(spans_db: List["SpanDB"]) -> List["Span"]:
     child_spans: List[Span] = []
     spans_dict: Dict[str, Span] = {}
 
@@ -542,7 +543,7 @@ async def spans_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
     ]
 
 
-async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
+async def traces_to_pydantic(traces_db: List["TraceDB"]) -> List["Trace"]:
     traces: List[Trace] = []
     for trace_db in traces_db:
         app_variant_db = await db_manager.fetch_app_variant_by_id(trace_db.variant_id)
@@ -574,40 +575,13 @@ async def traces_to_pydantic(traces_db: List[TraceDB]) -> List[Trace]:
     return traces
 
 
-def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> FeedbackOutput:
+def feedback_db_to_pydantic(feedback_db: "FeedbackDB") -> "FeedbackOutput":
     return FeedbackOutput(
         feedback_id=str(feedback_db.uid),
         feedback=feedback_db.feedback,
         score=feedback_db.score,
         meta=feedback_db.meta,
         created_at=feedback_db.created_at,
-    ).dict(exclude_unset=True)
-
-
-def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
-    feedbacks = trace_db.feedbacks
-    if feedbacks is None:
-        result = []
-    else:
-        result = [
-            feedback_db_to_pydantic(feedback)
-            for feedback in feedbacks
-            if feedback is not None
-        ]
-
-    return Trace(
-        trace_id=str(trace_db.id),
-        app_id=trace_db.app_id,
-        variant_id=trace_db.variant_id,
-        cost=trace_db.cost,
-        latency=trace_db.latency,
-        status=trace_db.status,
-        token_consumption=trace_db.token_consumption,
-        tags=trace_db.tags,
-        start_time=trace_db.start_time,
-        end_time=trace_db.end_time,
-        feedbacks=result,
-        spans=[str(span) for span in trace_db.spans],
     ).dict(exclude_unset=True)
 
 
