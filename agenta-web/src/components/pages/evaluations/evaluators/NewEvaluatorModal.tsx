@@ -10,7 +10,7 @@ import {
 } from "@/services/evaluations"
 import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
+import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -18,6 +18,7 @@ import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
+import EvaluatorTextarea from "./EvaluatorTextarea"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -124,6 +125,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
+    const [newValue, setNewValue] = useState(defaultVal ? defaultVal.toString() : "")
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -174,7 +176,10 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
-                    <Input.TextArea rows={10} />
+                    <EvaluatorTextarea
+                        value={newValue}
+                        onChange={(newValue) => setNewValue(newValue)}
+                    />
                 ) : type === "code" ? (
                     <Editor
                         className={classes.editor}
