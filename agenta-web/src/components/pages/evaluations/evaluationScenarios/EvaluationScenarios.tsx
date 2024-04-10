@@ -22,8 +22,8 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
+import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
-import {useLocalStorage} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -56,7 +56,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
+    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -96,7 +96,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
-                        return `${result?.error?.message}\n${result?.error?.stacktrace}`
+                        return LongTextCellRenderer(
+                            params,
+                            `${result?.error?.message}\n${result?.error?.stacktrace}`,
+                        )
                     }
                     return showDiff === "show"
                         ? LongTextCellRenderer(
