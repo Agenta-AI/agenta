@@ -96,7 +96,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
-                        return `${result?.error?.message}\n${result?.error?.stacktrace}`
+                        return LongTextCellRenderer(
+                            params,
+                            `${result?.error?.message}\n${result?.error?.stacktrace}`,
+                        )
                     }
                     return showDiff === "show"
                         ? LongTextCellRenderer(
