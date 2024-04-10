@@ -4,15 +4,19 @@ title: "Changelog"
 
 ## v0.12.6 - Compare latency and costs
 *1st April 2024*
-You can now compare the latency and cost of different variants in the evaluation view.
-< add screenshot >
 
-## v0.12.5 - Minor improvements 
+You can now compare the latency and cost of different variants in the evaluation view.
+<img height="600" className="dark:hidden" src="/images/changelog/compare_latency_and_cost_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/compare_latency_and_cost_dark.png" />
+
+## v0.12.5 - Minor improvements
 *31st March 2024*
 
 ** Toggle variants in comparison view **
-You can now toggle the visibility of variants in the comparison view, allowing you to compare a multitude of variants side-by-side at the same time **
-< add screenshot >
+
+You can now toggle the visibility of variants in the comparison view, allowing you to compare a multitude of variants side-by-side at the same time.
+<img height="600" className="dark:hidden" src="/images/changelog/toggle_variants_visibility_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/toggle_variants_visibility_dark.png" />
 
 ** Improvements **
 - You can now add a datapoint from the playground to the test set even if there is a column mismatch
@@ -64,12 +68,16 @@ We have improved the evaluation comparison view to show the difference to the ex
 
 ## v0.12.0 - Deployment Versioning and RBAC
 *14th February 2024*
+
 ** Deployment versioning **
+
 You now have access to a history of prompts deployed to our three environments. This feature allows you to roll back to previous versions if needed.
 
 ** Role-Based Access Control **
+
 You can now invite team members and assign them fine-grained roles in agenta.
-< add screenshot>
+<img height="600" className="dark:hidden" src="/images/changelog/rbac_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/rbac_dark.png" />
 
 ** Improvements **
 - We now prevent the deletion of test sets that are used in evaluations
@@ -92,18 +100,24 @@ You can now invite team members and assign them fine-grained roles in agenta.
 
 ## v0.10.0 - Prompt Versioning
 *31st January 2024*
+
 We've introduced the feature to version prompts, allowing you to track changes made by the team and revert to previous versions. To view the change history of the configuration, click on the sign in the playground to access all previous versions.
-< add screenshot>
+<img height="600" className="dark:hidden" src="/images/changelog/prompt_versioning_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/prompt_versioning_dark.png" />
 
 ## v0.9.1 - New JSON Evaluator
 *30th January 2024*
+
 We have added a new evaluator to match JSON fields and added the possiblity to use other columns in the test set other than the `correct_answer` column as the ground truth.
-< add screenshot>
+<img height="600" className="dark:hidden" src="/images/changelog/new_json_evaluator_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/new_json_evaluator_dark.png" />
 
 ## v0.9.0 - Improved error handling in evaluation
 *29th January 2024*
-We have improved error handling in evaluation to return more information about the exact source of the error in the evaluation view
-< add screenshot (maybe with wrong openai key) >
+
+We have improved error handling in evaluation to return more information about the exact source of the error in the evaluation view.
+<img height="600" className="dark:hidden" src="/images/changelog/improved_error_handling_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/improved_error_handling_dark.png" />
 
 **Improvements**:
 - Added the option in A/B testing human evaluation to mark both variants as correct
@@ -118,8 +132,8 @@ Up until know, we required users to use our OpenAI API key when using cloud. Sta
 
 ** Faster human evaluation workflow
 We have updated the human evaluation table view to add annotation and correct answer columns.
-
-<add a small screenshot>
+<img height="600" className="dark:hidden" src="/images/changelog/improved_human_eval_workflow_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/improved_human_eval_workflow_dark.png" />
 
 **Improvements**:
 - Simplified the database migration process
