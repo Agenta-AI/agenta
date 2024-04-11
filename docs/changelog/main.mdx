@@ -12,16 +12,16 @@ You can now compare the latency and cost of different variants in the evaluation
 ## v0.12.5 - Minor improvements
 *31st March 2024*
 
-** Toggle variants in comparison view **
+**Toggle variants in comparison view**
 
 You can now toggle the visibility of variants in the comparison view, allowing you to compare a multitude of variants side-by-side at the same time.
 <img height="600" className="dark:hidden" src="/images/changelog/toggle_variants_visibility_light.png" />
 <img height="600" className="hidden dark:block" src="/images/changelog/toggle_variants_visibility_dark.png" />
 
-** Improvements **
+**Improvements**
 - You can now add a datapoint from the playground to the test set even if there is a column mismatch
 
-** Bug fixes **
+**Bug fixes**
 - Resolved issue with "Start Evaluation" button in Testset view
 - Fixed bug in CLI causing variant not to serve
 
@@ -30,12 +30,12 @@ You can now toggle the visibility of variants in the comparison view, allowing y
 
 We have added some more evaluators, a new string matching and a Levenshtein distance evaluation.
 
-** Improvements **
+**Improvements**
 - Updated documentation for human evaluation
 - Made improvements to Human evaluation card view
 - Added dialog to indicate testset being saved in UI
 
-** Bug fixes **
+**Bug fixes**
 - Fixed issue with viewing the full output value during evaluation
 - Enhanced error boundary logic to unblock user interface
 - Improved logic to save and retrieve multiple LLM provider keys
@@ -49,7 +49,7 @@ We have added some more evaluators, a new string matching and a Levenshtein dist
 - Added an option to save a test set in the Single model evaluation view
 - Included the evaluator name in the "Configure your evaluator" modal
 
-** Bug fixes **
+**Bug fixes**
 - Fixed column resize in comparison view
 - Resolved a bug affecting the evaluation output in the CSV file
 - Corrected the path to the Evaluators view when navigating from Evaluations
@@ -60,7 +60,7 @@ We have added some more evaluators, a new string matching and a Levenshtein dist
 
 We have improved the evaluation comparison view to show the difference to the expected output.
 
-** Improvements **
+**Improvements**
 - Improved the error messages when invoking LLM applications
 - Improved "Add new evaluation" modal
 - Upgraded Sidemenu to display Configure evaluator and run evaluator under Evaluations section
@@ -69,20 +69,20 @@ We have improved the evaluation comparison view to show the difference to the ex
 ## v0.12.0 - Deployment Versioning and RBAC
 *14th February 2024*
 
-** Deployment versioning **
+**Deployment versioning**
 
 You now have access to a history of prompts deployed to our three environments. This feature allows you to roll back to previous versions if needed.
 
-** Role-Based Access Control **
+**Role-Based Access Control**
 
 You can now invite team members and assign them fine-grained roles in agenta.
 <img height="600" className="dark:hidden" src="/images/changelog/rbac_light.png" />
 <img height="600" className="hidden dark:block" src="/images/changelog/rbac_dark.png" />
 
-** Improvements **
+**Improvements**
 - We now prevent the deletion of test sets that are used in evaluations
 
-** Bug fixes**
+**Bug fixes**
 - Fixed bug in custom code evaluation aggregation. Up until know the aggregated result for custom code evalution where not computed correctly.
 - Fixed bug with Evaluation results not being exported correctly
 
@@ -125,12 +125,14 @@ We have improved error handling in evaluation to return more information about t
 
 ## v0.8.3 - Bring your own API key
 *25th January 2024*
+
 Up until know, we required users to use our OpenAI API key when using cloud. Starting now, you can use your own API key for any new application you create.
 
 ## v0.8.2 - Improved human evaluation workflow
 *24th January 2024*
 
-** Faster human evaluation workflow
+**Faster human evaluation workflow**
+
 We have updated the human evaluation table view to add annotation and correct answer columns.
 <img height="600" className="dark:hidden" src="/images/changelog/improved_human_eval_workflow_light.png" />
 <img height="600" className="hidden dark:block" src="/images/changelog/improved_human_eval_workflow_dark.png" />
