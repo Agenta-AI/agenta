@@ -7,75 +7,10 @@ from agenta.client.backend import client
 from agenta.sdk.tracing.logger import llm_logger
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncObservabilityClient
+from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanStatusCode
 
 # Third Party Imports
 from bson.objectid import ObjectId
-
-
-class Span:
-    def __init__(
-        self,
-        trace_id: str,
-        span_id: str,
-        name: str,
-        input: Dict[str, Any],
-        type: str,
-        parent_span_id: Optional[str] = None,
-        **kwargs: Dict[str, Any],
-    ):
-        self.trace_id = trace_id
-        self.span_id = span_id
-        self.name = name
-        self.type = type
-        self.parent_span_id = parent_span_id
-        self.start_time = datetime.now(timezone.utc)
-        self.end_time = Optional[datetime]
-        self.input = input
-        self.status = Dict[str, Any]
-        self.output = Optional[str]
-        self.cost = Optional[float]
-        self.tokens = Optional[Dict[str, int]]
-        self.attributes: Dict[str, Any] = kwargs
-
-    def set_attribute(self, key: str, value: Any, parent_key: Optional[str] = None):
-        if parent_key is not None:
-            model_config = self.attributes.get(parent_key, None)
-            if not model_config:
-                self.attributes[parent_key] = {}
-            self.attributes[parent_key][key] = value
-        else:
-            self.attributes[key] = value
-
-    def update_span_status(self, status: str, exc: Optional[str] = None):
-        if status == "FAILED":
-            self.status = {  # type: ignore
-                "value": None,
-                "error": {"message": status, "stacktrace": str(exc)},
-            }
-        elif status == "COMPLETED":
-            self.status = {"value": status, "error": None}  # type: ignore
-
-    def end(self, output: Dict[str, Any]):
-        self.end_time = datetime.now(timezone.utc)
-        self.output = output["message"]
-        self.cost = output.get("cost", 0)
-        self.tokens = output.get("usage", {})
-
-    def __dict__(self):
-        return {
-            "trace_id": self.trace_id,
-            "span_id": self.span_id,
-            "name": self.name,
-            "type": self.type,
-            "parent_span_id": self.parent_span_id,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "end_time": self.end_time.isoformat() if self.end_time else None,
-            "input": self.input,
-            "output": self.output,
-            "status": self.status,
-            "tokens": self.tokens,
-            "attributes": self.attributes,
-        }
 
 
 class Tracing(object):
@@ -112,10 +47,11 @@ class Tracing(object):
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=llm_logger
         )
-        self.active_span = None
+        self.active_span = CreateSpan
         self.active_trace = None
+        self.recorded_spans: List[CreateSpan] = []
         self.tags: List[str] = []
-        self.span_dict: Dict[str, Span] = {}  # type: ignore
+        self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
 
     @property
     def client(self) -> AsyncObservabilityClient:
@@ -132,50 +68,96 @@ class Tracing(object):
     def set_span_attribute(
         self, parent_key: Optional[str] = None, attributes: Dict[str, Any] = {}
     ):
-        span = self.span_dict[self.active_span]  # type: ignore
+        span = self.span_dict[self.active_span.id]  # type: ignore
         for key, value in attributes.items():
-            span.set_attribute(key, value, parent_key)
+            self.set_attribute(span.attributes, key, value, parent_key)
+
+    def set_attribute(
+        self,
+        span_attributes: Dict[str, Any],
+        key: str,
+        value: Any,
+        parent_key: Optional[str] = None,
+    ):
+        if parent_key is not None:
+            model_config = span_attributes.get(parent_key, None)
+            if not model_config:
+                span_attributes[parent_key] = {}
+            span_attributes[parent_key][key] = value
+        else:
+            span_attributes[key] = value
 
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
 
+    def start_parent_span(
+        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any]
+    ):
+        trace_id = self._create_trace_id()
+        span_id = self._create_span_id()
+        span = CreateSpan(
+            **{
+                "id": span_id,
+                "app_id": self.app_id,
+                "variant_id": self.variant_id,
+                "inputs": inputs,
+                "name": name,
+                "config": config,
+                "spankind": SpanKind.WORKFLOW,
+                "status": SpanStatusCode.UNSET,
+                "start_time": datetime.now(timezone.utc),
+            }
+        )
+        self.active_span = span
+        self.active_trace = trace_id
+        self.parent_span_id = span_id
+
     def start_span(
         self,
         name: str,
+        spankind: str,
         input: Dict[str, Any],
-        type: str,
-        trace_id: Optional[str] = None,
-        parent_span_id: Optional[str] = None,
-        **kwargs: Dict[str, Any],
-    ) -> Span:
-        trace_id = trace_id if trace_id else self._create_trace_id()
+        config: Dict[str, Any] = {},
+    ):
         span_id = self._create_span_id()
-        parent_span_id = self.active_span if not parent_span_id else parent_span_id
-        span = Span(
-            trace_id=trace_id,
-            span_id=span_id,
-            name=name,
-            type=type,
-            parent_span_id=parent_span_id,
-            input=input,
-            **kwargs,
+        span = CreateSpan(
+            **{
+                "id": span_id,
+                "inputs": input,
+                "name": name,
+                "config": config,
+                "parent_span_id": self.parent_span_id,
+                "spankind": spankind,
+                "status": SpanStatusCode.UNSET,
+                "start_time": datetime.now(timezone.utc),
+            }
         )
-        self.span_dict[span_id] = span
-        self.active_span = span_id  # type: ignore
-        self.llm_logger.info(f"Creating span {span.span_id}...")
-        return span
+        self.active_span = span
+        self.active_trace = self.active_trace
+        self.parent_span_id = span_id
 
-    def end_span(self, output: Dict[str, Any], span: Span):
-        span.end(output=output)
-        self.active_span = span.parent_span_id  # type: ignore
+    def end_span(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
+        span.end_time = datetime.now(timezone.utc)
+        span.outputs = [outputs["message"]]
+        span.cost = outputs.get("cost", 0)
+        span.environment = kwargs.get("environment")
+        span.attributes = kwargs
+        span.tokens = outputs.get("usage", {})
+
+        # Push span to list of recorded spans
+        self.recorded_spans.append(span)
+
+    def end_recording(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
+        self.end_span(outputs=outputs, span=span, **kwargs)
         self.tasks_manager.add_task(
-            span.span_id, "span", self._send_span(span=span), self.client
+            self.active_trace,
+            "trace",
+            self.client.create_traces(trace="trace", spans=self.recorded_spans),
+            self.client,
         )
-        self.parent_span_id = span.span_id
-        self.llm_logger.info(f"Created span {span.span_id} successfully.")
-
-    async def _send_span(self, span: Span):
-        return await self.client.create_span(**span.__dict__())
+        self.llm_logger.info(
+            f"Tracing for {span.id} recorded successfully and sent for processing."
+        )
 
     def _create_trace_id(self) -> str:
         """Creates a unique mongo id for the trace object.
@@ -194,64 +176,3 @@ class Tracing(object):
         """
 
         return str(ObjectId())
-
-    def trace(
-        self,
-        trace_name: Optional[str],
-        inputs: Dict[str, Any],
-        config: Dict[str, Any],
-        **kwargs: Dict[str, Any],
-    ):
-        """Creates a new trace.
-
-        Args:
-            trace_name (Optional[str]): The identifier for the trace.
-            app_id (str): The ID of the app.
-            config (Dict): The configuration of the app.
-            **kwargs (Dict): Additional information.
-        """
-
-        trace_id = self._create_trace_id()
-        self.llm_logger.info(f"Starting tracing for trace {trace_id}...")
-        self.tasks_manager.add_task(
-            trace_id,
-            "trace",
-            self.client.create_trace(
-                id=trace_id,
-                app_id=self.app_id,
-                variant_id=self.variant_id,
-                trace_name=trace_name,  # type: ignore
-                start_time=datetime.now(timezone.utc),
-                inputs=inputs,
-                config=config,
-                environment=kwargs.get("environment"),  # type: ignore
-                status="INITIATED",
-                tags=self.tags,
-            ),
-            self.client,
-        )
-        self.active_trace = trace_id  # type: ignore
-        self.llm_logger.info(f"Trace {trace_id} ended successfully.")
-
-    def end_trace(
-        self,
-        outputs: List[str],
-        cost: Optional[float] = None,
-        total_tokens: Optional[int] = None,
-    ):
-        if not self.active_trace:
-            return
-
-        self.tasks_manager.add_task(
-            self.active_trace,
-            "trace",
-            self.client.update_trace(
-                trace_id=self.active_trace,  # type: ignore
-                status="COMPLETED",
-                end_time=datetime.now(timezone.utc),
-                cost=cost,
-                token_consumption=total_tokens,
-                outputs=outputs,
-            ),
-            self.client,
-        )

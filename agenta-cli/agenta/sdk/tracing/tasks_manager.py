@@ -1,11 +1,9 @@
 # Stdlib Imports
 import queue
 import asyncio
-import threading
 from logging import Logger
-from datetime import datetime
-from typing import Coroutine, Optional, Union, Dict, Any
-from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Coroutine, Optional, Union
+from concurrent.futures import ThreadPoolExecutor
 
 # Own Imports
 from agenta.client.backend.types.error import Error
@@ -108,35 +106,11 @@ class TaskQueue(object):
                 future.result()
             except Exception as exc:
                 self._logger.error(f"Error running task: {str(exc)}")
-
-                self._logger.error(f"Updating {task.coroutine_type} status to FAILED.")
-                self._handle_error_completion(
-                    client=task.client,
-                    trace=task.coroutine_id,
-                    type=task.coroutine_type,
-                    exc=exc,
-                )
+                self._logger.error(f"Recording trace {task.coroutine_type} status to ERROR.")
                 break
             finally:
                 self.tasks.task_done()
                 break
-
-    def _handle_error_completion(
-        self, client: AsyncObservabilityClient, trace: str, type: str, exc: Exception
-    ):
-        if type == None:
-            return
-
-        if type == "trace":
-            task = client.update_trace(
-                trace_id=trace,  # type: ignore
-                status="FAILED",
-                end_time=datetime.now(),
-                outputs=[str(exc)],
-            )
-
-        future = self._thread_pool.submit(asyncio.run, task)  # type: ignore
-        future.result()
 
     def _get_size(self) -> int:
         """Returns the approximate number of items in the queue."""
