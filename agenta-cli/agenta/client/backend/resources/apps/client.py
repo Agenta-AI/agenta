@@ -45,8 +45,13 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.list_app_variants(app_id="app_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.list_app_variants(
+            app_id="app_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -90,8 +95,14 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_variant_by_env(app_id="app_id", environment="environment")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.get_variant_by_env(
+            app_id="app_id",
+            environment="environment",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -144,8 +155,11 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.list_apps()
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.list_apps()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -195,8 +209,13 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_app(app_name="app_name")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.create_app(
+            app_name="app_name",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {"app_name": app_name}
         if organization_id is not OMIT:
@@ -259,8 +278,16 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.add_variant_from_image(app_id="app_id", variant_name="variant_name", docker_id="docker_id", tags="tags")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.add_variant_from_image(
+            app_id="app_id",
+            variant_name="variant_name",
+            docker_id="docker_id",
+            tags="tags",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {
             "variant_name": variant_name,
@@ -303,8 +330,13 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.remove_app(app_id="app_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.remove_app(
+            app_id="app_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -359,9 +391,14 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_app_and_variant_from_template(
-            app_name="app_name", template_id="template_id", env_vars={"env_vars": "env_vars"}
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.create_app_and_variant_from_template(
+            app_name="app_name",
+            template_id="template_id",
+            env_vars={"env_vars": "env_vars"},
         )
         """
         _request: typing.Dict[str, typing.Any] = {
@@ -409,8 +446,13 @@ class AppsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.list_environments(app_id="app_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.list_environments(
+            app_id="app_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -479,8 +521,13 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.list_app_variants(app_id="app_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.list_app_variants(
+            app_id="app_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -524,8 +571,14 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_variant_by_env(app_id="app_id", environment="environment")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.get_variant_by_env(
+            app_id="app_id",
+            environment="environment",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -578,8 +631,11 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.list_apps()
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.list_apps()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -629,8 +685,13 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_app(app_name="app_name")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.create_app(
+            app_name="app_name",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {"app_name": app_name}
         if organization_id is not OMIT:
@@ -693,8 +754,16 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.add_variant_from_image(app_id="app_id", variant_name="variant_name", docker_id="docker_id", tags="tags")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.add_variant_from_image(
+            app_id="app_id",
+            variant_name="variant_name",
+            docker_id="docker_id",
+            tags="tags",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {
             "variant_name": variant_name,
@@ -737,8 +806,13 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.remove_app(app_id="app_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.remove_app(
+            app_id="app_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -793,9 +867,14 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_app_and_variant_from_template(
-            app_name="app_name", template_id="template_id", env_vars={"env_vars": "env_vars"}
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.create_app_and_variant_from_template(
+            app_name="app_name",
+            template_id="template_id",
+            env_vars={"env_vars": "env_vars"},
         )
         """
         _request: typing.Dict[str, typing.Any] = {
@@ -843,8 +922,13 @@ class AsyncAppsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.list_environments(app_id="app_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.apps.list_environments(
+            app_id="app_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",

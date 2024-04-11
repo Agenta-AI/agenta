@@ -46,6 +46,17 @@ class ContainersClient:
             - base_name: str.
 
             - tar_file: typing.IO.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.containers.build_image(
+            app_id="app_id",
+            base_name="base_name",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -56,7 +67,7 @@ class ContainersClient:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -80,8 +91,13 @@ class ContainersClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.restart_container(variant_id="variant_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.containers.restart_container(
+            variant_id="variant_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -157,8 +173,11 @@ class ContainersClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.construct_app_container_url()
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.containers.construct_app_container_url()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -207,6 +226,17 @@ class AsyncContainersClient:
             - base_name: str.
 
             - tar_file: typing.IO.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.containers.build_image(
+            app_id="app_id",
+            base_name="base_name",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -217,7 +247,7 @@ class AsyncContainersClient:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -243,8 +273,13 @@ class AsyncContainersClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.restart_container(variant_id="variant_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.containers.restart_container(
+            variant_id="variant_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -320,8 +355,11 @@ class AsyncContainersClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.construct_app_container_url()
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.containers.construct_app_container_url()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",

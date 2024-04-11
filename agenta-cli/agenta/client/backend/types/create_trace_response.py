@@ -11,9 +11,9 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class LlmInputs(pydantic.BaseModel):
-    input_name: str
-    input_value: str
+class CreateTraceResponse(pydantic.BaseModel):
+    message: str
+    data: typing.Dict[str, typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

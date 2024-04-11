@@ -36,8 +36,11 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_evaluators_endpoint()
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.get_evaluators_endpoint()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -70,8 +73,13 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_evaluator_configs(app_id="app_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.get_evaluator_configs(
+            app_id="app_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -120,8 +128,16 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_new_evaluator_config(app_id="app_id", name="name", evaluator_key="evaluator_key", settings_values={})
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.create_new_evaluator_config(
+            app_id="app_id",
+            name="name",
+            evaluator_key="evaluator_key",
+            settings_values={},
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -161,8 +177,13 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.get_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -208,8 +229,13 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.update_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.update_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -253,8 +279,13 @@ class EvaluatorsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.delete_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.delete_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -290,8 +321,11 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_evaluators_endpoint()
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.get_evaluators_endpoint()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -326,8 +360,13 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_evaluator_configs(app_id="app_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.get_evaluator_configs(
+            app_id="app_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -376,9 +415,15 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_new_evaluator_config(
-            app_id="app_id", name="name", evaluator_key="evaluator_key", settings_values={}
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.create_new_evaluator_config(
+            app_id="app_id",
+            name="name",
+            evaluator_key="evaluator_key",
+            settings_values={},
         )
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -419,8 +464,13 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.get_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -466,8 +516,13 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.update_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.update_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _request: typing.Dict[str, typing.Any] = {}
         if name is not OMIT:
@@ -511,8 +566,13 @@ class AsyncEvaluatorsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.delete_evaluator_config(evaluator_config_id="evaluator_config_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.evaluators.delete_evaluator_config(
+            evaluator_config_id="evaluator_config_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",

@@ -14,6 +14,8 @@ except ImportError:
 
 class EvaluationScenarioOutput(pydantic.BaseModel):
     result: Result
+    cost: typing.Optional[float]
+    latency: typing.Optional[float]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
