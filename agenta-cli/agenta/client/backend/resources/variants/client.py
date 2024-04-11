@@ -15,9 +15,7 @@ from ...types.http_validation_error import HttpValidationError
 from ...types.image import Image
 from ...types.uri import Uri
 from ...types.variant_action import VariantAction
-from .types.add_variant_from_base_and_config_response import (
-    AddVariantFromBaseAndConfigResponse,
-)
+from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -33,12 +31,7 @@ class VariantsClient:
         self._client_wrapper = client_wrapper
 
     def add_variant_from_base_and_config(
-        self,
-        *,
-        base_id: str,
-        new_variant_name: str,
-        new_config_name: str,
-        parameters: typing.Dict[str, typing.Any],
+        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -65,9 +58,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -106,9 +97,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -123,11 +112,7 @@ class VariantsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def start_variant(
-        self,
-        variant_id: str,
-        *,
-        action: VariantAction,
-        env_vars: typing.Optional[DockerEnvVars] = OMIT,
+        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
     ) -> Uri:
         """
         Start a variant of an app.
@@ -170,9 +155,7 @@ class VariantsClient:
             _request["env_vars"] = env_vars
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -213,9 +196,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -229,9 +210,7 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_parameters(
-        self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
-    ) -> typing.Any:
+    def update_variant_parameters(self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]) -> typing.Any:
         """
         Updates the parameters for an app variant.
 
@@ -264,10 +243,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/parameters",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -318,10 +294,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -353,10 +326,7 @@ class VariantsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/revisions",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/revisions"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -370,9 +340,7 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_variant_revision(
-        self, variant_id: str, revision_number: int
-    ) -> AppVariantRevision:
+    def get_variant_revision(self, variant_id: str, revision_number: int) -> AppVariantRevision:
         """
         Parameters:
             - variant_id: str.
@@ -393,8 +361,7 @@ class VariantsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/revisions/{revision_number}",
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/revisions/{revision_number}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -415,12 +382,7 @@ class AsyncVariantsClient:
         self._client_wrapper = client_wrapper
 
     async def add_variant_from_base_and_config(
-        self,
-        *,
-        base_id: str,
-        new_variant_name: str,
-        new_config_name: str,
-        parameters: typing.Dict[str, typing.Any],
+        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -447,9 +409,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -488,9 +448,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -505,11 +463,7 @@ class AsyncVariantsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def start_variant(
-        self,
-        variant_id: str,
-        *,
-        action: VariantAction,
-        env_vars: typing.Optional[DockerEnvVars] = OMIT,
+        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
     ) -> Uri:
         """
         Start a variant of an app.
@@ -552,9 +506,7 @@ class AsyncVariantsClient:
             _request["env_vars"] = env_vars
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -595,9 +547,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -646,10 +596,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/parameters",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -664,9 +611,7 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_image(
-        self, variant_id: str, *, request: Image
-    ) -> typing.Any:
+    async def update_variant_image(self, variant_id: str, *, request: Image) -> typing.Any:
         """
         Updates the image used in an app variant.
 
@@ -702,10 +647,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -720,9 +662,7 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_revisions(
-        self, variant_id: str
-    ) -> typing.List[AppVariantRevision]:
+    async def get_variant_revisions(self, variant_id: str) -> typing.List[AppVariantRevision]:
         """
         Parameters:
             - variant_id: str.
@@ -739,10 +679,7 @@ class AsyncVariantsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/revisions",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/revisions"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -756,9 +693,7 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_revision(
-        self, variant_id: str, revision_number: int
-    ) -> AppVariantRevision:
+    async def get_variant_revision(self, variant_id: str, revision_number: int) -> AppVariantRevision:
         """
         Parameters:
             - variant_id: str.
@@ -779,8 +714,7 @@ class AsyncVariantsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/revisions/{revision_number}",
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/revisions/{revision_number}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,

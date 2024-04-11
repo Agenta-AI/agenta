@@ -5,6 +5,8 @@ import typing
 
 from ..core.datetime_utils import serialize_datetime
 from .llm_tokens import LlmTokens
+from .span_kind import SpanKind
+from .span_status_code import SpanStatusCode
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -13,6 +15,7 @@ except ImportError:
 
 
 class CreateSpan(pydantic.BaseModel):
+    id: str
     app_id: typing.Optional[str]
     variant_id: typing.Optional[str]
     inputs: typing.Optional[typing.Dict[str, typing.Any]]
@@ -24,8 +27,8 @@ class CreateSpan(pydantic.BaseModel):
     name: str
     parent_span_id: typing.Optional[str]
     attributes: typing.Optional[typing.Dict[str, typing.Any]]
-    spankind: str
-    status: str
+    spankind: SpanKind
+    status: SpanStatusCode
     user: typing.Optional[str]
     start_time: dt.datetime
     end_time: dt.datetime
@@ -33,19 +36,11 @@ class CreateSpan(pydantic.BaseModel):
     cost: typing.Optional[float]
 
     def json(self, **kwargs: typing.Any) -> str:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().json(**kwargs_with_defaults)
 
     def dict(self, **kwargs: typing.Any) -> typing.Dict[str, typing.Any]:
-        kwargs_with_defaults: typing.Any = {
-            "by_alias": True,
-            "exclude_unset": True,
-            **kwargs,
-        }
+        kwargs_with_defaults: typing.Any = {"by_alias": True, "exclude_unset": True, **kwargs}
         return super().dict(**kwargs_with_defaults)
 
     class Config:
