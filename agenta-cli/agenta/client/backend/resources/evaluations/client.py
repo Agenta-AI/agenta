@@ -69,15 +69,9 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations/by_resource"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/by_resource"),
             params=remove_none_from_dict(
-                {
-                    "app_id": app_id,
-                    "resource_type": resource_type,
-                    "resource_ids": resource_ids,
-                }
+                {"app_id": app_id, "resource_type": resource_type, "resource_ids": resource_ids}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -117,9 +111,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -200,9 +192,7 @@ class EvaluationsClient:
             _request["correct_answer_column"] = correct_answer_column
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -217,9 +207,7 @@ class EvaluationsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
-    ) -> typing.List[str]:
+    def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -244,9 +232,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -287,10 +273,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/status",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/status"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -330,10 +313,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -347,9 +327,7 @@ class EvaluationsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
+    def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
@@ -378,8 +356,7 @@ class EvaluationsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -419,10 +396,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -454,10 +428,7 @@ class EvaluationsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -498,8 +469,7 @@ class EvaluationsClient:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenarios/comparison-results",
+                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenarios/comparison-results"
             ),
             params=remove_none_from_dict({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
@@ -561,15 +531,9 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations/by_resource"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/by_resource"),
             params=remove_none_from_dict(
-                {
-                    "app_id": app_id,
-                    "resource_type": resource_type,
-                    "resource_ids": resource_ids,
-                }
+                {"app_id": app_id, "resource_type": resource_type, "resource_ids": resource_ids}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -609,9 +573,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -692,9 +654,7 @@ class AsyncEvaluationsClient:
             _request["correct_answer_column"] = correct_answer_column
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -709,9 +669,7 @@ class AsyncEvaluationsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
-    ) -> typing.List[str]:
+    async def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -736,9 +694,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -779,10 +735,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/status",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/status"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -822,10 +775,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -839,9 +789,7 @@ class AsyncEvaluationsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
+    async def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
@@ -870,8 +818,7 @@ class AsyncEvaluationsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -911,10 +858,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -946,10 +890,7 @@ class AsyncEvaluationsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -990,8 +931,7 @@ class AsyncEvaluationsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenarios/comparison-results",
+                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenarios/comparison-results"
             ),
             params=remove_none_from_dict({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),

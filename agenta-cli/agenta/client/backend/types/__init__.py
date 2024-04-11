@@ -51,9 +51,9 @@ from .score import Score
 from .simple_evaluation_output import SimpleEvaluationOutput
 from .span import Span
 from .span_detail import SpanDetail
-from .span_status import SpanStatus
+from .span_kind import SpanKind
+from .span_status_code import SpanStatusCode
 from .span_variant import SpanVariant
-from .status import Status
 from .template import Template
 from .template_image_info import TemplateImageInfo
 from .test_set_output_response import TestSetOutputResponse
@@ -123,9 +123,9 @@ __all__ = [
     "SimpleEvaluationOutput",
     "Span",
     "SpanDetail",
-    "SpanStatus",
+    "SpanKind",
+    "SpanStatusCode",
     "SpanVariant",
-    "Status",
     "Template",
     "TemplateImageInfo",
     "TestSetOutputResponse",
