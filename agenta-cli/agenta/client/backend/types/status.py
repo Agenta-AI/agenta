@@ -12,18 +12,18 @@ class Status(str, enum.Enum):
     """
 
     INITIATED = "INITIATED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
     def visit(
         self,
         initiated: typing.Callable[[], T_Result],
-        success: typing.Callable[[], T_Result],
-        failure: typing.Callable[[], T_Result],
+        completed: typing.Callable[[], T_Result],
+        failed: typing.Callable[[], T_Result],
     ) -> T_Result:
         if self is Status.INITIATED:
             return initiated()
-        if self is Status.SUCCESS:
-            return success()
-        if self is Status.FAILURE:
-            return failure()
+        if self is Status.COMPLETED:
+            return completed()
+        if self is Status.FAILED:
+            return failed()

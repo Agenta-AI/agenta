@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .span import Span
 from .span_status import SpanStatus
 from .span_variant import SpanVariant
 
@@ -15,12 +16,17 @@ except ImportError:
 
 class TraceDetail(pydantic.BaseModel):
     id: str
+    name: str
+    parent_span_id: typing.Optional[str]
     created_at: dt.datetime
     variant: SpanVariant
     environment: typing.Optional[str]
     status: SpanStatus
     metadata: typing.Dict[str, typing.Any]
-    user_id: str
+    user_id: typing.Optional[str]
+    children: typing.Optional[typing.List[Span]]
+    content: typing.Dict[str, typing.Any]
+    config: typing.Dict[str, typing.Any]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

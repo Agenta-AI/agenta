@@ -28,7 +28,12 @@ class TestsetsClient:
         self._client_wrapper = client_wrapper
 
     def upload_file(
-        self, *, upload_type: str, file: typing.IO, testset_name: str, app_id: str
+        self,
+        *,
+        upload_type: typing.Optional[str] = None,
+        file: typing.IO,
+        testset_name: typing.Optional[str] = None,
+        app_id: typing.Optional[str] = None,
     ) -> TestSetSimpleResponse:
         """
         Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -42,13 +47,21 @@ class TestsetsClient:
         dict: The result of the upload process.
 
         Parameters:
-            - upload_type: str.
+            - upload_type: typing.Optional[str].
 
             - file: typing.IO.
 
-            - testset_name: str.
+            - testset_name: typing.Optional[str].
 
-            - app_id: str.
+            - app_id: typing.Optional[str].
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.upload_file()
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -90,8 +103,11 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.import_testset()
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.import_testset()
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -133,8 +149,17 @@ class TestsetsClient:
         from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.create_testset(
+            app_id="app_id",
+            request=NewTestset(
+                name="name",
+                csvdata=[{"csvdata": "csvdata"}],
+            ),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -170,8 +195,13 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_single_testset(testset_id="testset_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.get_single_testset(
+            testset_id="testset_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -210,8 +240,17 @@ class TestsetsClient:
         from agenta import NewTestset
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.update_testset(
+            testset_id="testset_id",
+            request=NewTestset(
+                name="name",
+                csvdata=[{"csvdata": "csvdata"}],
+            ),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -249,8 +288,13 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_testsets(app_id="app_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.get_testsets(
+            app_id="app_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -284,8 +328,13 @@ class TestsetsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.delete_testsets(testset_ids=["testset_ids"])
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.delete_testsets(
+            testset_ids=["testset_ids"],
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -310,7 +359,12 @@ class AsyncTestsetsClient:
         self._client_wrapper = client_wrapper
 
     async def upload_file(
-        self, *, upload_type: str, file: typing.IO, testset_name: str, app_id: str
+        self,
+        *,
+        upload_type: typing.Optional[str] = None,
+        file: typing.IO,
+        testset_name: typing.Optional[str] = None,
+        app_id: typing.Optional[str] = None,
     ) -> TestSetSimpleResponse:
         """
         Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -324,13 +378,21 @@ class AsyncTestsetsClient:
         dict: The result of the upload process.
 
         Parameters:
-            - upload_type: str.
+            - upload_type: typing.Optional[str].
 
             - file: typing.IO.
 
-            - testset_name: str.
+            - testset_name: typing.Optional[str].
 
-            - app_id: str.
+            - app_id: typing.Optional[str].
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.upload_file()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -372,8 +434,11 @@ class AsyncTestsetsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.import_testset()
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.import_testset()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -415,8 +480,17 @@ class AsyncTestsetsClient:
         from agenta import NewTestset
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.create_testset(app_id="app_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.create_testset(
+            app_id="app_id",
+            request=NewTestset(
+                name="name",
+                csvdata=[{"csvdata": "csvdata"}],
+            ),
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -452,8 +526,13 @@ class AsyncTestsetsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_single_testset(testset_id="testset_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.get_single_testset(
+            testset_id="testset_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -494,8 +573,17 @@ class AsyncTestsetsClient:
         from agenta import NewTestset
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.update_testset(testset_id="testset_id", request=NewTestset(name="name", csvdata=[{"csvdata": "csvdata"}]))
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.update_testset(
+            testset_id="testset_id",
+            request=NewTestset(
+                name="name",
+                csvdata=[{"csvdata": "csvdata"}],
+            ),
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
@@ -533,8 +621,13 @@ class AsyncTestsetsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_testsets(app_id="app_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.get_testsets(
+            app_id="app_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -570,8 +663,13 @@ class AsyncTestsetsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.delete_testsets(testset_ids=["testset_ids"])
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.testsets.delete_testsets(
+            testset_ids=["testset_ids"],
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",

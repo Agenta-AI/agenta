@@ -96,8 +96,13 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_variant(variant_id="variant_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.get_variant(
+            variant_id="variant_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -149,8 +154,16 @@ class VariantsClient:
         from agenta import VariantAction, VariantActionEnum
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.start_variant(variant_id="variant_id", action=VariantAction(action=VariantActionEnum.START))
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.start_variant(
+            variant_id="variant_id",
+            action=VariantAction(
+                action=VariantActionEnum.START,
+            ),
+        )
         """
         _request: typing.Dict[str, typing.Any] = {"action": action}
         if env_vars is not OMIT:
@@ -190,8 +203,13 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.remove_variant(variant_id="variant_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.remove_variant(
+            variant_id="variant_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -235,8 +253,14 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.update_variant_parameters(variant_id="variant_id", parameters={})
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.update_variant_parameters(
+            variant_id="variant_id",
+            parameters={},
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -280,8 +304,17 @@ class VariantsClient:
         from agenta import Image
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.update_variant_image(variant_id="variant_id", request=Image(docker_id="docker_id", tags="tags"))
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.update_variant_image(
+            variant_id="variant_id",
+            request=Image(
+                docker_id="docker_id",
+                tags="tags",
+            ),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
@@ -303,34 +336,6 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_variant_using_base_id(self, base_id: str) -> AppVariantResponse:
-        """
-        Parameters:
-            - base_id: str.
-        ---
-        from agenta.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_variant_using_base_id(base_id="base_id")
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{base_id}"
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
     def get_variant_revisions(self, variant_id: str) -> typing.List[AppVariantRevision]:
         """
         Parameters:
@@ -338,8 +343,13 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_variant_revisions(variant_id="variant_id")
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.get_variant_revisions(
+            variant_id="variant_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -371,8 +381,14 @@ class VariantsClient:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        client.get_variant_revision(variant_id="variant_id", revision_number=1)
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.get_variant_revision(
+            variant_id="variant_id",
+            revision_number=1,
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -462,8 +478,13 @@ class AsyncVariantsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_variant(variant_id="variant_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.get_variant(
+            variant_id="variant_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -515,8 +536,16 @@ class AsyncVariantsClient:
         from agenta import VariantAction, VariantActionEnum
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.start_variant(variant_id="variant_id", action=VariantAction(action=VariantActionEnum.START))
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.start_variant(
+            variant_id="variant_id",
+            action=VariantAction(
+                action=VariantActionEnum.START,
+            ),
+        )
         """
         _request: typing.Dict[str, typing.Any] = {"action": action}
         if env_vars is not OMIT:
@@ -556,8 +585,13 @@ class AsyncVariantsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.remove_variant(variant_id="variant_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.remove_variant(
+            variant_id="variant_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -601,8 +635,14 @@ class AsyncVariantsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.update_variant_parameters(variant_id="variant_id", parameters={})
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.update_variant_parameters(
+            variant_id="variant_id",
+            parameters={},
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
@@ -648,8 +688,17 @@ class AsyncVariantsClient:
         from agenta import Image
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.update_variant_image(variant_id="variant_id", request=Image(docker_id="docker_id", tags="tags"))
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.update_variant_image(
+            variant_id="variant_id",
+            request=Image(
+                docker_id="docker_id",
+                tags="tags",
+            ),
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
@@ -671,34 +720,6 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_using_base_id(self, base_id: str) -> AppVariantResponse:
-        """
-        Parameters:
-            - base_id: str.
-        ---
-        from agenta.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_variant_using_base_id(base_id="base_id")
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{base_id}"
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AppVariantResponse, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
     async def get_variant_revisions(
         self, variant_id: str
     ) -> typing.List[AppVariantRevision]:
@@ -708,8 +729,13 @@ class AsyncVariantsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_variant_revisions(variant_id="variant_id")
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.get_variant_revisions(
+            variant_id="variant_id",
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -741,8 +767,14 @@ class AsyncVariantsClient:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
-        await client.get_variant_revision(variant_id="variant_id", revision_number=1)
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        await client.variants.get_variant_revision(
+            variant_id="variant_id",
+            revision_number=1,
+        )
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",

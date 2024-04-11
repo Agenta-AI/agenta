@@ -9,6 +9,8 @@ from .base_output import BaseOutput
 from .body_import_testset import BodyImportTestset
 from .config_db import ConfigDb
 from .create_app_output import CreateAppOutput
+from .create_span import CreateSpan
+from .create_trace_response import CreateTraceResponse
 from .docker_env_vars import DockerEnvVars
 from .environment_output import EnvironmentOutput
 from .environment_output_extended import EnvironmentOutputExtended
@@ -37,9 +39,6 @@ from .human_evaluation_update import HumanEvaluationUpdate
 from .image import Image
 from .invite_request import InviteRequest
 from .list_api_keys_response import ListApiKeysResponse
-from .llm_content import LlmContent
-from .llm_inputs import LlmInputs
-from .llm_model_params import LlmModelParams
 from .llm_run_rate_limit import LlmRunRateLimit
 from .llm_tokens import LlmTokens
 from .new_human_evaluation import NewHumanEvaluation
@@ -50,6 +49,7 @@ from .permission import Permission
 from .result import Result
 from .score import Score
 from .simple_evaluation_output import SimpleEvaluationOutput
+from .span import Span
 from .span_detail import SpanDetail
 from .span_status import SpanStatus
 from .span_variant import SpanVariant
@@ -81,6 +81,8 @@ __all__ = [
     "BodyImportTestset",
     "ConfigDb",
     "CreateAppOutput",
+    "CreateSpan",
+    "CreateTraceResponse",
     "DockerEnvVars",
     "EnvironmentOutput",
     "EnvironmentOutputExtended",
@@ -109,9 +111,6 @@ __all__ = [
     "Image",
     "InviteRequest",
     "ListApiKeysResponse",
-    "LlmContent",
-    "LlmInputs",
-    "LlmModelParams",
     "LlmRunRateLimit",
     "LlmTokens",
     "NewHumanEvaluation",
@@ -122,6 +121,7 @@ __all__ = [
     "Result",
     "Score",
     "SimpleEvaluationOutput",
+    "Span",
     "SpanDetail",
     "SpanStatus",
     "SpanVariant",

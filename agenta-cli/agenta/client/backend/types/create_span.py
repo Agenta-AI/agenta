@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .llm_tokens import LlmTokens
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -11,9 +12,25 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class LlmModelParams(pydantic.BaseModel):
-    prompt: typing.Dict[str, typing.Any]
-    params: typing.Dict[str, typing.Any]
+class CreateSpan(pydantic.BaseModel):
+    app_id: typing.Optional[str]
+    variant_id: typing.Optional[str]
+    inputs: typing.Optional[typing.Dict[str, typing.Any]]
+    outputs: typing.Optional[typing.List[str]]
+    config: typing.Optional[typing.Dict[str, typing.Any]]
+    environment: typing.Optional[str]
+    tags: typing.Optional[typing.List[str]]
+    token_consumption: typing.Optional[int]
+    name: str
+    parent_span_id: typing.Optional[str]
+    attributes: typing.Optional[typing.Dict[str, typing.Any]]
+    spankind: str
+    status: str
+    user: typing.Optional[str]
+    start_time: dt.datetime
+    end_time: dt.datetime
+    tokens: typing.Optional[LlmTokens]
+    cost: typing.Optional[float]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
