@@ -80,23 +80,24 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
 
         # Start tracing
-        tracing.trace(
-            trace_name=func.__name__,
+        tracing.start_parent_span(
+            name=func.__name__,
             inputs=func_params,
             config=api_config_params,
-            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
+
+        # Ingest files, prepare configurations and run llm app
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
         llm_result = await execute_function(
-            func, *args, **{"params": func_params, "config_params": config_params}
+            func, *args, params=func_params, config_params=config_params
         )
 
-        # End tracing
-        tracing.end_trace(
-            outputs=[llm_result.message],
-            total_tokens=llm_result.usage.total_tokens,
-            cost=llm_result.cost,
+        # End trace recording
+        tracing.end_recording(
+            outputs=llm_result.dict(),
+            span=tracing.active_span,
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         return llm_result
 
@@ -115,33 +116,22 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         config = agenta.config.all()
 
         # Start tracing
-        tracing.trace(
-            trace_name=func.__name__,
+        tracing.start_parent_span(
+            name=func.__name__,
             inputs=func_params,
             config=config,
-            **{"environment": kwargs["environment"]},
-        )
-        llm_result = await execute_function(
-            func,
-            *args,
-            **{
-                "params": func_params,
-                "config_params": config,
-            },
         )
 
-        # End tracing
-        if isinstance(llm_result, JSONResponse):
-            result = {"message": str(llm_result), "total_tokens": 0, "cost": 0}
-        else:
-            result = {
-                "message": llm_result.message,
-                "total_tokens": (
-                    llm_result.usage.total_tokens if llm_result.usage else None
-                ),
-                "cost": llm_result.cost,
-            }
-        tracing.end_trace(outputs=[result["message"]], total_tokens=result["total_tokens"], cost=result["cost"])  # type: ignore
+        llm_result = await execute_function(
+            func, *args, params=func_params, config_params=config_params
+        )
+
+        # End trace recording
+        tracing.end_recording(
+            outputs=llm_result.dict(),
+            span=tracing.active_span,
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
+        )
         return llm_result
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
