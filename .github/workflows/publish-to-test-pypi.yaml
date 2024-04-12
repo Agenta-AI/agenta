@@ -27,12 +27,11 @@ jobs:
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
 
-    - name: Navigate to the cli directory
-      run: cd ${{ github.workspace }}/agenta-cli
-
     - name: Check for agenta version changes
       id: version_check
       run: |
+        cd ${{ github.workspace }}/agenta-cli
+
         # Verify that the pyproject.toml file exists
         if [ ! -f pyproject.toml ]; then
           echo "pyproject.toml file not found. Exiting..."
@@ -51,6 +50,11 @@ jobs:
     - name: Build and publish agenta to Test PyPI
       if: steps.version_check.outputs.version_bumped == 'true'
       run: |
+        # Navigate to the cli directory
+        cd ${{ github.workspace }}
+        
+        # Build and publish agenta-cli
+        cd agenta-cli
         poetry config repositories.testpypi https://test.pypi.org/legacy/
         poetry build
         poetry publish --repository testpypi --username __token__ --password ${{ secrets.TEST_PYPI_API_TOKEN }}
