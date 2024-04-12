@@ -27,11 +27,11 @@ class CreateSpan(pydantic.BaseModel):
     name: str
     parent_span_id: typing.Optional[str]
     attributes: typing.Optional[typing.Dict[str, typing.Any]]
-    spankind: SpanKind
-    status: SpanStatusCode
+    spankind: str
+    status: str
     user: typing.Optional[str]
     start_time: dt.datetime
-    end_time: dt.datetime
+    end_time: typing.Optional[dt.datetime]
     tokens: typing.Optional[LlmTokens]
     cost: typing.Optional[float]
 

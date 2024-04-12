@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 # Own Imports
-from agenta.client.backend import client
 from agenta.sdk.tracing.logger import llm_logger
 from agenta.sdk.tracing.tasks_manager import TaskQueue
+from agenta.client.backend.client import AsyncAgentaApi
 from agenta.client.backend.client import AsyncObservabilityClient
 from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanStatusCode
 
@@ -61,7 +61,7 @@ class Tracing(object):
             AsyncObservabilityClient: async client
         """
 
-        return client.AsyncAgentaApi(
+        return AsyncAgentaApi(
             base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
@@ -95,18 +95,17 @@ class Tracing(object):
     ):
         trace_id = self._create_trace_id()
         span_id = self._create_span_id()
+        self.llm_logger.info("Recording parent span...")
         span = CreateSpan(
-            **{
-                "id": span_id,
-                "app_id": self.app_id,
-                "variant_id": self.variant_id,
-                "inputs": inputs,
-                "name": name,
-                "config": config,
-                "spankind": SpanKind.WORKFLOW,
-                "status": SpanStatusCode.UNSET,
-                "start_time": datetime.now(timezone.utc),
-            }
+            id=span_id,
+            app_id=self.app_id,
+            variant_id=self.variant_id,
+            inputs=inputs,
+            name=name,
+            config=config,
+            spankind=SpanKind.WORKFLOW.value,
+            status=SpanStatusCode.UNSET.value,
+            start_time=datetime.now(timezone.utc),
         )
         self.active_span = span
         self.active_trace = trace_id
@@ -118,37 +117,50 @@ class Tracing(object):
         spankind: str,
         input: Dict[str, Any],
         config: Dict[str, Any] = {},
-    ):
+    ) -> CreateSpan:
         span_id = self._create_span_id()
+        self.llm_logger.info(f"Recording {spankind} span...")
         span = CreateSpan(
-            **{
-                "id": span_id,
-                "inputs": input,
-                "name": name,
-                "config": config,
-                "parent_span_id": self.parent_span_id,
-                "spankind": spankind,
-                "status": SpanStatusCode.UNSET,
-                "start_time": datetime.now(timezone.utc),
-            }
+            id=span_id,
+            inputs=input,
+            name=name,
+            config=config,
+            parent_span_id=self.parent_span_id,
+            spankind=spankind.upper(),
+            attributes={},
+            status=SpanStatusCode.UNSET.value,
+            start_time=datetime.now(timezone.utc),
         )
+
         self.active_span = span
+        self.span_dict[span.id] = span
         self.active_trace = self.active_trace
         self.parent_span_id = span_id
+        return span
+
+    def update_span_status(self, span: CreateSpan, value: str):
+        updated_span = CreateSpan(**{**span.dict(), "status": value})
+        self.active_span = updated_span
 
     def end_span(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
-        span.end_time = datetime.now(timezone.utc)
-        span.outputs = [outputs["message"]]
-        span.cost = outputs.get("cost", 0)
-        span.environment = kwargs.get("environment")
-        span.attributes = kwargs
-        span.tokens = outputs.get("usage", {})
+        updated_span = CreateSpan(
+            **span.dict(),
+            end_time=datetime.now(timezone.utc),
+            outputs=[outputs["message"]],
+            cost=outputs.get("cost", None),
+            environment=kwargs.get("environment"),
+            tokens=outputs.get("usage"),
+        )
 
         # Push span to list of recorded spans
-        self.recorded_spans.append(span)
+        self.recorded_spans.append(updated_span)
+        self.llm_logger.info(f"Pushed {updated_span.spankind} span to recorded spans.")
 
     def end_recording(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
         self.end_span(outputs=outputs, span=span, **kwargs)
+
+        self.llm_logger.info(f"Preparing to send recorded spans for processing.")
+        self.llm_logger.info(f"Recorded spans: ", self.recorded_spans)
         self.tasks_manager.add_task(
             self.active_trace,
             "trace",
