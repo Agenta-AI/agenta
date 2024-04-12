@@ -181,7 +181,7 @@ class ObservabilityClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/trace/"),
             json=jsonable_encoder({"trace": trace, "spans": spans}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
