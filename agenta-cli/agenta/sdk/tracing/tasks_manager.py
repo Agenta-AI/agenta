@@ -106,7 +106,9 @@ class TaskQueue(object):
                 future.result()
             except Exception as exc:
                 self._logger.error(f"Error running task: {str(exc)}")
-                self._logger.error(f"Recording trace {task.coroutine_type} status to ERROR.")
+                self._logger.error(
+                    f"Recording trace {task.coroutine_type} status to ERROR."
+                )
                 break
             finally:
                 self.tasks.task_done()

@@ -16,10 +16,9 @@ def span(type: str):
         async def wrapper(*args, **kwargs):
             result = None
             span = tracing.start_span(
-                func.__name__,
+                name=func.__name__,
                 input=kwargs,
-                type=type,
-                trace_id=tracing.active_trace,
+                spankind=type,
             )
             try:
                 is_coroutine_function = inspect.iscoroutinefunction(func)
@@ -27,15 +26,14 @@ def span(type: str):
                     result = await func(*args, **kwargs)
                 else:
                     result = func(*args, **kwargs)
-                span.update_span_status("COMPLETED")
+                tracing.update_span_status(span=span, value="OK")
             except Exception as e:
-                span.set_attribute("error", True)
-                span.set_attribute("error_message", str(e))
-                span.update_span_status("FAILED", exc=str(e))
+                result = str(e)
+                tracing.update_span_status(span=span, value="ERROR")
             finally:
                 if not isinstance(result, dict):
                     result = {"message": result}
-                tracing.end_span(output=result, span=span)
+                tracing.end_span(outputs=result, span=span)
             return result
 
         return wrapper
