@@ -70,7 +70,7 @@ class Tracing(object):
     ):
         span = self.span_dict[self.active_span.id]  # type: ignore
         for key, value in attributes.items():
-            self.set_attribute(span.attributes, key, value, parent_key)
+            self.set_attribute(span.attributes, key, value, parent_key) # type: ignore
 
     def set_attribute(
         self,
@@ -134,7 +134,6 @@ class Tracing(object):
 
         self.active_span = span
         self.span_dict[span.id] = span
-        self.active_trace = self.active_trace
         self.parent_span_id = span_id
         return span
 
@@ -164,7 +163,7 @@ class Tracing(object):
         self.tasks_manager.add_task(
             self.active_trace,
             "trace",
-            self.client.create_traces(trace="trace", spans=self.recorded_spans),
+            self.client.create_traces(trace=self.active_trace, spans=self.recorded_spans),
             self.client,
         )
         self.llm_logger.info(
