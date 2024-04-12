@@ -14,7 +14,7 @@ ag.config.default(
 )
 
 
-@ag.span(type="llm_request")  # su types are: llm_request, embedding
+@ag.span(type="LLM")
 async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
