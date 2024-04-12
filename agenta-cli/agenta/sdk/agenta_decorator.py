@@ -96,7 +96,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # End trace recording
         tracing.end_recording(
             outputs=llm_result.dict(),
-            span=tracing.active_span,
+            span=tracing.active_trace,
             environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         return llm_result
@@ -129,7 +129,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         # End trace recording
         tracing.end_recording(
             outputs=llm_result.dict(),
-            span=tracing.active_span,
+            span=tracing.active_trace,
             environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         return llm_result
