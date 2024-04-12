@@ -221,6 +221,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         variants.forEach((variant, vi) => {
+            const isHidden = evalIds.includes(variant.evaluationId)
             colDefs.push({
                 headerComponent: (props: any) => (
                     <AgCustomHeader {...props}>
@@ -230,6 +231,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                hide: !isHidden,
                 minWidth: 120,
                 flex: 1,
                 valueGetter: (params) => {
@@ -243,6 +245,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         variants.forEach((variant, vi) => {
+            const isHidden = evalIds.includes(variant.evaluationId)
             colDefs.push({
                 headerComponent: (props: any) => (
                     <AgCustomHeader {...props}>
@@ -253,6 +256,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     </AgCustomHeader>
                 ),
                 minWidth: 120,
+                hide: !isHidden,
                 flex: 1,
                 valueGetter: (params) => {
                     const cost = params.data?.variants.find(
