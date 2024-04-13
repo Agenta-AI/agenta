@@ -175,7 +175,7 @@ class Tracing(object):
             self.active_trace.id,
             "trace",
             self.client.create_traces(
-                trace=self.recording_trace_id, spans=self.recorded_spans # type: ignore
+                trace=self.recording_trace_id, spans=self.recorded_spans  # type: ignore
             ),
             self.client,
         )
@@ -208,4 +208,6 @@ class Tracing(object):
         """
 
         self.recorded_spans = []
-        self.llm_logger.info(f"Cleared all recorded spans from batch: {self.recorded_spans}")
+        self.llm_logger.info(
+            f"Cleared all recorded spans from batch: {self.recorded_spans}"
+        )
