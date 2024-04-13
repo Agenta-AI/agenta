@@ -111,7 +111,9 @@ class Tracing(object):
         self.active_trace = span
         self.recording_trace_id = trace_id
         self.parent_span_id = span.id
-        self.llm_logger.info(f"Recorded active_trace and parent_span_id: {span.id}")
+        self.llm_logger.info(
+            f"Recorded active_trace and setting parent_span_id: {span.id}"
+        )
 
     def start_span(
         self,
@@ -137,7 +139,9 @@ class Tracing(object):
         self.active_span = span
         self.span_dict[span.id] = span
         self.parent_span_id = span.id
-        self.llm_logger.info(f"Recorded active_span and parent_span_id: {span.id}")
+        self.llm_logger.info(
+            f"Recorded active_span and setting parent_span_id: {span.id}"
+        )
         return span
 
     def update_span_status(self, span: CreateSpan, value: str):
@@ -156,33 +160,29 @@ class Tracing(object):
 
         # Push span to list of recorded spans
         self.recorded_spans.append(updated_span)
-        self.llm_logger.info(f"Pushed {updated_span.spankind} span {updated_span.id} to recorded spans.")
+        self.llm_logger.info(
+            f"Pushed {updated_span.spankind} span {updated_span.id} to recorded spans."
+        )
 
     def end_recording(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
-        updated_span = CreateSpan(
-            **span.dict(),
-            end_time=datetime.now(timezone.utc),
-            outputs=[outputs["message"]],
-            cost=outputs.get("cost", None),
-            environment=kwargs.get("environment"),
-            tokens=outputs.get("usage"),
-        )
-        self.recorded_spans.append(updated_span)
-        self.llm_logger.info(
-            f"Pushed workflow span {updated_span.id} to recorded spans."
-        )
+        self.end_span(outputs=outputs, span=span, **kwargs)
+        if self.api_key == "":
+            return
+
         self.llm_logger.info(f"Preparing to send recorded spans for processing.")
+        self.llm_logger.info(f"Recorded spans => {len(self.recorded_spans)}")
         self.tasks_manager.add_task(
             self.active_trace.id,
             "trace",
             self.client.create_traces(
-                trace=self.recording_trace_id, spans=self.recorded_spans
+                trace=self.recording_trace_id, spans=self.recorded_spans # type: ignore
             ),
             self.client,
         )
         self.llm_logger.info(
             f"Tracing for {span.id} recorded successfully and sent for processing."
         )
+        self._clear_recorded_spans()
 
     def _create_trace_id(self) -> str:
         """Creates a unique mongo id for the trace object.
@@ -201,3 +201,11 @@ class Tracing(object):
         """
 
         return str(ObjectId())
+
+    def _clear_recorded_spans(self) -> None:
+        """
+        Clear the list of recorded spans to prepare for next batch processing.
+        """
+
+        self.recorded_spans = []
+        self.llm_logger.info(f"Cleared all recorded spans from batch: {self.recorded_spans}")

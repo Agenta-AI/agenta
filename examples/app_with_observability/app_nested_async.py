@@ -38,7 +38,7 @@ ag.config.default(
 )
 
 
-@ag.span(type="llm_request")
+@ag.span(type="llm")
 async def llm_call(
     prompt: str,
     model: str,
@@ -68,7 +68,7 @@ async def llm_call(
     }
 
 
-@ag.span(type="llm_request")
+@ag.span(type="chain")
 async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     prompt = ag.config.prompt_user_2.format(topics=llm_response, context_1=context_1)
     response = await llm_call(
@@ -83,7 +83,7 @@ async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     return response
 
 
-@ag.span(type="llm_request")
+@ag.span(type="chain")
 async def wrapper(context_1: str, max_tokens: int):
     prompt = ag.config.prompt_user_1.format(context_1=context_1)
 
