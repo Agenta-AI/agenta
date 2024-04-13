@@ -128,6 +128,8 @@ class Tracing(object):
             id=span_id,
             inputs=input,
             name=name,
+            app_id=self.app_id,
+            variant_id=self.variant_id,
             config=config,
             parent_span_id=self.parent_span_id,
             spankind=spankind.upper(),
