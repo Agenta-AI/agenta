@@ -1,4 +1,4 @@
-name: Publish to TEST PyPI
+name: Publish a PRE-RELEASE PyPI
 
 on:
   workflow_dispatch:
@@ -44,10 +44,14 @@ jobs:
           echo "No version change detected. Skipping package publication."
           exit 78
         fi
+        if [[ "$current_version" != *a* ]] && [[ "$current_version" != *b* ]]; then
+          echo "Current version is not an alpha or beta release. Skipping package publication."
+          exit 78
+        fi
         echo "::set-output name=version_bumped::true"
       continue-on-error: true
 
-    - name: Build and publish agenta to Test PyPI
+    - name: Build and publish agenta to  PyPI
       if: steps.version_check.outputs.version_bumped == 'true'
       run: |
         # Navigate to the cli directory
@@ -55,7 +59,6 @@ jobs:
         
         # Build and publish agenta-cli
         cd agenta-cli
-        poetry config repositories.testpypi https://test.pypi.org/legacy/
         poetry build
-        poetry publish --repository testpypi --username __token__ --password ${{ secrets.TEST_PYPI_API_TOKEN }}
+        # poetry publish --username __token__ --password ${{ secrets.TEST_PYPI_API_TOKEN }}
       continue-on-error: true
