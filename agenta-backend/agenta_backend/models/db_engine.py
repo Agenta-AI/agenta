@@ -9,7 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from agenta_backend.utils.common import isCloudEE
 
 if isCloudEE():
-    from agenta_backend.cloud.observability.models.db import SpanDB
+    from agenta_backend.commons.observability.models.db import SpanDB
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
