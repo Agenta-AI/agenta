@@ -60,5 +60,5 @@ jobs:
         # Build and publish agenta-cli
         cd agenta-cli
         poetry build
-        # poetry publish --username __token__ --password ${{ secrets.TEST_PYPI_API_TOKEN }}
+        poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
       continue-on-error: true
