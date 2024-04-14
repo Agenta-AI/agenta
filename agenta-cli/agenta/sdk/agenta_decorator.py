@@ -83,7 +83,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         tracing.start_parent_span(
             name=func.__name__,
             inputs=func_params,
-            config=api_config_params,
+            config=config_params,
             environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
 
