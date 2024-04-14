@@ -3,10 +3,11 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Dropdown, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {Button, Dropdown, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
 import {
     CheckOutlined,
     DeleteOutlined,
+    DownOutlined,
     PlusCircleOutlined,
     SlidersOutlined,
     SwapOutlined,
@@ -85,6 +86,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
+    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -279,6 +281,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "average_latency",
                 headerName: "Latency",
+                hide: hiddenCols.includes("Latency"),
                 minWidth: 120,
                 ...getFilterParams("number"),
                 valueGetter: (params) => getTypedValue(params?.data?.average_latency),
@@ -287,6 +290,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "average_cost",
                 headerName: "Cost",
+                hide: hiddenCols.includes("Cost"),
                 minWidth: 120,
                 ...getFilterParams("number"),
                 valueGetter: (params) => getTypedValue(params?.data?.average_cost),
@@ -338,6 +342,12 @@ const EvaluationResults: React.FC<Props> = () => {
         [colDefs],
     )
 
+    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setFilterColsDropdown(nextOpen)
+        }
+    }
+
     return (
         <>
             {!fetching && !evaluations.length ? (
@@ -384,6 +394,8 @@ const EvaluationResults: React.FC<Props> = () => {
                     <Space className={classes.buttonsGroup}>
                         <Dropdown
                             trigger={["click"]}
+                            open={filterColsDropdown}
+                            onOpenChange={handleOpenChange}
                             menu={{
                                 selectedKeys: shownCols,
                                 items: colDefs.map((configs) => ({
@@ -395,11 +407,16 @@ const EvaluationResults: React.FC<Props> = () => {
                                         </Space>
                                     ),
                                 })),
-                                onClick: ({key}) => onToggleEvaluatorVisibility(key),
+                                onClick: ({key}) => {
+                                    onToggleEvaluatorVisibility(key)
+                                    setFilterColsDropdown(true)
+                                },
                                 className: classes.dropdownMenu,
                             }}
                         >
-                            <Button>Filter Columns</Button>
+                            <Button>
+                                Filter Columns <DownOutlined />
+                            </Button>
                         </Dropdown>
                     </Space>
 
