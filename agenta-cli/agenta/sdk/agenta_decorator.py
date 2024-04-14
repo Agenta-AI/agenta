@@ -84,6 +84,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             name=func.__name__,
             inputs=func_params,
             config=api_config_params,
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
 
         # Ingest files, prepare configurations and run llm app
@@ -97,7 +98,6 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         tracing.end_recording(
             outputs=llm_result.dict(),
             span=tracing.active_trace,
-            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         return llm_result
 
@@ -120,6 +120,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             name=func.__name__,
             inputs=func_params,
             config=config,
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
 
         llm_result = await execute_function(
@@ -130,7 +131,6 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         tracing.end_recording(
             outputs=llm_result.dict(),
             span=tracing.active_trace,
-            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
         )
         return llm_result
 

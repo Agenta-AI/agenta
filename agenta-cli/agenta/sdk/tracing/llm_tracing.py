@@ -92,7 +92,7 @@ class Tracing(object):
         self.tags.extend(tags)
 
     def start_parent_span(
-        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any]
+        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any], **kwargs
     ):
         trace_id = self._create_trace_id()
         span_id = self._create_span_id()
@@ -104,6 +104,7 @@ class Tracing(object):
             inputs=inputs,
             name=name,
             config=config,
+            environment=kwargs.get("environment"),
             spankind=SpanKind.WORKFLOW.value,
             status=SpanStatusCode.UNSET.value,
             start_time=datetime.now(timezone.utc),
@@ -131,6 +132,7 @@ class Tracing(object):
             app_id=self.app_id,
             variant_id=self.variant_id,
             config=config,
+            environment=self.active_trace.environment,
             parent_span_id=self.parent_span_id,
             spankind=spankind.upper(),
             attributes={},
@@ -156,7 +158,6 @@ class Tracing(object):
             end_time=datetime.now(timezone.utc),
             outputs=[outputs["message"]],
             cost=outputs.get("cost", None),
-            environment=kwargs.get("environment"),
             tokens=outputs.get("usage"),
         )
 
