@@ -26,6 +26,7 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
+import {useLocalStorage} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -59,7 +60,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [evaluationIdsStr = ""] = useQueryParam("evaluations")
     const [evalIds, setEvalIds] = useState(evaluationIdsStr.split(",").filter((item) => !!item))
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
-    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
+    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()

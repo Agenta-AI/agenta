@@ -174,7 +174,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
-                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                    <Input.TextArea rows={10} />
                 ) : type === "code" ? (
                     <Editor
                         className={classes.editor}

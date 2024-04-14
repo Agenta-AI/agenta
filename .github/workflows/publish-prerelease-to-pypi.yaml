@@ -1,0 +1,64 @@
+name: Publish a PRE-RELEASE PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to publish'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.branch }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+
+    - name: Check for agenta version changes
+      id: version_check
+      run: |
+        cd ${{ github.workspace }}/agenta-cli
+
+        # Verify that the pyproject.toml file exists
+        if [ ! -f pyproject.toml ]; then
+          echo "pyproject.toml file not found. Exiting..."
+          exit 1
+        fi
+
+        previous_version=$(git describe --abbrev=0 --tags)
+        current_version=$(poetry version --no-interaction | awk '{print $2}')
+        if [ "$previous_version" == "$current_version" ]; then
+          echo "No version change detected. Skipping package publication."
+          exit 78
+        fi
+        if [[ "$current_version" != *a* ]] && [[ "$current_version" != *b* ]]; then
+          echo "Current version is not an alpha or beta release. Skipping package publication."
+          exit 78
+        fi
+        echo "::set-output name=version_bumped::true"
+      continue-on-error: true
+
+    - name: Build and publish agenta to  PyPI
+      if: steps.version_check.outputs.version_bumped == 'true'
+      run: |
+        # Navigate to the cli directory
+        cd ${{ github.workspace }}
+        
+        # Build and publish agenta-cli
+        cd agenta-cli
+        poetry build
+        poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
+      continue-on-error: true

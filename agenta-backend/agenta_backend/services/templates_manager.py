@@ -16,6 +16,7 @@ if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
+agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
 
 from typing import Union
 
@@ -61,13 +62,9 @@ async def update_and_sync_templates(cache: bool = True) -> None:
             )
             print(f"Template {template_id} added to the database.")
 
-            # Get docker hub config
-            repo_owner = settings.docker_hub_repo_owner
-            repo_name = settings.docker_hub_repo_name
-
             # Pull image from DockerHub
             image_res = await container_manager.pull_docker_image(
-                repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
+                repo_name=f"{agenta_template_repo}", tag=temp["name"]
             )
             print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
@@ -91,8 +88,7 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await retrieve_templates_from_dockerhub(
         settings.docker_hub_url,
-        settings.docker_hub_repo_owner,
-        settings.docker_hub_repo_name,
+        agenta_template_repo,
     )
     response_data = response["results"]
 
@@ -131,7 +127,7 @@ async def retrieve_templates_info_from_s3(
 
 @backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
 async def retrieve_templates_from_dockerhub(
-    url: str, repo_owner: str, repo_name: str
+    url: str, repo_name: str
 ) -> Union[List[dict], dict]:
     """
     Business logic to retrieve templates from DockerHub.
@@ -140,7 +136,6 @@ async def retrieve_templates_from_dockerhub(
         url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
             for the `repo_owner` and `repo_name` values to be inserted. For example:
             `https://hub.docker.com/v2/repositories/{}/{}/tags`.
-        repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
         repo_name (str): The name of the repository where the templates are located.
 
     Returns:
@@ -148,9 +143,7 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{url.format(repo_owner, repo_name)}/tags", timeout=10
-        )
+        response = await client.get(f"{url}/{repo_name}/tags", timeout=10)
         if response.status_code == 200:
             response_data = response.json()
             return response_data

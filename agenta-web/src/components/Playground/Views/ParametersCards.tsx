@@ -2,7 +2,21 @@ import React from "react"
 import {createUseStyles} from "react-jss"
 import {renameVariables} from "@/lib/helpers/utils"
 import {Parameter, InputParameter} from "@/lib/Types"
-import {Row, Card, Slider, Select, InputNumber, Col, Input, Button, Switch} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {
+    Row,
+    Card,
+    Slider,
+    Select,
+    InputNumber,
+    Col,
+    Input,
+    Button,
+    Switch,
+    Dropdown,
+    Menu,
+    Space,
+} from "antd"
 
 const useStyles = createUseStyles({
     row1: {
@@ -60,6 +74,30 @@ const useStyles = createUseStyles({
     },
 })
 
+interface GroupedSelectProps {
+    choices: {[group: string]: string[]}
+    defaultValue: string
+    handleChange: (value: string) => void
+}
+
+const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
+    const classes = useStyles()
+    return (
+        <Select
+            defaultValue={defaultValue}
+            className={classes.select}
+            onChange={handleChange}
+            options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
+                label: groupLabel,
+                options: groupChoices.map((choice) => ({
+                    label: choice,
+                    value: choice,
+                })),
+            }))}
+        />
+    )
+}
+
 interface ModelParametersProps {
     optParams: Parameter[] | null
     onChange: (param: Parameter, value: number | string) => void
@@ -86,7 +124,8 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                     (!param.input &&
                                         (param.type === "number" ||
                                             param.type === "integer" ||
-                                            param.type === "array")) ||
+                                            param.type === "array" ||
+                                            param.type === "grouped_choice")) ||
                                     param.type === "boolean",
                             )
                             .map((param, index) => (
@@ -139,6 +178,15 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                     </Select.Option>
                                                 ))}
                                             </Select>
+                                        )}
+                                        {param.type === "grouped_choice" && (
+                                            <GroupedSelect
+                                                choices={param.choices || {}}
+                                                defaultValue={param.default}
+                                                handleChange={(value) =>
+                                                    handleParamChange(param.name, value)
+                                                }
+                                            />
                                         )}
                                         {param.type === "boolean" && (
                                             <Switch

@@ -2,35 +2,184 @@
 title: "Changelog"
 ---
 
+## v0.12.6 - Compare latency and costs
+*1st April 2024*
+
+You can now compare the latency and cost of different variants in the evaluation view.
+<img height="600" className="dark:hidden" src="/images/changelog/compare_latency_and_cost_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/compare_latency_and_cost_dark.png" />
+
+## v0.12.5 - Minor improvements
+*31st March 2024*
+
+**Toggle variants in comparison view**
+
+You can now toggle the visibility of variants in the comparison view, allowing you to compare a multitude of variants side-by-side at the same time.
+<img height="600" className="dark:hidden" src="/images/changelog/toggle_variants_visibility_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/toggle_variants_visibility_dark.png" />
+
+**Improvements**
+- You can now add a datapoint from the playground to the test set even if there is a column mismatch
+
+**Bug fixes**
+- Resolved issue with "Start Evaluation" button in Testset view
+- Fixed bug in CLI causing variant not to serve
+
+## v0.12.4 - New evaluators
+*25th March 2024*
+
+We have added some more evaluators, a new string matching and a Levenshtein distance evaluation.
+
+**Improvements**
+- Updated documentation for human evaluation
+- Made improvements to Human evaluation card view
+- Added dialog to indicate testset being saved in UI
+
+**Bug fixes**
+- Fixed issue with viewing the full output value during evaluation
+- Enhanced error boundary logic to unblock user interface
+- Improved logic to save and retrieve multiple LLM provider keys
+- Fixed Modal instances to support dark mode
+
+## v0.12.3 - Minor improvements
+*11th March 2024*
+
+- Improved the logic of the Webhook evaluator
+- Made the inputs in the Human evaluation view non-editable
+- Added an option to save a test set in the Single model evaluation view
+- Included the evaluator name in the "Configure your evaluator" modal
+
+**Bug fixes**
+- Fixed column resize in comparison view
+- Resolved a bug affecting the evaluation output in the CSV file
+- Corrected the path to the Evaluators view when navigating from Evaluations
+
+
+## v0.12.2 - Highlight ouput difference when comparing evaluations
+*4th March 2024*
+
+We have improved the evaluation comparison view to show the difference to the expected output.
+
+**Improvements**
+- Improved the error messages when invoking LLM applications
+- Improved "Add new evaluation" modal
+- Upgraded Sidemenu to display Configure evaluator and run evaluator under Evaluations section
+- Changed cursor to pointer when hovering over evaluation results
+
+## v0.12.0 - Deployment Versioning and RBAC
+*14th February 2024*
+
+**Deployment versioning**
+
+You now have access to a history of prompts deployed to our three environments. This feature allows you to roll back to previous versions if needed.
+
+**Role-Based Access Control**
+
+You can now invite team members and assign them fine-grained roles in agenta.
+<img height="600" className="dark:hidden" src="/images/changelog/rbac_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/rbac_dark.png" />
+
+**Improvements**
+- We now prevent the deletion of test sets that are used in evaluations
+
+**Bug fixes**
+- Fixed bug in custom code evaluation aggregation. Up until know the aggregated result for custom code evalution where not computed correctly.
+- Fixed bug with Evaluation results not being exported correctly
+
+- Updated documentation for vision gpt explain images
+- Improved Frontend test for Evaluations
+
+##  v0.10.2- Minor fixes
+*4th February 2024*
+
+- Addressed issue when invoking LLM app with missing LLM provider key
+- Updated LLM providers in Backend enum
+- Fixed bug in variant environment deployment
+- Fixed the sorting in evaluation tables
+- Made use of server timezone instead of UTC
+
+## v0.10.0 - Prompt Versioning
+*31st January 2024*
+
+We've introduced the feature to version prompts, allowing you to track changes made by the team and revert to previous versions. To view the change history of the configuration, click on the sign in the playground to access all previous versions.
+<img height="600" className="dark:hidden" src="/images/changelog/prompt_versioning_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/prompt_versioning_dark.png" />
+
+## v0.9.1 - New JSON Evaluator
+*30th January 2024*
+
+We have added a new evaluator to match JSON fields and added the possiblity to use other columns in the test set other than the `correct_answer` column as the ground truth.
+<img height="600" className="dark:hidden" src="/images/changelog/new_json_evaluator_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/new_json_evaluator_dark.png" />
+
+## v0.9.0 - Improved error handling in evaluation
+*29th January 2024*
+
+We have improved error handling in evaluation to return more information about the exact source of the error in the evaluation view.
+<img height="600" className="dark:hidden" src="/images/changelog/improved_error_handling_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/improved_error_handling_dark.png" />
+
+**Improvements**:
+- Added the option in A/B testing human evaluation to mark both variants as correct
+- Improved loading state in Human Evaluation
+
+## v0.8.3 - Bring your own API key
+*25th January 2024*
+
+Up until know, we required users to use our OpenAI API key when using cloud. Starting now, you can use your own API key for any new application you create.
+
+## v0.8.2 - Improved human evaluation workflow
+*24th January 2024*
+
+**Faster human evaluation workflow**
+
+We have updated the human evaluation table view to add annotation and correct answer columns.
+<img height="600" className="dark:hidden" src="/images/changelog/improved_human_eval_workflow_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/improved_human_eval_workflow_dark.png" />
+
+**Improvements**:
+- Simplified the database migration process
+- Fixed environment variable injection to enable cloud users to use their own keys
+- Disabled import from endpoint in cloud due to security reasons
+- Improved query lookup speed for evaluation scenarios
+- Improved error handling in playground
+
+**Bug fixes**:
+- Resolved failing Backend tests
+- Fixed a bug in rate limit configuration validation
+- Fixed issue with all aggregated results
+- Resolved issue with live results in A/B testing evaluation not updating
+
+
 ## v0.8.0 - Revamping evaluation
-*22th January 2024*
+*22nd January 2024*
 
 We've spent the past month re-engineering our evaluation workflow. Here's what's new:
 
 **Running Evaluations**
 
 1. Simultaneous Evaluations: You can now run multiple evaluations for different app variants and evaluators concurrently.
-    
+
 <img height="600" src="/images/changelog/eval_1.png" />
 
 2. Rate Limit Parameters: Specify these during evaluations and reattempts to ensure reliable results without exceeding open AI rate limits.
-    
+
 <img height="600" src="/images/changelog/eval_2.png" />
-    
+
 3. Reusable Evaluators: Configure evaluators such as similarity match, regex match, or AI critique and use them across multiple evaluations.
-    
+
 <img height="600" src="/images/changelog/eval_3.png" />
-    
+
 **Evaluation Reports**
 
 1. Dashboard Improvements: We've upgraded our dashboard interface to better display evaluation results. You can now filter and sort results by evaluator, test set, and outcomes.
-    
+
 <img height="600" src="/images/changelog/eval_4.png" />
-    
+
 2. Comparative Analysis: Select multiple evaluation runs and view the results of various LLM applications side-by-side.
-    
+
 <img height="600" src="/images/changelog/eval_5.png" />
-    
+
 ## v0.7.1 - Adding Cost and Token Usage to the Playground
 
 *12th January 2024*
@@ -59,7 +208,7 @@ This necessitated modifications to the SDK. Now, the LLM application API returns
 
 
 ## v0.6.6 - Improving Side-by-side Comparison in the Playground
-*19th December 2023* 
+*19th December 2023*
 - Enhanced the side-by-side comparison in the playground for better user experience
 
 ## v0.6.5 - Resolved Batch Logic Issue in Evaluation

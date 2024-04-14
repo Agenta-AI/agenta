@@ -3,10 +3,14 @@ import {randString} from "../../src/lib/helpers/utils"
 describe("A/B Testing Evaluation workflow", () => {
     let app_v2 = randString(5)
     let app_id
+    let testset_name
     before(() => {
         cy.createVariantsAndTestsets()
         cy.get("@app_id").then((appId) => {
             app_id = appId
+        })
+        cy.get("@testsetName").then((testsetName) => {
+            testset_name = testsetName
         })
     })
 
@@ -61,11 +65,7 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseout")
 
             cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get(".ant-dropdown")
-                .eq(2)
-                .within(() => {
-                    cy.get('[data-cy="testset-0"]').click()
-                })
+            cy.get('[data-cy^="testset"]').contains(testset_name).click()
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -76,13 +76,21 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get(
                 '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
             ).should("not.exist")
+
+            cy.intercept("POST", "**/app/generate", {
+                statusCode: 200,
+                fixture: "single-prompt-openai/human-evaluation.json",
+            }).as("generateRequest")
+
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
+
+            cy.wait("@generateRequest")
 
             cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(0).click()
             cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(1).click()
             cy.get(
-                '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
+                '[data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"]',
             ).click()
         })
     })
