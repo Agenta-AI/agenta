@@ -7,6 +7,7 @@ from .sdk.types import (
     InFile,
     IntParam,
     MultipleChoiceParam,
+    GroupedMultipleChoiceParam,
     MessagesInput,
     TextParam,
     FileInputURL,

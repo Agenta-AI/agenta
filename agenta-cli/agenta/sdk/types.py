@@ -127,6 +127,44 @@ class MultipleChoiceParam(str):
         )
 
 
+class GroupedMultipleChoiceParam(str):
+    def __new__(cls, default: str = None, choices: Dict[str, List[str]] = None):
+        if choices is None:
+            choices = {}
+
+        if default and not any(default in choices for choices in choices.values()):
+            if not choices:
+                print(
+                    f"Warning: Default value {default} provided but choices are empty."
+                )
+            else:
+                raise ValueError(
+                    f"Default value {default} is not in the provided choices"
+                )
+
+        if not default:
+            for choices in choices.values():
+                if choices:
+                    default = choices[0]
+                    break
+
+        instance = super().__new__(cls, default)
+        instance.choices = choices
+        instance.default = default
+        return instance
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any], **kwargs):
+        choices = kwargs.get("choices", {})
+        field_schema.update(
+            {
+                "x-parameter": "grouped_choice",
+                "type": "string",
+                "choices": choices,
+            }
+        )
+
+
 class Message(BaseModel):
     role: str
     content: str

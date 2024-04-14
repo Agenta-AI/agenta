@@ -95,7 +95,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
             cellsArr.forEach((cell) => {
                 cell.setAttribute(
                     "style",
-                    "overflow: visible; white-space: pre-wrap; text-overflow: unset; line-height: 2.5em;",
+                    "overflow: visible; white-space: pre-wrap; text-overflow: unset;",
                 )
             })
             const height = Math.max(...cellsArr.map((cell) => cell.scrollHeight))
