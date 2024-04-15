@@ -52,7 +52,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
         "& .ant-menu-item,.ant-menu-submenu-title": {
-            paddingLeft: "12px !important",
+            padding: "0 16px !important",
         },
         "& .ant-menu-sub > .ant-menu-item": {
             paddingLeft: "24px !important",
