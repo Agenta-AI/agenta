@@ -252,7 +252,7 @@ export const useSidebarConfig = () => {
             title: "Logout",
             icon: <LogoutOutlined />,
             isBottom: true,
-            isHidden: isOss && !user?.username,
+            isHidden: isOss && !!user?.username,
             onClick: () => {
                 AlertPopup({
                     title: "Logout",
