@@ -121,7 +121,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             name=func.__name__,
             inputs=func_params,
             config=config,
-            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
+            environment=kwargs["environment"],  # type: ignore #NOTE: wrapper is only called in playground
         )
 
         llm_result = await execute_function(
