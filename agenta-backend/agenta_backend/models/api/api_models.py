@@ -35,7 +35,6 @@ class Result(BaseModel):
 
 
 class GetConfigResponse(BaseModel):
-    config_id: Optional[str]
     config_name: str
     current_version: int
     parameters: Dict[str, Any]

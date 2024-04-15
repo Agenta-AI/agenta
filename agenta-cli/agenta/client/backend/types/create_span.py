@@ -18,6 +18,7 @@ class CreateSpan(pydantic.BaseModel):
     id: str
     app_id: typing.Optional[str]
     variant_id: typing.Optional[str]
+    variant_name: typing.Optional[str]
     inputs: typing.Optional[typing.Dict[str, typing.Any]]
     outputs: typing.Optional[typing.List[str]]
     config: typing.Optional[typing.Dict[str, typing.Any]]
