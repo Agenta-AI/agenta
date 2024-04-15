@@ -230,7 +230,7 @@ export const useSidebarConfig = () => {
             key: "orgs-link",
             title: selectedOrg?.name || "",
             icon: <ApartmentOutlined />,
-            isHidden: (!isOss && !selectedOrg) || isOss,
+            isHidden: !doesSessionExist || (true && !selectedOrg),
             submenu: (orgs || []).map((org: GenericObject) => ({
                 key: `orgs-${org.id}-link`,
                 title: org.name,
@@ -256,7 +256,7 @@ export const useSidebarConfig = () => {
             title: "Logout",
             icon: <LogoutOutlined />,
             isBottom: true,
-            isHidden: isOss && !!user?.username,
+            isHidden: !doesSessionExist || (isOss && !!user?.username),
             onClick: () => {
                 AlertPopup({
                     title: "Logout",
