@@ -12,7 +12,6 @@ except ImportError:
 
 
 class GetConfigResponse(pydantic.BaseModel):
-    config_id: typing.Optional[str]
     config_name: str
     current_version: int
     parameters: typing.Dict[str, typing.Any]

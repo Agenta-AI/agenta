@@ -90,6 +90,7 @@ class AgentaSingleton:
         self.host = host
         self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
+        self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
 
@@ -193,7 +194,7 @@ class Config:
                     + str(ex)
                 )
         try:
-            self.set(**config.parameters)
+            self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
             logger.warning("Failed to set the configuration with error: " + str(ex))
 
@@ -237,6 +238,7 @@ def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
         base_url=singleton.host,
         app_id=singleton.app_id,  # type: ignore
         variant_id=singleton.variant_id,  # type: ignore
+        variant_name=singleton.variant_name,
         api_key=singleton.api_key,
         max_workers=max_workers,
     )

@@ -36,6 +36,7 @@ class Tracing(object):
         base_url: str,
         app_id: str,
         variant_id: str,
+        variant_name: Optional[str] = None,
         api_key: Optional[str] = None,
         max_workers: Optional[int] = None,
     ):
@@ -44,6 +45,7 @@ class Tracing(object):
         self.llm_logger = llm_logger
         self.app_id = app_id
         self.variant_id = variant_id
+        self.variant_name = variant_name
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=llm_logger
         )
@@ -101,6 +103,7 @@ class Tracing(object):
             id=span_id,
             app_id=self.app_id,
             variant_id=self.variant_id,
+            variant_name=self.variant_name,
             inputs=inputs,
             name=name,
             config=config,
@@ -131,6 +134,7 @@ class Tracing(object):
             name=name,
             app_id=self.app_id,
             variant_id=self.variant_id,
+            variant_name=self.variant_name,
             config=config,
             environment=self.active_trace.environment,
             parent_span_id=self.parent_span_id,
