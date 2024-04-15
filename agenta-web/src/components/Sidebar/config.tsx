@@ -26,7 +26,7 @@ import {
     SwapOutlined,
 } from "@ant-design/icons"
 import {Avatar} from "antd"
-import {useEffect, useState} from "react"
+import {use, useEffect, useState} from "react"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import Image from "next/image"
 import abTesting from "@/media/testing.png"
@@ -158,7 +158,7 @@ export const useSidebarConfig = () => {
             key: "app-observability-link",
             title: "Observability",
             icon: <LineChartOutlined />,
-            isHidden: !appId,
+            isHidden: !appId || isOss,
             tag: "beta",
             submenu: [
                 {
@@ -220,12 +220,13 @@ export const useSidebarConfig = () => {
             link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
             icon: <PhoneOutlined />,
             isBottom: true,
+            isHidden: isOss,
         },
         {
             key: "orgs-link",
             title: selectedOrg?.name || "",
             icon: <ApartmentOutlined />,
-            isHidden: !isOss && !selectedOrg,
+            isHidden: (!isOss && !selectedOrg) || isOss,
             submenu: (orgs || []).map((org: GenericObject) => ({
                 key: `orgs-${org.id}-link`,
                 title: org.name,
@@ -251,7 +252,7 @@ export const useSidebarConfig = () => {
             title: "Logout",
             icon: <LogoutOutlined />,
             isBottom: true,
-            isHidden: !isOss && !user?.username,
+            isHidden: isOss && !user?.username,
             onClick: () => {
                 AlertPopup({
                     title: "Logout",
