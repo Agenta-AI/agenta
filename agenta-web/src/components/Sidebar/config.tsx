@@ -52,6 +52,8 @@ export type SidebarConfig = {
     submenu?: Omit<SidebarConfig, "submenu">[]
     onClick?: () => void
     tag?: string
+    isCloudFeature?: boolean
+    cloudFeatureTooltip?: string
 }
 
 export const useSidebarConfig = () => {
@@ -158,7 +160,9 @@ export const useSidebarConfig = () => {
             key: "app-observability-link",
             title: "Observability",
             icon: <LineChartOutlined />,
-            isHidden: !appId || isOss,
+            isHidden: !appId,
+            isCloudFeature: true && isOss,
+            cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
             tag: "beta",
             submenu: [
                 {

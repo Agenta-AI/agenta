@@ -84,48 +84,108 @@ const SidebarMenu: React.FC<{
         <Menu mode="inline" {...menuProps}>
             {items.map((item) => {
                 if (item.submenu) {
-                    return (
-                        <Menu.SubMenu
-                            key={item.key}
-                            icon={item.icon}
-                            title={
-                                <>
-                                    {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                                </>
-                            }
-                            onTitleClick={item.onClick}
-                        >
-                            {item.submenu.map((subitem) => {
-                                const node = (
-                                    <Link
-                                        className={classes.menuLinks}
-                                        href={subitem.link || "#"}
-                                        target={
-                                            subitem.link?.startsWith("http") ? "_blank" : undefined
-                                        }
-                                    >
-                                        {subitem.title}
-                                    </Link>
-                                )
+                    if (item.isCloudFeature) {
+                        return (
+                            <Tooltip
+                                title={item.cloudFeatureTooltip}
+                                key={item.key}
+                                placement="right"
+                            >
+                                <Menu.SubMenu
+                                    icon={item.icon}
+                                    title={
+                                        <>
+                                            {item.title}{" "}
+                                            {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                                        </>
+                                    }
+                                    onTitleClick={item.onClick}
+                                    disabled={item.isCloudFeature}
+                                >
+                                    {item.submenu.map((subitem) => {
+                                        const node = (
+                                            <Link
+                                                className={classes.menuLinks}
+                                                href={subitem.link || "#"}
+                                                target={
+                                                    subitem.link?.startsWith("http")
+                                                        ? "_blank"
+                                                        : undefined
+                                                }
+                                            >
+                                                {subitem.title}
+                                            </Link>
+                                        )
 
-                                return (
-                                    <Menu.Item
-                                        icon={subitem.icon}
-                                        key={subitem.key}
-                                        onClick={subitem.onClick}
-                                    >
-                                        {collapsed ? (
-                                            node
-                                        ) : (
-                                            <Tooltip title={subitem.tooltip} placement="right">
-                                                {node}
-                                            </Tooltip>
-                                        )}
-                                    </Menu.Item>
-                                )
-                            })}
-                        </Menu.SubMenu>
-                    )
+                                        return (
+                                            <Menu.Item
+                                                icon={subitem.icon}
+                                                key={subitem.key}
+                                                onClick={subitem.onClick}
+                                            >
+                                                {collapsed ? (
+                                                    node
+                                                ) : (
+                                                    <Tooltip
+                                                        title={subitem.tooltip}
+                                                        placement="right"
+                                                    >
+                                                        {node}
+                                                    </Tooltip>
+                                                )}
+                                            </Menu.Item>
+                                        )
+                                    })}
+                                </Menu.SubMenu>
+                            </Tooltip>
+                        )
+                    } else {
+                        return (
+                            <Menu.SubMenu
+                                key={item.key}
+                                icon={item.icon}
+                                title={
+                                    <>
+                                        {item.title}{" "}
+                                        {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                                    </>
+                                }
+                                onTitleClick={item.onClick}
+                            >
+                                {item.submenu.map((subitem) => {
+                                    const node = (
+                                        <Link
+                                            className={classes.menuLinks}
+                                            href={subitem.link || "#"}
+                                            target={
+                                                subitem.link?.startsWith("http")
+                                                    ? "_blank"
+                                                    : undefined
+                                            }
+                                        >
+                                            {subitem.title}
+                                        </Link>
+                                    )
+
+                                    return (
+                                        <Menu.Item
+                                            icon={subitem.icon}
+                                            key={subitem.key}
+                                            onClick={subitem.onClick}
+                                        >
+                                            {collapsed ? (
+                                                node
+                                            ) : (
+                                                <Tooltip title={subitem.tooltip} placement="right">
+                                                    {node}
+                                                </Tooltip>
+                                            )}
+                                        </Menu.Item>
+                                    )
+                                })}
+                            </Menu.SubMenu>
+                        )
+                    }
                 } else {
                     const node = (
                         <Link
