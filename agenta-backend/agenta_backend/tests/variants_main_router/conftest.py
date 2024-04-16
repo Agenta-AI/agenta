@@ -96,66 +96,6 @@ async def get_first_user_app(get_first_user_object):
 
 
 @pytest.fixture()
-def spans_db_data():
-    return [
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 8.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 80,
-            "tokens_output": 25,
-            "token_total": 105,
-            "cost": 0.23,
-            "tags": ["string"],
-        },
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 13.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 58,
-            "tokens_output": 65,
-            "token_total": 123,
-            "cost": 0.19,
-            "tags": ["string"],
-        },
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 18.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 100,
-            "tokens_output": 35,
-            "token_total": 135,
-            "cost": 0.54,
-            "tags": ["string"],
-        },
-    ]
-
-
-@pytest.fixture()
 def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -173,27 +113,6 @@ def app_variant_create_data():
         "created_at": datetime.now(),
         "updated_at": datetime.now(),
     }
-
-
-@pytest.fixture()
-def trace_create_data():
-    return {
-        "cost": 0.782,
-        "latency": 20,
-        "status": "completed",
-        "token_consumption": 638,
-        "tags": ["string"],
-        "start_time": str(datetime.now()),
-        "end_time": str(datetime.now()),
-    }
-
-
-@pytest.fixture()
-def feedbacks_create_data():
-    return [
-        {"feedback": "thumbs up", "score": 0, "meta": {}},
-        {"feedback": "thumbs down", "score": 10, "meta": {}},
-    ]
 
 
 @pytest.fixture(scope="session")

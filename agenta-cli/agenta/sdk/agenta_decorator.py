@@ -5,15 +5,15 @@ import sys
 import time
 import inspect
 import argparse
+import asyncio
 import traceback
 import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Optional, Tuple, List, Union
+from typing import Any, Callable, Dict, Optional, Tuple, List
 
-from fastapi import Body, FastAPI, UploadFile
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta
 from .context import save_context
@@ -73,12 +73,34 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     config_params = agenta.config.all()
     ingestible_files = extract_ingestible_files(func_signature)
 
+    # Initialize tracing
+    tracing = agenta.llm_tracing()
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
+
+        # Start tracing
+        tracing.start_parent_span(
+            name=func.__name__,
+            inputs=func_params,
+            config=config_params,
+            environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
+        )
+
+        # Ingest files, prepare configurations and run llm app
         ingest_files(func_params, ingestible_files)
         agenta.config.set(**api_config_params)
-        return await execute_function(func, *args, **func_params)
+        llm_result = await execute_function(
+            func, *args, params=func_params, config_params=config_params
+        )
+
+        # End trace recording
+        tracing.end_recording(
+            outputs=llm_result.dict(),
+            span=tracing.active_trace,
+        )
+        return llm_result
 
     @functools.wraps(func)
     async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -91,7 +113,27 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             agenta.config.pull(config_name=kwargs["config"])
         else:
             agenta.config.pull(config_name="default")
-        return await execute_function(func, *args, **func_params)
+
+        config = agenta.config.all()
+
+        # Start tracing
+        tracing.start_parent_span(
+            name=func.__name__,
+            inputs=func_params,
+            config=config,
+            environment=kwargs["environment"],  # type: ignore #NOTE: wrapper is only called in playground
+        )
+
+        llm_result = await execute_function(
+            func, *args, params=func_params, config_params=config_params
+        )
+
+        # End trace recording
+        tracing.end_recording(
+            outputs=llm_result.dict(),
+            span=tracing.active_trace,
+        )
+        return llm_result
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
@@ -153,9 +195,7 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
-async def execute_function(
-    func: Callable[..., Any], *args, **func_params
-) -> Union[Dict[str, Any], JSONResponse]:
+async def execute_function(func: Callable[..., Any], *args, **func_params):
     """Execute the function and handle any exceptions."""
 
     try:
@@ -167,30 +207,32 @@ async def execute_function(
         is_coroutine_function = inspect.iscoroutinefunction(func)
         start_time = time.perf_counter()
         if is_coroutine_function:
-            result = await func(*args, **func_params)
+            result = await func(*args, **func_params["params"])
         else:
-            result = func(*args, **func_params)
+            result = func(*args, **func_params["params"])
+
         end_time = time.perf_counter()
         latency = end_time - start_time
 
         if isinstance(result, Context):
             save_context(result)
         if isinstance(result, Dict):
-            return FuncResponse(**result, latency=round(latency, 4)).dict()
+            return FuncResponse(**result, latency=round(latency, 4))
         if isinstance(result, str):
-            return FuncResponse(message=result, latency=round(latency, 4)).dict()
+            return FuncResponse(message=result, latency=round(latency, 4))  # type: ignore
     except Exception as e:
-        return handle_exception(e)
+        handle_exception(e)
+    return FuncResponse(message="Unexpected error occurred", latency=0)  # type: ignore
 
 
-def handle_exception(e: Exception) -> JSONResponse:
-    """Handle exceptions and return a JSONResponse."""
+def handle_exception(e: Exception):
+    """Handle exceptions."""
 
     status_code: int = e.status_code if hasattr(e, "status_code") else 500
-    traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)
-    return JSONResponse(
+    traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+    raise HTTPException(
         status_code=status_code,
-        content={"error": str(e), "traceback": "".join(traceback_str)},
+        detail={"error": str(e), "traceback": "".join(traceback_str)},
     )
 
 
@@ -355,6 +397,14 @@ def handle_terminal_run(
             file_path=args_func_params[name],
         )
     agenta.config.set(**args_config_params)
+
+    loop = asyncio.get_event_loop()
+    result = loop.run_until_complete(
+        execute_function(
+            func, **{"params": args_func_params, "config_params": args_config_params}
+        )
+    )
+    print(result)
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):

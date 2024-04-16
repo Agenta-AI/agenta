@@ -19,6 +19,7 @@ class Organization(pydantic.BaseModel):
     owner: str
     members: typing.Optional[typing.List[str]]
     invitations: typing.Optional[typing.List[typing.Any]]
+    is_paying: typing.Optional[bool]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
