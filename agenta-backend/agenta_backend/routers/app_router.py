@@ -11,7 +11,8 @@ from agenta_backend.config import settings
 from agenta_backend.models import converters
 from agenta_backend.utils.common import (
     isEE,
-    isCloud,
+    isCloudProd,
+    isCloudDev,
     APIRouter,
     isCloudEE,
 )
@@ -60,10 +61,12 @@ if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
 
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
+elif isCloudDev():
+    from agenta_backend.services import deployment_manager
 elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,

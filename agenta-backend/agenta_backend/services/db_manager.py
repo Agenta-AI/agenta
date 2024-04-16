@@ -183,6 +183,47 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
+async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its base ID and config name.
+
+    Args:
+        base_id (str): The ID of the variant base to fetch
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.base.id == ObjectId(base_id),
+        fetch_links=True,
+    )
+    return app_variant
+
+
+async def fetch_app_variant_by_base_id_and_config_name(
+    base_id: str, config_name: str
+) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its base ID and config name.
+
+    Args:
+        base_id (str): The ID of the variant base to fetch
+        config_name (str): The name of the config
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    assert config_name is not None, "config_name cannot be None"
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.base.id == ObjectId(base_id),
+        AppVariantDB.config_name == config_name,
+        fetch_links=True,
+    )
+    return app_variant
+
+
 async def fetch_app_variant_revision_by_variant(
     app_variant_id: str, revision: int
 ) -> AppVariantRevisionsDB:
@@ -1804,7 +1845,6 @@ async def fetch_app_by_name_and_parameters(
         )
 
     app_db = await AppDB.find_one(query_expression, fetch_links=True)
-
     return app_db
 
 

@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from agenta_backend.utils.common import isCloudEE
 
 if isCloudEE():
+    from agenta_backend.commons.observability.models.db import SpanDB
     from agenta_backend.commons.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -47,8 +48,6 @@ else:
     )
 
 from agenta_backend.models.db_models import (
-    SpanDB,
-    TraceDB,
     TemplateDB,
     AppVariantRevisionsDB,
 )
@@ -57,8 +56,6 @@ from agenta_backend.models.db_models import (
 document_models: List[Document] = [
     AppDB,
     UserDB,
-    SpanDB,
-    TraceDB,
     ImageDB,
     TestSetDB,
     TemplateDB,
@@ -76,7 +73,7 @@ document_models: List[Document] = [
 ]
 
 if isCloudEE():
-    document_models = document_models + [OrganizationDB, WorkspaceDB, APIKeyDB]
+    document_models = document_models + [SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB]
 
 
 # Configure and set logging level

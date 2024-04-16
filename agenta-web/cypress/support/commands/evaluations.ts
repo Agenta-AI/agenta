@@ -59,6 +59,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
+    cy.get('[data-cy="app-testsets-link"]').trigger("mouseout")
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
 
