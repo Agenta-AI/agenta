@@ -5,6 +5,7 @@ import typing
 
 from ..core.datetime_utils import serialize_datetime
 from .aggregated_result import AggregatedResult
+from .result import Result
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -21,10 +22,12 @@ class Evaluation(pydantic.BaseModel):
     variant_names: typing.List[str]
     variant_revision_ids: typing.List[str]
     revisions: typing.List[str]
-    testset_id: str
-    testset_name: str
-    status: str
+    testset_id: typing.Optional[str]
+    testset_name: typing.Optional[str]
+    status: Result
     aggregated_results: typing.List[AggregatedResult]
+    average_cost: typing.Optional[Result]
+    average_latency: typing.Optional[Result]
     created_at: dt.datetime
     updated_at: dt.datetime
 

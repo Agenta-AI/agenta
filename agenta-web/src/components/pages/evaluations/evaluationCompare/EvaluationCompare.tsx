@@ -161,10 +161,28 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     )
                 },
                 valueGetter: (params) => {
-                    return getTypedValue(
-                        params.data?.variants.find(
-                            (item) => item.evaluationId === variant.evaluationId,
-                        )?.output?.result,
+                    return (
+                        <>
+                            {showDiff === "show" ? (
+                                <span>
+                                    <CompareOutputDiff
+                                        variantOutput={getTypedValue(
+                                            params.data?.variants.find(
+                                                (item) =>
+                                                    item.evaluationId === variant.evaluationId,
+                                            )?.output?.result,
+                                        )}
+                                        expectedOutput={params.data?.correctAnswer}
+                                    />
+                                </span>
+                            ) : (
+                                getTypedValue(
+                                    params.data?.variants.find(
+                                        (item) => item.evaluationId === variant.evaluationId,
+                                    )?.output?.result,
+                                )
+                            )}
+                        </>
                     )
                 },
             })

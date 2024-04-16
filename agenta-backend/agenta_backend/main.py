@@ -10,7 +10,6 @@ from agenta_backend.routers import (
     evaluation_router,
     human_evaluation_router,
     evaluators_router,
-    observability_router,
     testset_router,
     user_profile,
     variants_router,
@@ -18,13 +17,13 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.open_api import open_api_tags_metadata
 
-if isCloudEE():
+if isEE() or isCloudProd():
     from agenta_backend.commons.services import templates_manager
-else:
+elif isCloudDev() or isOss():
     from agenta_backend.services import templates_manager
 
 from fastapi import FastAPI
@@ -99,9 +98,6 @@ app.include_router(testset_router.router, prefix="/testsets", tags=["Testsets"])
 app.include_router(container_router.router, prefix="/containers", tags=["Containers"])
 app.include_router(
     environment_router.router, prefix="/environments", tags=["Environments"]
-)
-app.include_router(
-    observability_router.router, prefix="/observability", tags=["Observability"]
 )
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])

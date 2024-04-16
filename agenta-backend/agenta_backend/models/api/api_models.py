@@ -1,9 +1,26 @@
-from datetime import datetime
-from agenta_backend.models.db_models import ConfigDB
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from agenta_backend.models.db_models import ConfigDB
+
+
+class PaginationParam(BaseModel):
+    page: int = Field(default=1, ge=1)
+    pageSize: int = Field(default=10, ge=1)
+
+
+class SorterParams(BaseModel):
+    created_at: str = Field("desc")
+
+
+class WithPagination(BaseModel):
+    data: List[Any]
+    total: int
+    page: int
+    pageSize: int
 
 
 class Error(BaseModel):
@@ -18,7 +35,6 @@ class Result(BaseModel):
 
 
 class GetConfigResponse(BaseModel):
-    config_id: Optional[str]
     config_name: str
     current_version: int
     parameters: Dict[str, Any]

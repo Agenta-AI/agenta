@@ -130,6 +130,7 @@ async def get_config(
                     status_code=400,
                     detail=f"Environment {environment_name} does not deploy base {base_id}",
                 )
+            variant_revision = found_variant_revision.revision
             config = found_variant_revision.config
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
@@ -143,16 +144,12 @@ async def get_config(
                     status_code=400,
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
+            variant_revision = found_variant.revision
             config = found_variant.config
         logger.debug(config.parameters)
         return GetConfigResponse(
-            config_id=str(
-                0
-            ),  # TODO: Remove from the model and regenerate the SDK client
             config_name=config.config_name,
-            current_version=str(
-                0
-            ),  # TODO: remove from teh model and regenerate the SDK client
+            current_version=variant_revision,
             parameters=config.parameters,
         )
     except HTTPException as e:
