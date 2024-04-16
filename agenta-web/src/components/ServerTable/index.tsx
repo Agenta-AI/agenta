@@ -54,6 +54,7 @@ interface Props<T> {
     columns: DataCol<T>[]
     headerExtra?: ReactNode
     defaultTableParams?: Partial<TableParams>
+    deleteTrigger: boolean
 }
 
 const ServerTable = <T extends AnyObject>(
@@ -92,7 +93,7 @@ const ServerTable = <T extends AnyObject>(
             .finally(() => {
                 setLoading(false)
             })
-    }, [tableParams])
+    }, [tableParams, props.deleteTrigger])
 
     const onDragEnd = (fromIndex: number, toIndex: number) => {
         setColumns((cols) => {
