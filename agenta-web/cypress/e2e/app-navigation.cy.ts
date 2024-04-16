@@ -29,27 +29,32 @@ describe("App Navigation without errors", () => {
     })
 
     it("should navigate successfully to Automatic Evaluation results evaluators page", () => {
+        cy.clickLinkAndWait('[data-cy="app-auto-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-evaluators-link"]')
         cy.url().should("include", "/evaluations/new-evaluator")
     })
 
     it("should navigate successfully to Automatic Evaluation results page", () => {
+        cy.clickLinkAndWait('[data-cy="app-auto-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-evaluations-results-link"]')
         cy.url().should("include", "/evaluations/results")
     })
 
     it("should navigate successfully to A/B Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-human-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-human-ab-testing-link"]')
         cy.location("pathname").should("include", "/annotations/human_a_b_testing")
     })
 
     it("should navigate successfully to Single Model Test page", () => {
+        cy.clickLinkAndWait('[data-cy="app-human-evaluations-link"]')
         cy.clickLinkAndWait('[data-cy="app-single-model-test-link"]')
         cy.location("pathname").should("include", "/annotations/single_model_test")
     })
 
     if (isDemo()) {
         it("should navigate successfully to Endpoints", () => {
+            cy.clickLinkAndWait('[data-cy="app-deployment-link"]')
             cy.clickLinkAndWait('[data-cy="app-endpoints-link"]')
             cy.location("pathname").should("include", "/endpoints")
             cy.get('[data-cy="endpoints"]').within(() => {

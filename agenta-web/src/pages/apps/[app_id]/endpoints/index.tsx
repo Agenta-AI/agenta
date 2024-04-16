@@ -3,7 +3,6 @@ import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {useQueryParam} from "@/hooks/useQuery"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
@@ -14,6 +13,7 @@ import {Alert, Button, Dropdown, Empty, Space, Tabs, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
 

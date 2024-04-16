@@ -60,3 +60,9 @@ rabbitmq_data
 
 # docker compose override
 docker-compose.*override.yaml
+agenta-backend/agenta_backend/migrations/*.sh
+agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240131194122_create_default_workspace_for_org.py
+agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240203035221_move_org_existing_members_to_workspace.py
+agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240201102156_update_org_invitation.py
+agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240203035520_add_workspace_field_to_db_models.py
+docker-compose.oss.prod.yml

@@ -10,8 +10,9 @@ from httpx import ConnectError, TimeoutException
 from agenta_backend.config import settings
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloud, isOss
 
-if os.environ["FEATURE_FLAG"] in ["oss", "cloud"]:
+if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")

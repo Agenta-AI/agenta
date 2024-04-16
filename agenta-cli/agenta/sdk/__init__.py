@@ -15,7 +15,9 @@ from .types import (
     FileInputURL,
     BinaryParam,
 )
-from .agenta_init import Config, init
+from .tracing.decorators import span
+from .agenta_init import Config, init, llm_tracing
 from .utils.helper.openai_cost import calculate_token_usage
+
 
 config = PreInitObject("agenta.config", Config)
