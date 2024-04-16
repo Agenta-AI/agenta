@@ -86,6 +86,14 @@ const filterOption = (input: string, option?: {label: string; value: string}) =>
 const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
     const classes = useStyles()
 
+    const options = Object.entries(choices).map(([groupLabel, groupChoices]) => ({
+        label: groupLabel,
+        options: groupChoices.map((choice) => ({
+            label: choice,
+            value: choice,
+        })),
+    }))
+
     return (
         <Select
             showSearch
@@ -93,13 +101,7 @@ const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, han
             className={classes.select}
             onChange={handleChange}
             filterOption={filterOption}
-            options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
-                label: groupLabel,
-                options: groupChoices.map((choice) => ({
-                    label: choice,
-                    value: choice,
-                })),
-            }))}
+            options={options as any}
         />
     )
 }
