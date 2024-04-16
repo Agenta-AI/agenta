@@ -80,13 +80,19 @@ interface GroupedSelectProps {
     handleChange: (value: string) => void
 }
 
+const filterOption = (input: string, option?: {label: string; value: string}) =>
+    (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+
 const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
     const classes = useStyles()
+
     return (
         <Select
+            showSearch
             defaultValue={defaultValue}
             className={classes.select}
             onChange={handleChange}
+            filterOption={filterOption}
             options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
                 label: groupLabel,
                 options: groupChoices.map((choice) => ({
