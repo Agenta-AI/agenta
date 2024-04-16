@@ -101,6 +101,7 @@ const SidebarMenu: React.FC<{
                                     }
                                     onTitleClick={item.onClick}
                                     disabled={item.isCloudFeature}
+                                    data-cy={item.key}
                                 >
                                     {item.submenu.map((subitem) => {
                                         const node = (
@@ -122,6 +123,7 @@ const SidebarMenu: React.FC<{
                                                 icon={subitem.icon}
                                                 key={subitem.key}
                                                 onClick={subitem.onClick}
+                                                data-cy={subitem.key}
                                             >
                                                 {collapsed ? (
                                                     node
@@ -151,6 +153,7 @@ const SidebarMenu: React.FC<{
                                     </>
                                 }
                                 onTitleClick={item.onClick}
+                                data-cy={item.key}
                             >
                                 {item.submenu.map((subitem) => {
                                     const node = (
@@ -172,6 +175,7 @@ const SidebarMenu: React.FC<{
                                             icon={subitem.icon}
                                             key={subitem.key}
                                             onClick={subitem.onClick}
+                                            data-cy={subitem.key}
                                         >
                                             {collapsed ? (
                                                 node
@@ -197,7 +201,12 @@ const SidebarMenu: React.FC<{
                         </Link>
                     )
                     return (
-                        <Menu.Item icon={item.icon} key={item.key} onClick={item.onClick}>
+                        <Menu.Item
+                            data-cy={item.key}
+                            icon={item.icon}
+                            key={item.key}
+                            onClick={item.onClick}
+                        >
                             {collapsed ? (
                                 node
                             ) : (
