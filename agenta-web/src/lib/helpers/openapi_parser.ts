@@ -38,7 +38,7 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
             if (parameter.type === "array") {
                 parameter.enum = param["enum"]
             }
-            if (parameter.type === "float" || parameter.type === "int") {
+            if (parameter.type === "integer" || parameter.type === "number") {
                 parameter.minimum = param["minimum"]
                 parameter.maximum = param["maximum"]
             }
