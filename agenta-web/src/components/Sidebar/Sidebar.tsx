@@ -265,6 +265,14 @@ const Sidebar: React.FC = () => {
                 ) {
                     matched = item
                     if (subKey) openKey = subKey
+                    if (router.asPath.includes("human_a_b_testing")) {
+                        matched = {...item, key: "app-human-ab-testing-link"}
+                        openKey = "app-human-evaluations-link"
+                    }
+                    if (router.asPath.includes("single_model_test")) {
+                        matched = {...item, key: "app-single-model-test-link"}
+                        openKey = "app-human-evaluations-link"
+                    }
                 }
             })
         }
