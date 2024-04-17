@@ -147,11 +147,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                headerName: `${variant.variantName}-output`,
                 minWidth: 280,
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
-                hide: hiddenVariants.includes(variant.evaluationId),
+                hide: hiddenVariants.includes(`${variant.variantName}-output`),
                 cellRenderer: (params: any) => {
                     return (
                         <>
@@ -206,7 +207,6 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 colDefs.push({
                     flex: 1,
                     minWidth: 200,
-                    headerName: config.name,
                     headerComponent: (props: any) => {
                         const evaluator = evaluators.find(
                             (item) => item.key === config.evaluator_key,
@@ -223,9 +223,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             </AgCustomHeader>
                         )
                     },
+                    headerName: `${variant.variantName}-${config.name}`,
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
-                    hide: hiddenVariants.includes(variant.evaluationId),
+                    hide: hiddenVariants.includes(`${variant.variantName}-${config.name}`),
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -249,8 +250,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
-                hide: hiddenVariants.includes(variant.evaluationId),
+                hide: hiddenVariants.includes(`${variant.variantName}-latency`),
                 minWidth: 120,
+                headerName: `${variant.variantName}-latency`,
                 flex: 1,
                 valueGetter: (params) => {
                     const latency = params.data?.variants.find(
@@ -272,8 +274,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                headerName: `${variant.variantName}-cost`,
                 minWidth: 120,
-                hide: hiddenVariants.includes(variant.evaluationId),
+                hide: hiddenVariants.includes(`${variant.variantName}-cost`),
                 flex: 1,
                 valueGetter: (params) => {
                     const cost = params.data?.variants.find(
@@ -323,10 +326,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
     const shownCols = useMemo(
         () =>
-            evalIds
-                .map((item) => item)
+            colDefs
+                .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenVariants.includes(item)) as string[],
-        [hiddenVariants],
+        [colDefs],
     )
 
     const onExport = () => {
@@ -390,15 +393,21 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         onOpenChange={handleOpenChange}
                         menu={{
                             selectedKeys: shownCols,
-                            items: variants.map((configs) => ({
-                                key: configs.evaluationId as string,
-                                label: (
-                                    <Space>
-                                        <CheckOutlined />
-                                        <>{configs.variantName}</>
-                                    </Space>
-                                ),
-                            })),
+                            items: colDefs
+                                .filter(
+                                    (item) =>
+                                        !item.headerName?.includes("Input") &&
+                                        !item.headerName?.includes("Expected Output"),
+                                )
+                                .map((configs) => ({
+                                    key: configs.headerName as string,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{configs.headerName}</>
+                                        </Space>
+                                    ),
+                                })),
                             onClick: ({key}) => {
                                 handleToggleVariantVisibility(key)
                                 setFilterColsDropdown(true)
