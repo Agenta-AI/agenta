@@ -12,6 +12,7 @@ const nextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
     productionBrowserSourceMaps: true,
+    transpilePackages: ["@lobehub/icons"],
 
     async redirects() {
         return [
