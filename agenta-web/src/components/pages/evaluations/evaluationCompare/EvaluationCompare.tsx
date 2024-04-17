@@ -16,7 +16,13 @@ import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
-import {CheckOutlined, DownOutlined, DownloadOutlined} from "@ant-design/icons"
+import {
+    CheckOutlined,
+    CloseCircleOutlined,
+    DownOutlined,
+    DownloadOutlined,
+    UndoOutlined,
+} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
@@ -73,7 +79,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = ""] = useQueryParam("evaluations")
-    const [evalIds] = useState(evaluationIdsStr.split(",").filter((item) => !!item))
+    const evaluationIdsArray = evaluationIdsStr.split(",").filter((item) => !!item)
+    const [evalIds, setEvalIds] = useState(evaluationIdsArray)
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
     const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
     const [fetching, setFetching] = useState(false)
@@ -147,12 +154,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
-                headerName: `${variant.variantName}-output`,
+                headerName: "Output",
                 minWidth: 280,
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
-                hide: hiddenVariants.includes(`${variant.variantName}-output`),
+                hide: !evalIds.includes(variant.evaluationId) || hiddenVariants.includes("Output"),
                 cellRenderer: (params: any) => {
                     return (
                         <>
@@ -223,10 +230,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             </AgCustomHeader>
                         )
                     },
-                    headerName: `${variant.variantName}-${config.name}`,
+                    headerName: config.name,
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
-                    hide: hiddenVariants.includes(`${variant.variantName}-${config.name}`),
+                    hide:
+                        !evalIds.includes(variant.evaluationId) ||
+                        hiddenVariants.includes(config.name),
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -250,9 +259,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
-                hide: hiddenVariants.includes(`${variant.variantName}-latency`),
+                hide: !evalIds.includes(variant.evaluationId) || hiddenVariants.includes("Latency"),
                 minWidth: 120,
-                headerName: `${variant.variantName}-latency`,
+                headerName: "Latency",
                 flex: 1,
                 valueGetter: (params) => {
                     const latency = params.data?.variants.find(
@@ -274,9 +283,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
-                headerName: `${variant.variantName}-cost`,
+                headerName: "Cost",
                 minWidth: 120,
-                hide: hiddenVariants.includes(`${variant.variantName}-cost`),
+                hide: !evalIds.includes(variant.evaluationId) || hiddenVariants.includes("Cost"),
                 flex: 1,
                 valueGetter: (params) => {
                     const cost = params.data?.variants.find(
@@ -289,7 +298,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, showDiff, hiddenVariants])
+    }, [rows, showDiff, hiddenVariants, evalIds])
 
     const fetcher = () => {
         setFetching(true)
@@ -319,8 +328,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const handleToggleVariantVisibility = (evalId: string) => {
         if (!hiddenVariants.includes(evalId)) {
             setHiddenVariants([...hiddenVariants, evalId])
+            setEvalIds(evalIds.filter((val) => val !== evalId))
         } else {
             setHiddenVariants(hiddenVariants.filter((item) => item !== evalId))
+            if (evaluationIdsArray.includes(evalId)) {
+                setEvalIds([...evalIds, evalId])
+            }
         }
     }
 
@@ -367,6 +380,30 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                                 ? 0.4
                                                 : 1,
                                         }}
+                                        icon={
+                                            evalIds.length < 2 &&
+                                            evalIds.includes(
+                                                v.evaluationId,
+                                            ) ? null : evalIds.includes(v.evaluationId) ? (
+                                                <CloseCircleOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
+                                            ) : (
+                                                <UndoOutlined
+                                                    onClick={() =>
+                                                        handleToggleVariantVisibility(
+                                                            v.evaluationId,
+                                                        )
+                                                    }
+                                                    style={{cursor: "pointer"}}
+                                                />
+                                            )
+                                        }
                                     >
                                         <Link
                                             href={`/apps/${appId}/playground/?variant=${v.variantName}`}
@@ -396,15 +433,21 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             items: colDefs
                                 .filter(
                                     (item) =>
-                                        !item.headerName?.includes("Input") &&
+                                        !item.headerName?.startsWith("Input") &&
                                         !item.headerName?.includes("Expected Output"),
                                 )
+                                .reduce((acc, curr) => {
+                                    if (curr.headerName && !acc.includes(curr.headerName)) {
+                                        acc.push(curr.headerName)
+                                    }
+                                    return acc
+                                }, [] as string[])
                                 .map((configs) => ({
-                                    key: configs.headerName as string,
+                                    key: configs as string,
                                     label: (
                                         <Space>
                                             <CheckOutlined />
-                                            <>{configs.headerName}</>
+                                            <>{configs}</>
                                         </Space>
                                     ),
                                 })),
