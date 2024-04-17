@@ -242,6 +242,12 @@ class LMProvidersEnum(str, Enum):
     azure_key = "AZURE_API_KEY"
     togetherai = "TOGETHERAI_API_KEY"
     mistralai = "MISTRAL_API_KEY"
+    perplexityai = "PERPLEXITYAI_API_KEY"
+    anyscale = "ANYSCALE_API_KEY"
+    fireworksai = "FIREWORKS_AI_API_KEY"
+    deepinfra = "DEEPINFRA_API_KEY"
+    alephalpha = "ALEPHALPHA_API_KEY"
+    openrouter = "OPENROUTER_API_KEY"
 
 
 class NewEvaluation(BaseModel):
