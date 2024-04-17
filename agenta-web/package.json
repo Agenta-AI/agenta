@@ -26,6 +26,7 @@
         "@headlessui/react": "^1.7.18",
         "@headlessui/tailwindcss": "^0.2.0",
         "@heroicons/react": "^2.0.17",
+        "@lobehub/icons": "^1.18.0",
         "@mdx-js/loader": "^2.3.0",
         "@mdx-js/react": "^2.3.0",
         "@monaco-editor/react": "^4.5.2",
