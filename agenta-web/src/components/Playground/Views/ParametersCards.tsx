@@ -124,9 +124,7 @@ const getTextContent = (element: React.ReactNode): string => {
 }
 
 const filterOption = (input: string, option?: {label: React.ReactNode; value: string}) =>
-    getTextContent(option?.label)
-        .toLowerCase()
-        .includes(input.toLowerCase())
+    getTextContent(option?.label).toLowerCase().includes(input.toLowerCase())
 
 const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
     const classes = useStyles()
