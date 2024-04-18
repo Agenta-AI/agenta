@@ -72,6 +72,7 @@ export default function AddANewTestset() {
                 if (
                     e?.response?.data?.detail?.find((item: GenericObject) =>
                         item?.loc?.includes("csvdata"),
+                    )
                 )
                     message.error(malformedFileError)
                 else globalErrorHandler(e)
