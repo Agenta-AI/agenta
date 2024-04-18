@@ -59,7 +59,7 @@
         "jotai": "^2.5.0",
         "js-beautify": "^1.14.8",
         "lodash": "^4.17.21",
-        "next": "13.3.4",
+        "next": "^13.5.6",
         "nextjs-cors": "^2.1.2",
         "papaparse": "^5.4.1",
         "postcss": "^8.4.35",
@@ -86,6 +86,8 @@
         "uuid": "^9.0.1"
     },
     "devDependencies": {
+        "@swc/cli": "^0.3.12",
+        "@swc/core": "^1.4.15",
         "@types/node": "^20.8.10",
         "cypress": "^13.4.0",
         "node-mocks-http": "^1.12.2",
