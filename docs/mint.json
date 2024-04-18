@@ -1,5 +1,5 @@
 {
-  "$schema": "https://mintlify.com/schema.json",
+  "schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
     "dark": "/logo/dark-complete-transparent-cropped.svg",
@@ -84,6 +84,7 @@
       "pages": [
         "basic_guides/creating_an_app",
         "basic_guides/prompt_engineering",
+        "basic_guides/prompt_engineering_techniques",
         "basic_guides/test_sets",
         "basic_guides/automatic_evaluation",
         "basic_guides/human_evaluation",
