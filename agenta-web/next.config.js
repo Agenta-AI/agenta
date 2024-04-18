@@ -13,6 +13,7 @@ const nextConfig = {
     pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
     productionBrowserSourceMaps: true,
     transpilePackages: ["@lobehub/icons"],
+    swcMinify: true,
 
     async redirects() {
         return [
