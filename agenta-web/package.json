@@ -59,7 +59,7 @@
         "jotai": "^2.5.0",
         "js-beautify": "^1.14.8",
         "lodash": "^4.17.21",
-        "next": "13.3.4",
+        "next": "^13.5.6",
         "nextjs-cors": "^2.1.2",
         "papaparse": "^5.4.1",
         "postcss": "^8.4.35",
