@@ -68,7 +68,7 @@ const useStyles = createUseStyles({
         marginBottom: 8,
     },
     inputNumber: {
-        margin: "0 16px",
+        margin: "0 0 0 16px",
         width: "100%",
     },
     select: {
@@ -113,7 +113,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             {renameVariables(param.name)}
                                         </h4>
                                     </Col>
-                                    <Col span={8}>
+                                    <Col span={param.type === "grouped_choice" ? 13 : 8}>
                                         {param.type === "number" && (
                                             <Slider
                                                 min={param.minimum}
@@ -175,26 +175,28 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             />
                                         )}
                                     </Col>
-                                    <Col>
-                                        {param.type === "number" && (
-                                            <InputNumber
-                                                min={0}
-                                                max={10000}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                        {param.type === "integer" && (
-                                            <InputNumber
-                                                min={param.minimum}
-                                                max={param.maximum}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                    </Col>
+                                    {param.type !== "grouped_choice" && (
+                                        <Col>
+                                            {param.type === "number" && (
+                                                <InputNumber
+                                                    min={0}
+                                                    max={10000}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                            {param.type === "integer" && (
+                                                <InputNumber
+                                                    min={param.minimum}
+                                                    max={param.maximum}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                        </Col>
+                                    )}
                                     <Row />
                                 </Row>
                             ))}
