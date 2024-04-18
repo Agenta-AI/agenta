@@ -569,6 +569,13 @@ async def create_app_and_variant_from_template(
                 "OPENAI_API_KEY",
                 "MISTRAL_API_KEY",
                 "COHERE_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "ANYSCALE_API_KEY",
+                "PERPLEXITYAI_API_KEY",
+                "DEEPINFRA_API_KEY",
+                "TOGETHERAI_API_KEY",
+                "ALEPHALPHA_API_KEY",
+                "OPENROUTER_API_KEY",
             ]
             missing_keys = [
                 key for key in supported_llm_prodviders_keys if not os.environ.get(key)

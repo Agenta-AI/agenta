@@ -3,6 +3,7 @@ import {createUseStyles} from "react-jss"
 import {renameVariables} from "@/lib/helpers/utils"
 import {Parameter, InputParameter} from "@/lib/Types"
 import {DownOutlined} from "@ant-design/icons"
+
 import {
     Row,
     Card,
@@ -17,6 +18,7 @@ import {
     Menu,
     Space,
 } from "antd"
+import {GroupedSelect} from "./GroupedSelect"
 
 const useStyles = createUseStyles({
     row1: {
@@ -66,37 +68,13 @@ const useStyles = createUseStyles({
         marginBottom: 8,
     },
     inputNumber: {
-        margin: "0 16px",
-        width: "100%",
+        margin: "0 0 0 16px",
+        width: "calc(100% - 16px)",
     },
     select: {
         width: "100%",
     },
 })
-
-interface GroupedSelectProps {
-    choices: {[group: string]: string[]}
-    defaultValue: string
-    handleChange: (value: string) => void
-}
-
-const GroupedSelect: React.FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
-    const classes = useStyles()
-    return (
-        <Select
-            defaultValue={defaultValue}
-            className={classes.select}
-            onChange={handleChange}
-            options={Object.entries(choices).map(([groupLabel, groupChoices]) => ({
-                label: groupLabel,
-                options: groupChoices.map((choice) => ({
-                    label: choice,
-                    value: choice,
-                })),
-            }))}
-        />
-    )
-}
 
 interface ModelParametersProps {
     optParams: Parameter[] | null
@@ -135,7 +113,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             {renameVariables(param.name)}
                                         </h4>
                                     </Col>
-                                    <Col span={8}>
+                                    <Col span={param.type === "grouped_choice" ? 10 : 8}>
                                         {param.type === "number" && (
                                             <Slider
                                                 min={param.minimum}
@@ -197,26 +175,28 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             />
                                         )}
                                     </Col>
-                                    <Col>
-                                        {param.type === "number" && (
-                                            <InputNumber
-                                                min={0}
-                                                max={10000}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                        {param.type === "integer" && (
-                                            <InputNumber
-                                                min={param.minimum}
-                                                max={param.maximum}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                    </Col>
+                                    {param.type !== "grouped_choice" && (
+                                        <Col span={2}>
+                                            {param.type === "number" && (
+                                                <InputNumber
+                                                    min={0}
+                                                    max={10000}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                            {param.type === "integer" && (
+                                                <InputNumber
+                                                    min={param.minimum}
+                                                    max={param.maximum}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                        </Col>
+                                    )}
                                     <Row />
                                 </Row>
                             ))}

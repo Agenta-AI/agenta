@@ -26,6 +26,7 @@
         "@headlessui/react": "^1.7.18",
         "@headlessui/tailwindcss": "^0.2.0",
         "@heroicons/react": "^2.0.17",
+        "@lobehub/icons": "^1.18.0",
         "@mdx-js/loader": "^2.3.0",
         "@mdx-js/react": "^2.3.0",
         "@monaco-editor/react": "^4.5.2",
@@ -91,6 +92,6 @@
         "@types/node": "^20.8.10",
         "cypress": "^13.4.0",
         "node-mocks-http": "^1.12.2",
-        "prettier": "^3.0.0"
+        "prettier": "^3.2.5"
     }
 }
