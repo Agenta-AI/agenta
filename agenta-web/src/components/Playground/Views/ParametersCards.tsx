@@ -69,7 +69,7 @@ const useStyles = createUseStyles({
     },
     inputNumber: {
         margin: "0 0 0 16px",
-        width: "100%",
+        width: "calc(100% - 16px)",
     },
     select: {
         width: "100%",
@@ -113,7 +113,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             {renameVariables(param.name)}
                                         </h4>
                                     </Col>
-                                    <Col span={param.type === "grouped_choice" ? 13 : 8}>
+                                    <Col span={param.type === "grouped_choice" ? 10 : 8}>
                                         {param.type === "number" && (
                                             <Slider
                                                 min={param.minimum}
@@ -176,7 +176,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         )}
                                     </Col>
                                     {param.type !== "grouped_choice" && (
-                                        <Col>
+                                        <Col span={2}>
                                             {param.type === "number" && (
                                                 <InputNumber
                                                     min={0}
