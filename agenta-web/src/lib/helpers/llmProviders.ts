@@ -20,9 +20,6 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "TogetherAI", key: "", name: "TOGETHERAI_API_KEY"},
     {title: "Aleph Alpha", key: "", name: "ALEPHALPHA_API_KEY"},
     {title: "OpenRouter", key: "", name: "OPENROUTER_API_KEY"},
-    {title: "Replicate", key: "", name: "REPLICATE_API_KEY"},
-    {title: "Hugging Face", key: "", name: "HUGGING_FACE_API_KEY"},
-    {title: "Azure", key: "", name: "AZURE_API_KEY"},
 ]
 
 export const getApikeys = () => {
