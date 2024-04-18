@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def auto_exact_match(
+async def auto_exact_match(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -37,7 +37,7 @@ def auto_exact_match(
         )
 
 
-def auto_similarity_match(
+async def auto_similarity_match(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -69,7 +69,7 @@ def auto_similarity_match(
         )
 
 
-def auto_regex_test(
+async def auto_regex_test(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -93,7 +93,7 @@ def auto_regex_test(
         )
 
 
-def field_match_test(
+async def field_match_test(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -110,7 +110,7 @@ def field_match_test(
         return Result(type="bool", value=False)
 
 
-def auto_webhook_test(
+async def auto_webhook_test(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -119,13 +119,13 @@ def auto_webhook_test(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        with httpx.Client(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             payload = {
                 "correct_answer": correct_answer,
                 "output": output,
                 "inputs": inputs,
             }
-            response = client.post(url=settings_values["webhook_url"], json=payload)
+            response = await client.post(url=settings_values["webhook_url"], json=payload)
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
@@ -165,7 +165,7 @@ def auto_webhook_test(
         )
 
 
-def auto_custom_code_run(
+async def auto_custom_code_run(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -192,7 +192,7 @@ def auto_custom_code_run(
         )
 
 
-def auto_ai_critique(
+async def auto_ai_critique(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -249,7 +249,7 @@ def auto_ai_critique(
         )
 
 
-def auto_starts_with(
+async def auto_starts_with(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -277,7 +277,7 @@ def auto_starts_with(
         )
 
 
-def auto_ends_with(
+async def auto_ends_with(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -303,7 +303,7 @@ def auto_ends_with(
         )
 
 
-def auto_contains(
+async def auto_contains(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -329,7 +329,7 @@ def auto_contains(
         )
 
 
-def auto_contains_any(
+async def auto_contains_any(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -360,7 +360,7 @@ def auto_contains_any(
         )
 
 
-def auto_contains_all(
+async def auto_contains_all(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -391,7 +391,7 @@ def auto_contains_all(
         )
 
 
-def auto_contains_json(
+async def auto_contains_json(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -421,7 +421,7 @@ def auto_contains_json(
         )
 
 
-def levenshtein_distance(s1, s2):
+async def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)
 
@@ -441,7 +441,7 @@ def levenshtein_distance(s1, s2):
     return previous_row[-1]
 
 
-def auto_levenshtein_distance(
+async def auto_levenshtein_distance(
     inputs: Dict[str, Any],
     output: str,
     correct_answer: str,
@@ -470,7 +470,7 @@ def auto_levenshtein_distance(
         )
 
 
-def evaluate(
+async def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
     output: str,
@@ -483,7 +483,7 @@ def evaluate(
     if not evaluation_function:
         raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
     try:
-        return evaluation_function(
+        return await evaluation_function(
             inputs,
             output,
             correct_answer,

@@ -214,40 +214,14 @@ def evaluate(
                 continue
 
             # 3. We evaluate
-            evaluators_results: [EvaluationScenarioResult] = []
+            evaluation_futures = []
             for evaluator_config_db in evaluator_config_dbs:
-                logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
-                if correct_answer_column in data_point:
-                    result = evaluators_service.evaluate(
-                        evaluator_key=evaluator_config_db.evaluator_key,
-                        output=app_output.result.value,
-                        correct_answer=data_point[correct_answer_column],
-                        settings_values=evaluator_config_db.settings_values,
-                        app_params=app_variant_parameters,
-                        inputs=data_point,
-                        lm_providers_keys=lm_providers_keys,
-                    )
-                else:
-                    result = Result(
-                        type="error",
-                        value=None,
-                        error=Error(
-                            message=f"No {correct_answer_column} column in test set"
-                        ),
-                    )
+                evaluation_futures.append(
+                    run_evaluations(evaluator_config_db, correct_answer_column, data_point, evaluators_aggregated_data,
+                                    app_output, app_variant_parameters, lm_providers_keys))
 
-                # Update evaluators aggregated data
-                evaluator_results: List[Result] = evaluators_aggregated_data[
-                    str(evaluator_config_db.id)
-                ]["results"]
-                evaluator_results.append(result)
-
-                result_object = EvaluationScenarioResult(
-                    evaluator_config=evaluator_config_db.id,
-                    result=result,
-                )
-                logger.debug(f"Result: {result_object}")
-                evaluators_results.append(result_object)
+            evaluation_future = asyncio.gather(*evaluation_futures)
+            evaluators_results: [EvaluationScenarioResult] = loop.run_until_complete(evaluation_future)
 
             # 4. We save the result of the eval scenario in the db
             correct_answer = (
@@ -341,8 +315,44 @@ def evaluate(
     )
 
 
+async def run_evaluations(evaluator_config_db, correct_answer_column, data_point, evaluators_aggregated_data,
+                          app_output, app_variant_parameters, lm_providers_keys) -> EvaluationScenarioResult:
+    logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
+    if correct_answer_column in data_point:
+        result = await evaluators_service.evaluate(
+            evaluator_key=evaluator_config_db.evaluator_key,
+            output=app_output.result.value,
+            correct_answer=data_point[correct_answer_column],
+            settings_values=evaluator_config_db.settings_values,
+            app_params=app_variant_parameters,
+            inputs=data_point,
+            lm_providers_keys=lm_providers_keys,
+        )
+    else:
+        result = Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=f"No {correct_answer_column} column in test set"
+            ),
+        )
+
+    # Update evaluators aggregated data
+    evaluator_results: List[Result] = evaluators_aggregated_data[
+        str(evaluator_config_db.id)
+    ]["results"]
+    evaluator_results.append(result)
+
+    result_object = EvaluationScenarioResult(
+        evaluator_config=evaluator_config_db.id,
+        result=result,
+    )
+    logger.debug(f"Result: {result_object}")
+    return result_object
+
+
 async def aggregate_evaluator_results(
-    app: AppDB, evaluators_aggregated_data: dict
+        app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
     aggregated_results = []
     for config_id, val in evaluators_aggregated_data.items():
@@ -408,7 +418,7 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
         elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
-                param["name"] in app_variant_parameters
+                    param["name"] in app_variant_parameters
             ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
                 input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
             else:  # otherwise we use the default from the openapi
