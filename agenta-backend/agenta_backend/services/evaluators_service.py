@@ -119,7 +119,7 @@ def auto_webhook_test(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        with httpx.Client() as client:
+        with httpx.Client(timeout=60) as client:
             payload = {
                 "correct_answer": correct_answer,
                 "output": output,
