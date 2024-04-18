@@ -18,7 +18,7 @@ import {
     Menu,
     Space,
 } from "antd"
-import { GroupedSelect } from "./GroupedSelect"
+import {GroupedSelect} from "./GroupedSelect"
 
 const useStyles = createUseStyles({
     row1: {
@@ -73,7 +73,7 @@ const useStyles = createUseStyles({
     },
     select: {
         width: "100%",
-    }
+    },
 })
 
 interface ModelParametersProps {
