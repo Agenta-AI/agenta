@@ -70,8 +70,8 @@ export default function AddANewTestset() {
                 router.push(`/apps/${appId}/testsets`)
             } catch (e: any) {
                 if (
-                    e?.response?.data?.detail?.find((item: GenericObject) =>
-                        item?.loc?.includes("csvdata"),
+                    e?.response?.data?.detail?.find(
+                        (item: GenericObject) => item?.loc?.includes("csvdata"),
                     )
                 )
                     message.error(malformedFileError)
