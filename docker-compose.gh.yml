@@ -133,9 +133,10 @@ services:
             - agenta-network
 
     celery_worker:
-        build: ./agenta-backend
+        container_name: celery-worker-1
+        image: ghcr.io/agenta-ai/agenta-backend
         command: >
-            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+            celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0
