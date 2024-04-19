@@ -9,6 +9,7 @@ import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 import {SidebarConfig, useSidebarConfig} from "./config"
 import {JSSTheme} from "@/lib/Types"
+import {useAppId} from "@/hooks/useAppId"
 
 const {Sider} = Layout
 
@@ -227,6 +228,7 @@ const Sidebar: React.FC = () => {
     const router = useRouter()
     const classes = useStyles()
     const [openKey, setOpenKey] = useState<string>()
+    const appId = useAppId()
 
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
@@ -272,6 +274,13 @@ const Sidebar: React.FC = () => {
                     if (router.asPath.includes("single_model_test")) {
                         matched = {...item, key: "app-single-model-test-link"}
                         openKey = "app-human-evaluations-link"
+                    }
+                    if (
+                        router.asPath.startsWith(`/apps/${appId}/evaluations`) &&
+                        !router.asPath.includes("new-evaluator")
+                    ) {
+                        matched = {...item, key: "app-evaluations-results-link"}
+                        openKey = "app-auto-evaluations-link"
                     }
                 }
             })
