@@ -3,11 +3,9 @@ import json
 import httpx
 import backoff
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from asyncio.exceptions import CancelledError
 from httpx import ConnectError, TimeoutException
-
-from agenta_backend.config import settings
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloud, isOss
@@ -17,8 +15,7 @@ if isCloud() or isOss():
 
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
-
-from typing import Union
+docker_hub_url = os.getenv("DOCKER_HUB_URL")
 
 
 async def update_and_sync_templates(cache: bool = True) -> None:
@@ -87,7 +84,7 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await retrieve_templates_from_dockerhub(
-        settings.docker_hub_url,
+        docker_hub_url,
         agenta_template_repo,
     )
     response_data = response["results"]
