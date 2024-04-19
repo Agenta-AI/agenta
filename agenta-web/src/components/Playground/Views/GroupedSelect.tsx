@@ -12,6 +12,7 @@ import {
     Together,
     OpenRouter,
     Fireworks,
+    Groq,
 } from "@lobehub/icons"
 
 const useStyles = createUseStyles({
@@ -43,6 +44,7 @@ const iconMap: {[key: string]: React.ComponentType<any>} = {
     "Perplexity AI": Perplexity.Color,
     "Together AI": Together.Color,
     OpenRouter: OpenRouter,
+    Groq: Groq,
 }
 
 const getTextContent = (element: React.ReactNode): string => {
