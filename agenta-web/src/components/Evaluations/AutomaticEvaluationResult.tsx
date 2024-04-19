@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchEvaluationResults, loadEvaluations} from "@/lib/services/api"
-import {Button, Collapse, Statistic, Table, Typography} from "antd"
+import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -10,7 +10,6 @@ import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
-import Link from "next/link"
 
 interface EvaluationListTableDataType {
     key: string
@@ -90,8 +89,8 @@ export default function AutomaticEvaluationResult({
     const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-
     const app_id = router.query.app_id?.toString() || ""
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
 
     useEffect(() => {
         if (!app_id) {
@@ -100,6 +99,7 @@ export default function AutomaticEvaluationResult({
 
         const fetchEvaluations = async () => {
             try {
+                setFetchingEvaluations(true)
                 const evals: Evaluation[] = (await loadEvaluations(app_id)).map(
                     fromEvaluationResponseToEvaluation,
                 )
@@ -136,6 +136,8 @@ export default function AutomaticEvaluationResult({
                 )
             } catch (error) {
                 console.error(error)
+            } finally {
+                setFetchingEvaluations(false)
             }
         }
 
@@ -287,16 +289,18 @@ export default function AutomaticEvaluationResult({
                 <Title level={3}>Single Model Test Results</Title>
             </div>
 
-            <Table
-                rowSelection={{
-                    type: selectionType,
-                    ...rowSelection,
-                }}
-                className="ph-no-capture"
-                data-cy="automatic-evaluation-result"
-                columns={columns}
-                dataSource={evaluationsList}
-            />
+            <Spin spinning={fetchingEvaluations}>
+                <Table
+                    rowSelection={{
+                        type: selectionType,
+                        ...rowSelection,
+                    }}
+                    className="ph-no-capture"
+                    data-cy="automatic-evaluation-result"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                />
+            </Spin>
         </div>
     )
 }
