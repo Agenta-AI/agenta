@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 from beanie import PydanticObjectId as ObjectId
 
-from agenta_backend.config import settings
 from agenta_backend.models import converters
 from agenta_backend.utils.common import (
     isEE,
@@ -77,6 +76,8 @@ else:
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
 
 
 @router.get(
@@ -341,7 +342,7 @@ async def add_variant_from_image(
             docker_id=payload.docker_id,
             tags=payload.tags,
         )
-        if not payload.tags.startswith(settings.registry):
+        if not payload.tags.startswith(registry_repo_name):
             raise HTTPException(
                 status_code=500,
                 detail="Image should have a tag starting with the registry name (agenta-server)",

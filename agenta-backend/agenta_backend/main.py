@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from agenta_backend.config import settings
 from agenta_backend import celery_config
 from agenta_backend.routers import (
     app_router,

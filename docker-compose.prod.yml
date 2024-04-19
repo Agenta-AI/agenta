@@ -23,6 +23,8 @@ services:
       - CELERY_BROKER_URL=amqp://guest@rabbitmq//
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
+      - REGISTRY_REPO_NAME=agentaai
+      - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
     volumes:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - ./agenta-backend/tests:/app/tests
