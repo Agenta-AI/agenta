@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Statistic, Table, Typography} from "antd"
+import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -119,6 +119,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const app_id = router.query.app_id?.toString() || ""
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
 
     useEffect(() => {
         if (!app_id) {
@@ -126,6 +127,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
         }
         const fetchEvaluations = async () => {
             try {
+                setFetchingEvaluations(true)
                 fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
@@ -169,6 +171,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             .catch((err) => console.error(err))
                     })
                     .catch((err) => console.error(err))
+                    .finally(() => setFetchingEvaluations(false))
             } catch (error) {
                 console.log(error)
             }
@@ -363,15 +366,17 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                 <Title level={3}>A/B Test Results</Title>
             </div>
 
-            <Table
-                rowSelection={{
-                    type: selectionType,
-                    ...rowSelection,
-                }}
-                className="ph-no-capture"
-                columns={columns}
-                dataSource={evaluationsList}
-            />
+            <Spin spinning={fetchingEvaluations}>
+                <Table
+                    rowSelection={{
+                        type: selectionType,
+                        ...rowSelection,
+                    }}
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                />
+            </Spin>
         </div>
     )
 }
