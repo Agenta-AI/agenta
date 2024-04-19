@@ -263,6 +263,7 @@ export interface LlmProvidersKeys {
     AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
     MISTRAL_API_KEY: string
+    GROQ_API_KEY: string
 }
 
 export interface AppTemplate {
