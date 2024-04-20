@@ -267,20 +267,35 @@ const Sidebar: React.FC = () => {
                 ) {
                     matched = item
                     if (subKey) openKey = subKey
-                    if (router.asPath.includes("human_a_b_testing")) {
-                        matched = {...item, key: "app-human-ab-testing-link"}
-                        openKey = "app-human-evaluations-link"
-                    }
-                    if (router.asPath.includes("single_model_test")) {
-                        matched = {...item, key: "app-single-model-test-link"}
-                        openKey = "app-human-evaluations-link"
-                    }
-                    if (
-                        router.asPath.startsWith(`/apps/${appId}/evaluations`) &&
-                        !router.asPath.includes("new-evaluator")
-                    ) {
-                        matched = {...item, key: "app-evaluations-results-link"}
-                        openKey = "app-auto-evaluations-link"
+
+                    const routeMappings = [
+                        {
+                            path: "human_a_b_testing",
+                            sidebarKey: "app-human-ab-testing-link",
+                            openKey: "app-human-evaluations-link",
+                            condition: () => true,
+                        },
+                        {
+                            path: "single_model_test",
+                            sidebarKey: "app-single-model-test-link",
+                            openKey: "app-human-evaluations-link",
+                            condition: () => true,
+                        },
+                        {
+                            path: `/apps/${appId}/evaluations`,
+                            sidebarKey: "app-evaluations-results-link",
+                            openKey: "app-auto-evaluations-link",
+                            condition: () => !router.asPath.includes("new-evaluator"),
+                        },
+                    ]
+
+                    const matchedMapping = routeMappings.find(
+                        (mapping) => router.asPath.includes(mapping.path) && mapping.condition(),
+                    )
+
+                    if (matchedMapping) {
+                        matched = {...item, key: matchedMapping.sidebarKey}
+                        openKey = matchedMapping.openKey
                     }
                 }
             })
