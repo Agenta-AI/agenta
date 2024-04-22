@@ -51,6 +51,9 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
     shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
 
+    # Initialize agentaignore_content with an empty string
+    agentaignore_content = ""
+
     # Read the contents of .gitignore file
     agentaignore_file_path = folder / ".agentaignore"
     if agentaignore_file_path.exists():
