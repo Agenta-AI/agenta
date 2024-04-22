@@ -51,12 +51,14 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
     shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
 
+    # Initialize agentaignore_content with an empty string
+    agentaignore_content = ""
+
     # Read the contents of .gitignore file
-    gitignore_content = ""
-    gitignore_file_path = folder / ".gitignore"
-    if gitignore_file_path.exists():
-        with open(gitignore_file_path, "r") as gitignore_file:
-            gitignore_content = gitignore_file.read()
+    agentaignore_file_path = folder / ".agentaignore"
+    if agentaignore_file_path.exists():
+        with open(agentaignore_file_path, "r") as agentaignore_file:
+            agentaignore_content = agentaignore_file.read()
 
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -64,7 +66,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
 
         # Clean - remove '/' from every files and folders in the gitignore contents
         sanitized_patterns = [
-            pattern.replace("/", "") for pattern in gitignore_content.splitlines()
+            pattern.replace("/", "") for pattern in agentaignore_content.splitlines()
         ]
 
         # Function to ignore files based on the patterns
