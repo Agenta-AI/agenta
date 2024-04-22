@@ -248,8 +248,9 @@ def init(app_name: str, backend_host: str):
         gitignore_content = (
             "# Environments \nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\nmyenv/\n"
         )
-        with open(".gitignore", "w") as gitignore_file:
-            gitignore_file.write(gitignore_content)
+        if not os.path.exists(".agentaignore"):
+            with open(".agentaignore", "w") as gitignore_file:
+                gitignore_file.write(gitignore_content)
 
         click.echo("App initialized successfully")
         if init_option == "Start from template":
