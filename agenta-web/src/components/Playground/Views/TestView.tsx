@@ -22,6 +22,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
+import {formatLatency} from "@/lib/helpers/formatters"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -229,7 +230,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <p>
                         Latency:{" "}
                         {additionalData.latency !== null
-                            ? `${Math.round(additionalData.latency * 1000)}ms`
+                            ? formatLatency(additionalData.latency)
                             : "0ms"}
                     </p>
                 </Space>
