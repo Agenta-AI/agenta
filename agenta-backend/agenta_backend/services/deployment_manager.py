@@ -4,14 +4,15 @@ from typing import Dict
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.api_models import Image
-from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
+from agenta_backend.models.db_models import AppVariantDB, DeploymentDB
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
+
+agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
 
 
 async def start_service(
@@ -134,9 +135,9 @@ async def validate_image(image: Image) -> bool:
         msg = "Image tags cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
-    if not image.tags.startswith(agenta_template_repo):
+    if not image.tags.startswith(agenta_registry_repo):
         raise ValueError(
-            "Image should have a tag starting with the registry name (agenta-server)"
+            f"Image should have a tag starting with the registry name ({agenta_registry_repo})\n Image Tags: {image.tags}"
         )
     if image not in docker_utils.list_images():
         raise DockerException(
