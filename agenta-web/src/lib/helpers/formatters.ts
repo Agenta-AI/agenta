@@ -17,5 +17,5 @@ export const formatCurrency = (value = 0) => {
 }
 
 export const formatLatency = (value = 0) => {
-    return `${intlNumber.format(value / 1000)}s`
+    return `${Math.round(value * 1000)}ms`
 }
