@@ -298,7 +298,17 @@ async def start_variant(
     logger.debug("Starting variant %s", variant_id)
 
     # Inject env vars to docker container
-    envvars = {} if env_vars is None else env_vars.env_vars
+    if isCloudEE():
+        if not os.environ["OPENAI_API_KEY"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+            )
+        envvars = {
+            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+        }
+    else:
+        envvars = {} if env_vars is None else env_vars.env_vars
 
     if action.action == VariantActionEnum.START:
         url: URI = await app_manager.start_variant(app_variant_db, envvars)
