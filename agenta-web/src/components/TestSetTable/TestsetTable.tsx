@@ -349,6 +349,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     </Button>
                 </div>
             )
+        } else if (displayName === "" && params.column?.colId === "0") {
+            return
         } else {
             return (
                 <>
