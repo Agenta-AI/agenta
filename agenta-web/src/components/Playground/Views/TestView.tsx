@@ -473,7 +473,7 @@ const App: React.FC<TestViewProps> = ({
                 optParams || [],
                 appId || "",
                 variant.baseId || "",
-                isChatVariant ? testItem.chat : [],
+                isChatVariant ? testItem.chat || [{}] : [],
                 controller.signal,
                 true,
             )
