@@ -104,7 +104,7 @@ class AppVariantRevisionsDB(Document):
     modified_by: Link[UserDB]
     base: Link[VariantBaseDB]
     config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: datetime
     updated_at: Optional[datetime] = Field(default=datetime.now())
 
     class Settings:
@@ -131,7 +131,7 @@ class AppEnvironmentRevisionDB(Document):
     modified_by: Link[UserDB]
     deployed_app_variant_revision: Optional[PydanticObjectId]
     deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: datetime
 
     class Settings:
         name = "environments_revisions"
