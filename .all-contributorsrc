@@ -399,6 +399,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "vishalvanpariya",
+      "name": "Vishal Vanpariya",
+      "avatar_url": "https://avatars.githubusercontent.com/u/27823328?v=4",
+      "profile": "https://github.com/vishalvanpariya",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
