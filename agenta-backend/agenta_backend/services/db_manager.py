@@ -404,6 +404,7 @@ async def create_new_app_variant(
         modified_by=user,
         base=base,
         config=config,
+        created_at=datetime.now()
     )
     await variant_revision.create()
 
@@ -891,6 +892,7 @@ async def add_variant_from_base_and_config(
         modified_by=user_db,
         base=base_db,
         config=config_db,
+        created_at=datetime.now()
     )
     await variant_revision.create()
 
@@ -1284,6 +1286,7 @@ async def create_environment_revision(
         environment=environment,
         revision=environment.revision,
         modified_by=user,
+        created_at=datetime.now()
     )
 
     if kwargs:
@@ -1497,6 +1500,7 @@ async def update_variant_parameters(
             modified_by=user,
             base=app_variant_db.base,
             config=config_db,
+            created_at=datetime.now()
         )
         await variant_revision.save()
 
