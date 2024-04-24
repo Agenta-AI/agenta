@@ -48,6 +48,7 @@ interface Props {
             error: boolean
         }>
     >
+    fetchData: () => Promise<void>
 }
 
 const useStyles = createUseStyles({
@@ -90,6 +91,7 @@ const ParametersView: React.FC<Props> = ({
     setIsDrawerOpen,
     historyStatus,
     setHistoryStatus,
+    fetchData,
 }) => {
     const classes = useStyles()
     const posthog = usePostHogAg()
@@ -127,6 +129,7 @@ const ParametersView: React.FC<Props> = ({
                     content: "Changes saved successfully!",
                     onClose: () => handlePersistVariant(variant.variantName),
                 })
+                fetchData()
                 onStateChange(false)
                 res(true)
             })

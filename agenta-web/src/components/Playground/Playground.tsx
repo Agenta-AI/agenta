@@ -271,6 +271,7 @@ const Playground: React.FC = () => {
                 }
                 getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
                 tabID={tabID}
+                fetchData={fetchData}
             />
         ),
         closable: !variant.persistent,
