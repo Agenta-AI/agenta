@@ -9,7 +9,6 @@ import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 import {SidebarConfig, useSidebarConfig} from "./config"
 import {JSSTheme} from "@/lib/Types"
-import {useAppId} from "@/hooks/useAppId"
 
 const {Sider} = Layout
 
@@ -228,7 +227,6 @@ const Sidebar: React.FC = () => {
     const router = useRouter()
     const classes = useStyles()
     const [openKey, setOpenKey] = useState<string>()
-    const appId = useAppId()
 
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
 
@@ -267,36 +265,6 @@ const Sidebar: React.FC = () => {
                 ) {
                     matched = item
                     if (subKey) openKey = subKey
-
-                    const routeMappings = [
-                        {
-                            path: "human_a_b_testing",
-                            sidebarKey: "app-human-ab-testing-link",
-                            openKey: "app-human-evaluations-link",
-                            condition: () => true,
-                        },
-                        {
-                            path: "single_model_test",
-                            sidebarKey: "app-single-model-test-link",
-                            openKey: "app-human-evaluations-link",
-                            condition: () => true,
-                        },
-                        {
-                            path: `/apps/${appId}/evaluations`,
-                            sidebarKey: "app-evaluations-results-link",
-                            openKey: "app-auto-evaluations-link",
-                            condition: () => !router.asPath.includes("new-evaluator"),
-                        },
-                    ]
-
-                    const matchedMapping = routeMappings.find(
-                        (mapping) => router.asPath.includes(mapping.path) && mapping.condition(),
-                    )
-
-                    if (matchedMapping) {
-                        matched = {...item, key: matchedMapping.sidebarKey}
-                        openKey = matchedMapping.openKey
-                    }
                 }
             })
         }
