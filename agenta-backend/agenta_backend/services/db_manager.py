@@ -1,13 +1,12 @@
 import os
 import logging
-import traceback
-
 from pathlib import Path
-from datetime import datetime
 from urllib.parse import urlparse
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from typing import Any, Dict, List, Optional
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
@@ -112,7 +111,7 @@ async def add_testset_to_app_variant(
             testset = {
                 "name": f"{app_name}_testset",
                 "app_name": app_name,
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "csvdata": csvdata,
             }
             testset_db = TestSetDB(
@@ -404,7 +403,7 @@ async def create_new_app_variant(
         modified_by=user,
         base=base,
         config=config,
-        created_at=datetime.now(),
+        created_at=datetime.now(timezone.utc),
     )
     await variant_revision.create()
 
@@ -892,7 +891,7 @@ async def add_variant_from_base_and_config(
         modified_by=user_db,
         base=base_db,
         config=config_db,
-        created_at=datetime.now(),
+        created_at=datetime.now(timezone.utc),
     )
     await variant_revision.create()
 
@@ -1286,7 +1285,7 @@ async def create_environment_revision(
         environment=environment,
         revision=environment.revision,
         modified_by=user,
-        created_at=datetime.now(),
+        created_at=datetime.now(timezone.utc),
     )
 
     if kwargs:
@@ -1500,7 +1499,7 @@ async def update_variant_parameters(
             modified_by=user,
             base=app_variant_db.base,
             config=config_db,
-            created_at=datetime.now(),
+            created_at=datetime.now(timezone.utc),
         )
         await variant_revision.save()
 
@@ -1876,8 +1875,8 @@ async def create_new_evaluation(
         variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
+        created_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
     if isCloudEE():
@@ -1946,7 +1945,7 @@ async def update_evaluation_with_aggregated_results(
         raise ValueError("Evaluation not found")
 
     evaluation.aggregated_results = aggregated_results
-    evaluation.updated_at = datetime.now().isoformat()
+    evaluation.updated_at = datetime.now(timezone.utc).isoformat()
 
     await evaluation.save()
     return evaluation
