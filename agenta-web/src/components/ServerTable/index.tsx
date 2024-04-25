@@ -86,7 +86,14 @@ const ServerTable = <T extends AnyObject>(
         props
             .fetchData?.(tableParams)
             .then((res) => {
-                setData(res.data)
+                const updatedResponse = {
+                    ...res,
+                    data: res.data.map((item) => ({
+                        ...item,
+                        created_at: new Date(item.created_at).toISOString(),
+                    })),
+                }
+                setData(updatedResponse.data)
                 total.current = res.total || 0
             })
             .catch(console.error)
