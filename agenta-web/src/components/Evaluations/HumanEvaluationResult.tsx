@@ -186,7 +186,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/human_a_b_testing/${evaluation.key}`)
         }
     }
 
