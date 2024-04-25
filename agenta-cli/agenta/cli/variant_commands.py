@@ -9,13 +9,15 @@ from requests.exceptions import ConnectionError
 import click
 import questionary
 import toml
+
 from agenta.cli import helper
 from agenta.cli.telemetry import event_track
+from agenta.client.backend.client import AgentaApi
+from agenta.client.api import add_variant_to_server
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
+from agenta.client.backend.types.variant_action import VariantActionEnum, VariantAction
 
-from agenta.client.api import add_variant_to_server
-from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
@@ -260,8 +262,11 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     )
 
     endpoint = client.variants.start_variant(
-        variant_id=variant_id, action={"action": "START"}
-    )
+        variant_id=variant_id,
+        action=VariantAction(
+            action=VariantActionEnum.START,
+        ),
+    ).uri
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")

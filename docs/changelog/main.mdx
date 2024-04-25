@@ -2,6 +2,41 @@
 title: "Changelog"
 ---
 
+## v0.13.1-5 - Evaluation Speed Increase and Numerous Quality of Life Improvements
+*23rd April 2024*
+
+- We've improved the speed of evaluations by 3x through the use of asynchronous batching of calls.
+- We've added Groq as a new provider along with Llama3 to our playground.
+
+**Bug Fixes**
+
+- Resolved a rendering UI bug in Testset view.
+- Fixed incorrect URLs displayed when running the 'agenta variant serve' command.
+- Corrected timestamps in the configuration.
+- Resolved errors when using the chat template with empty input.
+- Fixed latency format in evaluation view.
+- Added a spinner to the Human Evaluation results table.
+- Resolved an issue where the gitignore was being overwritten when running 'agenta init'.
+
+
+## v0.13.0 - Observability (beta)
+*14th April 2024*
+
+You can now monitor your application usage in production. We've added a new observability feature (currently in beta), which allows you to:
+
+- Monitor cost, latency, and the number of calls to your applications in real-time.
+- View the logs of your LLM calls, including inputs, outputs, and used configurations. You can also add any interesting logs to your test set.
+- Trace your more complex LLM applications to understand the logic within and debug it.
+
+As of now, all new applications created will include observability by default. We are working towards a GA version in the next weeks, which will be scalable and better integrated with your applications. We will also be adding tutorials and documentation about it.
+
+<img height="600" className="dark:hidden" src="/images/changelog/observability_beta_light.png" />
+<img height="600" className="hidden dark:block" src="/images/changelog/observability_beta_dark.png" />
+
+
+Find examples of LLM apps created from code with observability <a href="https://github.com/Agenta-AI/agenta/tree/main/examples/app_with_observability" _target="_blank">here</a>.
+
+
 ## v0.12.6 - Compare latency and costs
 *1st April 2024*
 

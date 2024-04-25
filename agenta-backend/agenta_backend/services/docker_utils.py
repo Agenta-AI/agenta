@@ -10,7 +10,7 @@ from agenta_backend.models.api.api_models import (
     Dict,
 )
 
-agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
+agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
 
 client = docker.from_env()
 
@@ -56,7 +56,7 @@ def list_images() -> List[Image]:
     registry_images = [
         Image(type="image", docker_id=image.id, tags=image.tags[0])
         for image in all_images
-        if len(image.tags) > 0 and image.tags[0].startswith(agenta_template_repo)
+        if len(image.tags) > 0 and image.tags[0].startswith(agenta_registry_repo)
     ]
     return registry_images
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -9,8 +9,8 @@ class UserDB(Document):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "users"
@@ -25,8 +25,8 @@ class ImageDB(Document):
     tags: Optional[str]
     deletable: bool = Field(default=True)
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "docker_images"
@@ -35,8 +35,8 @@ class ImageDB(Document):
 class AppDB(Document):
     app_name: str
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "app_db"
@@ -49,8 +49,8 @@ class DeploymentDB(Document):
     container_id: Optional[str]
     uri: Optional[str]
     status: str
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "deployments"
@@ -62,8 +62,8 @@ class VariantBaseDB(Document):
     base_name: str
     image: Link[ImageDB]
     deployment: Optional[PydanticObjectId]  # Link to deployment
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "bases"
@@ -87,8 +87,8 @@ class AppVariantDB(Document):
     base: Link[VariantBaseDB]
     config_name: Optional[str]
     config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
@@ -104,8 +104,8 @@ class AppVariantRevisionsDB(Document):
     modified_by: Link[UserDB]
     base: Link[VariantBaseDB]
     config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: datetime
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "app_variant_revisions"
@@ -119,7 +119,7 @@ class AppEnvironmentDB(Document):
     deployed_app_variant: Optional[PydanticObjectId]
     deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
     deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "environments"
@@ -131,7 +131,7 @@ class AppEnvironmentRevisionDB(Document):
     modified_by: Link[UserDB]
     deployed_app_variant_revision: Optional[PydanticObjectId]
     deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    created_at: datetime
 
     class Settings:
         name = "environments_revisions"
@@ -158,8 +158,8 @@ class TestSetDB(Document):
     app: Link[AppDB]
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "testsets"
@@ -171,8 +171,8 @@ class EvaluatorConfigDB(Document):
     name: str
     evaluator_key: str
     settings_values: Dict[str, Any] = Field(default=dict)
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "evaluators_configs"
@@ -235,8 +235,8 @@ class HumanEvaluationDB(Document):
     variants: List[PydanticObjectId]
     variants_revisions: List[PydanticObjectId]
     testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "human_evaluations"
@@ -250,8 +250,8 @@ class HumanEvaluationScenarioDB(Document):
     vote: Optional[str]
     score: Optional[Any]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
     is_pinned: Optional[bool]
     note: Optional[str]
 
@@ -270,8 +270,8 @@ class EvaluationDB(Document):
     aggregated_results: List[AggregatedResult]
     average_cost: Optional[Result] = None
     average_latency: Optional[Result] = None
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "new_evaluations"
@@ -290,8 +290,8 @@ class EvaluationScenarioDB(Document):
     results: List[EvaluationScenarioResult]
     latency: Optional[int] = None
     cost: Optional[int] = None
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "new_evaluation_scenarios"
