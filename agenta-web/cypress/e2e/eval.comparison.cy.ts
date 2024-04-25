@@ -89,7 +89,7 @@ describe("Evaluation Comparison Test", function () {
             cy.get("div.ag-selection-checkbox input").eq(1).check()
             cy.get('[data-cy="evaluation-results-compare-button"]').should("not.be.disabled")
             cy.get('[data-cy="evaluation-results-compare-button"]').click()
-            cy.location("pathname").should("include", "/evaluations/compare")
+            cy.location("pathname").should("include", "/evaluations/results/compare")
             cy.contains(/Evaluations Comparison/i)
             cy.get('[data-cy="evaluation-compare-table"]').should("exist")
         })
