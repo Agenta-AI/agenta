@@ -2,7 +2,7 @@ import React, {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
-import {fetchEnvironments, fetchVariants} from "@/lib/services/api"
+import {fetchEnvironments, fetchVariants, saveNewVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -35,7 +35,7 @@ const Playground: React.FC = () => {
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
     const tabID = useRef("")
 
-    const addTab = () => {
+    const addTab = async () => {
         // Find the template variant
         const templateVariant = variants.find(
             (variant) => variant.variantName === templateVariantName,
@@ -77,8 +77,19 @@ const Playground: React.FC = () => {
             configName: newVariantName,
         }
 
-        setVariants((prevState: any) => [...prevState, newVariant])
-        setActiveKey(updateNewVariantName)
+        try {
+            await saveNewVariant(
+                newVariant.baseId!,
+                newVariant.variantName!,
+                newVariant.configName!,
+                [],
+            )
+            setVariants((prevState: any) => [...prevState, newVariant])
+            setActiveKey(updateNewVariantName)
+        } catch (error) {
+            message.error("Failed to add new variant. Please try again later.")
+            console.error("Error adding new variant:", error)
+        }
     }
 
     const removeTab = () => {
@@ -120,7 +131,7 @@ const Playground: React.FC = () => {
 
     useEffect(() => {
         fetchData()
-    }, [appId])
+    }, [appId, activeKey])
 
     // Load environments
     const [environments, setEnvironments] = useState<Environment[]>([])
@@ -271,7 +282,6 @@ const Playground: React.FC = () => {
                 }
                 getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
                 tabID={tabID}
-                fetchData={fetchData}
             />
         ),
         closable: !variant.persistent,
