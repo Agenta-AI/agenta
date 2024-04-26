@@ -26,7 +26,6 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
-    fetchData: () => Promise<void>
 }
 
 const useStyles = createUseStyles({
@@ -47,7 +46,6 @@ const ViewNavigation: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
-    fetchData,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -247,7 +245,6 @@ const ViewNavigation: React.FC<Props> = ({
                         setIsDrawerOpen={setIsDrawerOpen}
                         isDrawerOpen={isDrawerOpen}
                         historyStatus={historyStatus}
-                        fetchData={fetchData}
                     />
                 </Col>
             </Row>
