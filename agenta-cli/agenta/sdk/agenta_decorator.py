@@ -399,12 +399,30 @@ def handle_terminal_run(
     agenta.config.set(**args_config_params)
 
     loop = asyncio.get_event_loop()
+
+    # Initialize tracing
+    tracing = agenta.llm_tracing()
+
+    # Start tracing
+    tracing.start_parent_span(
+        name=func.__name__,
+        inputs=args_func_params,
+        config=args_config_params,
+        environment="shell",  # type: ignore
+    )
+
     result = loop.run_until_complete(
         execute_function(
             func, **{"params": args_func_params, "config_params": args_config_params}
         )
     )
-    print(result)
+
+    # End trace recording
+    tracing.end_recording(
+        outputs=result.dict(),
+        span=tracing.active_trace, # type: ignore
+    )
+    print(f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}")
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):
