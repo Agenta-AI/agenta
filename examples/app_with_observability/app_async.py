@@ -7,7 +7,11 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init()
+ag.init(
+    app_id="xxxxxxxx",
+    host="https://cloud.agenta.ai",
+    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+)
 tracing = ag.llm_tracing()
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
