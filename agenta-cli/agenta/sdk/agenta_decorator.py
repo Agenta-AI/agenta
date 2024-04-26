@@ -420,9 +420,11 @@ def handle_terminal_run(
     # End trace recording
     tracing.end_recording(
         outputs=result.dict(),
-        span=tracing.active_trace, # type: ignore
+        span=tracing.active_trace,  # type: ignore
     )
-    print(f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}")
+    print(
+        f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
+    )
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):
