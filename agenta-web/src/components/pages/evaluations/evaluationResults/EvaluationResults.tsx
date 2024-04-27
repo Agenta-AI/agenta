@@ -326,7 +326,7 @@ const EvaluationResults: React.FC<Props> = () => {
             data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
-                    `/apps/${appId}/evaluations/compare/?evaluations=${selected
+                    `/apps/${appId}/evaluations/results/compare/?evaluations=${selected
                         .map((item) => item.id)
                         .join(",")}`,
                 )
@@ -454,7 +454,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
                                             params.data?.status.value) &&
-                                        router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
+                                        router.push(
+                                            `/apps/${appId}/evaluations/results/${params.data?.id}`,
+                                        )
                                 }}
                                 rowSelection="multiple"
                                 suppressRowClickSelection

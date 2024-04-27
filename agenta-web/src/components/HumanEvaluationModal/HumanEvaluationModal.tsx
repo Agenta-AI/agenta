@@ -343,9 +343,9 @@ const HumanEvaluationModal = ({
         setVariants(selectedVariants)
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${appId}/annotations/${evaluationTableId}/human_a_b_testing`)
+            router.push(`/apps/${appId}/annotations/human_a_b_testing/${evaluationTableId}`)
         } else if (evaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${appId}/annotations/${evaluationTableId}/single_model_test`)
+            router.push(`/apps/${appId}/annotations/single_model_test/${evaluationTableId}`)
         }
     }
 
