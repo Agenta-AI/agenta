@@ -409,6 +409,7 @@ export interface _Evaluation {
     revisions: string[]
     average_latency?: TypedValue & {error: null | EvaluationError}
     average_cost?: TypedValue & {error: null | EvaluationError}
+    total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
 }
 

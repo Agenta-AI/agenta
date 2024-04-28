@@ -297,12 +297,12 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
-                field: "average_cost",
-                headerName: "Cost",
+                field: "total_cost",
+                headerName: "Total Cost",
                 hide: hiddenCols.includes("Cost"),
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
+                valueGetter: (params) => getTypedValue(params?.data?.total_cost),
             },
             {
                 flex: 1,
