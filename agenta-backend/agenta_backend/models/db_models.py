@@ -269,6 +269,7 @@ class EvaluationDB(Document):
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
     average_cost: Optional[Result] = None
+    total_cost: Optional[Result] = None
     average_latency: Optional[Result] = None
     created_at: datetime = Field(default=datetime.now(timezone.utc))
     updated_at: datetime = Field(default=datetime.now(timezone.utc))

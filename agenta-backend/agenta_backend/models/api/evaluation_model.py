@@ -72,6 +72,7 @@ class Evaluation(BaseModel):
     status: Result
     aggregated_results: List[AggregatedResult]
     average_cost: Optional[Result]
+    total_cost: Optional[Result]
     average_latency: Optional[Result]
     created_at: datetime
     updated_at: datetime
