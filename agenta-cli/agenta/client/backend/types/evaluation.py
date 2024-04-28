@@ -27,6 +27,7 @@ class Evaluation(pydantic.BaseModel):
     status: Result
     aggregated_results: typing.List[AggregatedResult]
     average_cost: typing.Optional[Result]
+    total_cost: typing.Optional[Result]
     average_latency: typing.Optional[Result]
     created_at: dt.datetime
     updated_at: dt.datetime
