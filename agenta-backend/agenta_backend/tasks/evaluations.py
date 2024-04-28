@@ -285,10 +285,17 @@ def evaluate(
         average_cost = aggregation_service.aggregate_float_from_llm_app_response(
             app_outputs, "cost"
         )
+        total_cost = aggregation_service.sum_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
-                {"average_latency": average_latency, "average_cost": average_cost},
+                {
+                    "average_latency": average_latency,
+                    "average_cost": average_cost,
+                    "total_cost": total_cost,
+                },
             )
         )
 
