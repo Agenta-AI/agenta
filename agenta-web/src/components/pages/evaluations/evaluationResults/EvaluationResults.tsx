@@ -289,7 +289,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {
                 flex: 1,
                 field: "average_latency",
-                headerName: "Avg Latency",
+                headerName: "Avg. Latency",
                 hide: hiddenCols.includes("Latency"),
                 minWidth: 120,
                 ...getFilterParams("number"),
