@@ -138,7 +138,7 @@ services:
         container_name: celery-worker-1
         image: ghcr.io/agenta-ai/agenta-backend
         command: >
-            celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+                bash -c "pip install celery && celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO"
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0
@@ -146,7 +146,6 @@ services:
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
         volumes:
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock
         depends_on:
             - mongo
