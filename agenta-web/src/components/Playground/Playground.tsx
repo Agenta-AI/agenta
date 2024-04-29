@@ -86,6 +86,7 @@ const Playground: React.FC = () => {
             )
             setVariants((prevState: any) => [...prevState, newVariant])
             setActiveKey(updateNewVariantName)
+            setUnsavedVariants((prev) => ({...prev, [newVariant.variantName!]: false}))
         } catch (error) {
             message.error("Failed to add new variant. Please try again later.")
             console.error("Error adding new variant:", error)
