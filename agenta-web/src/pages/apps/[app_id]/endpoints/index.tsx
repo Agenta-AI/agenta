@@ -8,8 +8,8 @@ import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
-import {ApiOutlined, AppstoreOutlined, DownOutlined, HistoryOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Empty, Space, Tabs, Typography} from "antd"
+import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
+import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -32,6 +32,7 @@ export default function VariantEndpoint() {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
+    const isOss = !isDemo()
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -48,9 +49,14 @@ export default function VariantEndpoint() {
     const loadEnvironments = async () => {
         const response: Environment[] = await fetchEnvironments(appId)
         setEnvironments(response)
-        setSelectedEnvironment(response[0])
-
-        await loadURL(response[0])
+        const loadProductionEnv = response.find((env) => env.name === "production")
+        if (loadProductionEnv) {
+            setSelectedEnvironment(loadProductionEnv)
+            await loadURL(loadProductionEnv)
+        } else {
+            setSelectedEnvironment(response[0])
+            await loadURL(response[0])
+        }
     }
     useEffect(() => {
         if (!appId) return
@@ -154,11 +160,26 @@ export default function VariantEndpoint() {
     }
 
     const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
+
     const codeSnippets: Record<string, string> = {
         Python: pythonCode(uri!, params),
         cURL: cURLCode(uri!, params),
         TypeScript: tsCode(uri!, params),
     }
+
+    const items: CollapseProps["items"] = [
+        {
+            key: "1",
+            label: "Invoke LLM App",
+            children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
+        },
+        {
+            key: "2",
+            label: "Fetch Prompt/Config",
+            children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
+        },
+    ]
+
     return (
         <div className={classes.container} data-cy="endpoints">
             <Title level={3}>
@@ -171,51 +192,56 @@ export default function VariantEndpoint() {
 
             <div>
                 <Text>Environment: </Text>
-                <Dropdown
-                    menu={{
-                        items: environments.map((env) => ({label: env.name, key: env.name})),
-                        onClick: handleEnvironmentClick,
-                    }}
+                <Radio.Group
+                    value={selectedEnvironment?.name}
+                    onChange={(e) => handleEnvironmentClick({key: e.target.value})}
                 >
-                    <Button size="small">
-                        <Space>
-                            {selectedEnvironment?.name || "Select a variant"}
-                            <DownOutlined />
-                        </Space>
-                    </Button>
-                </Dropdown>
+                    {environments.map((env) => (
+                        <Radio.Button
+                            disabled={!env.deployed_app_variant_id}
+                            key={env.name}
+                            value={env.name}
+                        >
+                            {env.name}
+                        </Radio.Button>
+                    ))}
+                </Radio.Group>
             </div>
 
             {selectedEnvironment?.deployed_app_variant_id ? (
-                isDemo() ? (
-                    <>
-                        <Tabs
-                            destroyInactiveTabPane
-                            defaultActiveKey={tab}
-                            items={[
-                                {
-                                    key: "overview",
-                                    label: "Overview",
-                                    icon: <AppstoreOutlined />,
-                                    children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
-                                },
-                                {
-                                    key: "history",
-                                    label: "History",
-                                    icon: <HistoryOutlined />,
-                                    children: (
-                                        <DeploymentHistory
-                                            selectedEnvironment={selectedEnvironment}
-                                        />
-                                    ),
-                                },
-                            ]}
-                            onChange={setTab}
-                        />
-                    </>
-                ) : (
-                    <DynamicCodeBlock codeSnippets={codeSnippets} />
-                )
+                <>
+                    <Tabs
+                        destroyInactiveTabPane
+                        defaultActiveKey={tab}
+                        items={[
+                            {
+                                key: "overview",
+                                label: "Overview",
+                                icon: <AppstoreOutlined />,
+                                children: <Collapse defaultActiveKey={["1"]} items={items} />,
+                            },
+                            {
+                                key: "history",
+                                label: !isOss ? (
+                                    "History"
+                                ) : (
+                                    <Tooltip
+                                        placement="right"
+                                        title="Deployment History available in Cloud/Enterprise editions only"
+                                    >
+                                        History
+                                    </Tooltip>
+                                ),
+                                icon: <HistoryOutlined />,
+                                children: (
+                                    <DeploymentHistory selectedEnvironment={selectedEnvironment} />
+                                ),
+                                disabled: isOss,
+                            },
+                        ]}
+                        onChange={setTab}
+                    />
+                </>
             ) : (
                 <Alert
                     message="Publish Required"
