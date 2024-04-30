@@ -1,6 +1,9 @@
-import cURLCode from "@/code_snippets/endpoints/curl"
-import pythonCode from "@/code_snippets/endpoints/python"
-import tsCode from "@/code_snippets/endpoints/typescript"
+import invokeLlmAppcURLCode from "@/code_snippets/endpoints/invoke_llm_app/curl"
+import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/python"
+import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
+import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
+import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"
+import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
@@ -112,8 +115,8 @@ export default function VariantEndpoint() {
     const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
-        environmentName: string,
         value: string | number,
+        environmentName?: string,
     ) => {
         let mainParams: GenericObject = {}
         let secondaryParams: GenericObject = {}
@@ -136,9 +139,7 @@ export default function VariantEndpoint() {
             mainParams["inputs"] = secondaryParams
         }
 
-        mainParams["environment"] = environmentName
-
-        return JSON.stringify(mainParams, null, 2)
+        return JSON.stringify({...mainParams, environment: environmentName}, null, 2)
     }
 
     if (isVariantsError) {
@@ -159,24 +160,36 @@ export default function VariantEndpoint() {
         )
     }
 
-    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
+    const invokeLlmAppParams = createParams(
+        inputParams,
+        "add_a_value",
+        selectedEnvironment?.name || "none",
+    )
 
-    const codeSnippets: Record<string, string> = {
-        Python: pythonCode(uri!, params),
-        cURL: cURLCode(uri!, params),
-        TypeScript: tsCode(uri!, params),
+    const fetchConfigParams = createParams(inputParams, "add_a_value")
+
+    const invokeLlmAppCodeSnippet: Record<string, string> = {
+        Python: invokeLlmApppythonCode(uri!, invokeLlmAppParams),
+        cURL: invokeLlmAppcURLCode(uri!, invokeLlmAppParams),
+        TypeScript: invokeLlmApptsCode(uri!, invokeLlmAppParams),
+    }
+
+    const fetchConfigCodeSnippet: Record<string, string> = {
+        Python: fetchConfigpythonCode(uri!, uri!, fetchConfigParams),
+        cURL: fetchConfigcURLCode(uri!, uri!, fetchConfigParams),
+        TypeScript: fetchConfigtsCode(uri!, uri!, fetchConfigParams),
     }
 
     const items: CollapseProps["items"] = [
         {
             key: "1",
             label: "Invoke LLM App",
-            children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
+            children: <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />,
         },
         {
             key: "2",
             label: "Fetch Prompt/Config",
-            children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
+            children: <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />,
         },
     ]
 
