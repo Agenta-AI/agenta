@@ -54,7 +54,6 @@ logger.setLevel(logging.DEBUG)
 
 async def start_variant(
     db_app_variant: AppVariantDB,
-    user_uid: str,
     env_vars: DockerEnvVars = None,
 ) -> URI:
     """
@@ -66,7 +65,6 @@ async def start_variant(
     Args:
         app_variant (AppVariant): The app variant for which a container is to be started.
         env_vars (DockerEnvVars): (optional) The environment variables to be passed to the container.
-        user_uid (str): The ID of the user making the request.
 
     Returns:
         URI: The URI of the started Docker container.
@@ -114,13 +112,6 @@ async def start_variant(
             env_vars.update({"AGENTA_API_KEY": api_key})
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
-        )
-
-        # Publish variant to production environment
-        await db_manager.deploy_to_environment(
-            environment_name="production",
-            variant_id=str(db_app_variant.id),
-            **{"user_uid": user_uid},
         )
 
         await db_manager.update_base(
@@ -185,7 +176,7 @@ async def update_variant_image(
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
 
     # Start variant
-    await start_variant(app_variant_db, user_uid=user_uid)
+    await start_variant(app_variant_db)
 
 
 async def terminate_and_remove_app_variant(
