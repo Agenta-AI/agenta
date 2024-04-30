@@ -1,2 +1,4 @@
 agenta
 openai
+bson
+cachetools

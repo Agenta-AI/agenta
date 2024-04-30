@@ -49,6 +49,7 @@ ag.config.default(
     frequence_penalty=ag.FloatParam(default=0.0, minval=-2.0, maxval=2.0),
     presence_penalty=ag.FloatParam(default=0.0, minval=-2.0, maxval=2.0),
     force_json=ag.BinaryParam(False),
+    cache_ttl_seconds=696,
 )
 
 

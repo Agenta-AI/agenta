@@ -8,7 +8,7 @@ from agenta.client.backend.client import AgentaApi
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
-from agenta.sdk.utils.custom_cache import CacheMiddleware
+from agenta.sdk.utils.custom_cache import CachingHTTPClient
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -22,7 +22,6 @@ backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
 client = AgentaApi(
     base_url=backend_url,
     api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
-    httpx_client=CacheMiddleware(timeout=5),
 )
 
 
@@ -62,6 +61,7 @@ class AgentaSingleton:
         Raises:
             ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
         """
+        cache_ttl_seconds = kwargs.get("cache_ttl_seconds", 300)
         if app_name is None:
             app_name = os.environ.get("AGENTA_APP_NAME")
         if base_name is None:
@@ -93,7 +93,9 @@ class AgentaSingleton:
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
         self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host)
+        self.config = Config(
+            base_id=base_id, host=host, cache_ttl_seconds=cache_ttl_seconds
+        )
 
     def get_app(self, app_name: str) -> str:
         apps = client.apps.list_apps(app_name=app_name)
@@ -120,16 +122,16 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id, host):
+    def __init__(self, base_id, host, cache_ttl_seconds=300):
         self.base_id = base_id
         self.host = host
+        self.cache_ttl_seconds = cache_ttl_seconds
         if base_id is None or host is None:
             self.persist = False
         else:
             self.persist = True
 
     def register_default(self, overwrite=False, **kwargs):
-        """alias for default"""
         return self.default(overwrite=overwrite, **kwargs)
 
     def default(self, overwrite=False, **kwargs):
@@ -179,15 +181,22 @@ class Config:
             )
         if self.persist:
             try:
+                client.httpx_client = CachingHTTPClient(
+                    cache_ttl_seconds=self.config.cache_ttl_seconds
+                )
+
                 if environment_name:
                     config = client.configs.get_config(
-                        base_id=self.base_id, environment_name=environment_name
+                        base_id=self.base_id,
+                        environment_name=environment_name,
+                        cache_ttl_seconds=self.cache_ttl_seconds,
                     )
 
                 else:
                     config = client.configs.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
+                        cache_ttl_seconds=self.cache_ttl_seconds,
                     )
             except Exception as ex:
                 logger.warning(
