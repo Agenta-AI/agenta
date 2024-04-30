@@ -596,6 +596,13 @@ async def create_app_and_variant_from_template(
             envvars = {} if payload.env_vars is None else payload.env_vars
         await app_manager.start_variant(app_variant_db, envvars)
 
+        logger.debug("Step 11: Deploying to production environment")
+        await db_manager.deploy_to_environment(
+            environment_name="production",
+            variant_id=str(app_variant_db.id),
+            user_uid=request.state.user_id,
+        )
+
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
 
