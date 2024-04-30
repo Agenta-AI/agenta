@@ -1,11 +1,11 @@
-from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
+from datetime import datetime, timezone
 
 
 class TimestampModel(BaseModel):
-    created_at: datetime = Field(datetime.now())
-    updated_at: datetime = Field(datetime.now())
+    created_at: datetime = Field(datetime.now(timezone.utc))
+    updated_at: datetime = Field(datetime.now(timezone.utc))
 
 
 class User(TimestampModel):
@@ -19,4 +19,4 @@ class User(TimestampModel):
 class UserUpdate(BaseModel):
     username: Optional[str]
     email: Optional[str]
-    updated_at: datetime = Field(datetime.now())
+    updated_at: datetime = Field(datetime.now(timezone.utc))

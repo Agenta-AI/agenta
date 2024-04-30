@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -12,8 +12,8 @@ class OrganizationDB(Document):
     type: Optional[str]
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "organizations"
@@ -24,8 +24,8 @@ class UserDB(Document):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "users"
@@ -35,8 +35,8 @@ class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "app_db"
@@ -48,8 +48,8 @@ class TestSetDB(Document):
     csvdata: List[Dict[str, str]]
     user: Link[UserDB]
     organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "testsets"
@@ -90,8 +90,8 @@ class EvaluationDB(Document):
     variant: PydanticObjectId
     evaluators_configs: List[PydanticObjectId]
     aggregated_results: List[AggregatedResult]
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "new_evaluations"
@@ -109,8 +109,8 @@ class EvaluationScenarioDB(Document):
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
     results: List[EvaluationScenarioResult]
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "new_evaluation_scenarios"
@@ -287,7 +287,7 @@ class Forward:
             )
             auto_evaluation.status = "EVALUATION_FINISHED"
             auto_evaluation.aggregated_results = aggregated_results
-            auto_evaluation.updated_at = datetime.now().isoformat()
+            auto_evaluation.updated_at = datetime.now(timezone.utc).isoformat()
             await auto_evaluation.save()
 
 

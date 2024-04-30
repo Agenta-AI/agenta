@@ -154,7 +154,7 @@ export default function AutomaticEvaluationResult({
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${app_id}/annotations/${evaluation.key}/single_model_test`)
+            router.push(`/apps/${app_id}/annotations/single_model_test/${evaluation.key}`)
         }
     }
 
