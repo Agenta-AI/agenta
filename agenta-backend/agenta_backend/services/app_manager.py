@@ -53,7 +53,9 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
-    db_app_variant: AppVariantDB, user_uid: str, env_vars: DockerEnvVars = None,
+    db_app_variant: AppVariantDB,
+    user_uid: str,
+    env_vars: DockerEnvVars = None,
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
