@@ -1,7 +1,7 @@
 import os
 import pytest
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from agenta_backend.models.db_models import (
     AppDB,
@@ -100,8 +100,8 @@ def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
 
 
@@ -110,8 +110,8 @@ def app_variant_create_data():
     return {
         "variant_name": "v1",
         "parameters": {},
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
 
 

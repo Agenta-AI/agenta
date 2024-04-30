@@ -99,3 +99,29 @@ def aggregate_float_from_llm_app_response(
             value=None,
             error=Error(message=str(exc), stacktrace=str(traceback.format_exc())),
         )
+
+
+def sum_float_from_llm_app_response(
+    invocation_results: List[InvokationResult], key: Optional[str]
+) -> Result:
+    try:
+        if not key:
+            raise ValueError("Key is required to aggregate InvokationResult objects.")
+
+        values = [
+            getattr(inv_result, key)
+            for inv_result in invocation_results
+            if hasattr(inv_result, key) and getattr(inv_result, key) is not None
+        ]
+
+        if not values:
+            raise ValueError(f"No valid values found for {key} sum aggregation.")
+
+        total_value = sum(values)
+        return Result(type=key, value=total_value)
+    except Exception as exc:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(message=str(exc), stacktrace=str(traceback.format_exc())),
+        )

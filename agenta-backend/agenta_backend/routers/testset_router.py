@@ -3,10 +3,10 @@ import csv
 import json
 import logging
 import requests
+from typing import Optional, List
+from datetime import datetime, timezone
 
 from bson import ObjectId
-from datetime import datetime
-from typing import Optional, List
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
@@ -82,7 +82,7 @@ async def upload_file(
 
     # Create a document
     document = {
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "name": testset_name if testset_name else file.filename,
         "app": app,
         "csvdata": [],
@@ -175,7 +175,7 @@ async def import_testset(
 
         # Create a document
         document = {
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "name": testset_name,
             "app": app,
             "csvdata": [],
@@ -254,7 +254,7 @@ async def create_testset(
 
     user = await get_user(request.state.user_id)
     testset = {
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "name": csvdata.name,
         "app": app,
         "csvdata": csvdata.csvdata,
@@ -315,7 +315,7 @@ async def update_testset(
     testset_update = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
-        "updated_at": datetime.now().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     if test_set is None:

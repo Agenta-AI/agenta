@@ -105,6 +105,7 @@ const evaluationTransformer = (item: any) => ({
     variant_revision_ids: item.variant_revision_ids,
     variant_ids: item.variant_ids,
     average_cost: item.average_cost,
+    total_cost: item.total_cost,
     average_latency: item.average_latency,
 })
 export const fetchAllEvaluations = async (appId: string) => {

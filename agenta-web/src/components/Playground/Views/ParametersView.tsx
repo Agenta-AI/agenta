@@ -99,10 +99,6 @@ const ParametersView: React.FC<Props> = ({
     const [revisionNum, setRevisionNum] = useQueryParam("revision")
     const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions[]>([])
 
-    useEffect(() => {
-        onStateChange(variant.persistent === false)
-    }, [])
-
     const onChange = (param: Parameter, newValue: number | string) => {
         handleParamChange(param.name, newValue)
     }

@@ -289,7 +289,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {
                 flex: 1,
                 field: "average_latency",
-                headerName: "Latency",
+                headerName: "Avg. Latency",
                 hide: hiddenCols.includes("Latency"),
                 minWidth: 120,
                 ...getFilterParams("number"),
@@ -297,12 +297,12 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
-                field: "average_cost",
-                headerName: "Cost",
+                field: "total_cost",
+                headerName: "Total Cost",
                 hide: hiddenCols.includes("Cost"),
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
+                valueGetter: (params) => getTypedValue(params?.data?.total_cost),
             },
             {
                 flex: 1,
@@ -326,7 +326,7 @@ const EvaluationResults: React.FC<Props> = () => {
             data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
-                    `/apps/${appId}/evaluations/compare/?evaluations=${selected
+                    `/apps/${appId}/evaluations/results/compare/?evaluations=${selected
                         .map((item) => item.id)
                         .join(",")}`,
                 )
@@ -454,7 +454,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
                                             params.data?.status.value) &&
-                                        router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
+                                        router.push(
+                                            `/apps/${appId}/evaluations/results/${params.data?.id}`,
+                                        )
                                 }}
                                 rowSelection="multiple"
                                 suppressRowClickSelection
