@@ -301,7 +301,7 @@ async def start_variant(
     envvars = {} if env_vars is None else env_vars.env_vars
 
     if action.action == VariantActionEnum.START:
-        url: URI = await app_manager.start_variant(app_variant_db, envvars)
+        url: URI = await app_manager.start_variant(app_variant_db, request.state.user_id, envvars)
     return url
 
 

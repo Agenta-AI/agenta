@@ -594,7 +594,7 @@ async def create_app_and_variant_from_template(
                     envvars[key] = os.environ[key]
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
-        await app_manager.start_variant(app_variant_db, envvars)
+        await app_manager.start_variant(app_variant_db, request.state.user_id, envvars)
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
