@@ -22,7 +22,7 @@ backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
 client = AgentaApi(
     base_url=backend_url,
     api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
-    httpx_client=CacheMiddleware(timeout=5)
+    httpx_client=CacheMiddleware(timeout=5),
 )
 
 
