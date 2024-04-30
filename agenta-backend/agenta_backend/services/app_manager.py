@@ -53,7 +53,8 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
-    db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None
+    db_app_variant: AppVariantDB,
+    env_vars: DockerEnvVars = None,
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -112,6 +113,7 @@ async def start_variant(
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
+
         await db_manager.update_base(
             db_app_variant.base,
             deployment=deployment.id,
@@ -502,6 +504,5 @@ async def add_variant_based_on_image(
         base=db_base,
         config=config_db,
     )
-
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant

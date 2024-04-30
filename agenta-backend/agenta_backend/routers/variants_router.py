@@ -302,6 +302,13 @@ async def start_variant(
 
     if action.action == VariantActionEnum.START:
         url: URI = await app_manager.start_variant(app_variant_db, envvars)
+
+        # Deploy to production
+        await db_manager.deploy_to_environment(
+            environment_name="production",
+            variant_id=str(app_variant_db.id),
+            user_uid=request.state.user_id,
+        )
     return url
 
 
