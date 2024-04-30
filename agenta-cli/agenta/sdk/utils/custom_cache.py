@@ -1,6 +1,7 @@
 import httpx
 from cachetools import TTLCache, cached
 
+
 class CacheMiddleware(httpx.Middleware):
     def __init__(self, cache: TTLCache):
         self.cache = cache
@@ -16,6 +17,7 @@ class CacheMiddleware(httpx.Middleware):
         if response.status_code == 200:
             self.cache[cache_key] = response
         return response
+
 
 cache = TTLCache(maxsize=100, ttl=300)
 
