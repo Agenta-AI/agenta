@@ -8,10 +8,10 @@ from agenta.client.backend.client import AgentaApi
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
+from agenta.sdk.utils.custom_cache import CacheMiddleware
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
@@ -22,6 +22,7 @@ backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
 client = AgentaApi(
     base_url=backend_url,
     api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
+    httpx_client=CacheMiddleware(timeout=5)
 )
 
 
