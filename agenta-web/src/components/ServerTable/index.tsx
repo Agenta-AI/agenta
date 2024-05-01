@@ -74,11 +74,11 @@ const ServerTable = <T extends AnyObject>(
     const setHiddenCols = (cols: string[]) => _setHiddenCols(cols.join(","))
     const total = useRef(0)
 
-    // useDeepCompareEffect(() => {
-    //     setColumns(
-    //         (props.columns || []).map((item) => ({...item, width: item.width})) as DataCol<T>[],
-    //     )
-    // }, [props.columns])
+    useDeepCompareEffect(() => {
+        setColumns(
+            (props.columns || []).map((item) => ({...item, width: item.width})) as DataCol<T>[],
+        )
+    }, [props.columns])
 
     useEffect(() => {
         setLoading(true)
