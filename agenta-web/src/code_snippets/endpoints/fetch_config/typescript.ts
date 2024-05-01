@@ -1,19 +1,44 @@
 import {js as beautify} from "js-beautify"
 
-export default function tsCode(uri: string, config_url: string, params: string): string {
+export default function tsCode(baseId: string, env_name: string): string {
     const codeString = `
-        const generate = async () => {
-            try {
-                const config_response = await axios.get("${config_url}");
-                let params = ${params}
-                const response = await axios.post("${uri}", {...params, ...config_response.data});
-                console.log(response.data);
-            } catch (error) {
-                console.error(error);
-            }
-        };
+    import axios from 'axios';
 
-        generate();
+    const getConfig = async (baseId: string, environmentName = null) => {
+       try {
+           const baseUrl = 'https://cloud.agenta.ai/api';
+           const params = {
+               base_id: baseId,
+               environment_name: environmentName
+           };
+
+           const response = await axios.get(baseUrl + "/configs", {
+               params: params,
+               headers: {
+                   'Authorization': "Bearer YOUR_API_KEY",
+                   'Content-Type': 'application/json'
+               },
+               timeout: 60000
+           });
+
+           if (response.status >= 200 && response.status < 300) {
+               return response.data;
+           } else if (response.status === 422) {
+               throw new Error(JSON.stringify(response.data));
+           }
+       } catch (error) {
+           if (error.response) {
+               console.error("API Error: " + error.response.status, error.response.data);
+           } else if (error.request) {
+               console.error('API Error: No response received', error.request);
+           } else {
+               console.error('Error', error.message);
+           }
+           throw error;
+       }
+    };
+
+    getConfig('${baseId}', '${env_name}').then(console.log).catch(console.error);
     `
 
     const formattedCodeString = beautify(codeString)
