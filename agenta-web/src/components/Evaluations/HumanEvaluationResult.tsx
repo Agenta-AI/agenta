@@ -11,6 +11,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -221,7 +222,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[0], record.revisions[0])}
                         >
-                            ({`${value[0]} #${record.revisions[0]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[0],
+                                revision: record.revisions[0],
+                            })}
+                            )
                         </div>
                     </div>
                 )
@@ -245,7 +251,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[1], record.revisions[1])}
                         >
-                            ({`${value[1]} #${record.revisions[1]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[1],
+                                revision: record.revisions[1],
+                            })}
+                            )
                         </div>
                     </div>
                 )

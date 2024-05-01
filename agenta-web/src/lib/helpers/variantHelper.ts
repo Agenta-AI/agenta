@@ -78,3 +78,14 @@ export const getVariantInputParameters = async (appId: string, variant: Variant)
     const {parameters, inputs} = await getAllVariantParameters(appId, variant)
     return updateInputParams(parameters, inputs || []) || inputs
 }
+
+export const variantNameWithRev = (variant: {
+    variant_name: string
+    revision?: number | string | null
+}) => {
+    let name = variant.variant_name
+    if (![undefined, null].includes(variant.revision as any)) {
+        name += `v${variant.revision}`
+    }
+    return name
+}
