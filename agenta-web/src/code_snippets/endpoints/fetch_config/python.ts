@@ -5,6 +5,8 @@ export default function pythonCode(baseId: string, env_name: string): string {
 
     from agenta import Agenta
     ag = Agenta()
-    ag.get_config(base_id="${baseId}", environment="${env_name}", cache_timeout=600) # timeout 300 per default
+    ag.get_config(base_id="${baseId}",
+                environment="${env_name}",
+                cache_timeout=600) # timeout 300 per default
     `
 }
