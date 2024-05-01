@@ -6,7 +6,7 @@ import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -22,13 +22,22 @@ const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHis
 
 const {Text, Title} = Typography
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
         flexDirection: "column",
         rowGap: 20,
     },
-})
+    envButtons: {
+        "& .ant-radio-button-wrapper-checked": {
+            backgroundColor: theme.colorPrimary,
+            color: theme.colorWhite,
+            "&:hover": {
+                color: theme.colorWhite,
+            },
+        },
+    },
+}))
 
 export default function VariantEndpoint() {
     const classes = useStyles()
@@ -77,6 +86,7 @@ export default function VariantEndpoint() {
     const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantsLoading, setIsVariantsLoading] = useState(false)
     const [isVariantsError, setIsVariantsError] = useState<boolean | string>(false)
+
     useEffect(() => {
         const fetchData = async () => {
             setIsVariantsLoading(true)
@@ -203,16 +213,19 @@ export default function VariantEndpoint() {
                 <Radio.Group
                     value={selectedEnvironment?.name}
                     onChange={(e) => handleEnvironmentClick({key: e.target.value})}
+                    className={classes.envButtons}
                 >
-                    {environments.map((env) => (
-                        <Radio.Button
-                            disabled={!env.deployed_app_variant_id}
-                            key={env.name}
-                            value={env.name}
-                        >
-                            {env.name}
-                        </Radio.Button>
-                    ))}
+                    {environments
+                        .map((env) => (
+                            <Radio.Button
+                                disabled={!env.deployed_app_variant_id}
+                                key={env.name}
+                                value={env.name}
+                            >
+                                {env.name}
+                            </Radio.Button>
+                        ))
+                        .reverse()}
                 </Radio.Group>
             </div>
 
@@ -226,7 +239,9 @@ export default function VariantEndpoint() {
                                 key: "overview",
                                 label: "Overview",
                                 icon: <AppstoreOutlined />,
-                                children: <Collapse defaultActiveKey={["1"]} items={items} />,
+                                children: (
+                                    <Collapse accordion defaultActiveKey={["1"]} items={items} />
+                                ),
                             },
                             {
                                 key: "history",
