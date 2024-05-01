@@ -18,10 +18,11 @@ class Tracing(object):
 
     Args:
         base_url (str): The URL of the backend host
-        api_key (str): The API Key of the backend host
-        tasks_manager (TaskQueue): The tasks manager dedicated to handling asynchronous tasks
-        llm_logger (Logger): The logger associated with the LLM tracing
-        max_workers (int): The maximum number of workers to run tracing
+        app_id (str): The ID of the app.
+        variant_id (Optional[str], optional): The ID of the variant. Defaults to None.
+        variant_name (Optional[str], optional): The name of the variant. Defaults to None.
+        api_key (Optional[str], optional): The API Key of the backend host. Defaults to None.
+        max_workers (Optional[int], optional): The maximum number of workers to run tracing. Defaults to None.
     """
 
     _instance = None
@@ -35,7 +36,7 @@ class Tracing(object):
         self,
         base_url: str,
         app_id: str,
-        variant_id: str,
+        variant_id: Optional[str] = None,
         variant_name: Optional[str] = None,
         api_key: Optional[str] = None,
         max_workers: Optional[int] = None,
