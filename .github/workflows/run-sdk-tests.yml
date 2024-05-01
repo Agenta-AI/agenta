@@ -24,7 +24,10 @@ jobs:
 
       - name: Install dependencies and agenta SDK
         run: |
+          cd agenta-cli
           poetry install
 
       - name: Run pytest
-        run: poetry run pytest agenta-cli/tests
+        run: |
+          cd agenta-cli
+          poetry run pytest tests
