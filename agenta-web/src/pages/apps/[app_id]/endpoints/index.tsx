@@ -115,8 +115,8 @@ export default function VariantEndpoint() {
     const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
+        environmentName: string,
         value: string | number,
-        environmentName?: string,
     ) => {
         let mainParams: GenericObject = {}
         let secondaryParams: GenericObject = {}
@@ -139,7 +139,9 @@ export default function VariantEndpoint() {
             mainParams["inputs"] = secondaryParams
         }
 
-        return JSON.stringify({...mainParams, environment: environmentName}, null, 2)
+        mainParams["environment"] = environmentName
+
+        return JSON.stringify(mainParams, null, 2)
     }
 
     if (isVariantsError) {
@@ -160,24 +162,17 @@ export default function VariantEndpoint() {
         )
     }
 
-    const invokeLlmAppParams = createParams(
-        inputParams,
-        "add_a_value",
-        selectedEnvironment?.name || "none",
-    )
-
-    const fetchConfigParams = createParams(inputParams, "add_a_value")
-
+    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        Python: invokeLlmApppythonCode(uri!, invokeLlmAppParams),
-        cURL: invokeLlmAppcURLCode(uri!, invokeLlmAppParams),
-        TypeScript: invokeLlmApptsCode(uri!, invokeLlmAppParams),
+        Python: invokeLlmApppythonCode(uri!, params),
+        cURL: invokeLlmAppcURLCode(uri!, params),
+        TypeScript: invokeLlmApptsCode(uri!, params),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        Python: fetchConfigpythonCode(uri!, uri!, fetchConfigParams),
-        cURL: fetchConfigcURLCode(uri!, uri!, fetchConfigParams),
-        TypeScript: fetchConfigtsCode(uri!, uri!, fetchConfigParams),
+        Python: fetchConfigpythonCode(variant.baseId, selectedEnvironment?.name!),
+        cURL: fetchConfigcURLCode(variant.baseId, selectedEnvironment?.name!),
+        TypeScript: fetchConfigtsCode(variant.baseId, selectedEnvironment?.name!),
     }
 
     const items: CollapseProps["items"] = [

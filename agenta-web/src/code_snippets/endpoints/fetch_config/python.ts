@@ -1,21 +1,10 @@
-export default function pythonCode(uri: string, config_url: string, params: string): string {
+export default function pythonCode(baseId: string, env_name: string): string {
     return `
-import requests
-import json
+    # os.environ["AGENTA_API_KEY"] = "your_api_key" # Only when using cloud
+    # os.environ["HOST"] = "https://cloud.agenta.ai"
 
-url = "${uri}"
-config_url = "${config_url}"
-
-config_response = requests.get(config_url)
-config_data = config_response.json()
-
-params = ${params}
-params.update(config_data)
-
-response = requests.post(url, json=params)
-
-data = response.json()
-
-print(json.dumps(data, indent=4))
-`
+    from agenta import Agenta
+    ag = Agenta()
+    ag.get_config(base_id="${baseId}", environment="${env_name}", cache_timeout=600) # timeout 300 per default
+    `
 }
