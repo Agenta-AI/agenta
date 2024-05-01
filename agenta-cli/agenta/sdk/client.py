@@ -8,21 +8,21 @@ from agenta.client.backend.client import AgentaApi
 class Agenta():
     """Client class for interacting with the Agenta API."""
 
-    def __init__(self, agenta_api_key: str = None, agenta_host: str = None):
+    def __init__(self, api_key: str = None, host: str = None):
         """
         Initializes the Agenta client with API key and host.
 
         Raises:
             EnvironmentError: If AGENTA_API_KEY is not set.
         """
-        if not agenta_api_key and not os.environ.get("AGENTA_API_KEY"):
+        if not api_key and not os.environ.get("AGENTA_API_KEY"):
             raise EnvironmentError("Required environment variables AGENTA_API_KEY is not set.")
-        self.agenta_api_key = agenta_api_key if agenta_api_key else os.environ.get("AGENTA_API_KEY")
-        self.agenta_host = agenta_host if agenta_host else os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
+        self.api_key = api_key if api_key else os.environ.get("AGENTA_API_KEY")
+        self.host = host if host else os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
         self.cache = TTLCache(maxsize=1024, ttl=300)
-        backend_url = f"{self.agenta_host}/api"
+        backend_url = f"{self.host}/api"
         self.client = AgentaApi(base_url=backend_url,
-                                api_key=self.agenta_api_key)
+                                api_key=self.api_key)
 
     def get_config(self, base_id: str, environment: str, cache_timeout: int = 300):
         """
