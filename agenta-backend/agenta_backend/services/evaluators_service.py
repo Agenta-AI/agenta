@@ -233,7 +233,7 @@ def auto_ai_critique(
         chain_run_args = {
             "llm_app_prompt_template": app_params.get("prompt_user", ""),
             "variant_output": output,
-            "data_point": data_point,
+            "correct_answer": data_point[correct_answer_key],
         }
 
         for key, value in inputs.items():
