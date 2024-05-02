@@ -12,17 +12,23 @@ from agenta_backend.services.evaluators_service import (
 
 
 @pytest.mark.parametrize(
-    "output, prefix, case_sensitive, expected",
+    "output, settings_values, expected",
     [
-        ("Hello world", "He", True, True),
-        ("hello world", "He", False, True),
-        ("Hello world", "he", False, True),
-        ("Hello world", "world", True, False),
+        ("Hello world", {"prefix": "He", "case_sensitive": True}, True),
+        ("hello world", {"prefix": "He", "case_sensitive": False}, True),
+        ("Hello world", {"prefix": "he", "case_sensitive": False}, True),
+        ("Hello world", {"prefix": "world", "case_sensitive": True}, False),
     ],
 )
-def test_auto_starts_with(output, prefix, case_sensitive, expected):
+def test_auto_starts_with(output, settings_values, expected):
     result = auto_starts_with(
-        {}, output, "", {}, {"prefix": prefix, "case_sensitive": case_sensitive}, {}
+        inputs={},
+        output=output,
+        data_point={},
+        correct_answer_key="",
+        app_params={},
+        settings_values=settings_values,
+        lm_providers_keys={},
     )
     assert result.value == expected
 
@@ -41,7 +47,13 @@ def test_auto_starts_with(output, prefix, case_sensitive, expected):
 )
 def test_auto_ends_with(output, suffix, case_sensitive, expected):
     result = auto_ends_with(
-        {}, output, "", {}, {"suffix": suffix, "case_sensitive": case_sensitive}, {}
+        {},
+        output,
+        {},
+        "correct_answer",
+        {},
+        {"suffix": suffix, "case_sensitive": case_sensitive},
+        {},
     )
     assert result.value == expected
 
@@ -61,7 +73,8 @@ def test_auto_contains(output, substring, case_sensitive, expected):
     result = auto_contains(
         {},
         output,
-        "",
+        {},
+        "correct_answer",
         {},
         {"substring": substring, "case_sensitive": case_sensitive},
         {},
@@ -85,7 +98,8 @@ def test_auto_contains_any(output, substrings, case_sensitive, expected):
     result = auto_contains_any(
         {},
         output,
-        "",
+        {},
+        "correct_answer",
         {},
         {"substrings": substrings, "case_sensitive": case_sensitive},
         {},
@@ -109,7 +123,8 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
     result = auto_contains_all(
         {},
         output,
-        "",
+        {},
+        "correct_answer",
         {},
         {"substrings": substrings, "case_sensitive": case_sensitive},
         {},
@@ -128,24 +143,55 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
     ],
 )
 def test_auto_contains_json(output, expected):
-    result = auto_contains_json({}, output, "", {}, {}, {})
+    result = auto_contains_json({}, output, {}, "", {}, {}, {})
     assert result.value == expected
 
 
 @pytest.mark.parametrize(
-    "output, correct_answer, threshold, expected",
+    "output, data_point, correct_answer_key, settings_values, expected",
     [
-        ("hello world", "hello world", 5, True),
-        ("hello world", "hola mundo", 5, False),
-        ("hello world", "hello world!", 2, True),
-        ("hello world", "hello wor", 10, True),
-        ("hello world", "hello worl", None, 1),
-        ("hello world", "helo world", None, 1),
+        (
+            "hello world",
+            {"correct_answer": "hello world"},
+            "correct_answer",
+            {"threshold": 5},
+            True,
+        ),
+        (
+            "hello world",
+            {"correct_answer": "hola mundo"},
+            "correct_answer",
+            {"threshold": 5},
+            False,
+        ),
+        (
+            "hello world",
+            {"correct_answer": "hello world!"},
+            "correct_answer",
+            {"threshold": 2},
+            True,
+        ),
+        (
+            "hello world",
+            {"correct_answer": "hello wor"},
+            "correct_answer",
+            {"threshold": 10},
+            True,
+        ),
+        ("hello world", {"correct_answer": "hello worl"}, "correct_answer", {}, 1),
+        ("hello world", {"correct_answer": "helo world"}, "correct_answer", {}, 1),
     ],
 )
-def test_auto_levenshtein_distance(output, correct_answer, threshold, expected):
-    settings_values = {"threshold": threshold} if threshold is not None else {}
+def test_auto_levenshtein_distance(
+    output, data_point, correct_answer_key, settings_values, expected
+):
     result = auto_levenshtein_distance(
-        {}, output, correct_answer, {}, settings_values, {}
+        inputs={},
+        output=output,
+        data_point=data_point,
+        correct_answer_key=correct_answer_key,
+        app_params={},
+        settings_values=settings_values,
+        lm_providers_keys={},
     )
     assert result.value == expected
