@@ -156,11 +156,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
 
     if is_main_script(func):
         handle_terminal_run(
-            func,
-            func_signature.parameters,
-            config_params,
-            ingestible_files,
-            tracing
+            func, func_signature.parameters, config_params, ingestible_files, tracing
         )
     return None
 
@@ -361,7 +357,7 @@ def handle_terminal_run(
         func_params (dict): A dictionary containing the function parameters and their annotations.
         config_params (dict): A dictionary containing the configuration parameters.
         ingestible_files (dict): A dictionary containing the files that should be ingested.
-        tracing (Tracing): The tracing object 
+        tracing (Tracing): The tracing object
     """
 
     # For required parameters, we add them as arguments
