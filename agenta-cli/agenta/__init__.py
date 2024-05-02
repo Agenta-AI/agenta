@@ -17,6 +17,6 @@ from .sdk.decorators.tracing import span
 from .sdk.decorators.llm_entrypoint import entrypoint
 from .sdk.agenta_init import Config, init, llm_tracing
 from .sdk.utils.helper.openai_cost import calculate_token_usage
-
+from .sdk.client import Agenta
 
 config = PreInitObject("agenta.config", Config)
