@@ -53,6 +53,21 @@ app.include_router(router, prefix="")
 
 
 class entrypoint(BaseDecorator):
+    """Decorator class to wrap a function for HTTP POST, terminal exposure and to run observability.
+
+    Args:
+        BaseDecorator (object): base decorator class
+
+    Example:
+    ```python
+        import agenta as ag
+
+        @ag.entrypoint(enable_tracing=False) # This disables tracing. Defaults to True.
+        async def chain_of_prompts_llm(prompt: str):
+            return ...
+    ```
+    """
+
     def __init__(self, enable_tracing: bool = True):
         self.enable_tracing = enable_tracing
 
