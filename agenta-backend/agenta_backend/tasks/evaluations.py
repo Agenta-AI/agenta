@@ -214,14 +214,15 @@ def evaluate(
                 continue
 
             # 3. We evaluate
-            evaluators_results: [EvaluationScenarioResult] = []
+            evaluators_results: List[EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
                 if correct_answer_column in data_point:
                     result = evaluators_service.evaluate(
                         evaluator_key=evaluator_config_db.evaluator_key,
                         output=app_output.result.value,
-                        correct_answer=data_point[correct_answer_column],
+                        data_point=data_point,
+                        correct_answer_key=correct_answer_column,
                         settings_values=evaluator_config_db.settings_values,
                         app_params=app_variant_parameters,
                         inputs=data_point,

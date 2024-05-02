@@ -1,7 +1,7 @@
 import re
 import json
 import httpx
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, List
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.db_models import Error, Result
@@ -18,13 +18,14 @@ logger.setLevel(logging.DEBUG)
 def auto_exact_match(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        exact_match = True if output == correct_answer else False
+        exact_match = True if output == data_point[correct_answer_key] else False
         result = Result(type="bool", value=exact_match)
         return result
     except Exception as e:
@@ -40,14 +41,15 @@ def auto_exact_match(
 def auto_similarity_match(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
         set1 = set(output.split())
-        set2 = set(correct_answer.split())
+        set2 = set(data_point[correct_answer_key].split())
         intersect = set1.intersection(set2)
         union = set1.union(set2)
 
@@ -72,7 +74,8 @@ def auto_similarity_match(
 def auto_regex_test(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -96,14 +99,17 @@ def auto_regex_test(
 def field_match_test(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
         output_json = json.loads(output)
-        result = output_json[settings_values["json_field"]] == correct_answer
+        result = (
+            output_json[settings_values["json_field"]] == data_point[correct_answer_key]
+        )
         return Result(type="bool", value=result)
     except Exception as e:
         logging.debug("Field Match Test Failed because of Error: " + str(e))
@@ -113,7 +119,8 @@ def field_match_test(
 def auto_webhook_test(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -121,7 +128,7 @@ def auto_webhook_test(
     try:
         with httpx.Client() as client:
             payload = {
-                "correct_answer": correct_answer,
+                "correct_answer": data_point[correct_answer_key],
                 "output": output,
                 "inputs": inputs,
             }
@@ -168,7 +175,8 @@ def auto_webhook_test(
 def auto_custom_code_run(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -178,7 +186,7 @@ def auto_custom_code_run(
             app_params=app_params,
             inputs=inputs,
             output=output,
-            correct_answer=correct_answer,
+            data_point=data_point,
             code=settings_values["code"],
         )
         return Result(type="number", value=result)
@@ -195,7 +203,8 @@ def auto_custom_code_run(
 def auto_ai_critique(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -206,7 +215,7 @@ def auto_ai_critique(
     Args:
         inputs (Dict[str, Any]): Input parameters for the LLM app variant.
         output (str): The output of the LLM app variant.
-        correct_answer (str): Correct answer for evaluation.
+        correct_answer_key (str): The key name of the correct answer  in the datapoint.
         app_params (Dict[str, Any]): Application parameters.
         settings_values (Dict[str, Any]): Settings for the evaluation.
         lm_providers_keys (Dict[str, Any]): Keys for language model providers.
@@ -224,7 +233,7 @@ def auto_ai_critique(
         chain_run_args = {
             "llm_app_prompt_template": app_params.get("prompt_user", ""),
             "variant_output": output,
-            "correct_answer": correct_answer,
+            "data_point": data_point,
         }
 
         for key, value in inputs.items():
@@ -252,7 +261,8 @@ def auto_ai_critique(
 def auto_starts_with(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -280,7 +290,8 @@ def auto_starts_with(
 def auto_ends_with(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -306,7 +317,8 @@ def auto_ends_with(
 def auto_contains(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -332,7 +344,8 @@ def auto_contains(
 def auto_contains_any(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -363,7 +376,8 @@ def auto_contains_any(
 def auto_contains_all(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -394,7 +408,8 @@ def auto_contains_all(
 def auto_contains_json(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -444,13 +459,14 @@ def levenshtein_distance(s1, s2):
 def auto_levenshtein_distance(
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        distance = levenshtein_distance(output, correct_answer)
+        distance = levenshtein_distance(output, data_point[correct_answer_key])
 
         if "threshold" in settings_values:
             threshold = settings_values["threshold"]
@@ -474,7 +490,8 @@ def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
     output: str,
-    correct_answer: str,
+    data_point: Dict[str, Any],
+    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -486,7 +503,8 @@ def evaluate(
         return evaluation_function(
             inputs,
             output,
-            correct_answer,
+            data_point,
+            correct_answer_key,
             app_params,
             settings_values,
             lm_providers_keys,
