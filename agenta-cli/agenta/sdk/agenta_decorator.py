@@ -17,6 +17,7 @@ from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta
 from .context import save_context
+from .tracing.llm_tracing import Tracing
 from .router import router as router
 from .types import (
     Context,
@@ -159,6 +160,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             func_signature.parameters,
             config_params,
             ingestible_files,
+            tracing
         )
     return None
 
@@ -350,6 +352,7 @@ def handle_terminal_run(
     func_params: Dict[str, Any],
     config_params: Dict[str, Any],
     ingestible_files: Dict,
+    tracing: Tracing,
 ) -> None:
     """
     Parses command line arguments and sets configuration when script is run from the terminal.
@@ -357,9 +360,8 @@ def handle_terminal_run(
     Args:
         func_params (dict): A dictionary containing the function parameters and their annotations.
         config_params (dict): A dictionary containing the configuration parameters.
-
-    Example:
-        handle_terminal_run(func_params=inspect.signature(my_function).parameters, config_params=config.all())
+        ingestible_files (dict): A dictionary containing the files that should be ingested.
+        tracing (Tracing): The tracing object 
     """
 
     # For required parameters, we add them as arguments
@@ -398,13 +400,29 @@ def handle_terminal_run(
         )
     agenta.config.set(**args_config_params)
 
+    # Start tracing
+    tracing.start_parent_span(
+        name=func.__name__,
+        inputs=args_func_params,
+        config=args_config_params,
+        environment="shell",  # type: ignore
+    )
+
     loop = asyncio.get_event_loop()
     result = loop.run_until_complete(
         execute_function(
             func, **{"params": args_func_params, "config_params": args_config_params}
         )
     )
-    print(result)
+
+    # End trace recording
+    tracing.end_recording(
+        outputs=result.dict(),
+        span=tracing.active_trace,  # type: ignore
+    )
+    print(
+        f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
+    )
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):
