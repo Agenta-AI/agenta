@@ -115,4 +115,3 @@ async def generate(context_1: str):
         "usage": final_response["usage"],
         "cost": final_response["cost"],
     }
-

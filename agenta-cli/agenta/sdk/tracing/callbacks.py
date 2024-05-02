@@ -27,7 +27,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
             ),
             spankind=(
                 "llm"
-                if kwargs["call_type"]in ["completion", "acompletion"]
+                if kwargs["call_type"] in ["completion", "acompletion"]
                 else "unset"
             ),
         )
