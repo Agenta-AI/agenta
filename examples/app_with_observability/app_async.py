@@ -34,7 +34,7 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint
+@ag.entrypoint(enable_tracing=False)
 async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.
