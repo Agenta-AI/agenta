@@ -1,4 +1,5 @@
 # Stdlib Imports
+from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Union
 
@@ -13,23 +14,49 @@ from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanSt
 from bson.objectid import ObjectId
 
 
-class Tracing(object):
-    """Agenta llm tracing object.
+class SingletonMeta(type):
+    """
+    Thread-safe implementation of Singleton.
+    """
 
-    Args:
+    _instances = {}
+
+    # We need the lock mechanism to synchronize threads \
+    # during the initial access to the Singleton object.
+    _lock: Lock = Lock()
+
+    def __call__(cls, *args, **kwargs):
+        """
+        Possible changes to the value of the `__init__` argument do not affect
+        the returned instance.
+        """
+        # Now, imagine that the program has just been launched. Since there's no
+        # Singleton instance yet, multiple threads can simultaneously pass the
+        # previous conditional and reach this point almost at the same time. The
+        # first of them will acquire lock and will proceed further, while the
+        # rest will wait here.
+        with cls._lock:
+            # The first thread to acquire the lock, reaches this conditional,
+            # goes inside and creates the Singleton instance. Once it leaves the
+            # lock block, a thread that might have been waiting for the lock
+            # release may then enter this section. But since the Singleton field
+            # is already initialized, the thread won't create a new object.
+            if cls not in cls._instances:
+                instance = super().__call__(*args, **kwargs)
+                cls._instances[cls] = instance
+        return cls._instances[cls]
+
+
+class Tracing(metaclass=SingletonMeta):
+    """The `Tracing` class is an agent for LLM tracing with specific initialization arguments.
+
+    __init__ args:
         base_url (str): The URL of the backend host
         api_key (str): The API Key of the backend host
         tasks_manager (TaskQueue): The tasks manager dedicated to handling asynchronous tasks
         llm_logger (Logger): The logger associated with the LLM tracing
         max_workers (int): The maximum number of workers to run tracing
     """
-
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(
         self,
