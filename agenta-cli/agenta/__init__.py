@@ -16,6 +16,7 @@ from .sdk.types import (
 )
 from .sdk.tracing.decorators import span
 from .sdk.agenta_init import Config, init, llm_tracing
+from .sdk.tracing.callbacks import agenta_litellm_handler
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 
 
