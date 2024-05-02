@@ -19,7 +19,7 @@ class SingletonMeta(type):
     Thread-safe implementation of Singleton.
     """
 
-    _instances = {} # type: ignore
+    _instances = {}  # type: ignore
 
     # We need the lock mechanism to synchronize threads \
     # during the initial access to the Singleton object.
