@@ -27,7 +27,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
             ),
             spankind=(
                 "llm"
-                if kwargs["call_type"] in ["completion", "acompletion"]
+                if kwargs.get("call_type") in ["completion", "acompletion"]
                 else "unset"
             ),
         )
@@ -43,8 +43,8 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs["complete_streaming_response"],
-                "usage": kwargs["usage"],
+                "message": kwargs("complete_streaming_response"),
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
@@ -57,7 +57,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.end_span(
             outputs={
                 "message": kwargs["message"],
-                "usage": kwargs["usage"],
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
@@ -76,7 +76,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.end_span(
             outputs={
                 "message": kwargs["exception"],
-                "usage": kwargs["usage"],
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
@@ -86,8 +86,8 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs["complete_streaming_response"],
-                "usage": kwargs["usage"],
+                "message": kwargs("complete_streaming_response"),
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
@@ -98,7 +98,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.end_span(
             outputs={
                 "message": kwargs["message"],
-                "usage": kwargs["usage"],
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
@@ -115,7 +115,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.end_span(
             outputs={
                 "message": kwargs["exception"],
-                "usage": kwargs["usage"],
+                "usage": kwargs.get("usage"),
                 "cost": kwargs.get("response_cost"),
             },
             span=self._trace.active_span,
