@@ -37,6 +37,7 @@ import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import Link from "next/link"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -212,7 +213,10 @@ const EvaluationResults: React.FC<Props> = () => {
                     )
                 },
                 valueGetter: (params) =>
-                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
+                    variantNameWithRev({
+                        variant_name: params.data?.variants[0].variantName ?? "",
+                        revision: params.data?.revisions[0],
+                    }),
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),
@@ -289,7 +293,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {
                 flex: 1,
                 field: "average_latency",
-                headerName: "Latency",
+                headerName: "Avg. Latency",
                 hide: hiddenCols.includes("Latency"),
                 minWidth: 120,
                 ...getFilterParams("number"),
@@ -297,12 +301,12 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
-                field: "average_cost",
-                headerName: "Cost",
+                field: "total_cost",
+                headerName: "Total Cost",
                 hide: hiddenCols.includes("Cost"),
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
+                valueGetter: (params) => getTypedValue(params?.data?.total_cost),
             },
             {
                 flex: 1,

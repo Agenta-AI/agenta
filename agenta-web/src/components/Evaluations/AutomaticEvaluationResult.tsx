@@ -10,6 +10,7 @@ import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 interface EvaluationListTableDataType {
     key: string
@@ -169,7 +170,12 @@ export default function AutomaticEvaluationResult({
                         onClick={() => handleNavigation(value[0].variantName, record.revisions[0])}
                         style={{cursor: "pointer"}}
                     >
-                        <span>{`${value[0].variantName} #${record.revisions[0]}`}</span>
+                        <span>
+                            {variantNameWithRev({
+                                variant_name: value[0].variantName,
+                                revision: record.revisions[0],
+                            })}
+                        </span>
                     </div>
                 )
             },

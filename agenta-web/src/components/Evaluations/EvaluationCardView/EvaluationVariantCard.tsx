@@ -88,9 +88,11 @@ const EvaluationVariantCard: React.FC<Props> = ({
                     </div>
                     <Typography.Text className={classes.title}>
                         {variant.variantName}{" "}
-                        <span style={{color: "#656d76", fontSize: 14}}>
-                            #{evaluation.revisions[index]}
-                        </span>
+                        {evaluation.revisions[index] && (
+                            <span style={{color: "#656d76", fontSize: 14}}>
+                                v{evaluation.revisions[index]}
+                            </span>
+                        )}
                     </Typography.Text>{" "}
                 </>
             )}

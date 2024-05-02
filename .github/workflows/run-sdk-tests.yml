@@ -1,0 +1,33 @@
+name: Run SDK tests
+
+on:
+  pull_request:
+    paths:
+      - 'agenta-cli/**'
+      - 'agenta-cli/pyproject.toml'
+      - 'agenta-cli/poetry.lock'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies and agenta SDK
+        run: |
+          cd agenta-cli
+          poetry install
+
+      - name: Run pytest
+        run: |
+          cd agenta-cli
+          poetry run pytest tests
