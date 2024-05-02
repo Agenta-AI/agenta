@@ -1,15 +1,18 @@
-import cURLCode from "@/code_snippets/endpoints/curl"
-import pythonCode from "@/code_snippets/endpoints/python"
-import tsCode from "@/code_snippets/endpoints/typescript"
+import invokeLlmAppcURLCode from "@/code_snippets/endpoints/invoke_llm_app/curl"
+import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/python"
+import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
+import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
+import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"
+import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
-import {ApiOutlined, AppstoreOutlined, DownOutlined, HistoryOutlined} from "@ant-design/icons"
-import {Alert, Button, Dropdown, Empty, Space, Tabs, Typography} from "antd"
+import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
+import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -19,19 +22,29 @@ const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHis
 
 const {Text, Title} = Typography
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
         flexDirection: "column",
         rowGap: 20,
     },
-})
+    envButtons: {
+        "& .ant-radio-button-wrapper-checked": {
+            backgroundColor: theme.colorPrimary,
+            color: theme.colorWhite,
+            "&:hover": {
+                color: theme.colorWhite,
+            },
+        },
+    },
+}))
 
 export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
+    const isOss = !isDemo()
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -48,9 +61,14 @@ export default function VariantEndpoint() {
     const loadEnvironments = async () => {
         const response: Environment[] = await fetchEnvironments(appId)
         setEnvironments(response)
-        setSelectedEnvironment(response[0])
-
-        await loadURL(response[0])
+        const loadProductionEnv = response.find((env) => env.name === "production")
+        if (loadProductionEnv) {
+            setSelectedEnvironment(loadProductionEnv)
+            await loadURL(loadProductionEnv)
+        } else {
+            setSelectedEnvironment(response[0])
+            await loadURL(response[0])
+        }
     }
     useEffect(() => {
         if (!appId) return
@@ -68,6 +86,7 @@ export default function VariantEndpoint() {
     const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantsLoading, setIsVariantsLoading] = useState(false)
     const [isVariantsError, setIsVariantsError] = useState<boolean | string>(false)
+
     useEffect(() => {
         const fetchData = async () => {
             setIsVariantsLoading(true)
@@ -154,11 +173,31 @@ export default function VariantEndpoint() {
     }
 
     const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
-    const codeSnippets: Record<string, string> = {
-        Python: pythonCode(uri!, params),
-        cURL: cURLCode(uri!, params),
-        TypeScript: tsCode(uri!, params),
+    const invokeLlmAppCodeSnippet: Record<string, string> = {
+        Python: invokeLlmApppythonCode(uri!, params),
+        cURL: invokeLlmAppcURLCode(uri!, params),
+        TypeScript: invokeLlmApptsCode(uri!, params),
     }
+
+    const fetchConfigCodeSnippet: Record<string, string> = {
+        Python: fetchConfigpythonCode(variant.baseId, selectedEnvironment?.name!),
+        cURL: fetchConfigcURLCode(variant.baseId, selectedEnvironment?.name!),
+        TypeScript: fetchConfigtsCode(variant.baseId, selectedEnvironment?.name!),
+    }
+
+    const items: CollapseProps["items"] = [
+        {
+            key: "1",
+            label: "Invoke LLM App",
+            children: <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />,
+        },
+        {
+            key: "2",
+            label: "Fetch Prompt/Config",
+            children: <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />,
+        },
+    ]
+
     return (
         <div className={classes.container} data-cy="endpoints">
             <Title level={3}>
@@ -171,51 +210,61 @@ export default function VariantEndpoint() {
 
             <div>
                 <Text>Environment: </Text>
-                <Dropdown
-                    menu={{
-                        items: environments.map((env) => ({label: env.name, key: env.name})),
-                        onClick: handleEnvironmentClick,
-                    }}
+                <Radio.Group
+                    value={selectedEnvironment?.name}
+                    onChange={(e) => handleEnvironmentClick({key: e.target.value})}
+                    className={classes.envButtons}
                 >
-                    <Button size="small">
-                        <Space>
-                            {selectedEnvironment?.name || "Select a variant"}
-                            <DownOutlined />
-                        </Space>
-                    </Button>
-                </Dropdown>
+                    {environments
+                        .map((env) => (
+                            <Radio.Button
+                                disabled={!env.deployed_app_variant_id}
+                                key={env.name}
+                                value={env.name}
+                            >
+                                {env.name}
+                            </Radio.Button>
+                        ))
+                        .reverse()}
+                </Radio.Group>
             </div>
 
             {selectedEnvironment?.deployed_app_variant_id ? (
-                isDemo() ? (
-                    <>
-                        <Tabs
-                            destroyInactiveTabPane
-                            defaultActiveKey={tab}
-                            items={[
-                                {
-                                    key: "overview",
-                                    label: "Overview",
-                                    icon: <AppstoreOutlined />,
-                                    children: <DynamicCodeBlock codeSnippets={codeSnippets} />,
-                                },
-                                {
-                                    key: "history",
-                                    label: "History",
-                                    icon: <HistoryOutlined />,
-                                    children: (
-                                        <DeploymentHistory
-                                            selectedEnvironment={selectedEnvironment}
-                                        />
-                                    ),
-                                },
-                            ]}
-                            onChange={setTab}
-                        />
-                    </>
-                ) : (
-                    <DynamicCodeBlock codeSnippets={codeSnippets} />
-                )
+                <>
+                    <Tabs
+                        destroyInactiveTabPane
+                        defaultActiveKey={tab}
+                        items={[
+                            {
+                                key: "overview",
+                                label: "Overview",
+                                icon: <AppstoreOutlined />,
+                                children: (
+                                    <Collapse accordion defaultActiveKey={["1"]} items={items} />
+                                ),
+                            },
+                            {
+                                key: "history",
+                                label: !isOss ? (
+                                    "History"
+                                ) : (
+                                    <Tooltip
+                                        placement="right"
+                                        title="Deployment History available in Cloud/Enterprise editions only"
+                                    >
+                                        History
+                                    </Tooltip>
+                                ),
+                                icon: <HistoryOutlined />,
+                                children: (
+                                    <DeploymentHistory selectedEnvironment={selectedEnvironment} />
+                                ),
+                                disabled: isOss,
+                            },
+                        ]}
+                        onChange={setTab}
+                    />
+                </>
             ) : (
                 <Alert
                     message="Publish Required"

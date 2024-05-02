@@ -31,6 +31,7 @@ import {debounce} from "lodash"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 const {Title} = Typography
 
@@ -377,7 +378,12 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <div>
                         <span>App Variant: </span>
                         <span className={classes.appVariant}>
-                            {variants ? `${variant.variantName} #${evaluation.revisions[0]}` : ""}
+                            {variants
+                                ? variantNameWithRev({
+                                      variant_name: variant.variantName,
+                                      revision: evaluation.revisions[0],
+                                  })
+                                : ""}
                         </span>
                     </div>
                 ),
