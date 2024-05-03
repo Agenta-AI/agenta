@@ -71,7 +71,6 @@ def evaluate(
     evaluation_id: str,
     rate_limit_config: Dict[str, int],
     lm_providers_keys: Dict[str, Any],
-    correct_answer_column: str,
 ):
     """
     Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
@@ -217,6 +216,9 @@ def evaluate(
             evaluators_results: List[EvaluationScenarioResult] = []
             for evaluator_config_db in evaluator_config_dbs:
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
+                correct_answer_column = evaluator_config_db.settings_values.get(
+                    "correct_answer"
+                )
                 if correct_answer_column in data_point:
                     result = evaluators_service.evaluate(
                         evaluator_key=evaluator_config_db.evaluator_key,
