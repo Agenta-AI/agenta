@@ -6,8 +6,9 @@ evaluators = [
         "settings_template": {
             "label": "Exact Match Settings",
             "description": "Settings for the Exact Match evaluator",
-            "correct_answer": {
+            "correct_answer_keys": {
                 "label": "Correct Answer",
+                "default": "correct_answer",
                 "type": "string",
             },
         },
@@ -37,8 +38,9 @@ evaluators = [
                 "max": 1,
                 "required": True,
             },
-            "correct_answer": {
+            "correct_answer_keys": {
                 "label": "Correct Answer",
+                "default": "correct_answer",
                 "type": "string",
             },
         },
@@ -77,8 +79,9 @@ evaluators = [
                 "description": "The name of the field in the JSON output that you wish to evaluate",
                 "required": True,
             },
-            "correct_answer": {
+            "correct_answer_keys": {
                 "label": "Correct Answer",
+                "default": "correct_answer",
                 "type": "string",
             },
         },
@@ -125,8 +128,9 @@ evaluators = [
                 "description": "https://your-webhook-url.com",
                 "required": True,
             },
-            "correct_answer": {
+            "correct_answer_keys": {
                 "label": "Correct Answer",
+                "default": "correct_answer",
                 "type": "string",
             },
         },
@@ -244,8 +248,9 @@ evaluators = [
             "label": "Levenshtein Distance Settings",
             "description": "Evaluates the Levenshtein distance between the output and the correct answer. If a threshold is specified, it checks if the distance is below this threshold and returns a boolean value. If no threshold is specified, it returns the numerical Levenshtein distance.",
             "threshold": {"label": "Threshold", "type": "number", "required": False},
-            "correct_answer": {
+            "correct_answer_keys": {
                 "label": "Correct Answer",
+                "default": "correct_answer",
                 "type": "string",
             },
         },
