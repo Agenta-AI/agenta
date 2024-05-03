@@ -19,12 +19,18 @@ def auto_exact_match(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        correct_answer_keys = settings_values.get("correct_answer_keys")
+        if not correct_answer_keys:
+            return Result(
+                type="error", value=None, error="No correct answer keys provided."
+            )
+        correct_answer_key = correct_answer_keys.split(",")[0]
+
         exact_match = True if output == data_point[correct_answer_key] else False
         result = Result(type="bool", value=exact_match)
         return result
@@ -42,12 +48,18 @@ def auto_similarity_match(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        correct_answer_keys = settings_values.get("correct_answer_keys")
+        if not correct_answer_keys:
+            return Result(
+                type="error", value=None, error="No correct answer keys provided."
+            )
+        correct_answer_key = correct_answer_keys.split(",")[0]
+
         set1 = set(output.split())
         set2 = set(data_point[correct_answer_key].split())
         intersect = set1.intersection(set2)
@@ -75,7 +87,6 @@ def auto_regex_test(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -100,12 +111,18 @@ def field_match_test(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        correct_answer_keys = settings_values.get("correct_answer_keys")
+        if not correct_answer_keys:
+            return Result(
+                type="error", value=None, error="No correct answer keys provided."
+            )
+        correct_answer_key = correct_answer_keys.split(",")[0]
+
         output_json = json.loads(output)
         result = (
             output_json[settings_values["json_field"]] == data_point[correct_answer_key]
@@ -120,12 +137,18 @@ def auto_webhook_test(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        correct_answer_keys = settings_values.get("correct_answer_keys")
+        if not correct_answer_keys:
+            return Result(
+                type="error", value=None, error="No correct answer keys provided."
+            )
+        correct_answer_key = correct_answer_keys.split(",")[0]
+
         with httpx.Client() as client:
             payload = {
                 "correct_answer": data_point[correct_answer_key],
@@ -176,7 +199,6 @@ def auto_custom_code_run(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -204,7 +226,6 @@ def auto_ai_critique(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -224,6 +245,7 @@ def auto_ai_critique(
         str: Evaluation result.
     """
     try:
+        correct_answer_key = settings_values.get("correct_answer_keys")
         llm = OpenAI(
             openai_api_key=lm_providers_keys["OPENAI_API_KEY"],
             temperature=0.8,
@@ -262,7 +284,6 @@ def auto_starts_with(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -291,7 +312,6 @@ def auto_ends_with(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -318,7 +338,6 @@ def auto_contains(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -345,7 +364,6 @@ def auto_contains_any(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -377,7 +395,6 @@ def auto_contains_all(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -409,7 +426,6 @@ def auto_contains_json(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -460,12 +476,18 @@ def auto_levenshtein_distance(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        correct_answer_keys = settings_values.get("correct_answer_keys")
+        if not correct_answer_keys:
+            return Result(
+                type="error", value=None, error="No correct answer keys provided."
+            )
+        correct_answer_key = correct_answer_keys.split(",")[0]
+
         distance = levenshtein_distance(output, data_point[correct_answer_key])
 
         if "threshold" in settings_values:
@@ -491,7 +513,6 @@ def evaluate(
     inputs: Dict[str, Any],
     output: str,
     data_point: Dict[str, Any],
-    correct_answer_key: str,
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
@@ -504,7 +525,6 @@ def evaluate(
             inputs,
             output,
             data_point,
-            correct_answer_key,
             app_params,
             settings_values,
             lm_providers_keys,
