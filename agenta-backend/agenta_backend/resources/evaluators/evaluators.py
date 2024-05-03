@@ -2,11 +2,16 @@ evaluators = [
     {
         "name": "Exact Match",
         "key": "auto_exact_match",
-        "direct_use": True,
+        "direct_use": False,
         "settings_template": {
             "label": "Exact Match Settings",
             "description": "Settings for the Exact Match evaluator",
+            "correct_answer": {
+                "label": "Correct Answer",
+                "type": "string",
+            },
         },
+        "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
     },
     {
         "name": "Contains Json",
@@ -31,7 +36,11 @@ evaluators = [
                 "min": 0,
                 "max": 1,
                 "required": True,
-            }
+            },
+            "correct_answer": {
+                "label": "Correct Answer",
+                "type": "string",
+            },
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
     },
@@ -67,7 +76,11 @@ evaluators = [
                 "default": "",
                 "description": "The name of the field in the JSON output that you wish to evaluate",
                 "required": True,
-            }
+            },
+            "correct_answer": {
+                "label": "Correct Answer",
+                "type": "string",
+            },
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
     },
@@ -112,26 +125,12 @@ evaluators = [
                 "description": "https://your-webhook-url.com",
                 "required": True,
             },
+            "correct_answer": {
+                "label": "Correct Answer",
+                "type": "string",
+            },
         },
         "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
-    },
-    {
-        "name": "A/B Test",
-        "key": "human_a_b_testing",
-        "direct_use": False,
-        "settings_template": {
-            "label": "A/B Testing Settings",
-            "description": "Settings for A/B testing configurations",
-        },
-    },
-    {
-        "name": "Single Model Test",
-        "key": "human_single_model_test",
-        "direct_use": False,
-        "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Settings for single model testing configurations",
-        },
     },
     {
         "name": "Starts With",
@@ -245,6 +244,10 @@ evaluators = [
             "label": "Levenshtein Distance Settings",
             "description": "Evaluates the Levenshtein distance between the output and the correct answer. If a threshold is specified, it checks if the distance is below this threshold and returns a boolean value. If no threshold is specified, it returns the numerical Levenshtein distance.",
             "threshold": {"label": "Threshold", "type": "number", "required": False},
+            "correct_answer": {
+                "label": "Correct Answer",
+                "type": "string",
+            },
         },
         "description": "This evaluator calculates the Levenshtein distance between the output and the correct answer. If a threshold is provided in the settings, it returns a boolean indicating whether the distance is within the threshold. If no threshold is provided, it returns the actual Levenshtein distance as a numerical value.",
     },
