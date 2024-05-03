@@ -42,11 +42,13 @@ The CLI will also display the URL of the endpoint, which can be used to test the
   </Step>
 </Steps>
 
-## Adding a new configuration
+## Adding a multiple variants for one application
 
-In addition to the default configuration specified in the code, you can add more configurations to the application from the CLI.
+You can add multiple app variants to a single application using the CLI. This is useful if you want to test different workflows for the same application (i.e. single prompt vs. chain of prompts). To do this, create a new python file containing the new logic, then execute the following command:
 
-Configurations are specified in toml files and always named `<codebase_name>.<configuration_name>`. To add a new configuration, run the following command:
+```bash
+agenta variant serve <new_filename.py>
 
-@devgenix please continue here
+```
 
+In the UI, you'll find the new variant under the same application, labeled `<new_filename>.default`. You can modify the configuration for this variant in the playground and create numerous variants based on it.
