@@ -100,8 +100,7 @@ async def invoke_app(
         except aiohttp.ClientResponseError as e:
             error_message = f"HTTP error {e.status}: {e.message}"
             stacktrace = "".join(traceback.format_exception_only(type(e), e))
-            logger.error(
-                f"HTTP error occurred during request: {error_message}")
+            logger.error(f"HTTP error occurred during request: {error_message}")
             common.capture_exception_in_sentry(e)
         except aiohttp.ServerTimeoutError as e:
             error_message = "Request timed out"
@@ -166,8 +165,7 @@ async def run_with_retry(
             return result
         except aiohttp.ClientError as e:
             last_exception = e
-            print(
-                f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
+            print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
         except Exception as e:
