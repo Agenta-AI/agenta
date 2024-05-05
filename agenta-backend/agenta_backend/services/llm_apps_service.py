@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
-
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -99,13 +98,14 @@ async def invoke_app(
 
         except aiohttp.ClientResponseError as e:
             error_message = f"HTTP error {e.status}: {e.message}"
-            logger.error(f"HTTP error occurred during request: {error_message}")
+            logger.error(
+                f"HTTP error occurred during request: {error_message}")
             common.capture_exception_in_sentry(e)
         except aiohttp.ClientConnectionError as e:
             error_message = f"Connection error: {str(e)}"
             logger.error(error_message)
             common.capture_exception_in_sentry(e)
-        except aiohttp.TimeoutError as e:
+        except aiohttp.ServerTimeoutError as e:
             error_message = "Request timed out"
             logger.error(error_message)
             common.capture_exception_in_sentry(e)
@@ -162,7 +162,8 @@ async def run_with_retry(
             return result
         except aiohttp.ClientError as e:
             last_exception = e
-            print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
+            print(
+                f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
         except Exception as e:
