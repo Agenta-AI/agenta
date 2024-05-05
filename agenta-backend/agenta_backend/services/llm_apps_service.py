@@ -97,41 +97,32 @@ async def invoke_app(
             )
 
         except aiohttp.ClientResponseError as e:
-            # Parse error details from the API response
-            error_message = "Error in invoking the LLM App:"
-            try:
-                error_message = e.message
-            except ValueError:
-                # Fallback if the error response is not JSON or doesn't have the expected structure
-                logger.error(f"Failed to parse error response: {e}")
-
-            logger.error(f"Error occurred during request: {error_message}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message=f"{e.code}: {error_message}",
-                        stacktrace="".join(
-                            traceback.format_exception(None, e, e.__traceback__)
-                        ),
-                    ),
-                )
-            )
-
+            error_message = f"HTTP error {e.status}: {e.message}"
+            logger.error(f"HTTP error occurred during request: {error_message}")
+        except aiohttp.ClientConnectionError as e:
+            error_message = f"Connection error: {str(e)}"
+            logger.error(error_message)
+        except aiohttp.TimeoutError as e:
+            error_message = "Request timed out"
+            logger.error(error_message)
+        except json.JSONDecodeError as e:
+            error_message = "Failed to decode JSON from response"
+            logger.error(error_message)
         except Exception as e:
-            # Catch-all for any other unexpected errors
-            logger.error(f"Unexpected error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Unexpected error while invoking the LLM App",
-                        stacktrace="".join(
-                            traceback.format_exception(None, e, e.__traceback__)
-                        ),
+            error_message = f"Unexpected error: {str(e)}"
+            logger.error(error_message)
+
+        return InvokationResult(
+            result=Result(
+                type="error",
+                error=Error(
+                    message=error_message,
+                    stacktrace="".join(
+                        traceback.format_exception(None, e, e.__traceback__)
                     ),
-                )
+                ),
             )
+        )
 
 
 async def run_with_retry(
