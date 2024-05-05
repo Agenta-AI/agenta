@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Result} from "antd"
+import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -17,6 +17,7 @@ import {
 } from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
+import ResultComponent from "../ResultComponent/ResultComponent"
 
 interface Props {
     variant: Variant
@@ -118,10 +119,10 @@ const ViewNavigation: React.FC<Props> = ({
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <Result
-                status="info"
+            <ResultComponent
+                status={"info"}
                 title="Waiting for the variant to start"
-                extra={<Spin spinning={retrying} />}
+                spinner={retrying}
             />
         )
     }

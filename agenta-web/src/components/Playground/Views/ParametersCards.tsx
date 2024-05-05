@@ -2,7 +2,23 @@ import React from "react"
 import {createUseStyles} from "react-jss"
 import {renameVariables} from "@/lib/helpers/utils"
 import {Parameter, InputParameter} from "@/lib/Types"
-import {Row, Card, Slider, Select, InputNumber, Col, Input, Button, Switch} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+
+import {
+    Row,
+    Card,
+    Slider,
+    Select,
+    InputNumber,
+    Col,
+    Input,
+    Button,
+    Switch,
+    Dropdown,
+    Menu,
+    Space,
+} from "antd"
+import {GroupedSelect} from "./GroupedSelect"
 
 const useStyles = createUseStyles({
     row1: {
@@ -52,8 +68,8 @@ const useStyles = createUseStyles({
         marginBottom: 8,
     },
     inputNumber: {
-        margin: "0 16px",
-        width: "100%",
+        margin: "0 0 0 16px",
+        width: "calc(100% - 16px)",
     },
     select: {
         width: "100%",
@@ -86,7 +102,8 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                     (!param.input &&
                                         (param.type === "number" ||
                                             param.type === "integer" ||
-                                            param.type === "array")) ||
+                                            param.type === "array" ||
+                                            param.type === "grouped_choice")) ||
                                     param.type === "boolean",
                             )
                             .map((param, index) => (
@@ -96,7 +113,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             {renameVariables(param.name)}
                                         </h4>
                                     </Col>
-                                    <Col span={8}>
+                                    <Col span={param.type === "grouped_choice" ? 10 : 8}>
                                         {param.type === "number" && (
                                             <Slider
                                                 min={param.minimum}
@@ -140,6 +157,15 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                 ))}
                                             </Select>
                                         )}
+                                        {param.type === "grouped_choice" && (
+                                            <GroupedSelect
+                                                choices={param.choices || {}}
+                                                defaultValue={param.default}
+                                                handleChange={(value) =>
+                                                    handleParamChange(param.name, value)
+                                                }
+                                            />
+                                        )}
                                         {param.type === "boolean" && (
                                             <Switch
                                                 defaultValue={param.default}
@@ -149,26 +175,28 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             />
                                         )}
                                     </Col>
-                                    <Col>
-                                        {param.type === "number" && (
-                                            <InputNumber
-                                                min={0}
-                                                max={10000}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                        {param.type === "integer" && (
-                                            <InputNumber
-                                                min={param.minimum}
-                                                max={param.maximum}
-                                                className={classes.inputNumber}
-                                                value={param.default}
-                                                onChange={(value) => onChange(param, value)}
-                                            />
-                                        )}
-                                    </Col>
+                                    {param.type !== "grouped_choice" && (
+                                        <Col span={2}>
+                                            {param.type === "number" && (
+                                                <InputNumber
+                                                    min={0}
+                                                    max={10000}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                            {param.type === "integer" && (
+                                                <InputNumber
+                                                    min={param.minimum}
+                                                    max={param.maximum}
+                                                    className={classes.inputNumber}
+                                                    value={param.default}
+                                                    onChange={(value) => onChange(param, value)}
+                                                />
+                                            )}
+                                        </Col>
+                                    )}
                                     <Row />
                                 </Row>
                             ))}

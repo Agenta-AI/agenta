@@ -22,7 +22,8 @@ import AgCustomHeader from "@/components/AgCustomHeader/AgCustomHeader"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
-import {useQueryParam} from "@/hooks/useQuery"
+import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
+import {useLocalStorage} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -55,7 +56,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
+    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -71,7 +72,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 valueGetter: (params) => {
                     return getTypedValue(params.data?.inputs[index])
                 },
-                cellRenderer: LongTextCellRenderer,
+                cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
         colDefs.push({
@@ -83,7 +84,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             valueGetter: (params) => {
                 return params.data?.correct_answer?.toString() || ""
             },
-            cellRenderer: LongTextCellRenderer,
+            cellRenderer: (params: any) => LongTextCellRenderer(params),
         })
         evalaution?.variants.forEach((_, index) => {
             colDefs.push({
@@ -95,16 +96,20 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
-                        return `${result?.error?.message}\n${result?.error?.stacktrace}`
+                        return LongTextCellRenderer(
+                            params,
+                            `${result?.error?.message}\n${result?.error?.stacktrace}`,
+                        )
                     }
-                    return showDiff === "show" ? (
-                        <CompareOutputDiff
-                            variantOutput={result?.value}
-                            expectedOutput={params.data?.correct_answer}
-                        />
-                    ) : (
-                        result?.value
-                    )
+                    return showDiff === "show"
+                        ? LongTextCellRenderer(
+                              params,
+                              <CompareOutputDiff
+                                  variantOutput={result?.value}
+                                  expectedOutput={params.data?.correct_answer}
+                              />,
+                          )
+                        : LongTextCellRenderer(params)
                 },
                 valueGetter: (params) => {
                     const result = params.data?.outputs[index].result
@@ -137,6 +142,29 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     return params.data?.results[index].result.value
                 },
             })
+        })
+        colDefs.push({
+            flex: 1,
+            minWidth: 120,
+            headerName: "Cost",
+            ...getFilterParams("text"),
+            valueGetter: (params) => {
+                return params.data?.outputs[0].cost == undefined
+                    ? "-"
+                    : formatCurrency(params.data.outputs[0].cost)
+            },
+        })
+
+        colDefs.push({
+            flex: 1,
+            minWidth: 120,
+            headerName: "Latency",
+            ...getFilterParams("text"),
+            valueGetter: (params) => {
+                return params.data?.outputs[0].latency == undefined
+                    ? "-"
+                    : formatLatency(params.data.outputs[0].latency)
+            },
         })
         return colDefs
     }, [evalaution, scenarios, showDiff])

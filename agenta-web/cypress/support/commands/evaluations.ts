@@ -1,4 +1,5 @@
-import {randString, removeLlmProviderKey} from "../../../src/lib/helpers/utils"
+import {randString} from "../../../src/lib/helpers/utils"
+import {removeLlmProviderKey} from "../../../src/lib/helpers/llmProviders"
 
 let app_id
 
@@ -58,6 +59,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
+    cy.get('[data-cy="app-testsets-link"]').trigger("mouseout")
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
 

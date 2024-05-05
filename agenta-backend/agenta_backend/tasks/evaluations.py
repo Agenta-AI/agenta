@@ -44,7 +44,7 @@ from agenta_backend.services.db_manager import (
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
@@ -267,7 +267,9 @@ def evaluate(
                     correct_answer=correct_answer,
                     outputs=[
                         EvaluationScenarioOutputDB(
-                            result=Result(type="text", value=app_output.result.value)
+                            result=Result(type="text", value=app_output.result.value),
+                            latency=app_output.latency,
+                            cost=app_output.cost,
                         )
                     ],
                     results=evaluators_results,
@@ -275,6 +277,27 @@ def evaluate(
                     workspace=app.workspace if isCloudEE() else None,
                 )
             )
+
+        # Add average cost and latency
+        average_latency = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "latency"
+        )
+        average_cost = aggregation_service.aggregate_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
+        total_cost = aggregation_service.sum_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "average_latency": average_latency,
+                    "average_cost": average_cost,
+                    "total_cost": total_cost,
+                },
+            )
+        )
 
     except Exception as e:
         logger.error(f"An error occurred during evaluation: {e}")
@@ -355,6 +378,7 @@ async def aggregate_evaluator_results(
             "auto_contains_any",
             "auto_contains_all",
             "auto_contains_json",
+            "auto_levenshtein_distance",
         ]:
             result = aggregation_service.aggregate_float(results)
 
@@ -387,7 +411,8 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in app_variant_parameters

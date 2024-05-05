@@ -25,14 +25,17 @@ from agenta_backend.services import (
 from agenta_backend.utils.common import (
     isEE,
     isOssEE,
-    isCloud,
+    isCloudProd,
+    isCloudDev,
     isCloudEE,
 )
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
+elif isCloudDev():
+    from agenta_backend.services import deployment_manager
 elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,
@@ -50,7 +53,8 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
-    db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None
+    db_app_variant: AppVariantDB,
+    env_vars: DockerEnvVars = None,
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -90,7 +94,13 @@ async def start_variant(
             # domain_name = "http://localhost"
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
-            {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
+            {
+                "AGENTA_VARIANT_NAME": db_app_variant.variant_name,
+                "AGENTA_VARIANT_ID": str(db_app_variant.id),
+                "AGENTA_BASE_ID": str(db_app_variant.base.id),
+                "AGENTA_APP_ID": str(db_app_variant.app.id),
+                "AGENTA_HOST": domain_name,
+            }
         )
         if isCloudEE():
             api_key = await api_key_service.create_api_key(
@@ -103,6 +113,7 @@ async def start_variant(
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
+
         await db_manager.update_base(
             db_app_variant.base,
             deployment=deployment.id,
@@ -493,6 +504,5 @@ async def add_variant_based_on_image(
         base=db_base,
         config=config_db,
     )
-
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant

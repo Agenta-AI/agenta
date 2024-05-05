@@ -40,6 +40,17 @@ agenta.config.register_default(temperature = ag.IntParam(default=0.5, minval=0, 
 This displays a binary switch in the playground.
 
 
+### MultipleChoiceParam
+
+
+The MultipleChoiceParam is a dropdown menu that provides a list of individual choices.
+
+
+### GroupedMultipleChoiceParam
+
+The GroupedMultipleChoiceParam is a dropdown menu that presents options in clustered groups, allowing users to select from a categorized list of choices.
+![Image of Evaluation Interface](/images/sdk_params/grouped_multiple_choice_param.png)
+
 ```python
 agenta.config.register_default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
                       force_json = BinaryParam())

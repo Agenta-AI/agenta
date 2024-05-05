@@ -71,6 +71,9 @@ class Evaluation(BaseModel):
     testset_name: Optional[str]
     status: Result
     aggregated_results: List[AggregatedResult]
+    average_cost: Optional[Result]
+    total_cost: Optional[Result]
+    average_latency: Optional[Result]
     created_at: datetime
     updated_at: datetime
 
@@ -100,6 +103,8 @@ class EvaluationScenarioInput(BaseModel):
 
 class EvaluationScenarioOutput(BaseModel):
     result: Result
+    cost: Optional[float]
+    latency: Optional[float]
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -145,7 +150,8 @@ class HumanEvaluationScenario(BaseModel):
 class HumanEvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[Union[str, int]]
-    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    # will be used when running custom code evaluation
+    correct_answer: Optional[str]
     outputs: Optional[List[HumanEvaluationScenarioOutput]]
     inputs: Optional[List[HumanEvaluationScenarioInput]]
     is_pinned: Optional[bool]
@@ -167,7 +173,8 @@ class EvaluationScenario(BaseModel):
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[Any]
-    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    # will be used when running custom code evaluation
+    correct_answer: Optional[str]
     outputs: Optional[List[EvaluationScenarioOutput]]
     inputs: Optional[List[EvaluationScenarioInput]]
     is_pinned: Optional[bool]
@@ -230,13 +237,16 @@ class LLMRunRateLimit(BaseModel):
 
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
-    replicate = "REPLICATE_API_KEY"
+    mistralai = "MISTRAL_API_KEY"
     cohere = "COHERE_API_KEY"
-    hugging_face = "HUGGING_FACE_API_KEY"
     anthropic = "ANTHROPIC_API_KEY"
-    azure_base = "AZURE_API_BASE"
-    azure_key = "AZURE_API_KEY"
+    anyscale = "ANYSCALE_API_KEY"
+    perplexityai = "PERPLEXITYAI_API_KEY"
+    deepinfra = "DEEPINFRA_API_KEY"
     togetherai = "TOGETHERAI_API_KEY"
+    alephalpha = "ALEPHALPHA_API_KEY"
+    openrouter = "OPENROUTER_API_KEY"
+    groq = "GROQ_API_KEY"
 
 
 class NewEvaluation(BaseModel):

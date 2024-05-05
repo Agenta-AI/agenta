@@ -33,7 +33,7 @@ describe("Evaluations CRUD Operations Test", function () {
 
         it("Should select evaluation and successfully delete it", () => {
             cy.get(".ag-root-wrapper").should("exist")
-            cy.get("#ag-33-input").check()
+            cy.get("div.ag-selection-checkbox input").eq(0).check()
             cy.get(":nth-child(1) > .ant-btn > .ant-btn-icon > .anticon > svg").click()
             cy.get(".ant-modal-confirm-btns > :nth-child(2) > span").click()
         })

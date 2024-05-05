@@ -71,7 +71,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-export function LongTextCellRenderer(params: ICellRendererParams) {
+export function LongTextCellRenderer(params: ICellRendererParams, output?: any) {
     const {value, api, node} = params
     const [expanded, setExpanded] = useState(
         node.rowHeight !== api.getSizesForCurrentTheme().rowHeight,
@@ -99,7 +99,7 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
                 )
             })
             const height = Math.max(...cellsArr.map((cell) => cell.scrollHeight))
-            node.setRowHeight(height <= defaultHeight ? defaultHeight * 2 : height)
+            node.setRowHeight(height <= defaultHeight ? defaultHeight * 2 : height + 10)
         } else {
             cellsArr.forEach((cell) => {
                 cell.setAttribute(
@@ -121,9 +121,9 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
     return (
         <div
             className={classes.longCell}
-            style={expanded ? {textWrap: "wrap", lineHeight: "2em", paddingTop: 6.5} : undefined}
+            style={expanded ? {textWrap: "wrap", paddingTop: 6.5} : undefined}
         >
-            {value}
+            {output ? output : value}
             <Space align="center" size="middle">
                 {expanded ? (
                     <FullscreenExitOutlined onClick={onExpand} />

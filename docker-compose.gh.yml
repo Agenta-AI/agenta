@@ -26,6 +26,9 @@ services:
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
+            - REGISTRY_REPO_NAME=agentaai
+            - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         command:
             [
                 "uvicorn",
@@ -132,9 +135,10 @@ services:
             - agenta-network
 
     celery_worker:
-        build: ./agenta-backend
+        container_name: celery-worker-1
+        image: ghcr.io/agenta-ai/agenta-backend
         command: >
-            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+            celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0

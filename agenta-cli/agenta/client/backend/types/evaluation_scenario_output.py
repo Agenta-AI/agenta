@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .result import Result
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -12,8 +13,9 @@ except ImportError:
 
 
 class EvaluationScenarioOutput(pydantic.BaseModel):
-    type: str
-    value: typing.Optional[typing.Any]
+    result: Result
+    cost: typing.Optional[float]
+    latency: typing.Optional[float]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

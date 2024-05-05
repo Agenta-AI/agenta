@@ -1,7 +1,7 @@
 import {Environment, IPromptRevisions, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useContext, useEffect, useState} from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
@@ -98,10 +98,6 @@ const ParametersView: React.FC<Props> = ({
     const isVariantExisting = !!variant.variantId
     const [revisionNum, setRevisionNum] = useQueryParam("revision")
     const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions[]>([])
-
-    useEffect(() => {
-        onStateChange(variant.persistent === false)
-    }, [])
 
     const onChange = (param: Parameter, newValue: number | string) => {
         handleParamChange(param.name, newValue)

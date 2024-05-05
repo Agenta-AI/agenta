@@ -3,8 +3,15 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
+import {Button, Dropdown, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {
+    CheckOutlined,
+    DeleteOutlined,
+    DownOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
 import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -30,6 +37,7 @@ import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import Link from "next/link"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -45,6 +53,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     buttonsGroup: {
         marginTop: "1rem",
         alignSelf: "flex-end",
+    },
+    dropdownMenu: {
+        "&>.ant-dropdown-menu-item": {
+            "& .anticon-check": {
+                display: "none",
+            },
+        },
+        "&>.ant-dropdown-menu-item-selected": {
+            "&:not(:hover)": {
+                backgroundColor: "transparent !important",
+            },
+            "& .anticon-check": {
+                display: "inline-flex !important",
+            },
+        },
     },
 }))
 
@@ -63,6 +86,8 @@ const EvaluationResults: React.FC<Props> = () => {
     const router = useRouter()
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
+    const [hiddenCols, setHiddenCols] = useState<string[]>([])
+    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -168,6 +193,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 160,
                 pinned: "left",
                 headerCheckboxSelection: true,
+                hide: hiddenCols.includes("Variant"),
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
                 cellRenderer: (params: any) => {
@@ -187,13 +213,18 @@ const EvaluationResults: React.FC<Props> = () => {
                     )
                 },
                 valueGetter: (params) =>
-                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
+                    variantNameWithRev({
+                        variant_name: params.data?.variants[0].variantName ?? "",
+                        revision: params.data?.revisions[0],
+                    }),
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),
             },
             {
                 field: "testset.name",
+                hide: hiddenCols.includes("Testset"),
+                headerName: "Testset",
                 cellRenderer: (params: any) => (
                     <LinkCellRenderer
                         {...params}
@@ -213,7 +244,9 @@ const EvaluationResults: React.FC<Props> = () => {
                     ({
                         flex: 1,
                         minWidth: 190,
+                        hide: hiddenCols.includes(config.name),
                         field: "aggregated_results",
+                        headerName: config.name,
                         headerComponent: (props: any) => (
                             <AgCustomHeader {...props}>
                                 <Space
@@ -247,8 +280,11 @@ const EvaluationResults: React.FC<Props> = () => {
             ),
             {
                 flex: 1,
+                headerName: "Status",
+                hide: hiddenCols.includes("Status"),
                 field: "status",
                 minWidth: 185,
+                pinned: "right",
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
                     statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
@@ -256,8 +292,27 @@ const EvaluationResults: React.FC<Props> = () => {
             },
             {
                 flex: 1,
+                field: "average_latency",
+                headerName: "Avg. Latency",
+                hide: hiddenCols.includes("Latency"),
+                minWidth: 120,
+                ...getFilterParams("number"),
+                valueGetter: (params) => getTypedValue(params?.data?.average_latency),
+            },
+            {
+                flex: 1,
+                field: "total_cost",
+                headerName: "Total Cost",
+                hide: hiddenCols.includes("Cost"),
+                minWidth: 120,
+                ...getFilterParams("number"),
+                valueGetter: (params) => getTypedValue(params?.data?.total_cost),
+            },
+            {
+                flex: 1,
                 field: "created_at",
                 headerName: "Created",
+                hide: hiddenCols.includes("Created"),
                 minWidth: 160,
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
@@ -265,7 +320,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs])
+    }, [evaluatorConfigs, hiddenCols])
 
     const compareBtnNode = (
         <Button
@@ -275,7 +330,7 @@ const EvaluationResults: React.FC<Props> = () => {
             data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
-                    `/apps/${appId}/evaluations/compare/?evaluations=${selected
+                    `/apps/${appId}/evaluations/results/compare/?evaluations=${selected
                         .map((item) => item.id)
                         .join(",")}`,
                 )
@@ -284,6 +339,27 @@ const EvaluationResults: React.FC<Props> = () => {
             Compare
         </Button>
     )
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!hiddenCols.includes(evalConfigId)) {
+            setHiddenCols([...hiddenCols, evalConfigId])
+        } else {
+            setHiddenCols(hiddenCols.filter((item) => item !== evalConfigId))
+        }
+    }
+
+    const shownCols = useMemo(
+        () =>
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
+        [colDefs],
+    )
+
+    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setFilterColsDropdown(nextOpen)
+        }
+    }
 
     return (
         <>
@@ -327,6 +403,36 @@ const EvaluationResults: React.FC<Props> = () => {
                             New Evaluation
                         </Button>
                     </Space>
+
+                    <Space className={classes.buttonsGroup}>
+                        <Dropdown
+                            trigger={["click"]}
+                            open={filterColsDropdown}
+                            onOpenChange={handleOpenChange}
+                            menu={{
+                                selectedKeys: shownCols,
+                                items: colDefs.map((configs) => ({
+                                    key: configs.headerName as string,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{configs.headerName}</>
+                                        </Space>
+                                    ),
+                                })),
+                                onClick: ({key}) => {
+                                    onToggleEvaluatorVisibility(key)
+                                    setFilterColsDropdown(true)
+                                },
+                                className: classes.dropdownMenu,
+                            }}
+                        >
+                            <Button>
+                                Filter Columns <DownOutlined />
+                            </Button>
+                        </Dropdown>
+                    </Space>
+
                     <Spin spinning={fetching}>
                         <div
                             className={`${
@@ -352,7 +458,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
                                             params.data?.status.value) &&
-                                        router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
+                                        router.push(
+                                            `/apps/${appId}/evaluations/results/${params.data?.id}`,
+                                        )
                                 }}
                                 rowSelection="multiple"
                                 suppressRowClickSelection

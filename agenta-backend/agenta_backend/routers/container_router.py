@@ -5,7 +5,13 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
 from agenta_backend.services import db_manager
-from agenta_backend.utils.common import APIRouter, isCloudEE, isCloud, isEE
+from agenta_backend.utils.common import (
+    APIRouter,
+    isCloudEE,
+    isCloudProd,
+    isCloudDev,
+    isEE,
+)
 
 if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
@@ -15,8 +21,10 @@ else:
     from agenta_backend.models.api.api_models import Image
 
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import container_manager
+elif isCloudDev():
+    from agenta_backend.services import container_manager
 elif isEE():
     from agenta_backend.ee.services import container_manager
 else:

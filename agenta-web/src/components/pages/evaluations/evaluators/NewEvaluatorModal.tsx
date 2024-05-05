@@ -117,12 +117,15 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     type,
     default: defaultVal,
     description,
+    min,
+    max,
+    required,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
 
-    const rules: Rule[] = [{required: true, message: "This field is required"}]
+    const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
@@ -167,11 +170,11 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 {type === "string" || type === "regex" ? (
                     <Input />
                 ) : type === "number" ? (
-                    <InputNumber min={0} max={1} step={0.1} />
+                    <InputNumber min={min} max={max} step={0.1} />
                 ) : type === "boolean" || type === "bool" ? (
                     <Switch />
                 ) : type === "text" ? (
-                    <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                    <Input.TextArea rows={10} />
                 ) : type === "code" ? (
                     <Editor
                         className={classes.editor}
@@ -296,25 +299,6 @@ const NewEvaluatorModal: React.FC<Props> = ({
             },
         },
         {
-            title: "Type",
-            dataIndex: "type",
-            key: "type",
-            render(_, record) {
-                const template = Object.keys(record?.settings_template || {})
-                    .filter((key) => !!record?.settings_template[key]?.type)
-                    .map((key) => ({
-                        key,
-                        ...record?.settings_template[key]!,
-                    }))
-
-                return (
-                    <>
-                        <Tag color={record.color}>{template[0].type}</Tag>
-                    </>
-                )
-            },
-        },
-        {
             title: "Description",
             dataIndex: "description",
             key: "description",
@@ -393,6 +377,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 }
                 footer={null}
                 data-cy="configure-new-evaluator-modal"
+                width={selectedEval?.key === "auto_custom_code_run" ? 800 : 600}
             >
                 <Form
                     requiredMark={false}

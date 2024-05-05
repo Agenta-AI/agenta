@@ -1,14 +1,20 @@
-import {getErrorMessage, globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {Button, Result} from "antd"
+import {useRouter} from "next/router"
 import {useEffect} from "react"
+import {FallbackProps} from "react-error-boundary"
 
-interface Props {
-    error: any
-}
+const ErrorFallback: React.FC<FallbackProps> = ({error, resetErrorBoundary}) => {
+    const router = useRouter()
 
-const ErrorFallback: React.FC<Props> = ({error}) => {
     useEffect(() => {
-        globalErrorHandler(error)
+        const handleRouteChange = () => {
+            resetErrorBoundary()
+        }
+        router.events.on("routeChangeComplete", handleRouteChange)
+        return () => {
+            router.events.off("routeChangeComplete", handleRouteChange)
+        }
     }, [])
 
     return (

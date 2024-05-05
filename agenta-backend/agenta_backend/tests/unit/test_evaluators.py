@@ -1,6 +1,7 @@
 import pytest
 
 from agenta_backend.services.evaluators_service import (
+    auto_levenshtein_distance,
     auto_starts_with,
     auto_ends_with,
     auto_contains,
@@ -128,4 +129,23 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
 )
 def test_auto_contains_json(output, expected):
     result = auto_contains_json({}, output, "", {}, {}, {})
+    assert result.value == expected
+
+
+@pytest.mark.parametrize(
+    "output, correct_answer, threshold, expected",
+    [
+        ("hello world", "hello world", 5, True),
+        ("hello world", "hola mundo", 5, False),
+        ("hello world", "hello world!", 2, True),
+        ("hello world", "hello wor", 10, True),
+        ("hello world", "hello worl", None, 1),
+        ("hello world", "helo world", None, 1),
+    ],
+)
+def test_auto_levenshtein_distance(output, correct_answer, threshold, expected):
+    settings_values = {"threshold": threshold} if threshold is not None else {}
+    result = auto_levenshtein_distance(
+        {}, output, correct_answer, {}, settings_values, {}
+    )
     assert result.value == expected

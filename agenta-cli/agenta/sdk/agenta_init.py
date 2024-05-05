@@ -1,10 +1,13 @@
-from agenta.client.exceptions import APIRequestError
-from agenta.client.backend.client import AgentaApi
 import os
 import logging
 from typing import Any, Optional
 
 from .utils.globals import set_global
+
+from agenta.client.backend.client import AgentaApi
+from agenta.sdk.tracing.llm_tracing import Tracing
+from agenta.client.exceptions import APIRequestError
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,6 +43,7 @@ class AgentaSingleton:
         base_name: Optional[str] = None,
         api_key: Optional[str] = None,
         base_id: Optional[str] = None,
+        app_id: Optional[str] = None,
         host: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
@@ -75,29 +79,43 @@ class AgentaSingleton:
                 )
             else:
                 try:
-                    apps = client.list_apps(app_name=app_name)
-                    if len(apps) == 0:
-                        raise APIRequestError(f"App with name {app_name} not found")
-
-                    app_id = apps[0].app_id
-                    if not app_id:
-                        raise APIRequestError(
-                            f"App with name {app_name} does not exist on the server."
-                        )
-
-                    bases = client.list_bases(app_id=app_id, base_name=base_name)
-                    if len(bases) == 0:
-                        raise APIRequestError(f"No base was found for the app {app_id}")
-
-                    base_id = bases[0].base_id
+                    app_id = self.get_app(app_name)
+                    base_id = self.get_app_base(app_id, base_name)
                 except Exception as ex:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
                     )
+
         self.base_id = base_id
         self.host = host
+        self.app_id = os.environ.get("AGENTA_APP_ID") if app_id is None else app_id
+        self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
+        self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
         self.api_key = api_key
         self.config = Config(base_id=base_id, host=host)
+
+    def get_app(self, app_name: str) -> str:
+        apps = client.apps.list_apps(app_name=app_name)
+        if len(apps) == 0:
+            raise APIRequestError(f"App with name {app_name} not found")
+
+        app_id = apps[0].app_id
+        return app_id
+
+    def get_app_base(self, app_id: str, base_name: str) -> str:
+        bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
+        if len(bases) == 0:
+            raise APIRequestError(f"No base was found for the app {app_id}")
+        return bases[0].base_id
+
+    def get_current_config(self):
+        """
+        Retrieves the current active configuration
+        """
+
+        if self._config_data is None:
+            raise RuntimeError("AgentaSingleton has not been initialized")
+        return self._config_data
 
 
 class Config:
@@ -139,7 +157,7 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_config(
+            client.configs.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -161,12 +179,12 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = client.get_config(
+                    config = client.configs.get_config(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.get_config(
+                    config = client.configs.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
                     )
@@ -176,7 +194,7 @@ class Config:
                     + str(ex)
                 )
         try:
-            self.set(**config.parameters)
+            self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
             logger.warning("Failed to set the configuration with error: " + str(ex))
 
@@ -210,3 +228,17 @@ def init(app_name=None, base_name=None, **kwargs):
     singleton = AgentaSingleton()
     singleton.init(app_name=app_name, base_name=base_name, **kwargs)
     set_global(setup=singleton.setup, config=singleton.config)
+
+
+def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
+    """Function to start llm tracing."""
+
+    singleton = AgentaSingleton()
+    return Tracing(
+        base_url=singleton.host,
+        app_id=singleton.app_id,  # type: ignore
+        variant_id=singleton.variant_id,  # type: ignore
+        variant_name=singleton.variant_name,
+        api_key=singleton.api_key,
+        max_workers=max_workers,
+    )

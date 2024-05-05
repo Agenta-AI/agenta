@@ -51,11 +51,11 @@ class APIRouter(FastAPIRouter):
 
 
 def isCloudEE():
-    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee", "cloud-dev"]
 
 
 def isCloud():
-    return os.environ["FEATURE_FLAG"] == "cloud"
+    return os.environ["FEATURE_FLAG"] in ["cloud", "cloud-dev"]
 
 
 def isEE():
@@ -64,3 +64,15 @@ def isEE():
 
 def isOssEE():
     return os.environ["FEATURE_FLAG"] in ["oss", "ee"]
+
+
+def isCloudProd():
+    return os.environ["FEATURE_FLAG"] == "cloud"
+
+
+def isCloudDev():
+    return os.environ["FEATURE_FLAG"] == "cloud-dev"
+
+
+def isOss():
+    return os.environ["FEATURE_FLAG"] == "oss"

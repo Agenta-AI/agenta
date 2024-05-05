@@ -22,7 +22,7 @@ axios.interceptors.response.use(
         // deep convert all UTC dats to local
         if (data && isObject(data))
             response.data = JSON.parse(JSON.stringify(data), (k, v) => {
-                return ["created_at", "updated_at"].includes(k) &&
+                return ["created_at", "updated_at", "timestamp"].includes(k) &&
                     typeof v === "string" &&
                     !v.endsWith("Z")
                     ? v + "Z"

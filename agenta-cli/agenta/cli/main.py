@@ -84,6 +84,9 @@ def cli():
 def init(app_name: str, backend_host: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
+
+    api_key = os.getenv("AGENTA_API_KEY")
+
     if not app_name:
         while True:
             app_name = questionary.text("Please enter the app name").ask()
@@ -126,7 +129,8 @@ def init(app_name: str, backend_host: str):
                 else:
                     backend_host = "https://cloud.agenta.ai"
 
-                api_key = helper.get_api_key(backend_host)
+                if not api_key:
+                    api_key = helper.get_api_key(backend_host)
 
             elif where_question is None:  # User pressed Ctrl+C
                 sys.exit(0)
@@ -150,18 +154,21 @@ def init(app_name: str, backend_host: str):
             try:
                 key_prefix = api_key.split(".")[0]
                 client.validate_api_key(key_prefix=key_prefix)
-
-                # Make request to fetch user organizations after api key validation
+            except Exception as ex:
+                click.echo(
+                    click.style(
+                        f"Error: Unable to validate API key.\nError: {ex}", fg="red"
+                    )
+                )
+                sys.exit(1)
+            # Make request to fetch user organizations after api key validation
+            try:
                 organizations = client.list_organizations()
                 if len(organizations) >= 1:
                     user_organizations = organizations
             except Exception as ex:
-                if ex.status_code == 401:
-                    click.echo(click.style("Error: Invalid API key", fg="red"))
-                    sys.exit(1)
-                else:
-                    click.echo(click.style(f"Error: {ex}", fg="red"))
-                    sys.exit(1)
+                click.echo(click.style(f"Error: {ex}", fg="red"))
+                sys.exit(1)
 
         filtered_org = None
         if where_question == "On agenta cloud":
@@ -182,7 +189,7 @@ def init(app_name: str, backend_host: str):
 
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.create_app(
+            app_id = client.apps.create_app(
                 app_name=app_name,
                 organization_id=filtered_org.id if filtered_org else None,
             ).app_id
@@ -242,8 +249,9 @@ def init(app_name: str, backend_host: str):
         gitignore_content = (
             "# Environments \nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\nmyenv/\n"
         )
-        with open(".gitignore", "w") as gitignore_file:
-            gitignore_file.write(gitignore_content)
+        if not os.path.exists(".agentaignore"):
+            with open(".agentaignore", "w") as gitignore_file:
+                gitignore_file.write(gitignore_content)
 
         click.echo("App initialized successfully")
         if init_option == "Start from template":

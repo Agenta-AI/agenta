@@ -2,14 +2,7 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant, promptRevision} from "@/lib/services/api"
-import {
-    ChatMessage,
-    ChatRole,
-    GenericObject,
-    IPromptVersioning,
-    Parameter,
-    Variant,
-} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -29,7 +22,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {formatLatency} from "@/lib/helpers/formatters"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -237,7 +230,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <p>
                         Latency:{" "}
                         {additionalData.latency !== null
-                            ? `${Math.round(additionalData.latency * 1000)}ms`
+                            ? formatLatency(additionalData.latency)
                             : "0ms"}
                     </p>
                 </Space>
@@ -480,7 +473,7 @@ const App: React.FC<TestViewProps> = ({
                 optParams || [],
                 appId || "",
                 variant.baseId || "",
-                isChatVariant ? testItem.chat : [],
+                isChatVariant ? testItem.chat || [{}] : [],
                 controller.signal,
                 true,
             )

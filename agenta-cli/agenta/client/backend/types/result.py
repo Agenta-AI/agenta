@@ -4,6 +4,7 @@ import datetime as dt
 import typing
 
 from ..core.datetime_utils import serialize_datetime
+from .error import Error
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -14,6 +15,7 @@ except ImportError:
 class Result(pydantic.BaseModel):
     type: str
     value: typing.Optional[typing.Any]
+    error: typing.Optional[Error]
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

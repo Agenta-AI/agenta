@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -12,8 +12,8 @@ class UserDB(Document):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[PydanticObjectId]] = []
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "users"
@@ -25,8 +25,8 @@ class OrganizationDB(Document):
     type: Optional[str]
     owner: str  # user id
     members: Optional[List[PydanticObjectId]]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "organizations"
@@ -36,8 +36,8 @@ class AppDB(Document):
     app_name: str
     organization: Link[OrganizationDB]
     user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now())
-    updated_at: Optional[datetime] = Field(default=datetime.now())
+    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "app_db"
@@ -50,8 +50,8 @@ class EvaluatorConfigDB(Document):
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
-    created_at: datetime = Field(default=datetime.now())
-    updated_at: datetime = Field(default=datetime.now())
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
 
     class Settings:
         name = "evaluators_configs"

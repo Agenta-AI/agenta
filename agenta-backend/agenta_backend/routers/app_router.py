@@ -7,11 +7,11 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 from beanie import PydanticObjectId as ObjectId
 
-from agenta_backend.config import settings
 from agenta_backend.models import converters
 from agenta_backend.utils.common import (
     isEE,
-    isCloud,
+    isCloudProd,
+    isCloudDev,
     APIRouter,
     isCloudEE,
 )
@@ -60,10 +60,12 @@ if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
 
 
-if isCloud():
+if isCloudProd():
     from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
+elif isCloudDev():
+    from agenta_backend.services import deployment_manager
 elif isEE():
     from agenta_backend.ee.services import (
         deployment_manager,
@@ -74,6 +76,8 @@ else:
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
 
 
 @router.get(
@@ -338,7 +342,7 @@ async def add_variant_from_image(
             docker_id=payload.docker_id,
             tags=payload.tags,
         )
-        if not payload.tags.startswith(settings.registry):
+        if not payload.tags.startswith(registry_repo_name):
             raise HTTPException(
                 status_code=500,
                 detail="Image should have a tag starting with the registry name (agenta-server)",
@@ -562,19 +566,42 @@ async def create_app_and_variant_from_template(
             else "Step 7: Starting variant and injecting environment variables"
         )
         if isCloudEE():
-            if not os.environ["OPENAI_API_KEY"]:
+            supported_llm_prodviders_keys = [
+                "OPENAI_API_KEY",
+                "MISTRAL_API_KEY",
+                "COHERE_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "ANYSCALE_API_KEY",
+                "PERPLEXITYAI_API_KEY",
+                "DEEPINFRA_API_KEY",
+                "TOGETHERAI_API_KEY",
+                "ALEPHALPHA_API_KEY",
+                "OPENROUTER_API_KEY",
+                "GROQ_API_KEY",
+            ]
+            missing_keys = [
+                key for key in supported_llm_prodviders_keys if not os.environ.get(key)
+            ]
+            if missing_keys:
+                missing_keys_str = ", ".join(missing_keys)
                 raise Exception(
-                    "Unable to start app container. Please file an issue by clicking on the button below.",
+                    f"Unable to start app container. The following environment variables are missing: {missing_keys_str}. Please file an issue by clicking on the button below."
                 )
-            envvars = {
-                **(payload.env_vars or {}),
-                "OPENAI_API_KEY": os.environ[
-                    "OPENAI_API_KEY"
-                ],  # order is important here
-            }
+
+            envvars = {**(payload.env_vars or {})}
+            for key in supported_llm_prodviders_keys:
+                if os.environ.get(key):
+                    envvars[key] = os.environ[key]
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
         await app_manager.start_variant(app_variant_db, envvars)
+
+        logger.debug("Step 11: Deploying to production environment")
+        await db_manager.deploy_to_environment(
+            environment_name="production",
+            variant_id=str(app_variant_db.id),
+            user_uid=request.state.user_id,
+        )
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)

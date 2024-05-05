@@ -167,57 +167,17 @@ export interface Parameter {
     enum?: Array<string>
     minimum?: number
     maximum?: number
-}
-
-export interface Parameters {
-    frequence_penalty: number
-    inputs: [{}]
-    max_tokens: number
-    model: string
-    presence_penalty: number
-    prompt_system: string
-    prompt_user: string
-    temperature: number
-    top_p: number
-}
-
-export interface DeploymentRevisionConfig {
-    config_name: string
-    current_version: number
-    parameters: Parameters
+    choices?: {[key: string]: Array<string>}
 }
 
 export interface IPromptRevisions {
     config: {
         config_name: string
-        parameters: Parameters
+        parameters: Record<string, any>
     }
     created_at: string
     modified_by: string
     revision: number
-}
-
-export interface IEnvironmentRevision {
-    revision: number
-    modified_by: string
-    created_at: string
-}
-
-export interface IPromptVersioning {
-    app_id: string
-    app_name: string
-    base_id: string
-    base_name: string
-    config_name: string
-    organization_id: string
-    parameters: Parameters
-    previous_variant_name: string | null
-    revision: number
-    revisions: [IPromptRevisions]
-    uri: string
-    user_id: string
-    variant_id: string
-    variant_name: string
 }
 
 export interface EvaluationResponseType {
@@ -302,6 +262,8 @@ export interface LlmProvidersKeys {
     AZURE_API_KEY: string
     AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
+    MISTRAL_API_KEY: string
+    GROQ_API_KEY: string
 }
 
 export interface AppTemplate {
@@ -322,17 +284,6 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
-}
-
-export interface DeploymentRevisions extends Environment {
-    revisions: {
-        created_at: string
-        deployed_app_variant_revision: string
-        deployment: string
-        id: string
-        modified_by: string
-        revision: number
-    }[]
 }
 
 export interface CustomEvaluation {
@@ -375,6 +326,8 @@ type ValueTypeOptions =
     | "regex"
     | "object"
     | "error"
+    | "cost"
+    | "latency"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -382,6 +335,9 @@ export interface EvaluationSettingsTemplate {
     label: string
     default?: ValueType
     description: string
+    min?: number
+    max?: number
+    required?: boolean
 }
 
 export interface Evaluator {
@@ -451,6 +407,9 @@ export interface _Evaluation {
     updated_at?: string
     duration?: number
     revisions: string[]
+    average_latency?: TypedValue & {error: null | EvaluationError}
+    average_cost?: TypedValue & {error: null | EvaluationError}
+    total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
 }
 
@@ -460,7 +419,7 @@ export interface _EvaluationScenario {
     evaluation: _Evaluation
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
-    outputs: {result: TypedValue}[]
+    outputs: {result: TypedValue; cost?: number; latency?: number}[]
     correct_answer?: string
     is_pinned?: boolean
     note?: string
@@ -496,7 +455,7 @@ export type ComparisonResultRow = {
     variants: {
         variantId: string
         variantName: string
-        output: {result: TypedValue}
+        output: {result: TypedValue; cost?: number; latency?: number}
         evaluationId: string
         evaluatorConfigs: {
             evaluatorConfig: EvaluatorConfig
@@ -504,4 +463,22 @@ export type ComparisonResultRow = {
         }[]
     }[]
     id: string
+}
+
+export type RequestMetadata = {
+    cost: number
+    latency: number
+    usage: {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
+}
+
+export type WithPagination<T> = {
+    data: T[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+export type PaginationQuery = {
+    page: number
+    pageSize: number
 }

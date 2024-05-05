@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Statistic, Table, Typography} from "antd"
+import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -11,6 +11,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -119,6 +120,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const app_id = router.query.app_id?.toString() || ""
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
 
     useEffect(() => {
         if (!app_id) {
@@ -126,6 +128,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
         }
         const fetchEvaluations = async () => {
             try {
+                setFetchingEvaluations(true)
                 fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
@@ -169,6 +172,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             .catch((err) => console.error(err))
                     })
                     .catch((err) => console.error(err))
+                    .finally(() => setFetchingEvaluations(false))
             } catch (error) {
                 console.log(error)
             }
@@ -183,7 +187,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/human_a_b_testing/${evaluation.key}`)
         }
     }
 
@@ -218,7 +222,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[0], record.revisions[0])}
                         >
-                            ({`${value[0]} #${record.revisions[0]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[0],
+                                revision: record.revisions[0],
+                            })}
+                            )
                         </div>
                     </div>
                 )
@@ -242,7 +251,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[1], record.revisions[1])}
                         >
-                            ({`${value[1]} #${record.revisions[1]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[1],
+                                revision: record.revisions[1],
+                            })}
+                            )
                         </div>
                     </div>
                 )
@@ -363,15 +377,17 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                 <Title level={3}>A/B Test Results</Title>
             </div>
 
-            <Table
-                rowSelection={{
-                    type: selectionType,
-                    ...rowSelection,
-                }}
-                className="ph-no-capture"
-                columns={columns}
-                dataSource={evaluationsList}
-            />
+            <Spin spinning={fetchingEvaluations}>
+                <Table
+                    rowSelection={{
+                        type: selectionType,
+                        ...rowSelection,
+                    }}
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                />
+            </Spin>
         </div>
     )
 }

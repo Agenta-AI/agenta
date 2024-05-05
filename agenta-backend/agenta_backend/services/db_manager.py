@@ -1,13 +1,12 @@
 import os
 import logging
-import traceback
-
 from pathlib import Path
-from datetime import datetime
 from urllib.parse import urlparse
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from typing import Any, Dict, List, Optional
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
@@ -112,7 +111,7 @@ async def add_testset_to_app_variant(
             testset = {
                 "name": f"{app_name}_testset",
                 "app_name": app_name,
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "csvdata": csvdata,
             }
             testset_db = TestSetDB(
@@ -179,6 +178,47 @@ async def fetch_app_variant_by_id(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     app_variant = await AppVariantDB.find_one(
         AppVariantDB.id == ObjectId(app_variant_id), fetch_links=True
+    )
+    return app_variant
+
+
+async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its base ID and config name.
+
+    Args:
+        base_id (str): The ID of the variant base to fetch
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.base.id == ObjectId(base_id),
+        fetch_links=True,
+    )
+    return app_variant
+
+
+async def fetch_app_variant_by_base_id_and_config_name(
+    base_id: str, config_name: str
+) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its base ID and config name.
+
+    Args:
+        base_id (str): The ID of the variant base to fetch
+        config_name (str): The name of the config
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    assert config_name is not None, "config_name cannot be None"
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.base.id == ObjectId(base_id),
+        AppVariantDB.config_name == config_name,
+        fetch_links=True,
     )
     return app_variant
 
@@ -363,6 +403,7 @@ async def create_new_app_variant(
         modified_by=user,
         base=base,
         config=config,
+        created_at=datetime.now(timezone.utc),
     )
     await variant_revision.create()
 
@@ -850,6 +891,7 @@ async def add_variant_from_base_and_config(
         modified_by=user_db,
         base=base_db,
         config=config_db,
+        created_at=datetime.now(timezone.utc),
     )
     await variant_revision.create()
 
@@ -1243,6 +1285,7 @@ async def create_environment_revision(
         environment=environment,
         revision=environment.revision,
         modified_by=user,
+        created_at=datetime.now(timezone.utc),
     )
 
     if kwargs:
@@ -1456,6 +1499,7 @@ async def update_variant_parameters(
             modified_by=user,
             base=app_variant_db.base,
             config=config_db,
+            created_at=datetime.now(timezone.utc),
         )
         await variant_revision.save()
 
@@ -1804,7 +1848,6 @@ async def fetch_app_by_name_and_parameters(
         )
 
     app_db = await AppDB.find_one(query_expression, fetch_links=True)
-
     return app_db
 
 
@@ -1832,8 +1875,8 @@ async def create_new_evaluation(
         variant_revision=variant_revision,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
+        created_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
     )
 
     if isCloudEE():
@@ -1902,7 +1945,7 @@ async def update_evaluation_with_aggregated_results(
         raise ValueError("Evaluation not found")
 
     evaluation.aggregated_results = aggregated_results
-    evaluation.updated_at = datetime.now().isoformat()
+    evaluation.updated_at = datetime.now(timezone.utc).isoformat()
 
     await evaluation.save()
     return evaluation
