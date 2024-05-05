@@ -31,7 +31,8 @@ async def make_payload(
     for param in openapi_parameters:
         if param["type"] == "input":
             payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in parameters
@@ -81,7 +82,7 @@ async def invoke_app(
     async with aiohttp.ClientSession() as client:
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
-            response = await client.post(url, json=payload, timeout=5)
+            response = await client.post(url, json=payload, timeout=900)
             response.raise_for_status()
             app_response = await response.json()
             return InvokationResult(
