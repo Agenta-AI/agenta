@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.utils import common
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -99,18 +100,23 @@ async def invoke_app(
         except aiohttp.ClientResponseError as e:
             error_message = f"HTTP error {e.status}: {e.message}"
             logger.error(f"HTTP error occurred during request: {error_message}")
+            common.capture_exception_in_sentry(e)
         except aiohttp.ClientConnectionError as e:
             error_message = f"Connection error: {str(e)}"
             logger.error(error_message)
+            common.capture_exception_in_sentry(e)
         except aiohttp.TimeoutError as e:
             error_message = "Request timed out"
             logger.error(error_message)
+            common.capture_exception_in_sentry(e)
         except json.JSONDecodeError as e:
             error_message = "Failed to decode JSON from response"
             logger.error(error_message)
+            common.capture_exception_in_sentry(e)
         except Exception as e:
             error_message = f"Unexpected error: {str(e)}"
             logger.error(error_message)
+            common.capture_exception_in_sentry(e)
 
         return InvokationResult(
             result=Result(
@@ -161,10 +167,13 @@ async def run_with_retry(
             retries += 1
         except Exception as e:
             last_exception = e
-            logger.info(f"Error processing datapoint: {input_data}")
+            logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
+            logger.info(traceback.format_exc())
+            common.capture_exception_in_sentry(e)
 
     # If max retries is reached or an exception that isn't in the second block,
     # update & return the last exception
+    logging.info("Max retries reached")
     exception_message = (
         "Max retries reached"
         if retries == max_retry_count
