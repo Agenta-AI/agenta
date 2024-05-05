@@ -1,6 +1,7 @@
 import json
 import logging
 import asyncio
+import traceback
 import aiohttp
 from typing import Any, Dict, List
 
@@ -31,7 +32,8 @@ async def make_payload(
     for param in openapi_parameters:
         if param["type"] == "input":
             payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in parameters
@@ -109,7 +111,9 @@ async def invoke_app(
                     type="error",
                     error=Error(
                         message=f"{e.code}: {error_message}",
-                        stacktrace=str(e),
+                        stacktrace="".join(
+                            traceback.format_exception(None, e, e.__traceback__)
+                        ),
                     ),
                 )
             )
@@ -122,7 +126,9 @@ async def invoke_app(
                     type="error",
                     error=Error(
                         message="Unexpected error while invoking the LLM App",
-                        stacktrace=str(e),
+                        stacktrace="".join(
+                            traceback.format_exception(None, e, e.__traceback__)
+                        ),
                     ),
                 )
             )
