@@ -28,19 +28,13 @@ jobs:
           poetry config virtualenvs.in-project true
 
       - name: Install dependencies
-        run: |
-          cd agenta-cli
-          poetry install
-
-      - name: Initialize Agenta
         env:
           BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
         run: |
+          cd agenta-cli
+          poetry install
           pwd
           ls agenta
-          cd examples/baby_name_generator
+          cd ../examples/baby_name_generator
           poetry run agenta init --app_name woooo --backend_host $BACKEND_HOST
-
-      - name: Serve Application
-        run: |
           poetry run agenta variant serve --file_name app.py
