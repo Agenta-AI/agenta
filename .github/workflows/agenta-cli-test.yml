@@ -1,0 +1,44 @@
+name: Agenta CLI Workflow
+
+on:
+  pull_request:
+    paths:
+      - "agenta-backend/**"
+      - "agenta-cli/**"
+
+jobs:
+  run-agenta:
+    runs-on: ubuntu-latest
+    environment: oss
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: |
+          cd agenta-cli
+          poetry install
+
+      - name: Initialize Agenta
+        env:
+          BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
+        run: |
+          cd ../examples/baby_name_generator
+          poetry run agenta init --app_name woooo --backend_host $BACKEND_HOST
+
+      - name: Serve Application
+        run: |
+          poetry run agenta variant serve --file_name app.py
