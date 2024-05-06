@@ -31,7 +31,6 @@ jobs:
         run: |
           cd agenta-cli
           poetry install
-          poetry shell
 
       - name: Initialize Agenta
         env:
@@ -40,8 +39,8 @@ jobs:
           pwd
           ls agenta
           cd examples/baby_name_generator
-          agenta init --app_name woooo --backend_host $BACKEND_HOST
+          poetry run agenta init --app_name woooo --backend_host $BACKEND_HOST
 
       - name: Serve Application
         run: |
-          agenta variant serve --file_name app.py
+          poetry run agenta variant serve --file_name app.py
