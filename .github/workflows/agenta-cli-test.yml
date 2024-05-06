@@ -34,7 +34,7 @@ jobs:
           cd agenta-cli
           poetry install
           pwd
-          ls agenta
           cd ../examples/baby_name_generator
+          ls
           poetry run agenta init --app_name woooo --backend_host $BACKEND_HOST
           poetry run agenta variant serve --file_name app.py
