@@ -1,11 +1,13 @@
 import json
 import logging
 import asyncio
+import traceback
 import aiohttp
 from typing import Any, Dict, List
 
 
 from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.utils import common
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -31,7 +33,8 @@ async def make_payload(
     for param in openapi_parameters:
         if param["type"] == "input":
             payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in parameters
@@ -81,7 +84,7 @@ async def invoke_app(
     async with aiohttp.ClientSession() as client:
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
-            response = await client.post(url, json=payload, timeout=5)
+            response = await client.post(url, json=payload, timeout=900)
             response.raise_for_status()
             app_response = await response.json()
             return InvokationResult(
@@ -95,37 +98,40 @@ async def invoke_app(
             )
 
         except aiohttp.ClientResponseError as e:
-            # Parse error details from the API response
-            error_message = "Error in invoking the LLM App:"
-            try:
-                error_message = e.message
-            except ValueError:
-                # Fallback if the error response is not JSON or doesn't have the expected structure
-                logger.error(f"Failed to parse error response: {e}")
-
-            logger.error(f"Error occurred during request: {error_message}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message=f"{e.code}: {error_message}",
-                        stacktrace=str(e),
-                    ),
-                )
-            )
-
+            error_message = f"HTTP error {e.status}: {e.message}"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(f"HTTP error occurred during request: {error_message}")
+            common.capture_exception_in_sentry(e)
+        except aiohttp.ServerTimeoutError as e:
+            error_message = "Request timed out"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+        except aiohttp.ClientConnectionError as e:
+            error_message = f"Connection error: {str(e)}"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+        except json.JSONDecodeError as e:
+            error_message = "Failed to decode JSON from response"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
         except Exception as e:
-            # Catch-all for any other unexpected errors
-            logger.error(f"Unexpected error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Unexpected error while invoking the LLM App",
-                        stacktrace=str(e),
-                    ),
-                )
+            error_message = f"Unexpected error: {str(e)}"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+
+        return InvokationResult(
+            result=Result(
+                type="error",
+                error=Error(
+                    message=error_message,
+                    stacktrace=stacktrace,
+                ),
             )
+        )
 
 
 async def run_with_retry(
@@ -164,10 +170,13 @@ async def run_with_retry(
             retries += 1
         except Exception as e:
             last_exception = e
-            logger.info(f"Error processing datapoint: {input_data}")
+            logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
+            logger.info("".join(traceback.format_exception_only(type(e), e)))
+            common.capture_exception_in_sentry(e)
 
     # If max retries is reached or an exception that isn't in the second block,
     # update & return the last exception
+    logging.info("Max retries reached")
     exception_message = (
         "Max retries reached"
         if retries == max_retry_count
