@@ -36,7 +36,8 @@ jobs:
         env:
           BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
         run: |
-          cd ../examples/baby_name_generator
+          pwd
+          cd ./../examples/baby_name_generator
           poetry run agenta init --app_name woooo --backend_host $BACKEND_HOST
 
       - name: Serve Application
