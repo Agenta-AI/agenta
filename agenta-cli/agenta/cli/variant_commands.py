@@ -29,7 +29,7 @@ def variant():
 
 
 def add_variant(
-    app_folder: str, file_name: str, host: str, config_name="default"
+    app_folder: str, file_name: str, host: str, overwrite: bool, config_name="default"
 ) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
@@ -97,14 +97,13 @@ def add_variant(
 
     # update the config file with the variant names from the backend
     variant_name = f"{base_name}.{config_name}"
-    overwrite = False
 
     client = AgentaApi(
         base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
     )
 
-    if variant_name in config["variants"]:
+    if variant_name in config["variants"] and not overwrite:
         overwrite = questionary.confirm(
             "This variant already exists. Do you want to overwrite it?"
         ).ask()
@@ -443,9 +442,15 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 )
 @click.option("--app_folder", default=".")
 @click.option("--file_name", default=None, help="The name of the file to run")
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    default=False,
+    help="Overwrite the existing variant if it exists",
+)
 @click.pass_context
-def serve_cli(ctx, app_folder: str, file_name: str):
-    """Adds a variant to the web ui and serves the API locally."""
+def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
+    """Adds a variant to the web UI and serves the API locally."""
 
     if not file_name:
         if ctx.args:
@@ -480,7 +485,9 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         return
 
     try:
-        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
+        variant_id = add_variant(
+            app_folder=app_folder, file_name=file_name, host=host, overwrite=overwrite
+        )
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
