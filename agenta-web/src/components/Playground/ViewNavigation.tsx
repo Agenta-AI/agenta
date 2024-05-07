@@ -186,16 +186,9 @@ const ViewNavigation: React.FC<Props> = ({
                             )) || <span>{error.message}</span>}
                         </p>
                         <ul>
-                            {isDemo() && (
-                                <div>
-                                    <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
-                                </div>
-                            )}
-                            {!isDemo() && (
-                                <div>
-                                    <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
-                                </div>
-                            )}
+                            <div>
+                                <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
+                            </div>
                         </ul>
                         <p>
                             Verify API accessibility at{" "}
