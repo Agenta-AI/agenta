@@ -1,7 +1,7 @@
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {fetchEnvironments, publishVariant} from "@/lib/services/api"
+import {fetchEnvironments, publishVariant} from "@/services/deployment"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
 import type {CheckboxChangeEvent} from "antd/es/checkbox"
 import {useRouter} from "next/router"

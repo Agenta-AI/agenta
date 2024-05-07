@@ -5,16 +5,17 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import {promptVersioning, removeVariant} from "@/lib/services/api"
+import {removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
 import {useQueryParam} from "@/hooks/useQuery"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
 
 const PromptVersioningDrawer: any = dynamicComponent(
     `PromptVersioningDrawer/PromptVersioningDrawer`,
 )
+const promptVersioning: any = dynamicService("api_ee")
 
 interface Props {
     variant: Variant

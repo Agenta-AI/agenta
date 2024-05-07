@@ -21,9 +21,7 @@ import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
-import dayjs from "dayjs"
-import {loadTestset} from "@/lib/services/api"
-import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
+import {loadTestset} from "@/services/testsets"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
 
 //Prefix convention:

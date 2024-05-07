@@ -1,5 +1,5 @@
-import {loadTestset, useLoadTestsetsList} from "@/lib/services/api"
-import {Button, Divider, Dropdown, Modal, Select, Space} from "antd"
+import {loadTestset, useLoadTestsetsList} from "@/services/testsets"
+import {Button, Divider, Modal, Select} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
 import {createUseStyles} from "react-jss"
