@@ -320,11 +320,7 @@ async def retrieve_variant_logs(variant_id: str, request: Request):
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
         deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
-        is_coroutine_function = inspect.iscoroutinefunction(logs_manager.retrieve_logs)
-        if is_coroutine_function:
-            logs_result = await logs_manager.retrieve_logs(deployment.container_id)
-        else:
-            logs_result = logs_manager.retrieve_logs(deployment.container_id)
+        logs_result = await logs_manager.retrieve_logs(deployment.container_id)
         return logs_result
     except Exception as exc:
         logger.exception(f"An error occurred: {str(exc)}")
