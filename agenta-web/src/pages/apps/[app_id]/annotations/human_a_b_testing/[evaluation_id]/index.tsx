@@ -1,6 +1,7 @@
 import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import {Evaluation} from "@/lib/Types"
-import {loadEvaluation, loadEvaluationsScenarios, loadTestset} from "@/lib/services/api"
+import {loadEvaluation, loadEvaluationsScenarios} from "@/services/human-evaluations"
+import {loadTestset} from "@/services/testsets"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"

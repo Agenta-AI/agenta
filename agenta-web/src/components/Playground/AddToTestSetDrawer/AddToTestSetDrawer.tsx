@@ -2,7 +2,12 @@ import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useAppTheme} from "../../Layout/ThemeContextProvider"
 import {ChatMessage, ChatRole, GenericObject, testset} from "@/lib/Types"
 import {removeKeys, renameVariables} from "@/lib/helpers/utils"
-import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
+import {
+    createNewTestset,
+    loadTestset,
+    updateTestset,
+    useLoadTestsetsList,
+} from "@/services/testsets"
 import {
     Button,
     Divider,

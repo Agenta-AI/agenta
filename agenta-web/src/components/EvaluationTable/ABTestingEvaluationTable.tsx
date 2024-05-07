@@ -15,10 +15,10 @@ import {
 } from "antd"
 import {
     updateEvaluationScenario,
-    callVariant,
     fetchEvaluationResults,
     updateEvaluation,
-} from "@/lib/services/api"
+} from "@/services/human-evaluations"
+import {callVariant} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"

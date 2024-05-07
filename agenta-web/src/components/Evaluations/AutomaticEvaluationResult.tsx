@@ -1,4 +1,8 @@
-import {deleteEvaluations, fetchEvaluationResults, loadEvaluations} from "@/lib/services/api"
+import {
+    deleteEvaluations,
+    fetchEvaluationResults,
+    loadEvaluations,
+} from "@/services/human-evaluations"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
