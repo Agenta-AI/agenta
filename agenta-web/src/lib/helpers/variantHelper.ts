@@ -1,5 +1,5 @@
 import {Variant, Parameter, InputParameter} from "@/lib/Types"
-import {getVariantParametersFromOpenAPI} from "@/services"
+import {getVariantParametersFromOpenAPI} from "@/services/api"
 
 const inputParamsToParameters = (additionalInputs: InputParameter[]): Parameter[] => {
     return additionalInputs.map((value) => ({

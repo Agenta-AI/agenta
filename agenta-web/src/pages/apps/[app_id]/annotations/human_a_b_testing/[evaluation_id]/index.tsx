@@ -4,7 +4,7 @@ import {loadEvaluation, loadEvaluationsScenarios} from "@/services/human-evaluat
 import {loadTestset} from "@/services/testsets"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
-import {fetchVariants} from "@/services"
+import {fetchVariants} from "@/services/api"
 import {useAtom} from "jotai"
 import {evaluationAtom, evaluationScenariosAtom} from "@/lib/atoms/evaluation"
 import {getTestsetChatColumn} from "@/lib/helpers/testset"

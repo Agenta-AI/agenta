@@ -18,7 +18,7 @@ import {
     fetchEvaluationResults,
     updateEvaluation,
 } from "@/services/human-evaluations"
-import {callVariant} from "@/services"
+import {callVariant} from "@/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"

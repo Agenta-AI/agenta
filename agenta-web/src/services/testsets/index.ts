@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
-import {axiosFetcher} from "@/services"
+import {axiosFetcher} from "@/services/api"
 
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(

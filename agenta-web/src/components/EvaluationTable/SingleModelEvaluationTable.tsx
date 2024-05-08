@@ -15,7 +15,7 @@ import {
     Typography,
     message,
 } from "antd"
-import {callVariant} from "@/services"
+import {callVariant} from "@/services/api"
 import {updateEvaluationScenario, updateEvaluation} from "@/services/human-evaluations"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
