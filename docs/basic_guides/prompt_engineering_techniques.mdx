@@ -1,0 +1,322 @@
+---
+title: "Prompt Engineering Techniques"
+description: "Exploring different prompt engineering techniques in the Agenta playground."
+---
+
+Imagine you're teaching a computer to do something, like writing a story. Prompt engineering is like giving the computer the right instructions, or "prompts," so it knows exactly what you want it to do. It's about crafting those prompts in a way that helps the computer understand and generate the desired output.
+
+So, it's all about choosing the right words and structures to communicate with the computer effectively. Just like how you'd explain something to a friend in a clear and simple way, prompt engineering is about making sure the computer understands what you're asking for.
+
+There are several prompt engineering techniques and in this article, we will take a look at the most popular and common techniques.
+
+> **NOTE**: In this article, we utilize the OpenAI API, where messages take on distinct roles to steer the model's responses effectively. These roles typically include "system," "user," and "assistant." The "system" delivers overarching instructions, the "user" presents queries or prompts, and the "assistant" represents the model's response. By delineating these roles, we establish context and streamline the conversation.
+
+## Zero-Shot Prompting
+
+Zero-shot prompting is a way to teach LLMs to perform tasks without specifically training them on those tasks. Instead of providing examples of what to do, you give the LLM a prompt or instruction, and it figures out how to complete the task based on that prompt.
+
+Try this in Agenta:
+
+```Python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(system_prompt=TextParam("Classify the text into neutral, positive or negative."), temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+    formatted_prompt = ag.config.system_prompt
+    chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "system", "content": system_prompt},
+          {"role": "user", "content": "Text: I am feeling excited today.  Sentiment:"}
+]
+    )
+    return chat_completion.choices[0].message.content
+```
+
+In the prompt above, it's important to note that we didn't give the model any specific examples of text paired with their sentiment classifications. The language model (LLM) already possesses an understanding of "sentiment," demonstrating the zero-shot capabilities in action.
+
+## Few-Shot Prompting
+
+Few-shot prompting is like giving a computer just a few examples, or "shots," of what you want it to learn, and then asking it to generate similar content based on those examples. This is a technique that facilitates in-context learning by incorporating demonstrations within the prompt. These demonstrations guide the model towards improved performance. It's a way to teach the computer new tasks or concepts with minimal training data.
+
+**Example**
+Let's say we want to teach a language model about two new concepts: **"glorp"** and **"zumple"**. We'll provide a couple of examples for each concept and then ask the model to generate sentences related to these concepts.
+
+Try this in Agenta:
+
+```Python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(system_prompt=TextParam("A glorp is a type of fictional creature found in children's books. An example of a sentence that uses the word glorp is: I read a story to my little cousin about a friendly glorp who helped the main character on an adventure. To 'zumple' means to move in a zigzag pattern while skipping."), temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+    formatted_prompt = ag.config.system_prompt
+    chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "system", "content": system_prompt},
+          {"role": "user", "content": "Write a sentence that uses the word zumple:"}
+])
+    return chat_completion.choices[0].message.content
+```
+
+In this example, the language model uses the provided examples of "glorp" and "zumple" to generate sentences that expand upon the given information, showcasing its ability to understand and generate relevant content based on limited input.
+
+## Chain-of-Thought Prompting
+
+Chain of Thought Prompting is a recent improvement in prompting techniques aimed at prompting Large Language Models (LLMs) to elucidate their thought processes. This approach diverges from conventional prompting methods by not solely seeking a response but also mandating the model to articulate the sequence of steps leading to that response.
+
+The core concept of Chain-of-Thought (CoT) lies in presenting the Language Model (LLM) with a few examples where the reasoning process is explicitly outlined. By doing so, the LLM is encouraged to incorporate the reasoning process into its responses to prompts. This inclusion of reasoning often results in more precise and accurate outcomes.
+
+Try this in Agenta:
+
+```Python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+        {"role": "user", "content": "Roger has 5 tennis balls. He buys 2 more cans of tennis balls. Each can has 3 tennis balls. How many tennis balls does he have now?"},
+
+        {"role": "assistant", "content": "Roger started with 5 balls. 2 cans of 3 tennis balls each is 6 tennis balls. 5 + 6 = 11. The answer is 11"},
+
+        {"role": "user", "content": "The cafeteria had 23 apples. If they used 20 to make lunch and bought 6 more, how many apples do they have?"},
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+## Zero Shot Chain of Thought
+
+Zero Shot Chain of Thought (Zero-shot-CoT) prompting is the next step after CoT prompting, making things even simpler with a zero-shot prompt. They discovered that just by adding **"Let's think step by step"** to the end of a question, LLMs can give answers that make sense. This method helps to get better and more accurate answers.
+
+In simple terms, the complete Zero-shot-CoT process includes two steps with different prompts and completions.
+
+Try this in Agenta:
+
+```Python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "user", "content": "If John has 5 pears, then eats 2, and buys 5 more, then gives 3 to his friend, how many pears does he have? Let's think step by step."},
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+Using the Zero-Shot Chain of Thought led to better results in arithmetic, common sense, and symbolic reasoning tasks. But it wasn't usually as good as CoT prompting, which isn't surprising. Zero-shot-CoT comes in handy when it's tough to get a few shot examples for CoT prompting.
+
+## Self-Consistency
+
+Self-consistency is like asking the model the same question a bunch of times and going with what most of the answers say. It's kinda like a follow-up to CoT prompting, and it works even better when you use both together.
+
+It's a way to make chain-of-thought prompting smarter. Instead of just going with the first idea that pops up, it tries out different ways of thinking before picking the best one. This makes chain-of-thought prompting work better for math and common-sense tasks.
+
+Try this in Agenta:
+
+```python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+            {"role": "user", "content": "Jason had 20 lollipops. He gave Denny some lollipops. Now Jason has 12 lollipops. How many lollipops did Jason give to Denny?"},
+            {"role": "assistant", "content": "Jason had 20 lollipops. Since he only has 12 now, he must have given the rest to Denny. The number of lollipops he has given to Denny must have been 20 - 12 = 8 lollipops. The answer is 8"},
+
+            {"role": "user", "content": "Shawn has five toys. For Christmas, he got two toys each from his mom and dad. How many toys does he have now?" },
+            {"role": "assistant", "content": "He has 5 toys. He got 2 from Mom, so after that, he has 5 + 2 = 7 toys. Then he got 2 more from Dad, so in total, he has 7 + 2 = 9 toys. The answer is 9"},
+
+            {"role": "user", "content": "There were nine computers in the server room. Five more computers were installed each day, from Monday to Thursday. How many computers are now in the server room?"},
+            {"role": "assistant", "content": " There are 4 days from Monday to Thursday. 5 computers were added each day. That means in total 4 * 5 =20 computers were added. There were 9 computers in the beginning, so now there are 9 + 20 = 29 computers. The answer is 29."},
+
+            {"role": "user", "content": "Olivia has $23. She bought five bagels for $3 each. How much money does she have left?"},
+            {"role": "assistant", "content": "She bought 5 bagels for $3 each. This means she spent $15. She has $8 left."},
+
+            {"role": "user", "content": "When I was 6 my sister was half my age. Now I'm 70 how old is my sister?"},
+
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+## Self-Ask Prompting
+
+Self-Ask Prompting is like the next step after Chain Of Thought Prompting. What's cool about it is that it shows exactly how the LLM thinks, breaking down the question into smaller parts. The LLM knows when it's got the final answer and can go from those smaller answers to one big answer.
+
+With Self-Ask, the LLM can answer questions it wasn't trained on directly. It might not know the exact answer, but it has info on smaller questions in its data.
+
+So, the LLM has all these facts it needs to answer a question, but it doesn't know how to put them together into one answer. That's where Self-Ask Prompting comes in handy.
+
+Try this in Agenta:
+
+```python
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "user", "content": "Question: Who lived longer, Theodor Haecker or Harry Vaughan Watkins?
+                                                Are follow up questions needed here: Yes
+                                                Follow up: How old was Theodor Haecker when he died? Intermediate answer: Theodor Haecker was 65 years old when he died.
+                                                Follow up: How old was Harrv Vaughan Watkins when he died? Intermediate answer: Harry Vaughan Watkins was 69 years old when he died
+                                                So the final answer is: Harry Vaughan Watkins
+                                                Question:  Who was the president of the US when superconductivity was discovered?
+                                                Are follow up question needed here: Yes"},
+
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+Using Self-Ask makes the LLM's output more like a conversation, and showing how it thinks in smaller parts also makes it more informative.
+
+## Tree of Thoughts
+
+Tree of Thoughts (ToT) is a tool that blends chain-of-thought prompting with exploring thoughts as steps for solving problems using language models.
+
+With ToT, we keep track of a tree of thoughts. Each thought is like a step in solving a problem, making a clear path forward. This helps the language model to see how it's doing as it thinks through the problem. To make this happen, the LM not only thinks up new ideas but also checks how good they are. Then, we use search methods like looking ahead and going back to make sure we explore all the thoughts smartly.
+
+Try this in Agenta:
+
+```python
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "user", "content": "Imagine three different experts are answering this question.
+                                    All experts will write down 1 step of their thinking,then share it with the group.
+                                    Then all experts will go on to the next step, etc.
+                                    If any expert realises they're wrong at any point then they leave.
+                                    The question is..." },
+
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+## Least to Most Prompting
+
+Least to Most Prompting builds upon Chain-of-Thought prompting by breaking down a problem into smaller parts and tackling them individually. This approach draws inspiration from educational methods used for children.
+
+Similar to Chain-of-Thought prompting, Least to Most prompts involve dividing the main problem into a series of smaller ones that gradually lead to the solution. However, in Least to Most, these subproblems are addressed sequentially. Unlike Chain-of-Thought, where each prompt builds upon the previous one, Least to Most incorporates solutions from previous subproblems into the prompts aimed at solving subsequent ones.
+
+Try this in Agenta:
+
+```python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+            {"role": "system", "content": "You are a customer service agent tasked with kindly responding to customer inquiries. Returns are allowed within 30 days. Today's date is March 29th. There is currently a 50% discount on all shirts. Shirt prices range from $18-$100 at your store. Do not make up any information about discount policies. Determine if the customer is within the 30-day return window. Let's go step by step."},
+
+            {"role": "user", "content": "I just bought a T-shirt from your Arnold collection on March 1st. I saw that it was on discount, so bought a shirt that was originally $30, and got 40% off. I saw that you have a new discount for shirts at 50%. I'm wondering if I can return the shirt and have enough store credit to buy two of your shirts?"},
+
+])
+    return chat_completion.choices[0].message.content
+
+```
+
+## Generated Knowledge
+
+The idea of the generated knowledge approach is to ask the LLM to first come up with helpful info about a question or prompt before giving a final answer.
+
+GKP happens in two steps:
+
+1. Gathering knowledge: The LLM's job is to gather knowledge related to the task. These could be facts, basic rules, or examples. For example, if the task is about the history of the United States, the LLM might gather important events and famous people.
+
+2. Using the gathered knowledge: The knowledge gathered is then used by the LLM when it does the task. So, if asked about the American Revolution, it already has a list of important events and people from step 1. This helps the LLM give accurate and detailed answers.
+
+Try this in Agenta:
+
+```python
+
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate():
+        chat_completion = client.chat.completions.create(
+        model= "gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[
+          {"role": "user", "content": " Question: Part of golf is trying to get a higher point total than others. Yes or No?
+                                        Knowledge: The objective of golf is to play a set of holes in the least number of strokes. A round of golf typically consists of 18 holes. Each hole is played once in the round on a standard golf course. Each stroke is counted as one point, and the total number of strokes is used to determine the winner of the game.
+                                        Explain and Answer: " },
+
+])
+    return chat_completion.choices[0].message.content
+
+```
