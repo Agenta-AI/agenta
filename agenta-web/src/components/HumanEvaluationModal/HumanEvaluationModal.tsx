@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from "react"
 import {GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
-import {fetchVariants} from "@/services"
+import {fetchVariants} from "@/services/api"
 import {createNewEvaluation} from "@/services/human-evaluations"
 import {isDemo} from "@/lib/helpers/utils"
 import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"

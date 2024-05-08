@@ -1,5 +1,5 @@
 import {useState, useEffect} from "react"
-import {saveNewVariant, updateVariantParams} from "@/services"
+import {saveNewVariant, updateVariantParams} from "@/services/api"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
