@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
+import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -18,6 +18,8 @@ import {
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"
+
+const {Text} = Typography
 
 interface Props {
     variant: Variant
@@ -39,7 +41,6 @@ const useStyles = createUseStyles({
     },
     errorLogs: {
         whiteSpace: "pre-wrap",
-        wordBreak: "break-all",
     },
 })
 
@@ -187,7 +188,9 @@ const ViewNavigation: React.FC<Props> = ({
                         </p>
                         <ul>
                             <div>
-                                <pre className={classes.errorLogs}>{variantErrorLogs}</pre>
+                                <Text code className={classes.errorLogs}>
+                                    {variantErrorLogs}
+                                </Text>
                             </div>
                         </ul>
                         <p>
