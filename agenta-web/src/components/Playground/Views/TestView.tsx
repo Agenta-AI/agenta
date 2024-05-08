@@ -25,7 +25,7 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {formatLatency} from "@/lib/helpers/formatters"
 import {dynamicService} from "@/lib/helpers/dynamic"
 
-const promptRevision: any = dynamicService("api_ee")
+const promptRevision: any = dynamicService("promptVersioning")
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
