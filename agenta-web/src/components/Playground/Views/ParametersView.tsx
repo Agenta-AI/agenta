@@ -15,7 +15,7 @@ import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
 const PromptVersioningDrawer: any = dynamicComponent(
     `PromptVersioningDrawer/PromptVersioningDrawer`,
 )
-const promptVersioning: any = dynamicService("api_ee")
+const promptVersioning: any = dynamicService("promptVersioning")
 
 interface Props {
     variant: Variant
