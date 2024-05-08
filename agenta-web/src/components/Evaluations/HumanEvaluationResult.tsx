@@ -1,4 +1,4 @@
-import {fetchData} from "@/lib/services/api"
+import {fetchData} from "@/services"
 import {deleteEvaluations} from "@/services/human-evaluations"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"

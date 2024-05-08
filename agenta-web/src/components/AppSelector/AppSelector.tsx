@@ -7,12 +7,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {
-    createAndStartTemplate,
-    getTemplates,
-    removeApp,
-    waitForAppToStart,
-} from "@/lib/services/api"
+import {createAndStartTemplate, getTemplates, removeApp, waitForAppToStart} from "@/services"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"

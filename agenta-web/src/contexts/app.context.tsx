@@ -1,6 +1,6 @@
 import {ListAppsItem} from "@/lib/Types"
 import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
-import {axiosFetcher} from "@/lib/services/api"
+import {axiosFetcher} from "@/services"
 import {useRouter} from "next/router"
 import {PropsWithChildren, createContext, useContext, useEffect, useMemo, useState} from "react"
 import useSWR from "swr"

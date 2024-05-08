@@ -1,12 +1,13 @@
 import axios from "@/lib//helpers/axiosConfig"
+import {dynamicContext} from "@/lib/helpers/dynamic"
+import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
 } from "@/lib/helpers/openapi_parser"
+import {getAgentaApiUrl, removeKeys, shortPoll} from "@/lib/helpers/utils"
 import {Variant, Parameter, AppTemplate, ChatMessage, KeyValuePair} from "@/lib/Types"
-import {LlmProvider} from "../helpers/llmProviders"
-import {getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
-import {dynamicContext} from "../helpers/dynamic"
+
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */

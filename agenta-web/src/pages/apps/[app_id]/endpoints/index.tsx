@@ -10,7 +10,7 @@ import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Ty
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchVariants, getAppContainerURL} from "@/lib/services/api"
+import {fetchVariants, getAppContainerURL} from "@/services"
 import {fetchEnvironments} from "@/services/deployment"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
