@@ -1,11 +1,10 @@
 import {Modal, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
-import {removeApp} from "@/lib/services/api"
+import {removeApp} from "@/services"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
-import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
 

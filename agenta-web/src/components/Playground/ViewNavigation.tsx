@@ -13,7 +13,7 @@ import {
     removeVariant,
     restartAppVariantContainer,
     waitForAppToStart,
-} from "@/lib/services/api"
+} from "@/services"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"

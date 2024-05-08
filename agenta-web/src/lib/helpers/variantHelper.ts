@@ -1,6 +1,5 @@
 import {Variant, Parameter, InputParameter} from "@/lib/Types"
-import {getVariantParametersFromOpenAPI} from "@/lib/services/api"
-import {globalErrorHandler} from "./errorHandler"
+import {getVariantParametersFromOpenAPI} from "@/services"
 
 const inputParamsToParameters = (additionalInputs: InputParameter[]): Parameter[] => {
     return additionalInputs.map((value) => ({

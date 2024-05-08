@@ -2,7 +2,7 @@ import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {useSession} from "@/hooks/useSession"
 import useStateCallback from "@/hooks/useStateCallback"
 import {isDemo} from "@/lib/helpers/utils"
-import {getProfile} from "@/lib/services/api"
+import {getProfile} from "@/services"
 import {User} from "@/lib/Types"
 import {PropsWithChildren, createContext, useState, useContext, useEffect, useCallback} from "react"
 
