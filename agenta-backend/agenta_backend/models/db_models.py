@@ -278,13 +278,18 @@ class EvaluationDB(Document):
         name = "new_evaluations"
 
 
+class CorrectAnswer(BaseModel):
+    key: str
+    correct_answer: str
+
+
 class EvaluationScenarioDB(Document):
     user: Link[UserDB]
     evaluation: Link[EvaluationDB]
     variant_id: PydanticObjectId
     inputs: List[EvaluationScenarioInputDB]
     outputs: List[EvaluationScenarioOutputDB]
-    correct_answer: Optional[str]
+    correct_answers: List[CorrectAnswer]
     is_pinned: Optional[bool]
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
