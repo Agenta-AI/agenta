@@ -62,7 +62,7 @@ class Tracing(metaclass=SingletonMeta):
         self,
         base_url: str,
         app_id: str,
-        variant_id: str,
+        variant_id: Optional[str] = None,
         variant_name: Optional[str] = None,
         api_key: Optional[str] = None,
         max_workers: Optional[int] = None,
@@ -134,7 +134,7 @@ class Tracing(metaclass=SingletonMeta):
         self.tags.extend(tags)
 
     def start_parent_span(
-        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any], **kwargs
+        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any] = {}, **kwargs
     ):
         if self._is_tracing_enabled:
             trace_id = self._create_trace_id()
