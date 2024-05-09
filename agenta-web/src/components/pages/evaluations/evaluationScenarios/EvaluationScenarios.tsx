@@ -1,6 +1,6 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
-import {JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
+import {CorrectAnswer, JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
@@ -82,7 +82,22 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
-        scenarios[0]?.correct_answers?.forEach((answer, index) => {
+        function filterUniqueCorrectAnswers(correctAnswers: CorrectAnswer[]): CorrectAnswer[] {
+            const seen = new Set<string>()
+            return correctAnswers.filter(({key, value}) => {
+                const pair = JSON.stringify({key, value})
+                if (seen.has(pair)) {
+                    return false
+                }
+                seen.add(pair)
+                return true
+            })
+        }
+        const uniqueCorrectAnswers: CorrectAnswer[] = filterUniqueCorrectAnswers(
+            scenarios[0]?.correct_answers || [],
+        )
+
+        uniqueCorrectAnswers.forEach((answer: CorrectAnswer, index: number) => {
             colDefs.push({
                 headerName: `Correct Answer ${index + 1}`,
                 headerComponent: (props: any) => {
