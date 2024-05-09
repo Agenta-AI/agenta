@@ -160,7 +160,7 @@ class HumanEvaluationScenarioUpdate(BaseModel):
 
 class CorrectAnswer(BaseModel):
     key: str
-    correct_answer: str
+    value: str
 
 
 class EvaluationScenario(BaseModel):
