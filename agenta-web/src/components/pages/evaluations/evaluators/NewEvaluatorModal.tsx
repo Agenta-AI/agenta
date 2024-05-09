@@ -10,7 +10,7 @@ import {
 } from "@/services/evaluations"
 import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
+import {Button, Divider, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -124,6 +124,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -152,48 +153,76 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
 
     return (
         <>
-            <Form.Item
-                name={name}
-                label={
-                    <div className={classes.label}>
-                        <span>{label}</span>
-                        {description && (
-                            <Tooltip title={description}>
-                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                            </Tooltip>
+            {label !== "Correct Answer" ? (
+                <Form.Item
+                    name={name}
+                    label={
+                        <div className={classes.label}>
+                            <span>{label}</span>
+                            {description && (
+                                <Tooltip title={description}>
+                                    <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                                </Tooltip>
+                            )}
+                        </div>
+                    }
+                    initialValue={defaultVal}
+                    rules={rules}
+                >
+                    {type === "string" || type === "regex" ? (
+                        <Input />
+                    ) : type === "number" ? (
+                        <InputNumber min={min} max={max} step={0.1} />
+                    ) : type === "boolean" || type === "bool" ? (
+                        <Switch />
+                    ) : type === "text" ? (
+                        <Input.TextArea rows={10} />
+                    ) : type === "code" ? (
+                        <Editor
+                            className={classes.editor}
+                            height={400}
+                            width="100%"
+                            language="python"
+                            theme={`vs-${appTheme}`}
+                        />
+                    ) : type === "object" ? (
+                        <Editor
+                            className={classes.editor}
+                            height={120}
+                            width="100%"
+                            language="json"
+                            options={{lineNumbers: "off"}}
+                            theme={`vs-${appTheme}`}
+                        />
+                    ) : null}
+                </Form.Item>
+            ) : (
+                <>
+                    <div className="m-[10px]">
+                        <span className="mr-[10px]">Advanced Settings</span>
+                        <Switch
+                            checked={showAdvancedSettings}
+                            onChange={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                        />
+                        <Divider className={classes.divider} />
+                        {showAdvancedSettings && (
+                            <Form.Item
+                                name={name}
+                                label={
+                                    <div className={classes.label}>
+                                        <span>{label}</span>
+                                    </div>
+                                }
+                                initialValue={defaultVal}
+                                rules={rules}
+                            >
+                                <Input className="w-[50%]" />
+                            </Form.Item>
                         )}
                     </div>
-                }
-                initialValue={defaultVal}
-                rules={rules}
-            >
-                {type === "string" || type === "regex" ? (
-                    <Input />
-                ) : type === "number" ? (
-                    <InputNumber min={min} max={max} step={0.1} />
-                ) : type === "boolean" || type === "bool" ? (
-                    <Switch />
-                ) : type === "text" ? (
-                    <Input.TextArea rows={10} />
-                ) : type === "code" ? (
-                    <Editor
-                        className={classes.editor}
-                        height={400}
-                        width="100%"
-                        language="python"
-                        theme={`vs-${appTheme}`}
-                    />
-                ) : type === "object" ? (
-                    <Editor
-                        className={classes.editor}
-                        height={120}
-                        width="100%"
-                        language="json"
-                        options={{lineNumbers: "off"}}
-                        theme={`vs-${appTheme}`}
-                    />
-                ) : null}
-            </Form.Item>
+                </>
+            )}
+
             {ExternalHelpInfo}
         </>
     )
