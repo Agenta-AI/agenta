@@ -382,6 +382,11 @@ export enum EvaluationStatusType {
     ERROR = "error",
 }
 
+export interface CorrectAnswer {
+    key: string
+    correct_answer: string
+}
+
 export interface _Evaluation {
     id: string
     appId: string
@@ -420,7 +425,7 @@ export interface _EvaluationScenario {
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
     outputs: {result: TypedValue; cost?: number; latency?: number}[]
-    correct_answer?: string
+    correct_answers?: CorrectAnswer[]
     is_pinned?: boolean
     note?: string
     results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
