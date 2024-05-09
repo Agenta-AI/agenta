@@ -12,19 +12,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class SDKClient(object):
-    """
-    Class to build SDK client instance.
-    """
-
-    def __init__(self, api_key: str, host: str):
-        self.api_key = api_key
-        self.host = host + "/api"
-
-    def _build_sdk_client(self) -> AgentaApi:
-        return AgentaApi(base_url=self.host, api_key=self.api_key)
-
-
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
@@ -45,8 +32,7 @@ class AgentaSingleton:
             AgentaAPI: instance of agenta api backend
         """
 
-        sdk_client = SDKClient(api_key=self.api_key, host=self.host)  # type: ignore
-        return sdk_client._build_sdk_client()
+        return AgentaApi(base_url=self.host, api_key=self.api_key)
 
     def init(
         self,
