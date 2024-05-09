@@ -53,7 +53,7 @@ app.include_router(router, prefix="")
 
 
 class entrypoint(BaseDecorator):
-    """Decorator class to wrap a function for HTTP POST, terminal exposure and to run observability.
+    """Decorator class to wrap a function for HTTP POST, and terminal exposure.
 
     Args:
         BaseDecorator (object): base decorator class
@@ -62,14 +62,11 @@ class entrypoint(BaseDecorator):
     ```python
         import agenta as ag
 
-        @ag.entrypoint(enable_tracing=False) # This disables tracing. Defaults to True.
+        @ag.entrypoint()
         async def chain_of_prompts_llm(prompt: str):
             return ...
     ```
     """
-
-    def __init__(self, enable_tracing: bool = True):
-        self.enable_tracing = enable_tracing
 
     def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
         endpoint_name = "generate"
@@ -77,33 +74,13 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
-        # Initialize (and update) tracing
-        tracing = agenta.llm_tracing()
-        tracing.tracing_enabled = self.enable_tracing
-
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
-
-            # Start tracing
-            tracing.start_parent_span(
-                name=func.__name__,
-                inputs=func_params,
-                config=config_params,
-                environment="playground",  # type: ignore #NOTE: wrapper is only called in playground
-            )
-
-            # Ingest files, prepare configurations and run llm app
             self.ingest_files(func_params, ingestible_files)
             agenta.config.set(**api_config_params)
             llm_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
-            )
-
-            # End trace recording
-            tracing.end_recording(
-                outputs=llm_result.dict(),
-                span=tracing.active_trace,
             )
             return llm_result
 
@@ -120,24 +97,8 @@ class entrypoint(BaseDecorator):
             else:
                 agenta.config.pull(config_name="default")
 
-            config = agenta.config.all()
-
-            # Start tracing
-            tracing.start_parent_span(
-                name=func.__name__,
-                inputs=func_params,
-                config=config,
-                environment=kwargs["environment"],  # type: ignore #NOTE: wrapper is only called in playground
-            )
-
             llm_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
-            )
-
-            # End trace recording
-            tracing.end_recording(
-                outputs=llm_result.dict(),
-                span=tracing.active_trace,
             )
             return llm_result
 
@@ -164,10 +125,9 @@ class entrypoint(BaseDecorator):
         if self.is_main_script(func):
             self.handle_terminal_run(
                 func,
-                func_signature.parameters,
+                func_signature.parameters,  # type: ignore
                 config_params,
                 ingestible_files,
-                tracing,
             )
 
         return wrapper
@@ -352,7 +312,9 @@ class entrypoint(BaseDecorator):
             if is_main_script(my_function):
                 print("This is the main script.")
         """
-        return (
+        return os.path.splitext(os.path.basename(inspect.getfile(func)))[
+            0
+        ] == "tracing" or (
             os.path.splitext(os.path.basename(sys.argv[0]))[0]
             == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
         )
@@ -360,10 +322,9 @@ class entrypoint(BaseDecorator):
     def handle_terminal_run(
         self,
         func: Callable,
-        func_params: Dict[str, Any],
+        func_params: Dict[str, inspect.Parameter],
         config_params: Dict[str, Any],
         ingestible_files: Dict,
-        tracing: Tracing,
     ) -> None:
         """
         Parses command line arguments and sets configuration when script is run from the terminal.
@@ -372,7 +333,6 @@ class entrypoint(BaseDecorator):
             func_params (dict): A dictionary containing the function parameters and their annotations.
             config_params (dict): A dictionary containing the configuration parameters.
             ingestible_files (dict): A dictionary containing the files that should be ingested.
-            tracing (Tracing): The tracing object
         """
 
         # For required parameters, we add them as arguments
@@ -411,15 +371,8 @@ class entrypoint(BaseDecorator):
                 file_name=Path(args_func_params[name]).stem,
                 file_path=args_func_params[name],
             )
-        agenta.config.set(**args_config_params)
 
-        # Start tracing
-        tracing.start_parent_span(
-            name=func.__name__,
-            inputs=args_func_params,
-            config=args_config_params,
-            environment="shell",  # type: ignore
-        )
+        agenta.config.set(**args_config_params)
 
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(
@@ -427,12 +380,6 @@ class entrypoint(BaseDecorator):
                 func,
                 **{"params": args_func_params, "config_params": args_config_params},
             )
-        )
-
-        # End trace recording
-        tracing.end_recording(
-            outputs=result.dict(),
-            span=tracing.active_trace,  # type: ignore
         )
         print(
             f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
