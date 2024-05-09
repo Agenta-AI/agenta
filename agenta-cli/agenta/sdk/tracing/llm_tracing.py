@@ -73,7 +73,6 @@ class Tracing(metaclass=SingletonMeta):
         self.app_id = app_id
         self.variant_id = variant_id
         self.variant_name = variant_name
-        self.tracing_enabled = True
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=llm_logger
         )
@@ -96,24 +95,12 @@ class Tracing(metaclass=SingletonMeta):
             base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
-    @property
-    def _is_tracing_enabled(self) -> bool:
-        """Checks if tracing is enabled.
-
-        Returns:
-            bool: If tracing is enabled
-        """
-
-        return self.tracing_enabled
-
     def set_span_attribute(
         self, parent_key: Optional[str] = None, attributes: Dict[str, Any] = {}
     ):
-        if self._is_tracing_enabled:
-            span = self.span_dict[self.active_span.id]  # type: ignore
-            for key, value in attributes.items():
-                self.set_attribute(span.attributes, key, value, parent_key)  # type: ignore
-        return
+        span = self.span_dict[self.active_span.id]  # type: ignore
+        for key, value in attributes.items():
+            self.set_attribute(span.attributes, key, value, parent_key)  # type: ignore
 
     def set_attribute(
         self,
@@ -136,30 +123,28 @@ class Tracing(metaclass=SingletonMeta):
     def start_parent_span(
         self, name: str, inputs: Dict[str, Any], config: Dict[str, Any] = {}, **kwargs
     ):
-        if self._is_tracing_enabled:
-            trace_id = self._create_trace_id()
-            span_id = self._create_span_id()
-            self.llm_logger.info("Recording parent span...")
-            span = CreateSpan(
-                id=span_id,
-                app_id=self.app_id,
-                variant_id=self.variant_id,
-                variant_name=self.variant_name,
-                inputs=inputs,
-                name=name,
-                config=config,
-                environment=kwargs.get("environment"),
-                spankind=SpanKind.WORKFLOW.value,
-                status=SpanStatusCode.UNSET.value,
-                start_time=datetime.now(timezone.utc),
-            )
-            self.active_trace = span
-            self.recording_trace_id = trace_id
-            self.parent_span_id = span.id
-            self.llm_logger.info(
-                f"Recorded active_trace and setting parent_span_id: {span.id}"
-            )
-        return
+        trace_id = self._create_trace_id()
+        span_id = self._create_span_id()
+        self.llm_logger.info("Recording parent span...")
+        span = CreateSpan(
+            id=span_id,
+            app_id=self.app_id,
+            variant_id=self.variant_id,
+            variant_name=self.variant_name,
+            inputs=inputs,
+            name=name,
+            config=config,
+            environment=kwargs.get("environment"),
+            spankind=SpanKind.WORKFLOW.value,
+            status=SpanStatusCode.UNSET.value,
+            start_time=datetime.now(timezone.utc),
+        )
+        self.active_trace = span
+        self.recording_trace_id = trace_id
+        self.parent_span_id = span.id
+        self.llm_logger.info(
+            f"Recorded active_trace and setting parent_span_id: {span.id}"
+        )
 
     def start_span(
         self,
@@ -167,79 +152,71 @@ class Tracing(metaclass=SingletonMeta):
         spankind: str,
         input: Dict[str, Any],
         config: Dict[str, Any] = {},
-    ) -> Optional[CreateSpan]:
-        if self._is_tracing_enabled:
-            span_id = self._create_span_id()
-            self.llm_logger.info(f"Recording {spankind} span...")
-            span = CreateSpan(
-                id=span_id,
-                inputs=input,
-                name=name,
-                app_id=self.app_id,
-                variant_id=self.variant_id,
-                variant_name=self.variant_name,
-                config=config,
-                environment=self.active_trace.environment,
-                parent_span_id=self.parent_span_id,
-                spankind=spankind.upper(),
-                attributes={},
-                status=SpanStatusCode.UNSET.value,
-                start_time=datetime.now(timezone.utc),
-            )
+    ) -> CreateSpan:
+        span_id = self._create_span_id()
+        self.llm_logger.info(f"Recording {spankind} span...")
+        span = CreateSpan(
+            id=span_id,
+            inputs=input,
+            name=name,
+            app_id=self.app_id,
+            variant_id=self.variant_id,
+            variant_name=self.variant_name,
+            config=config,
+            environment=self.active_trace.environment,
+            parent_span_id=self.parent_span_id,
+            spankind=spankind.upper(),
+            attributes={},
+            status=SpanStatusCode.UNSET.value,
+            start_time=datetime.now(timezone.utc),
+        )
 
-            self.active_span = span
-            self.span_dict[span.id] = span
-            self.parent_span_id = span.id
-            self.llm_logger.info(
-                f"Recorded active_span and setting parent_span_id: {span.id}"
-            )
-            return span
-        return
+        self.active_span = span
+        self.span_dict[span.id] = span
+        self.parent_span_id = span.id
+        self.llm_logger.info(
+            f"Recorded active_span and setting parent_span_id: {span.id}"
+        )
+        return span
 
     def update_span_status(self, span: CreateSpan, value: str):
-        if self._is_tracing_enabled:
-            updated_span = CreateSpan(**{**span.dict(), "status": value})
-            self.active_span = updated_span
-        return
+        updated_span = CreateSpan(**{**span.dict(), "status": value})
+        self.active_span = updated_span
 
     def end_span(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
-        if self._is_tracing_enabled:
-            updated_span = CreateSpan(
-                **span.dict(),
-                end_time=datetime.now(timezone.utc),
-                outputs=[outputs["message"]],
-                cost=outputs.get("cost", None),
-                tokens=outputs.get("usage"),
-            )
+        updated_span = CreateSpan(
+            **span.dict(),
+            end_time=datetime.now(timezone.utc),
+            outputs=[outputs["message"]],
+            cost=outputs.get("cost", None),
+            tokens=outputs.get("usage"),
+        )
 
-            # Push span to list of recorded spans
-            self.recorded_spans.append(updated_span)
-            self.llm_logger.info(
-                f"Pushed {updated_span.spankind} span {updated_span.id} to recorded spans."
-            )
-        return
+        # Push span to list of recorded spans
+        self.recorded_spans.append(updated_span)
+        self.llm_logger.info(
+            f"Pushed {updated_span.spankind} span {updated_span.id} to recorded spans."
+        )
 
     def end_recording(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
         self.end_span(outputs=outputs, span=span, **kwargs)
         if self.api_key == "":
             return
 
-        if self._is_tracing_enabled:
-            self.llm_logger.info(f"Preparing to send recorded spans for processing.")
-            self.llm_logger.info(f"Recorded spans => {len(self.recorded_spans)}")
-            self.tasks_manager.add_task(
-                self.active_trace.id,
-                "trace",
-                self.client.create_traces(
-                    trace=self.recording_trace_id, spans=self.recorded_spans  # type: ignore
-                ),
-                self.client,
-            )
-            self.llm_logger.info(
-                f"Tracing for {span.id} recorded successfully and sent for processing."
-            )
-            self._clear_recorded_spans()
-        return
+        self.llm_logger.info(f"Preparing to send recorded spans for processing.")
+        self.llm_logger.info(f"Recorded spans => {len(self.recorded_spans)}")
+        self.tasks_manager.add_task(
+            self.active_trace.id,
+            "trace",
+            self.client.create_traces(
+                trace=self.recording_trace_id, spans=self.recorded_spans  # type: ignore
+            ),
+            self.client,
+        )
+        self.llm_logger.info(
+            f"Tracing for {span.id} recorded successfully and sent for processing."
+        )
+        self._clear_recorded_spans()
 
     def _create_trace_id(self) -> str:
         """Creates a unique mongo id for the trace object.
