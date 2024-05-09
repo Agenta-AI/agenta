@@ -32,7 +32,7 @@ class AgentaSingleton:
             AgentaAPI: instance of agenta api backend
         """
 
-        return AgentaApi(base_url=self.host, api_key=self.api_key)
+        return AgentaApi(base_url=self.host + "/api", api_key=self.api_key)
 
     def init(
         self,
