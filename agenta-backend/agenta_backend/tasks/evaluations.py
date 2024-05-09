@@ -17,6 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
+    CorrectAnswer,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
@@ -214,30 +215,44 @@ def evaluate(
 
             # 3. We evaluate
             evaluators_results: List[EvaluationScenarioResult] = []
+            correct_answers = []
+
+            # Loop over each evaluator configuration to gather the correct answers
             for evaluator_config_db in evaluator_config_dbs:
-                logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
-                correct_answer_column = evaluator_config_db.settings_values.get(
-                    "correct_answer"
+                correct_answer_keys = evaluator_config_db.settings_values.get(
+                    "correct_answer_keys"
                 )
-                if correct_answer_column in data_point:
-                    result = evaluators_service.evaluate(
-                        evaluator_key=evaluator_config_db.evaluator_key,
-                        output=app_output.result.value,
-                        data_point=data_point,
-                        correct_answer_key=correct_answer_column,
-                        settings_values=evaluator_config_db.settings_values,
-                        app_params=app_variant_parameters,
-                        inputs=data_point,
-                        lm_providers_keys=lm_providers_keys,
+                if not correct_answer_keys:
+                    return {
+                        "type": "error",
+                        "value": None,
+                        "error": "No correct answer keys provided.",
+                    }
+
+                ## In case one evaluator has multiple correct answers
+                correct_answer_keys_list = [
+                    key.strip() for key in correct_answer_keys.split(",")
+                ]
+
+                for key in correct_answer_keys_list:
+                    correct_answer_value = data_point.get(key, "")
+
+                    correct_answer = CorrectAnswer(
+                        key=key, correct_answer=correct_answer_value
                     )
-                else:
-                    result = Result(
-                        type="error",
-                        value=None,
-                        error=Error(
-                            message=f"No {correct_answer_column} column in test set"
-                        ),
-                    )
+                    correct_answers.append(correct_answer)
+
+                logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
+
+                result = evaluators_service.evaluate(
+                    evaluator_key=evaluator_config_db.evaluator_key,
+                    output=app_output.result.value,
+                    data_point=data_point,
+                    settings_values=evaluator_config_db.settings_values,
+                    app_params=app_variant_parameters,
+                    inputs=data_point,
+                    lm_providers_keys=lm_providers_keys,
+                )
 
                 # Update evaluators aggregated data
                 evaluator_results: List[Result] = evaluators_aggregated_data[
@@ -253,11 +268,7 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             # 4. We save the result of the eval scenario in the db
-            correct_answer = (
-                data_point[correct_answer_column]
-                if correct_answer_column in data_point
-                else ""
-            )
+
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
@@ -267,7 +278,7 @@ def evaluate(
                     inputs=inputs,
                     is_pinned=False,
                     note="",
-                    correct_answer=correct_answer,
+                    correct_answers=correct_answers,
                     outputs=[
                         EvaluationScenarioOutputDB(
                             result=Result(type="text", value=app_output.result.value),
