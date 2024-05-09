@@ -8,9 +8,26 @@ import {
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/services/evaluations"
-import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
+import {
+    ArrowLeftOutlined,
+    CaretRightOutlined,
+    EditOutlined,
+    InfoCircleOutlined,
+    PlusOutlined,
+} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Button, Divider, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, theme} from "antd"
+import {
+    Button,
+    Collapse,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    Switch,
+    Table,
+    Tooltip,
+    theme,
+} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -198,28 +215,33 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 </Form.Item>
             ) : (
                 <>
-                    <div className="m-[10px]">
-                        <span className="mr-[10px]">Advanced Settings</span>
-                        <Switch
-                            checked={showAdvancedSettings}
-                            onChange={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                        />
-                        <Divider className={classes.divider} />
-                        {showAdvancedSettings && (
-                            <Form.Item
-                                name={name}
-                                label={
-                                    <div className={classes.label}>
-                                        <span>{label}</span>
-                                    </div>
-                                }
-                                initialValue={defaultVal}
-                                rules={rules}
-                            >
-                                <Input className="w-[50%]" />
-                            </Form.Item>
+                    <Collapse
+                        bordered={false}
+                        expandIcon={({isActive}) => (
+                            <CaretRightOutlined rotate={isActive ? 90 : 0} />
                         )}
-                    </div>
+                        className={"my-[10px]"}
+                        items={[
+                            {
+                                key: "1",
+                                label: "Advanced Settings",
+                                children: (
+                                    <Form.Item
+                                        name={name}
+                                        label={
+                                            <div className={classes.label}>
+                                                <span>{label}</span>
+                                            </div>
+                                        }
+                                        initialValue={defaultVal}
+                                        rules={rules}
+                                    >
+                                        <Input className="w-[50%]" />
+                                    </Form.Item>
+                                ),
+                            },
+                        ]}
+                    />
                 </>
             )}
 
