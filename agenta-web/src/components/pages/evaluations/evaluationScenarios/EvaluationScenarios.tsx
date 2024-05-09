@@ -90,13 +90,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 },
                 minWidth: 200,
                 flex: 1,
-
                 ...getFilterParams("text"),
                 valueGetter: (params) =>
                     params.data?.correct_answers?.[index]?.correct_answer || "",
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
-
+        })
+        evalaution?.variants.forEach((_, index) => {
             colDefs.push({
                 flex: 1,
                 minWidth: 300,
@@ -104,7 +104,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
-                    const result = params.data?.outputs[0].result
+                    const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
                         return LongTextCellRenderer(
                             params,
@@ -116,20 +116,17 @@ const EvaluationScenarios: React.FC<Props> = () => {
                               params,
                               <CompareOutputDiff
                                   variantOutput={result?.value}
-                                  expectedOutput={
-                                      params.data?.correct_answers[index].correct_answer
-                                  }
+                                  expectedOutput={params.data?.correct_answers[0].correct_answer}
                               />,
                           )
                         : LongTextCellRenderer(params)
                 },
                 valueGetter: (params) => {
-                    const result = params.data?.outputs[0].result
+                    const result = params.data?.outputs[index].result
                     return result?.value
                 },
             })
         })
-
         scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
