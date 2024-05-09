@@ -280,7 +280,7 @@ class EvaluationDB(Document):
 
 class CorrectAnswer(BaseModel):
     key: str
-    correct_answer: str
+    value: str
 
 
 class EvaluationScenarioDB(Document):
@@ -289,7 +289,7 @@ class EvaluationScenarioDB(Document):
     variant_id: PydanticObjectId
     inputs: List[EvaluationScenarioInputDB]
     outputs: List[EvaluationScenarioOutputDB]
-    correct_answers: List[CorrectAnswer]
+    correct_answers: Optional[List[CorrectAnswer]]
     is_pinned: Optional[bool]
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]

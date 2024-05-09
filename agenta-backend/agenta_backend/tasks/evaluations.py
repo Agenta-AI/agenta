@@ -237,9 +237,7 @@ def evaluate(
                 for key in correct_answer_keys_list:
                     correct_answer_value = data_point.get(key, "")
 
-                    correct_answer = CorrectAnswer(
-                        key=key, correct_answer=correct_answer_value
-                    )
+                    correct_answer = CorrectAnswer(key=key, value=correct_answer_value)
                     correct_answers.append(correct_answer)
 
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")

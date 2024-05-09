@@ -91,8 +91,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 minWidth: 200,
                 flex: 1,
                 ...getFilterParams("text"),
-                valueGetter: (params) =>
-                    params.data?.correct_answers?.[index]?.correct_answer || "",
+                valueGetter: (params) => params.data?.correct_answers?.[index]?.value || "",
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
@@ -116,7 +115,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                               params,
                               <CompareOutputDiff
                                   variantOutput={result?.value}
-                                  expectedOutput={params.data?.correct_answers[0].correct_answer}
+                                  expectedOutput={params.data?.correct_answers[0].value}
                               />,
                           )
                         : LongTextCellRenderer(params)

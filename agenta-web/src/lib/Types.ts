@@ -384,7 +384,7 @@ export enum EvaluationStatusType {
 
 export interface CorrectAnswer {
     key: string
-    correct_answer: string
+    value: string
 }
 
 export interface _Evaluation {
