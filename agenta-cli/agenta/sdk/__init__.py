@@ -13,7 +13,8 @@ from .types import (
     FileInputURL,
     BinaryParam,
 )
-from .decorators.tracing import span
+from .tracing.llm_tracing import Tracing
+from .decorators.tracing import span, trace
 from .decorators.llm_entrypoint import entrypoint
 from .agenta_init import Config, init, llm_tracing
 from .utils.helper.openai_cost import calculate_token_usage
