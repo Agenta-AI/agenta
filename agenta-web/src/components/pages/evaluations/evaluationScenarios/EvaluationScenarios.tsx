@@ -90,7 +90,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 },
                 minWidth: 200,
                 flex: 1,
-                field: `correct_answers.${index}.correct_answer`, // Correct field path
+
                 ...getFilterParams("text"),
                 valueGetter: (params) =>
                     params.data?.correct_answers?.[index]?.correct_answer || "",
