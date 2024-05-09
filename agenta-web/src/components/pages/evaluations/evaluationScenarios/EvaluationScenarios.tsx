@@ -75,18 +75,28 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
-        colDefs.push({
-            flex: 1,
-            minWidth: 300,
-            headerName: "Expected Output",
-            field: "correct_answer",
-            ...getFilterParams("text"),
-            valueGetter: (params) => {
-                return params.data?.correct_answer?.toString() || ""
-            },
-            cellRenderer: (params: any) => LongTextCellRenderer(params),
-        })
-        evalaution?.variants.forEach((_, index) => {
+        scenarios[0]?.correct_answers?.forEach((answer, index) => {
+            colDefs.push({
+                headerName: `Correct Answer ${index + 1}`,
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" style={{padding: "0.5rem 0"}}>
+                                <span>Ground Truth</span>
+                                <Tag color="green">{answer.key}</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
+                minWidth: 200,
+                flex: 1,
+                field: `correct_answers.${index}.correct_answer`, // Correct field path
+                ...getFilterParams("text"),
+                valueGetter: (params) =>
+                    params.data?.correct_answers?.[index]?.correct_answer || "",
+                cellRenderer: (params) => LongTextCellRenderer(params),
+            })
+
             colDefs.push({
                 flex: 1,
                 minWidth: 300,
@@ -94,7 +104,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
-                    const result = params.data?.outputs[index].result
+                    const result = params.data?.outputs[0].result
                     if (result && result.type == "error") {
                         return LongTextCellRenderer(
                             params,
@@ -106,17 +116,20 @@ const EvaluationScenarios: React.FC<Props> = () => {
                               params,
                               <CompareOutputDiff
                                   variantOutput={result?.value}
-                                  expectedOutput={params.data?.correct_answer}
+                                  expectedOutput={
+                                      params.data?.correct_answers[index].correct_answer
+                                  }
                               />,
                           )
                         : LongTextCellRenderer(params)
                 },
                 valueGetter: (params) => {
-                    const result = params.data?.outputs[index].result
+                    const result = params.data?.outputs[0].result
                     return result?.value
                 },
             })
         })
+
         scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
