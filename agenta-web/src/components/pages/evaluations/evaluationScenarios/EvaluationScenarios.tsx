@@ -9,7 +9,7 @@ import {
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {Select, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -57,6 +57,13 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
     const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState("")
+
+    useEffect(() => {
+        if (!!scenarios.length && scenarios[0].correct_answers?.length) {
+            setSelectedCorrectAnswer(scenarios[0].correct_answers[0].key)
+        }
+    }, [scenarios])
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -81,7 +88,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 headerComponent: (props: any) => {
                     return (
                         <AgCustomHeader {...props}>
-                            <Space direction="vertical" style={{padding: "0.5rem 0"}}>
+                            <Space direction="vertical" className="py-2">
                                 <span>Ground Truth</span>
                                 <Tag color="green">{answer.key}</Tag>
                             </Space>
@@ -103,6 +110,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
+                    const correctAnswer = params.data.correct_answers.find(
+                        (item: any) => item.key === selectedCorrectAnswer,
+                    )
+
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
                         return LongTextCellRenderer(
@@ -115,7 +126,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                               params,
                               <CompareOutputDiff
                                   variantOutput={result?.value}
-                                  expectedOutput={params.data?.correct_answers[0].value}
+                                  expectedOutput={correctAnswer?.value || ""}
                               />,
                           )
                         : LongTextCellRenderer(params)
@@ -176,7 +187,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, showDiff])
+    }, [evalaution, scenarios, showDiff, selectedCorrectAnswer])
 
     const fetcher = () => {
         setFetching(true)
@@ -257,6 +268,20 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
                         />
                     </Space>
+                    {!!scenarios.length && !!scenarios[0].correct_answers?.length && (
+                        <div className="flex items-center gap-2">
+                            <Typography.Text>Apply difference with: </Typography.Text>
+                            <Select
+                                className="w-[150px]"
+                                value={selectedCorrectAnswer}
+                                onChange={(value) => setSelectedCorrectAnswer(value)}
+                                options={scenarios[0].correct_answers.map((item) => ({
+                                    value: item.key,
+                                    label: item.key,
+                                }))}
+                            />
+                        </div>
+                    )}
                     <Tooltip title="Export as CSV">
                         <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
                     </Tooltip>
