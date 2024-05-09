@@ -13,14 +13,7 @@ export const formatNumber = (value = 0) => {
 }
 
 export const formatCurrency = (value: number) => {
-    // Check if the value is zero
-    if (value === 0) {
-        // If the value is zero, return it as is
-        return value
-    } else {
-        // If the value is not zero, format it using the international currency format
-        return intlCurrency.format(value)
-    }
+    return intlCurrency.format(value)
 }
 
 export const formatLatency = (value = 0) => {
