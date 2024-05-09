@@ -94,7 +94,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 valueGetter: (params) =>
                     params.data?.correct_answers?.[index]?.correct_answer || "",
-                cellRenderer: (params) => LongTextCellRenderer(params),
+                cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
 
             colDefs.push({
