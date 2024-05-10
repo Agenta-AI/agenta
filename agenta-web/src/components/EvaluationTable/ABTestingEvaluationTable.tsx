@@ -33,8 +33,8 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
-import {PassThrough} from "stream"
 import {debounce} from "lodash"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 const {Title} = Typography
 
@@ -336,7 +336,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span>Variant: </span>
                         <VariantAlphabet index={ix} width={24} />
                         <span className={classes.appVariant} style={{color: VARIANT_COLORS[ix]}}>
-                            {variants ? `${variant.variantName} #${evaluation.revisions[ix]}` : ""}
+                            {variants
+                                ? variantNameWithRev({
+                                      variant_name: variant.variantName,
+                                      revision: evaluation.revisions[ix],
+                                  })
+                                : ""}
                         </span>
                     </div>
                 ),

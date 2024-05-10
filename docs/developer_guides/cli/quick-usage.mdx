@@ -44,3 +44,10 @@ agenta variant serve myapp.py
 ```
 
 This command deploys a new variant to the Agenta platform. It processes the code in the specified folder, with `myapp.py` as the entrypoint. This command builds a Docker image and deploys a container based on it. As a result, the variant becomes accessible in the web UI, allowing for prediction generation and API calls. The variant is named as `myapp.default` in the UI.
+
+
+## Overwrite an application
+
+```bash
+agenta variant serve --file_name myapp.py --overwrite
+```

@@ -50,7 +50,6 @@ interface Props<T> {
     headersSelection?: boolean
     colsDraggable?: boolean
     colsResizable?: boolean
-    pagination?: boolean
     columns: DataCol<T>[]
     headerExtra?: ReactNode
     defaultTableParams?: Partial<TableParams>
@@ -58,7 +57,7 @@ interface Props<T> {
 }
 
 const ServerTable = <T extends AnyObject>(
-    props: Omit<React.ComponentProps<typeof Table<T>>, "pagination" | "columns"> & Props<T>,
+    props: Omit<React.ComponentProps<typeof Table<T>>, "columns"> & Props<T>,
 ) => {
     const classes = useStyles()
     const [columns, setColumns] = useState<DataCol<T>[]>((props.columns || []) as DataCol<T>[])
@@ -75,11 +74,11 @@ const ServerTable = <T extends AnyObject>(
     const setHiddenCols = (cols: string[]) => _setHiddenCols(cols.join(","))
     const total = useRef(0)
 
-    // useDeepCompareEffect(() => {
-    //     setColumns(
-    //         (props.columns || []).map((item) => ({...item, width: item.width})) as DataCol<T>[],
-    //     )
-    // }, [props.columns])
+    useDeepCompareEffect(() => {
+        setColumns(
+            (props.columns || []).map((item) => ({...item, width: item.width})) as DataCol<T>[],
+        )
+    }, [props.columns])
 
     useEffect(() => {
         setLoading(true)
@@ -166,6 +165,7 @@ const ServerTable = <T extends AnyObject>(
                     loading={loading}
                     pagination={
                         !!props.pagination && {
+                            ...props.pagination,
                             pageSize: tableParams?.pagination?.pageSize || 20,
                             current: tableParams?.pagination?.page || 1,
                             total: total.current,

@@ -31,6 +31,8 @@ import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import Link from "next/link"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -206,7 +208,10 @@ const EvaluationResults: React.FC<Props> = () => {
                     )
                 },
                 valueGetter: (params) =>
-                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
+                    variantNameWithRev({
+                        variant_name: params.data?.variants[0].variantName ?? "",
+                        revision: params.data?.revisions[0],
+                    }),
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),
