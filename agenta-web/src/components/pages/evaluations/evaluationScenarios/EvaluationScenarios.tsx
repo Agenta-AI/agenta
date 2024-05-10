@@ -24,6 +24,7 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {useLocalStorage} from "usehooks-ts"
+import _ from "lodash"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -59,6 +60,11 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState("")
 
+    const uniqueCorrectAnswers: CorrectAnswer[] = _.uniqBy(
+        scenarios[0]?.correct_answers || [],
+        "key",
+    )
+
     useEffect(() => {
         if (!!scenarios.length && scenarios[0].correct_answers?.length) {
             setSelectedCorrectAnswer(scenarios[0].correct_answers[0].key)
@@ -82,20 +88,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
-        function filterUniqueCorrectAnswers(correctAnswers: CorrectAnswer[]): CorrectAnswer[] {
-            const seen = new Set<string>()
-            return correctAnswers.filter(({key, value}) => {
-                const pair = JSON.stringify({key, value})
-                if (seen.has(pair)) {
-                    return false
-                }
-                seen.add(pair)
-                return true
-            })
-        }
-        const uniqueCorrectAnswers: CorrectAnswer[] = filterUniqueCorrectAnswers(
-            scenarios[0]?.correct_answers || [],
-        )
 
         uniqueCorrectAnswers.forEach((answer: CorrectAnswer, index: number) => {
             colDefs.push({
@@ -290,7 +282,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                                 className="w-[150px]"
                                 value={selectedCorrectAnswer}
                                 onChange={(value) => setSelectedCorrectAnswer(value)}
-                                options={scenarios[0].correct_answers.map((item) => ({
+                                options={uniqueCorrectAnswers.map((item) => ({
                                     value: item.key,
                                     label: item.key,
                                 }))}
