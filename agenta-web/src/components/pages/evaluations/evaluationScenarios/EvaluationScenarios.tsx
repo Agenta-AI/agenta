@@ -139,7 +139,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
-                    const correctAnswer = params.data?.correct_answers.find(
+                    const correctAnswer = params?.data?.correct_answers?.find(
                         (item: any) => item.key === selectedCorrectAnswer,
                     )
 
