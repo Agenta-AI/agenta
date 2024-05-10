@@ -66,7 +66,7 @@
       "group": "Getting Started",
       "pages": [
         "getting_started/introduction",
-        "getting_started/getting-started-ui"
+        "getting_started/quick-start"
       ]
     },
     {
@@ -75,40 +75,29 @@
         {
           "group": "Setting up",
           "pages": [
-            "basic_guides/creating_an_app",
-            "advanced_guides/custom_applications",
-            "advanced_guides/using_agenta_from_cli"
+            "prompt_management/creating_an_app",
+            "prompt_management/custom_applications",
+            "prompt_management/using_agenta_from_cli"
           ]
         },
-        "basic_guides/prompt_engineering",
-        "basic_guides/deployment",
-        "basic_guides/integrating"
+        "prompt_management/prompt_engineering",
+        "prompt_management/deployment",
+        "prompt_management/integrating"
       ]
     },
     {
       "group": "Evaluation",
       "pages": [
-        "basic_guides/overview",
-        "basic_guides/test_sets",
-        "basic_guides/automatic_evaluation",
-        "basic_guides/custom_evaluator",
-        "basic_guides/human_evaluation"
+        "evaluation/test_sets",
+        "evaluation/automatic_evaluation",
+        "evaluation/custom_evaluator",
+        "evaluation/human_evaluation"
       ]
     },
     {
-      "group": "Monitoring",
+      "group": "Tracing and Monitoring",
       "pages": [
-        {
-          "group": "Setting up",
-          "pages": [
-            "basic_guides/creating_an_app",
-            "advanced_guides/custom_applications",
-            "advanced_guides/using_agenta_from_cli"
-          ]
-        },
-        "basic_guides/prompt_engineering",
-        "basic_guides/deployment",
-        "basic_guides/integrating"
+        "monitoring/overview"
       ]
     },
     {
@@ -130,11 +119,8 @@
     {
       "group": "Misc",
       "pages": [
-        "basic_guides/team_management",
-        "basic_guides/getting_support",
-        "basic_guides/faq",
-        "basic_guides/privacy_policy",
-        "basic_guides/Open-source",
+        "misc/team_management",
+        "misc/getting_support",
         {
           "group": "Contributing",
           "pages": [
