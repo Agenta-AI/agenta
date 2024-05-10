@@ -95,12 +95,6 @@
       ]
     },
     {
-      "group": "Tracing and Monitoring",
-      "pages": [
-        "monitoring/overview"
-      ]
-    },
-    {
       "group": "Self-host agenta",
       "pages": [
         "self-host/host-locally",
