@@ -9,7 +9,7 @@ import {
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Select, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {DropdownProps, Select, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -23,8 +23,9 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
-import {useLocalStorage} from "usehooks-ts"
 import _ from "lodash"
+import {useLocalStorage} from "usehooks-ts"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -59,6 +60,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const evalaution = scenarios[0]?.evaluation
     const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState("")
+    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
+    const [hiddenCols, setHiddenCols] = useState<string[]>([])
+
+    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setFilterColsDropdown(nextOpen)
+        }
+    }
 
     const uniqueCorrectAnswers: CorrectAnswer[] = _.uniqBy(
         scenarios[0]?.correct_answers || [],
@@ -80,6 +89,17 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 flex: 1,
                 minWidth: 240,
                 headerName: `Input: ${input.name}`,
+                hide: hiddenCols.includes(`Input: ${input.name}`),
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" className="py-2">
+                                <span>{input.name}</span>
+                                <Tag color="blue">Input</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
                 ...getFilterParams(input.type === "number" ? "number" : "text"),
                 field: `inputs.${index}`,
                 valueGetter: (params) => {
@@ -91,13 +111,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
         uniqueCorrectAnswers.forEach((answer: CorrectAnswer, index: number) => {
             colDefs.push({
-                headerName: `Correct Answer ${index + 1}`,
+                headerName: answer.key,
+                hide: hiddenCols.includes(answer.key),
                 headerComponent: (props: any) => {
                     return (
                         <AgCustomHeader {...props}>
                             <Space direction="vertical" className="py-2">
-                                <span>Ground Truth</span>
-                                <Tag color="green">{answer.key}</Tag>
+                                <span>{answer.key}</span>
+                                <Tag color="green">Ground Truth</Tag>
                             </Space>
                         </AgCustomHeader>
                     )
@@ -114,6 +135,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 flex: 1,
                 minWidth: 300,
                 headerName: "Output",
+                hide: hiddenCols.includes("Output"),
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
@@ -147,6 +169,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
+                hide: hiddenCols.includes(config.name),
                 headerComponent: (props: any) => {
                     const evaluator = evaluators.find((item) => item.key === config?.evaluator_key)!
                     return (
@@ -174,6 +197,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Cost",
+            hide: hiddenCols.includes("Cost"),
             ...getFilterParams("text"),
             valueGetter: (params) => {
                 return params.data?.outputs[0].cost == undefined
@@ -186,6 +210,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Latency",
+            hide: hiddenCols.includes("Latency"),
             ...getFilterParams("text"),
             valueGetter: (params) => {
                 return params.data?.outputs[0].latency == undefined
@@ -194,7 +219,23 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, showDiff, selectedCorrectAnswer])
+    }, [evalaution, scenarios, showDiff, selectedCorrectAnswer, hiddenCols])
+
+    const shownCols = useMemo(
+        () =>
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
+        [colDefs],
+    )
+
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!hiddenCols.includes(evalConfigId)) {
+            setHiddenCols([...hiddenCols, evalConfigId])
+        } else {
+            setHiddenCols(hiddenCols.filter((item) => item !== evalConfigId))
+        }
+    }
 
     const fetcher = () => {
         setFetching(true)
@@ -275,6 +316,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
                         />
                     </Space>
+                    <FilterColumns
+                        items={generateFilterItems(colDefs)}
+                        isOpen={filterColsDropdown}
+                        setIsOpen={setFilterColsDropdown}
+                        handleOpenChange={handleOpenChange}
+                        handleToggleVisibility={onToggleEvaluatorVisibility}
+                        shownCols={shownCols}
+                    />
                     {!!scenarios.length && !!scenarios[0].correct_answers?.length && (
                         <div className="flex items-center gap-2">
                             <Typography.Text>Apply difference with: </Typography.Text>

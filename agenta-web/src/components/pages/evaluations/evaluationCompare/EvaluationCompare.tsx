@@ -11,18 +11,12 @@ import {
 import {fetchAllComparisonResults} from "@/services/evaluations"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Button, Dropdown, DropdownProps, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {Button, DropdownProps, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
-import {
-    CheckOutlined,
-    CloseCircleOutlined,
-    DownOutlined,
-    DownloadOutlined,
-    UndoOutlined,
-} from "@ant-design/icons"
+import {CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
@@ -33,6 +27,8 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {useLocalStorage} from "usehooks-ts"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import _ from "lodash"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -122,9 +118,19 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
         if (!rows.length || !variants.length) return []
 
-        inputs.forEach((ip, ix) => {
+        inputs.forEach((input, ix) => {
             colDefs.push({
-                headerName: `Input: ${ip.name}`,
+                headerName: `Input: ${input.name}`,
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" className="py-2">
+                                <span>{input.name}</span>
+                                <Tag color="blue">Input</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
                 minWidth: 200,
                 flex: 1,
                 field: `inputs.${ix}.value` as any,
@@ -442,44 +448,24 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
                         />
                     </Space>
-                    <Dropdown
-                        trigger={["click"]}
-                        open={filterColsDropdown}
-                        onOpenChange={handleOpenChange}
-                        menu={{
-                            selectedKeys: shownCols,
-                            items: colDefs
-                                .filter(
+
+                    <FilterColumns
+                        items={generateFilterItems(
+                            _.uniqBy(
+                                colDefs.filter(
                                     (item) =>
                                         !item.headerName?.startsWith("Input") &&
                                         !item.headerName?.includes("Expected Output"),
-                                )
-                                .reduce((acc, curr) => {
-                                    if (curr.headerName && !acc.includes(curr.headerName)) {
-                                        acc.push(curr.headerName)
-                                    }
-                                    return acc
-                                }, [] as string[])
-                                .map((configs) => ({
-                                    key: configs as string,
-                                    label: (
-                                        <Space>
-                                            <CheckOutlined />
-                                            <>{configs}</>
-                                        </Space>
-                                    ),
-                                })),
-                            onClick: ({key}) => {
-                                handleToggleVariantVisibility(key)
-                                setFilterColsDropdown(true)
-                            },
-                            className: classes.dropdownMenu,
-                        }}
-                    >
-                        <Button>
-                            Filter Columns <DownOutlined />
-                        </Button>
-                    </Dropdown>
+                                ),
+                                "headerName",
+                            ),
+                        )}
+                        isOpen={filterColsDropdown}
+                        setIsOpen={setFilterColsDropdown}
+                        handleOpenChange={handleOpenChange}
+                        handleToggleVisibility={handleToggleVariantVisibility}
+                        shownCols={shownCols}
+                    />
                     <Tooltip title="Export as CSV">
                         <Button icon={<DownloadOutlined />} onClick={onExport}>
                             Export
