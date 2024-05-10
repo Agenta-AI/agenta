@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Result} from "antd"
+import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -9,6 +9,7 @@ import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {
+    fetchVariantLogs,
     getAppContainerURL,
     removeVariant,
     restartAppVariantContainer,
@@ -16,6 +17,9 @@ import {
 } from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
+import ResultComponent from "../ResultComponent/ResultComponent"
+
+const {Text} = Typography
 
 interface Props {
     variant: Variant
@@ -34,6 +38,9 @@ const useStyles = createUseStyles({
     },
     restartBtnMargin: {
         marginRight: "10px",
+    },
+    errorLogs: {
+        whiteSpace: "pre-wrap",
     },
 })
 
@@ -68,6 +75,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
+    const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
@@ -100,21 +108,30 @@ const ViewNavigation: React.FC<Props> = ({
                     setRetrying(false)
                 })
         }
-    }, [netWorkError])
+
+        if (isError) {
+            const getLogs = async () => {
+                const logs = await fetchVariantLogs(variant.variantId)
+                setVariantErrorLogs(logs)
+            }
+            getLogs()
+        }
+    }, [netWorkError, isError, variant.variantId])
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <Result
-                status="info"
+            <ResultComponent
+                status={"info"}
                 title="Waiting for the variant to start"
-                extra={<Spin spinning={retrying} />}
+                spinner={retrying}
             />
         )
     }
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
-        let imageName = `agentaai/${(currentApp?.app_name || "").toLowerCase()}_`
+        let appName = currentApp?.app_name || ""
+        let imageName = `agentaai/${appName.toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -164,31 +181,34 @@ const ViewNavigation: React.FC<Props> = ({
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
                             {(axios.isAxiosError(error) && error.response?.status === 404 && (
-                                <span>Container is not running.</span>
+                                <span>
+                                    Container is not running. <b>See logs below:</b>
+                                </span>
                             )) || <span>{error.message}</span>}
                         </p>
-                        <p>To debug this issue, please follow the steps below:</p>
                         <ul>
-                            <li>
-                                Verify whether the API is up by checking if {apiAddress} is
-                                accessible.
-                            </li>
-                            <li>
-                                Check if the Docker container for the variant {variantDesignator} is
-                                running. The image should be called {imageName}.
-                            </li>
+                            <div>
+                                <Text code className={classes.errorLogs}>
+                                    {variantErrorLogs}
+                                </Text>
+                            </div>
                         </ul>
                         <p>
-                            {" "}
-                            In case the docker container is not running. Please check the logs from
-                            docker to understand the issue. Most of the time it is a missing
-                            requirements. Also, please attempt restarting it (using cli or docker
-                            desktop)
+                            Verify API accessibility at{" "}
+                            <a href={apiAddress} target="_blank">
+                                {apiAddress}
+                            </a>
                         </p>
                         <p>
                             {" "}
-                            If the issue persists please file an issue in github here:
-                            https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
+                            If the issue persists please file an issue in github
+                            <a
+                                href="https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx"
+                                target="_blank"
+                            >
+                                {" "}
+                                here
+                            </a>
                         </p>
 
                         <Button
