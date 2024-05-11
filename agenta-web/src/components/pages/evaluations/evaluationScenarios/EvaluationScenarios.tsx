@@ -6,10 +6,21 @@ import {
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
 } from "@/services/evaluations"
-import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
+import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {DropdownProps, Select, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {
+    Button,
+    Dropdown,
+    DropdownProps,
+    Select,
+    Space,
+    Spin,
+    Switch,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -58,8 +69,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
-    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState("")
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["Select"])
     const [filterColsDropdown, setFilterColsDropdown] = useState(false)
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
 
@@ -73,12 +83,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.correct_answers || [],
         "key",
     )
-
-    useEffect(() => {
-        if (!!scenarios.length && scenarios[0].correct_answers?.length) {
-            setSelectedCorrectAnswer(scenarios[0].correct_answers[0].key)
-        }
-    }, [scenarios])
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -140,7 +144,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
                     const correctAnswer = params?.data?.correct_answers?.find(
-                        (item: any) => item.key === selectedCorrectAnswer,
+                        (item: any) => item.key === selectedCorrectAnswer[0],
                     )
 
                     const result = params.data?.outputs[index].result
@@ -150,7 +154,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             `${result?.error?.message}\n${result?.error?.stacktrace}`,
                         )
                     }
-                    return showDiff === "show"
+                    return selectedCorrectAnswer[0] !== "Select"
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
@@ -219,7 +223,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, showDiff, selectedCorrectAnswer, hiddenCols])
+    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols])
 
     const shownCols = useMemo(
         () =>
@@ -309,13 +313,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Space>
                 </Space>
                 <Space size="middle" align="center">
-                    <Space>
-                        <Typography.Text>Show Difference: </Typography.Text>
-                        <Switch
-                            value={showDiff === "show"}
-                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
-                        />
-                    </Space>
                     <FilterColumns
                         items={generateFilterItems(colDefs)}
                         isOpen={filterColsDropdown}
@@ -327,15 +324,30 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     {!!scenarios.length && !!scenarios[0].correct_answers?.length && (
                         <div className="flex items-center gap-2">
                             <Typography.Text>Apply difference with: </Typography.Text>
-                            <Select
-                                className="w-[150px]"
-                                value={selectedCorrectAnswer}
-                                onChange={(value) => setSelectedCorrectAnswer(value)}
-                                options={uniqueCorrectAnswers.map((item) => ({
-                                    value: item.key,
-                                    label: item.key,
-                                }))}
-                            />
+                            <Dropdown
+                                trigger={["click"]}
+                                menu={{
+                                    selectedKeys: selectedCorrectAnswer,
+                                    items: uniqueCorrectAnswers.map((answer) => ({
+                                        key: answer.key as string,
+                                        label: (
+                                            <Space>
+                                                <CheckOutlined />
+                                                <>{answer.key}</>
+                                            </Space>
+                                        ),
+                                    })),
+                                    onClick: ({key}) => {
+                                        if (key === selectedCorrectAnswer[0]) {
+                                            setSelectedCorrectAnswer(["Select"])
+                                        } else {
+                                            setSelectedCorrectAnswer([key])
+                                        }
+                                    },
+                                }}
+                            >
+                                <Button>{selectedCorrectAnswer[0]}</Button>
+                            </Dropdown>
                         </div>
                     )}
                     <Tooltip title="Export as CSV">
