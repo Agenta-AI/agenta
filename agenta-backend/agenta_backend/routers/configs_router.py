@@ -157,8 +157,6 @@ async def get_config(
             parameters=config.parameters,
         )
     except HTTPException as e:
-        import traceback
-        traceback.print_exc()
         logger.error(f"get_config http exception: {e.detail}")
         raise
     except Exception as e:
