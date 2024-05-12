@@ -259,9 +259,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await VariantBaseDB.find_one(
-        VariantBaseDB.id == ObjectId(base_id), fetch_links=True
-    )
+    base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id))
     if base is None:
         logger.error("Base not found")
         return False
@@ -651,9 +649,7 @@ async def list_variants_for_base(base: VariantBaseDB) -> List[AppVariantDB]:
     """
     assert base is not None, "base cannot be None"
     app_variants_db = (
-        await AppVariantDB.find(
-            AppVariantDB.base.id == ObjectId(base.id), fetch_links=True
-        )
+        await AppVariantDB.find(AppVariantDB.base.id == ObjectId(base.id))
         .sort("variant_name")
         .to_list()
     )
@@ -864,6 +860,10 @@ async def add_variant_from_base_and_config(
         config_name=new_config_name,
         parameters=parameters,
     )
+
+    # Prefetch image in base_db
+    await base_db.fetch_link(VariantBaseDB.image)
+
     db_app_variant = AppVariantDB(
         app=previous_app_variant_db.app,
         variant_name=new_variant_name,
