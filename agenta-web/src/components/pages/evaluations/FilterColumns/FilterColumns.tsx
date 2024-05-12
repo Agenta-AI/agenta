@@ -1,6 +1,6 @@
 import {JSSTheme} from "@/lib/Types"
 import {CheckOutlined, DownOutlined} from "@ant-design/icons"
-import {Button, Dropdown, Space, theme} from "antd"
+import {Button, Dropdown, Space} from "antd"
 import {ItemType} from "antd/es/menu/hooks/useItems"
 import React from "react"
 import {createUseStyles} from "react-jss"
@@ -38,7 +38,6 @@ export const generateFilterItems = (colDefs: ColDef[]) => {
 
 interface FilterColumnsProps {
     isOpen: boolean
-    setIsOpen: (value: React.SetStateAction<boolean>) => void
     handleOpenChange: (
         open: boolean,
         info: {
@@ -46,17 +45,18 @@ interface FilterColumnsProps {
         },
     ) => void
     shownCols: string[]
-    handleToggleVisibility: (evalConfigId: string) => void
     items: ItemType[]
+    onClick: ({key}: {key: string}) => void
+    buttonText?: string
 }
 
 const FilterColumns = ({
     isOpen,
     handleOpenChange,
     shownCols,
-    setIsOpen,
-    handleToggleVisibility,
     items,
+    onClick,
+    buttonText,
 }: FilterColumnsProps) => {
     const classes = useStyles()
 
@@ -68,15 +68,18 @@ const FilterColumns = ({
             menu={{
                 selectedKeys: shownCols,
                 items,
-                onClick: ({key}) => {
-                    handleToggleVisibility(key)
-                    setIsOpen(true)
-                },
+                onClick,
                 className: classes.dropdownMenu,
             }}
         >
             <Button>
-                Filter Columns <DownOutlined />
+                {!buttonText ? (
+                    <>
+                        Filter Columns <DownOutlined />
+                    </>
+                ) : (
+                    buttonText
+                )}
             </Button>
         </Dropdown>
     )
