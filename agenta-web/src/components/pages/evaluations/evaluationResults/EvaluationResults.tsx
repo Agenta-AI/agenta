@@ -82,7 +82,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
-    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -350,9 +350,9 @@ const EvaluationResults: React.FC<Props> = () => {
         [colDefs],
     )
 
-    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
-            setFilterColsDropdown(nextOpen)
+            setIsFilterColsDropdownOpen(nextOpen)
         }
     }
 
@@ -402,11 +402,13 @@ const EvaluationResults: React.FC<Props> = () => {
                     <Space className={classes.buttonsGroup}>
                         <FilterColumns
                             items={generateFilterItems(colDefs)}
-                            isOpen={filterColsDropdown}
-                            setIsOpen={setFilterColsDropdown}
-                            handleOpenChange={handleOpenChange}
-                            handleToggleVisibility={onToggleEvaluatorVisibility}
+                            isOpen={isFilterColsDropdownOpen}
+                            handleOpenChange={handleOpenChangeFilterCols}
                             shownCols={shownCols}
+                            onClick={({key}) => {
+                                onToggleEvaluatorVisibility(key)
+                                setIsFilterColsDropdownOpen(true)
+                            }}
                         />
                     </Space>
 
