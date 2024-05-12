@@ -113,13 +113,14 @@ async def get_config(
             app_environments = await db_manager.list_environments(
                 app_id=str(base_db.app.id)
             )
-            found_variant = None
-            for app_environment in app_environments:
-                if app_environment.name == environment_name:
-                    found_variant_revision = (
-                        app_environment.deployed_app_variant_revision
-                    )
-                    break
+            found_variant_revision = next(
+                (
+                    app_environment.deployed_app_variant_revision
+                    for app_environment in app_environments
+                    if app_environment.name == environment_name
+                ),
+                None,
+            )
             if not found_variant_revision:
                 raise HTTPException(
                     status_code=400,
@@ -134,11 +135,14 @@ async def get_config(
             config = found_variant_revision.config
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
-            found_variant = None
-            for variant_db in variants_db:
-                if variant_db.config_name == config_name:
-                    found_variant = variant_db
-                    break
+            found_variant = next(
+                (
+                    variant_db
+                    for variant_db in variants_db
+                    if variant_db.config_name == config_name
+                ),
+                None,
+            )
             if not found_variant:
                 raise HTTPException(
                     status_code=400,
@@ -153,6 +157,8 @@ async def get_config(
             parameters=config.parameters,
         )
     except HTTPException as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"get_config http exception: {e.detail}")
         raise
     except Exception as e:
