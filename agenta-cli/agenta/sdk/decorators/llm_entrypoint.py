@@ -68,11 +68,16 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
+    def __call__(self, func: Callable[..., Any]):
         endpoint_name = "generate"
         func_signature = inspect.signature(func)
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
+
+        if getattr(func, "__wrapped__", None) is None:
+            raise ValueError(
+                "The @entrypoint decorator must be applied before the @trace decorator. \n\nExample:\n \n@ag.entrypoint()\n@ag.trace()\nasync def llm_app(...): ...\n"
+            )
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
@@ -123,14 +128,13 @@ class entrypoint(BaseDecorator):
         )
 
         if self.is_main_script(func):
-            self.handle_terminal_run(
+            result = self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
                 config_params,
                 ingestible_files,
             )
-
-        return wrapper
+            return result
 
     def extract_ingestible_files(
         self,
@@ -325,7 +329,7 @@ class entrypoint(BaseDecorator):
         func_params: Dict[str, inspect.Parameter],
         config_params: Dict[str, Any],
         ingestible_files: Dict,
-    ) -> None:
+    ):
         """
         Parses command line arguments and sets configuration when script is run from the terminal.
 
@@ -384,6 +388,7 @@ class entrypoint(BaseDecorator):
         print(
             f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
         )
+        return result
 
     def override_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
