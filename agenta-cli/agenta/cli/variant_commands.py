@@ -104,10 +104,10 @@ def add_variant(
     )
 
     if variant_name in config["variants"] and not overwrite:
-        overwrite = questionary.confirm(
+        overwrite_question = questionary.confirm(
             "This variant already exists. Do you want to overwrite it?"
         ).ask()
-        if not overwrite:
+        if not overwrite_question:
             click.echo("Operation cancelled.")
             sys.exit(0)
 
