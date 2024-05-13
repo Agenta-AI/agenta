@@ -53,7 +53,7 @@ app.include_router(router, prefix="")
 
 
 class entrypoint(BaseDecorator):
-    """Decorator class to wrap a function for HTTP POST, and terminal exposure.
+    """Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
     Args:
         BaseDecorator (object): base decorator class
@@ -62,7 +62,7 @@ class entrypoint(BaseDecorator):
     ```python
         import agenta as ag
 
-        @ag.entrypoint()
+        @ag.entrypoint(enable_tracing=True) # Defaults to False
         async def chain_of_prompts_llm(prompt: str):
             return ...
     ```
