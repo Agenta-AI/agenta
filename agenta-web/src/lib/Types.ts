@@ -456,7 +456,6 @@ export interface AnnotationScenario {
 
 export type ComparisonResultRow = {
     inputs: {name: string; value: string}[]
-    correctAnswer: string
     variants: {
         variantId: string
         variantName: string
@@ -468,7 +467,7 @@ export type ComparisonResultRow = {
         }[]
     }[]
     id: string
-}
+} & {[key: string]: any}
 
 export type RequestMetadata = {
     cost: number
