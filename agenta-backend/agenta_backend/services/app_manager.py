@@ -24,7 +24,6 @@ from agenta_backend.services import (
 
 from agenta_backend.utils.common import (
     isEE,
-    isOssEE,
     isCloudProd,
     isCloudDev,
     isCloudEE,
