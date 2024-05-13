@@ -150,13 +150,13 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             .filter((item) => item.startsWith("correctAnswer_"))
             .forEach((key) =>
                 colDefs.push({
-                    headerName: `Expected Output ${key.split("_").at(-1)}`,
-                    hide: hiddenVariants.includes(`Expected Output ${key.split("_").at(-1)}`),
+                    headerName: `${key.split("_").at(-1)}`,
+                    hide: hiddenVariants.includes(`${key.split("_").at(-1)}`),
                     headerComponent: (props: any) => {
                         return (
                             <AgCustomHeader {...props}>
                                 <Space direction="vertical" className="py-2">
-                                    <span>{key}</span>
+                                    <span>{key.split("_").at(-1)}</span>
                                     <Tag color="green">Ground Truth</Tag>
                                 </Space>
                             </AgCustomHeader>
@@ -469,11 +469,11 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                         label: (
                                             <Space>
                                                 <CheckOutlined />
-                                                <>{key}</>
+                                                <>{key.split("_").at(-1)}</>
                                             </Space>
                                         ),
                                     }))}
-                                buttonText={selectedCorrectAnswer[0]}
+                                buttonText={selectedCorrectAnswer[0].split("_").at(-1)}
                                 isOpen={isDiffDropdownOpen}
                                 handleOpenChange={handleOpenChangeDiff}
                                 shownCols={selectedCorrectAnswer}
