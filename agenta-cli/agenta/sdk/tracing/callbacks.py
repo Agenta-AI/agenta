@@ -28,7 +28,11 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
             spankind=(
                 "llm"
                 if kwargs.get("call_type") in ["completion", "acompletion"]
-                else "unset"
+                else (
+                    "embedding"
+                    if kwargs.get("call_type") in ["embedding", "aembedding"]
+                    else "unset"
+                )
             ),
         )
         self._trace.set_span_attribute(
