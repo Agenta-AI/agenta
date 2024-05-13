@@ -60,9 +60,7 @@ const getTextContent = (element: React.ReactNode): string => {
 }
 
 const filterOption = (input: string, option?: {label: React.ReactNode; value: string}) =>
-    getTextContent(option?.label)
-        .toLowerCase()
-        .includes(input.toLowerCase())
+    getTextContent(option?.label).toLowerCase().includes(input.toLowerCase())
 
 export const ModelName: React.FC<{label: string; key: string}> = ({label, key}) => {
     const classes = useStyles()
