@@ -7,13 +7,13 @@ Agenta comes with several pre-built template LLM applications for common use cas
 
 This guide will show you how to create a custom application and use it with Agenta.
 
-<Tip> We recommend reading ["How does Agenta work"](/developer_guides/how_does_agenta_work) beforehand to familiarize yourself with the main concepts of Agenta. </Tip>
+<Tip> We recommend reading ["How does Agenta work"](/guides/how_does_agenta_work) beforehand to familiarize yourself with the main concepts of Agenta. </Tip>
 
 ## How to create a custom application in Agenta ?
 
 To add your custom application in Agenta, you need to write the application code using the <Tooltip tip="The SDK is currently only available in Python">Agenta SDK</Tooltip>, then add the application to Agenta using the CLI.
 
-The [Agenta SDK](/developer_guides/sdk/quick_start) takes care of specifying the configuration of your application (prompts, model parameters, chunk size, etc.), and integrates it with Agenta. The [Agenta CLI](/developer_guides/cli/quick-usage) takes care of building the application image, deploying it, and exposing it to Agenta.
+The [Agenta SDK](/reference/sdk/quick_start) takes care of specifying the configuration of your application (prompts, model parameters, chunk size, etc.), and integrates it with Agenta. The [Agenta CLI](/reference/cli/quick-usage) takes care of building the application image, deploying it, and exposing it to Agenta.
 
 ## Converting an existing application to Agenta
 
@@ -141,7 +141,7 @@ The application should now be visible in Agenta. A new application variant is al
 
 ## Adding other parameters
 
-We are not limited to one configuration parameter in the playground. We can add as many as we'd like. These parameters can be prompts (TextParam), numbers (FloatParam, IntParam), or dropdowns (MultipleChoiceParam). You can read more about the types of parameters in the [parameters](/developer_guides/sdk/config_datatypes) section.
+We are not limited to one configuration parameter in the playground. We can add as many as we'd like. These parameters can be prompts (TextParam), numbers (FloatParam, IntParam), or dropdowns (MultipleChoiceParam). You can read more about the types of parameters in the [parameters](/reference/sdk/config_datatypes) section.
 
 Here is a modified version of the application that adds a new parameter `temperature` to the playground.
 
@@ -173,7 +173,7 @@ Agenta provides the flexibility to add any LLM application to the platform, so t
 
 We've merely touched on what Agenta can do. You're not limited to apps that consist of a single file or function. You can create chains of prompts, or even agents. You can use the SDK allows you to track costs and log traces of your application.
 
-More information about the SDK can be found in the [SDK section in the developer guide](/developer_guides/sdk/quick_start). You can also explore a growing list of templates and tutorials in the [cookbook section](/cookbook/list_templates). 
+More information about the SDK can be found in the [SDK section in the developer guide](/reference/sdk/quick_start). You can also explore a growing list of templates and tutorials in the [cookbook section](/guides/list_templates). 
 
 Finally, our team is always ready to assist you with any custom application. Simply reach out to us on Slack, or book a call to discuss your use case in detail.
 You can read more about the SDK in the . You can also check the growing list of templates and tutorials in the . Last please note, that our team is always available to help you with any custom applicatoin, just reach out to use on [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA) Or [book a call](https://cal.com/mahmoud-mabrouk-ogzgey/demo) to discuss your use case in details. 
@@ -186,7 +186,7 @@ You can read more about the SDK in the . You can also check the growing list of 
   <Card
     title="SDK Reference"
     icon="stars"
-    href="/developer_guides/sdk/quick_start"
+    href="/reference/sdk/quick_start"
     color="#33FF57">
         Learn how to use the SDK to create custom applications.
   </Card>
@@ -195,7 +195,7 @@ You can read more about the SDK in the . You can also check the growing list of 
     title="Cookbook"
     icon="code"
     color="#337BFF"
-    href="/cookbook/list_templates">
+    href="/guides/list_templates">
         
   </Card>
 
