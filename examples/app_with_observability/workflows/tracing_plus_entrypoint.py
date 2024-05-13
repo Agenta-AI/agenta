@@ -3,7 +3,7 @@ import agenta as ag
 from openai import AsyncOpenAI
 
 
-os.environ["AGENTA_LLM_RUN_PLAYGROUND"] = "cloud"
+os.environ["AGENTA_LLM_RUN_ENVIRONMENT"] = "cloud"
 os.environ["OPENAI_API_KEY"] = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 client = AsyncOpenAI()
@@ -39,8 +39,7 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint()
-@ag.trace()
+@ag.entrypoint(enable_tracing=True)
 async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.

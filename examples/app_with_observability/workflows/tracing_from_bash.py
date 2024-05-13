@@ -4,7 +4,7 @@ import agenta as ag
 from openai import AsyncOpenAI
 
 
-os.environ["AGENTA_LLM_RUN_PLAYGROUND"] = "cloud"
+os.environ["AGENTA_LLM_RUN_ENVIRONMENT"] = "cloud"
 os.environ["OPENAI_API_KEY"] = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 client = AsyncOpenAI()

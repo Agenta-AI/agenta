@@ -84,7 +84,7 @@ class trace(BaseDecorator):
                 name=func.__name__,
                 inputs=kwargs,
                 config=ag.config.all(),
-                environment=os.environ.get("AGENTA_LLM_RUN_PLAYGROUND"),  # type: ignore
+                environment=os.environ.get("AGENTA_LLM_RUN_ENVIRONMENT"),  # type: ignore
             )
             try:
                 is_coroutine_function = inspect.iscoroutinefunction(func)

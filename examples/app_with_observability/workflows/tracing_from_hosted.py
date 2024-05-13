@@ -3,7 +3,7 @@ import requests
 import agenta as ag
 
 
-os.environ["AGENTA_LLM_RUN_PLAYGROUND"] = "cloud"
+os.environ["AGENTA_LLM_RUN_ENVIRONMENT"] = "cloud"
 API_URL = "https://xxxxxxx.xxx"
 
 
