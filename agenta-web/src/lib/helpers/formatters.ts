@@ -13,7 +13,11 @@ export const formatNumber = (value = 0) => {
 }
 
 export const formatCurrency = (value: number) => {
-    return intlCurrency.format(value)
+    if (value === null) {
+        return "-"
+    } else {
+        return intlCurrency.format(value)
+    }
 }
 
 export const formatLatency = (value = 0) => {
@@ -21,7 +25,7 @@ export const formatLatency = (value = 0) => {
 }
 
 export const formatTokenUsage = (value: number) => {
-    if (value === 0) {
+    if (value === null) {
         return "-"
     } else {
         return value
