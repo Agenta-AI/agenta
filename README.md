@@ -1,7 +1,7 @@
 <div align="center" style="margin: 30px">
   <div>
     <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
-      <img src="https://github.com/Agenta-AI/agenta/raw/main/hiring-button.svg" alt="We are hiring! Join our team!" width="350" height="60">
+      <img src="https://github.com/Agenta-AI/agenta/.github/images/raw/main/hiring-button.svg" alt="We are hiring! Join our team!" width="350" height="60">
     </a>
   </div>
   <a href="https://agenta.ai/">
