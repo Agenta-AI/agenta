@@ -1,7 +1,7 @@
 import {
     deleteEvaluations,
     fetchEvaluationResults,
-    loadEvaluations,
+    fetchAllLoadEvaluations,
 } from "@/services/human-evaluations"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
@@ -105,7 +105,7 @@ export default function AutomaticEvaluationResult({
         const fetchEvaluations = async () => {
             try {
                 setFetchingEvaluations(true)
-                const evals: Evaluation[] = (await loadEvaluations(app_id)).map(
+                const evals: Evaluation[] = (await fetchAllLoadEvaluations(app_id)).map(
                     fromEvaluationResponseToEvaluation,
                 )
                 const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))

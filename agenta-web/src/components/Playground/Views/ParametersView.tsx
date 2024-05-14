@@ -5,7 +5,7 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import {removeVariant} from "@/services/api"
+import {deleteSingleVariant} from "@/services/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
@@ -134,7 +134,7 @@ const ParametersView: React.FC<Props> = ({
     const handleDelete = () => {
         deleteVariant(() => {
             if (variant.persistent) {
-                return removeVariant(variant.variantId).then(() => {
+                return deleteSingleVariant(variant.variantId).then(() => {
                     onStateChange(false)
                 })
             }

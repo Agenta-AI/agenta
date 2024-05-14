@@ -3,6 +3,13 @@ import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {axiosFetcher} from "@/services/api"
 
+//Prefix convention:
+//  - fetch: GET single entity from server
+//  - fetchAll: GET all entities from server
+//  - create: POST data to server
+//  - update: PUT data to server
+//  - delete: DELETE data from server
+
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
@@ -39,7 +46,7 @@ export async function updateTestset(testsetId: String, testsetName: string, test
     return response
 }
 
-export const loadTestset = async (testsetId: string | null) => {
+export const fetchTestset = async (testsetId: string | null) => {
     if (!testsetId) {
         return {
             id: undefined,

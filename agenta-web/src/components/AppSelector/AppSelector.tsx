@@ -7,7 +7,12 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {createAndStartTemplate, getTemplates, removeApp, waitForAppToStart} from "@/services/api"
+import {
+    createAndStartTemplate,
+    fetchAllTemplates,
+    deleteApp,
+    waitForAppToStart,
+} from "@/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -17,7 +22,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
-import {LlmProvider, getAllProviderLlmKeys, getApikeys} from "@/lib/helpers/llmProviders"
+import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
@@ -170,7 +175,7 @@ const AppSelector: React.FC = () => {
     useEffect(() => {
         if (!isLoading) mutate()
         const fetchTemplates = async () => {
-            const data = await getTemplates()
+            const data = await fetchAllTemplates()
             if (typeof data == "object") {
                 setTemplates(data)
             } else {
@@ -221,7 +226,7 @@ const AppSelector: React.FC = () => {
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            await removeApp(statusData.appId).catch(console.error)
+            await deleteApp(statusData.appId).catch(console.error)
             mutate()
         }
         handleTemplateCardClick(templateId as string)

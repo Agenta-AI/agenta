@@ -1,4 +1,4 @@
-import {loadTestset, useLoadTestsetsList} from "@/services/testsets"
+import {fetchTestset, useLoadTestsetsList} from "@/services/testsets"
 import {Button, Divider, Modal, Select} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
@@ -38,7 +38,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
     }))
 
     const handleClick = (shouldReplace: boolean) => {
-        loadTestset(selectedSet).then((data) => {
+        fetchTestset(selectedSet).then((data) => {
             onLoad(data.csvdata, shouldReplace)
         })
         setIsOpen(false)

@@ -8,6 +8,13 @@ import {
 import {getAgentaApiUrl, removeKeys, shortPoll} from "@/lib/helpers/utils"
 import {Variant, Parameter, AppTemplate, ChatMessage, KeyValuePair} from "@/lib/Types"
 
+//Prefix convention:
+//  - fetch: GET single entity from server
+//  - fetchAll: GET all entities from server
+//  - create: POST data to server
+//  - update: PUT data to server
+//  - delete: DELETE data from server
+
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -100,7 +107,7 @@ export async function callVariant(
             : secondaryInputParams,
     }
 
-    const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
+    const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
 
     return axios
         .post(`${appContainerURI}/generate`, requestBody, {
@@ -118,13 +125,13 @@ export async function callVariant(
  * @param variantName
  * @returns
  */
-export const getVariantParametersFromOpenAPI = async (
+export const fetchVariantParametersFromOpenAPI = async (
     appId: string,
     variantId?: string,
     baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
-    const appContainerURI = await getAppContainerURL(appId, variantId, baseId)
+    const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const url = `${appContainerURI}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
@@ -160,7 +167,7 @@ export const getVariantParametersFromOpenAPI = async (
  * @returns {Promise<string>} - Returns the URL path or an empty string
  * @throws {Error} - Throws an error if the request fails
  */
-export const getAppContainerURL = async (
+export const fetchAppContainerURL = async (
     appId: string,
     variantId?: string,
     baseId?: string,
@@ -188,7 +195,7 @@ export const getAppContainerURL = async (
 /**
  * Saves a new variant to the database based on previous
  */
-export async function saveNewVariant(
+export async function createNewVariant(
     baseId: string,
     newVariantName: string,
     newConfigName: string,
@@ -212,23 +219,23 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
     })
 }
 
-export async function removeApp(appId: string) {
+export async function deleteApp(appId: string) {
     await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}/`, {
         data: {app_id: appId},
     })
 }
 
-export async function removeVariant(variantId: string) {
+export async function deleteSingleVariant(variantId: string) {
     await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}/`)
 }
 
-export const getProfile = async (ignoreAxiosError: boolean = false) => {
+export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
 
-export const getTemplates = async () => {
+export const fetchAllTemplates = async () => {
     const response = await axios.get(`${getAgentaApiUrl()}/api/containers/templates/`)
     return response.data
 }
@@ -265,7 +272,7 @@ export const waitForAppToStart = async ({
     if (_variant) {
         const {stopper, promise} = shortPoll(
             () =>
-                getVariantParametersFromOpenAPI(
+                fetchVariantParametersFromOpenAPI(
                     appId,
                     _variant.variantId,
                     _variant.baseId,
