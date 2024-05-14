@@ -1,4 +1,9 @@
+
 <div align="center" style="margin: 30px">
+  <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/" style="background-color: #0077B5; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-size: 16px;">
+    🚀 We are hiring! Join our team! 🚀
+  </a>
+</div><div align="center" style="margin: 30px">
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -11,8 +16,7 @@
   <h4 align="center">
     <a href="https://agenta.ai">Home Page</a> |
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
-    <a href="https://docs.agenta.ai/">Documentation</a> |
-    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">🚀 We are hiring! 🚀</a>
+    <a href="https://docs.agenta.ai/">Documentation</a>
   </h4>
 <div align="center">
   <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
