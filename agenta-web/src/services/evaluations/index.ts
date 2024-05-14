@@ -21,7 +21,7 @@ import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
-import {loadTestset} from "@/services/testsets"
+import {fetchTestset} from "@/services/testsets"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
 
 //Prefix convention:
@@ -210,7 +210,7 @@ export const updateAnnotationScenario = async (
 // Comparison
 export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
-    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation?.testset?.id)
+    const testset: TestSet = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
     scenarioGroups.forEach((group) => {

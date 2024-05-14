@@ -14,7 +14,14 @@ import {
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
-export const loadEvaluations = async (appId: string, ignoreAxiosError: boolean = false) => {
+//Prefix convention:
+//  - fetch: GET single entity from server
+//  - fetchAll: GET all entities from server
+//  - create: POST data to server
+//  - update: PUT data to server
+//  - delete: DELETE data from server
+
+export const fetchAllLoadEvaluations = async (appId: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${appId}`,
         {
@@ -24,7 +31,7 @@ export const loadEvaluations = async (appId: string, ignoreAxiosError: boolean =
     return response.data
 }
 
-export const loadEvaluation = async (evaluationId: string) => {
+export const fetchLoadEvaluation = async (evaluationId: string) => {
     return await axios
         .get(`${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/`)
         .then((responseData) => {
@@ -41,7 +48,7 @@ export const deleteEvaluations = async (ids: string[]) => {
     return response.data
 }
 
-export const loadEvaluationsScenarios = async (
+export const fetchAllLoadEvaluationsScenarios = async (
     evaluationTableId: string,
     evaluation: Evaluation,
 ) => {
@@ -121,7 +128,7 @@ export const updateEvaluationScenario = async (
     return response.data
 }
 
-export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
+export const createEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/`,
         data,
@@ -129,7 +136,7 @@ export const postEvaluationScenario = async (evaluationTableId: string, data: Ge
     return response.data
 }
 
-export const evaluateAICritiqueForEvalScenario = async (
+export const createEvaluateAICritiqueForEvalScenario = async (
     data: AICritiqueCreate,
     ignoreAxiosError: boolean = false,
 ) => {
@@ -161,7 +168,7 @@ export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: str
     return response
 }
 
-export const saveCustomCodeEvaluation = async (
+export const createCustomCodeEvaluation = async (
     payload: CreateCustomEvaluation,
     ignoreAxiosError: boolean = false,
 ) => {
@@ -173,7 +180,7 @@ export const saveCustomCodeEvaluation = async (
     return response
 }
 
-export const editCustomEvaluationDetail = async (
+export const updateCustomEvaluationDetail = async (
     id: string,
     payload: CreateCustomEvaluation,
     ignoreAxiosError: boolean = false,
@@ -216,7 +223,7 @@ export const fetchCustomEvaluationNames = async (
     return response
 }
 
-export const executeCustomEvaluationCode = async (
+export const createExecuteCustomEvaluationCode = async (
     payload: ExecuteCustomEvalCode,
     ignoreAxiosError: boolean = false,
 ) => {

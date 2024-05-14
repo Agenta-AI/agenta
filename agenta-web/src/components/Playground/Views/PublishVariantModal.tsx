@@ -1,7 +1,7 @@
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {fetchEnvironments, publishVariant} from "@/services/deployment"
+import {fetchEnvironments, createPublishVariant} from "@/services/deployment"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
 import type {CheckboxChangeEvent} from "antd/es/checkbox"
 import {useRouter} from "next/router"
@@ -54,7 +54,7 @@ const PublishVariantModal: React.FC<Props> = ({
 
     const publishVariants = async () => {
         selectedEnvs.forEach(async (envName) => {
-            await publishVariant(variant.variantId, envName)
+            await createPublishVariant(variant.variantId, envName)
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)

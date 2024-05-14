@@ -4,7 +4,7 @@ import {ChatMessage, ChatRole, GenericObject, testset} from "@/lib/Types"
 import {removeKeys, renameVariables} from "@/lib/helpers/utils"
 import {
     createNewTestset,
-    loadTestset,
+    fetchTestset,
     updateTestset,
     useLoadTestsetsList,
 } from "@/services/testsets"
@@ -184,7 +184,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
             if (isNew) {
                 setNewTestsetModalOpen(true)
             } else {
-                loadTestset(selectedTestset!).then((data) => {
+                fetchTestset(selectedTestset!).then((data) => {
                     const testsetCols = Object.keys(data.csvdata?.[0] || {})
                     const playgroundCols = Object.keys(values[0])
                     const missingColsTestset = testsetCols.filter(

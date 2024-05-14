@@ -5,7 +5,7 @@ import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
 import {fetchVariants} from "@/services/api"
-import {createNewTestset, loadTestset, updateTestset} from "@/services/testsets"
+import {createNewTestset, fetchTestset, updateTestset} from "@/services/testsets"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
@@ -208,7 +208,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         if (mode === "edit" && testset_id) {
             setLoading(true)
-            loadTestset(testset_id as string).then((data) => {
+            fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
                 applyColData(
