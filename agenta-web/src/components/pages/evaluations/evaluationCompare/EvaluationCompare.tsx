@@ -14,7 +14,7 @@ import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
+import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
 import {CheckOutlined, CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
@@ -84,7 +84,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
-    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["Select"])
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["No columns selected"])
 
     const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -150,13 +150,13 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             .filter((item) => item.startsWith("correctAnswer_"))
             .forEach((key) =>
                 colDefs.push({
-                    headerName: `${key.split("_").at(-1)}`,
-                    hide: hiddenVariants.includes(`${key.split("_").at(-1)}`),
+                    headerName: `${removeCorrectAnswerPrefix(key)}`,
+                    hide: hiddenVariants.includes(`${removeCorrectAnswerPrefix(key)}`),
                     headerComponent: (props: any) => {
                         return (
                             <AgCustomHeader {...props}>
                                 <Space direction="vertical" className="py-2">
-                                    <span>{key.split("_").at(-1)}</span>
+                                    <span>{removeCorrectAnswerPrefix(key)}</span>
                                     <Tag color="green">Ground Truth</Tag>
                                 </Space>
                             </AgCustomHeader>
@@ -189,7 +189,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     return (
                         <>
-                            {selectedCorrectAnswer[0] !== "Select"
+                            {selectedCorrectAnswer[0] !== "No columns selected"
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
@@ -469,17 +469,17 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                         label: (
                                             <Space>
                                                 <CheckOutlined />
-                                                <>{key.split("_").at(-1)}</>
+                                                <>{removeCorrectAnswerPrefix(key)}</>
                                             </Space>
                                         ),
                                     }))}
-                                buttonText={selectedCorrectAnswer[0].split("_").at(-1)}
+                                buttonText={removeCorrectAnswerPrefix(selectedCorrectAnswer[0])}
                                 isOpen={isDiffDropdownOpen}
                                 handleOpenChange={handleOpenChangeDiff}
                                 shownCols={selectedCorrectAnswer}
                                 onClick={({key}) => {
                                     if (key === selectedCorrectAnswer[0]) {
-                                        setSelectedCorrectAnswer(["Select"])
+                                        setSelectedCorrectAnswer(["No columns selected"])
                                     } else {
                                         setSelectedCorrectAnswer([key])
                                     }
