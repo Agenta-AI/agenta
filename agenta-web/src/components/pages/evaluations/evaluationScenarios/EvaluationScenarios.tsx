@@ -57,7 +57,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["No columns selected"])
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
@@ -149,7 +149,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             `${result?.error?.message}\n${result?.error?.stacktrace}`,
                         )
                     }
-                    return selectedCorrectAnswer[0] !== "No columns selected"
+                    return selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
@@ -337,7 +337,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                                 shownCols={selectedCorrectAnswer}
                                 onClick={({key}) => {
                                     if (key === selectedCorrectAnswer[0]) {
-                                        setSelectedCorrectAnswer(["No columns selected"])
+                                        setSelectedCorrectAnswer(["noDiffColumnIsSelected"])
                                     } else {
                                         setSelectedCorrectAnswer([key])
                                     }
