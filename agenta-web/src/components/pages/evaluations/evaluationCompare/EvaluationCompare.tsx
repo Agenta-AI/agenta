@@ -84,7 +84,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
-    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["No columns selected"])
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
 
     const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -189,7 +189,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 cellRenderer: (params: any) => {
                     return (
                         <>
-                            {selectedCorrectAnswer[0] !== "No columns selected"
+                            {selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
@@ -479,7 +479,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                 shownCols={selectedCorrectAnswer}
                                 onClick={({key}) => {
                                     if (key === selectedCorrectAnswer[0]) {
-                                        setSelectedCorrectAnswer(["No columns selected"])
+                                        setSelectedCorrectAnswer(["noDiffColumnIsSelected"])
                                     } else {
                                         setSelectedCorrectAnswer([key])
                                     }
