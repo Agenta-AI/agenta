@@ -9,18 +9,7 @@ import {
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {
-    Button,
-    Dropdown,
-    DropdownProps,
-    Select,
-    Space,
-    Spin,
-    Switch,
-    Tag,
-    Tooltip,
-    Typography,
-} from "antd"
+import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -35,7 +24,6 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import _ from "lodash"
-import {useLocalStorage} from "usehooks-ts"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -69,13 +57,20 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["Select"])
-    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
 
-    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
-            setFilterColsDropdown(nextOpen)
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
+
+    const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsDiffDropdownOpen(nextOpen)
         }
     }
 
@@ -154,7 +149,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             `${result?.error?.message}\n${result?.error?.stacktrace}`,
                         )
                     }
-                    return selectedCorrectAnswer[0] !== "Select"
+                    return selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
@@ -315,39 +310,40 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 <Space size="middle" align="center">
                     <FilterColumns
                         items={generateFilterItems(colDefs)}
-                        isOpen={filterColsDropdown}
-                        setIsOpen={setFilterColsDropdown}
-                        handleOpenChange={handleOpenChange}
-                        handleToggleVisibility={onToggleEvaluatorVisibility}
+                        isOpen={isFilterColsDropdownOpen}
+                        handleOpenChange={handleOpenChangeFilterCols}
                         shownCols={shownCols}
+                        onClick={({key}) => {
+                            onToggleEvaluatorVisibility(key)
+                            setIsFilterColsDropdownOpen(true)
+                        }}
                     />
                     {!!scenarios.length && !!scenarios[0].correct_answers?.length && (
                         <div className="flex items-center gap-2">
                             <Typography.Text>Apply difference with: </Typography.Text>
-                            <Dropdown
-                                trigger={["click"]}
-                                menu={{
-                                    selectedKeys: selectedCorrectAnswer,
-                                    items: uniqueCorrectAnswers.map((answer) => ({
-                                        key: answer.key as string,
-                                        label: (
-                                            <Space>
-                                                <CheckOutlined />
-                                                <>{answer.key}</>
-                                            </Space>
-                                        ),
-                                    })),
-                                    onClick: ({key}) => {
-                                        if (key === selectedCorrectAnswer[0]) {
-                                            setSelectedCorrectAnswer(["Select"])
-                                        } else {
-                                            setSelectedCorrectAnswer([key])
-                                        }
-                                    },
+                            <FilterColumns
+                                items={uniqueCorrectAnswers.map((answer) => ({
+                                    key: answer.key as string,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{answer.key}</>
+                                        </Space>
+                                    ),
+                                }))}
+                                buttonText={selectedCorrectAnswer[0]}
+                                isOpen={isDiffDropdownOpen}
+                                handleOpenChange={handleOpenChangeDiff}
+                                shownCols={selectedCorrectAnswer}
+                                onClick={({key}) => {
+                                    if (key === selectedCorrectAnswer[0]) {
+                                        setSelectedCorrectAnswer(["noDiffColumnIsSelected"])
+                                    } else {
+                                        setSelectedCorrectAnswer([key])
+                                    }
+                                    setIsDiffDropdownOpen(true)
                                 }}
-                            >
-                                <Button>{selectedCorrectAnswer[0]}</Button>
-                            </Dropdown>
+                            />
                         </div>
                     )}
                     <Tooltip title="Export as CSV">
