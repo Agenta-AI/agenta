@@ -34,6 +34,7 @@ celery = "^5.3.6"
 watchdog = {extras = ["watchmedo"], version = "^3.0.0"}
 beanie = "^1.25.0"
 newrelic = "^9.8.0"
+aioboto3 = "^12.4.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
