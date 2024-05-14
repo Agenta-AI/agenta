@@ -1,7 +1,7 @@
 <div align="center" style="margin: 30px">
   <div>
     <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
-      <img src="https://github.com/Agenta-AI/agenta/raw/we-are-hiring/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
+      <img src="https://github.com/Agenta-AI/agenta/raw/main/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
     </a>
   </div>
   <a href="https://agenta.ai/">
