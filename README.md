@@ -11,7 +11,8 @@
   <h4 align="center">
     <a href="https://agenta.ai">Home Page</a> |
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
-    <a href="https://docs.agenta.ai/">Documentation</a>
+    <a href="https://docs.agenta.ai/">Documentation</a> |
+    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">🚀 We are hiring! 🚀</a>
   </h4>
 <div align="center">
   <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
@@ -147,6 +148,11 @@ To disable anonymized telemetry, follow these steps:
 - For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
 
 After making this change, restart Agenta Compose.
+
+# ⭐️ Join Our Team
+- [Founding Lead Software Engineer Backend](https://agentaai.notion.site/Founding-Lead-Software-Engineer-Backend-d70bfefed6d543778bc4aa38b543a678)
+- [Founding Product Engineer Frontend](https://agentaai.notion.site/Founding-Product-Engineer-Frontend-b6d26a3e9b254be6b6c2bfffbf0b53c5)
+- [Founding Product Designer](https://agentaai.notion.site/Founding-Product-Designer-96b1e760ff0241fd96632578d533a778)
 
 # Contributing
 
