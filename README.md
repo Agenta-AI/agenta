@@ -1,4 +1,41 @@
 <div align="center" style="margin: 30px">
+  <div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="350" height="60" viewBox="0 0 350 60">
+      <foreignObject width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml">
+          <style>
+            @keyframes gradient {
+              0% { background-position: 0% 50% }
+              25% { background-position: 50% 50% }
+              50% { background-position: 100% 50% }
+              75% { background-position: 50% 50% }
+              100% { background-position: 0% 50% }
+            }
+            .container {
+              background: linear-gradient(45deg, #0077B5, #23a6d5, #23d5ab, #e73c7e);
+              background-size: 400% 400%;
+              animation: gradient 7s ease infinite;
+              width: 100%;
+              height: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              border-radius: 10px;
+              color: white;
+              font-family: Arial, sans-serif;
+              text-decoration: none;
+            }
+            .text {
+              font-size: 20px;
+            }
+          </style>
+          <a class="container" href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
+            <div class="text">🚀 We are hiring! Join our team! 🚀</div>
+          </a>
+        </div>
+      </foreignObject>
+    </svg>
+  </div>
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -11,8 +48,7 @@
   <h4 align="center">
     <a href="https://agenta.ai">Home Page</a> |
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
-    <a href="https://docs.agenta.ai/">Documentation</a> |
-    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">🚀 We are hiring! 🚀</a>
+    <a href="https://docs.agenta.ai/">Documentation</a>
   </h4>
 <div align="center">
   <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
