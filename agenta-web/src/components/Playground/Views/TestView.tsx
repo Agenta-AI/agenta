@@ -22,7 +22,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
-import {formatLatency} from "@/lib/helpers/formatters"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -218,13 +218,13 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <p>
                         Tokens:{" "}
                         {additionalData.usage !== null
-                            ? JSON.stringify(additionalData.usage.total_tokens)
+                            ? formatTokenUsage(additionalData.usage.total_tokens)
                             : 0}
                     </p>
                     <p>
                         Cost:{" "}
                         {additionalData.cost !== null
-                            ? `$${additionalData.cost.toFixed(4)}`
+                            ? formatCurrency(additionalData.cost)
                             : "$0.00"}
                     </p>
                     <p>

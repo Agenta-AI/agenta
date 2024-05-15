@@ -1,0 +1,75 @@
+---
+title: Overview
+---
+
+What isn't measured cannot be improved. If you want to enhance your application's quality, cost, and performance, you first need to monitor it. Agenta offers a comprehensive monitoring system that lets you track application performance metrics over time.
+
+For every request made through your LLM application, Agenta captures the input variables, configuration (like prompt templates), outputs, and crucial metadata such as cost, latency, and model name.
+
+Agenta also provides tools to visualize and analyze this data on a dashboard. You can view request count, average latency, operational costs, and more. Additionally, you can filter requests to identify problematic ones and add them to your test sets.
+
+## Setting up tracing
+
+### Applications created from the UI
+When creating an application from the UI, tracing is enabled by default. There's no need for setup; simply go to the observability view to see all the requests in the dashboard and in the traces view.
+
+### Application created from code
+If you're creating your own template from code or hosting your own code base and want to use Agenta for prompt management and tracing, you'll need to set up tracing yourself.
+<Steps>
+  <Step title="First Step">
+    These are instructions or content that only pertain to the first step.
+  </Step>
+  <Step title="Second Step">
+    These are instructions or content that only pertain to the second step.
+  </Step>
+  <Step title="Third Step">
+    These are instructions or content that only pertain to the third step.
+  </Step>
+</Steps>
+
+Here's a quick guide on how to do it. You can find more details in the rest of the documentation.
+
+<Steps>
+    <Step title="Install the Agenta Python SDK in your project">
+        Install our Python SDK using pip:
+        ```bash
+        pip install agenta
+        ```
+        or add it to your `requirements.txt`/`pyproject.toml`.. file.
+    </Step>
+    <Step title="Set the agenta environment variables">
+        ```python
+        import os
+        os.environment["AGENTA_API_KEY"] = "your_api_key"
+        os.envivonment["AGENTA_APP_ID"] = "your_app_id"
+        os.environment["AGENTA_HOST"] = "https://cloud.agenta.ai"
+        ```  
+        You can find your API key in the configuration menu. As for the app ID, you can find it in the deployment menu.
+    </Step>
+    <Step title="Add the tracing decorators">
+        Decorate your functions with the `@ag.span` decorator to trace the function and the `@ag.trace` decorator to trace the entire application. Note here that we provide integrations for many client such as OpenAI. Here's an example:
+        ```python
+            import agenta as ag
+            import openai
+
+            client = openai.Client()
+            ag.instrument_openai(client)
+
+            @ag.span
+            def myllmcall(country:str):
+                prompt = f"What is the capital of {country}"
+            response = client.chat.completions.create(
+                model='gpt-4',
+                messages=[
+                    {'role': 'user', 'content': prompt},
+                ],
+                    )
+                    return response.choices[0].text
+            
+            #@ag.entrypoint # in case you are hosting the app in agenta
+            @ag.trace
+            def generate(country:str):
+                return myllmcall(country)
+        ```
+    </Step>
+</Steps>
