@@ -1,38 +1,57 @@
 name: Agenta CLI Workflow
 
 on:
-  pull_request:
-    # paths:
-      # - "agenta-backend/**"
-      # - "agenta-cli/**"
+    pull_request:
+        # paths:
+        #   - "agenta-backend/**"
+        #   - "agenta-cli/**"
 
 jobs:
-  run-agenta:
-    runs-on: ubuntu-latest
-    environment: oss
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    run-agenta-cli:
+        runs-on: ubuntu-latest
+        environment: oss
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+            - name: Set up python
+              id: setup-python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+            - name: Install Poetry
+              uses: snok/install-poetry@v1
+              with:
+                  virtualenvs-create: true
+                  virtualenvs-in-project: true
+                  installer-parallel: true
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
+            - name: Load cached venv
+              id: cached-poetry-dependencies
+              uses: actions/cache@v3
+              with:
+                  path: .venv
+                  key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.in-project true
+            - name: Install dependencies
+              if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+              run: |
+                  cd agenta-cli
+                  poetry install --no-interaction --no-root
 
-      - name: Initialize Agenta
-        env:
-          BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
-        run: |
-          poetry run python ../../agenta-cli/agenta init --app_name woooo --backend_host $BACKEND_HOST
 
-      - name: Serve Application
-        run: |
-          poetry run python ../../agenta-cli/agenta variant serve --file_name app.py
+            - name: Run agenta commands in different directory
+              env:
+                  BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
+              if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+              run: |
+                  source .venv/bin/activate
+                  cd examples/baby_name_generator
+                  agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
+                  agenta variant serve --file_name app.py
+                  agenta variant serve --file_name app.py --overwrite
+
+            # - name: Create .env file
+            #   run: |
+            #       echo "OPEN_API_KEY=${{ secrets.OPEN_API_KEY }}" > .env
+            #   working-directory: examples/baby_name_generator
