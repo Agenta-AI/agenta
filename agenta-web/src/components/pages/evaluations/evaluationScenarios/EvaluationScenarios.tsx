@@ -331,7 +331,11 @@ const EvaluationScenarios: React.FC<Props> = () => {
                                         </Space>
                                     ),
                                 }))}
-                                buttonText={selectedCorrectAnswer[0]}
+                                buttonText={
+                                    selectedCorrectAnswer[0] === "noDiffColumnIsSelected"
+                                        ? "Select Ground Truth"
+                                        : selectedCorrectAnswer[0]
+                                }
                                 isOpen={isDiffDropdownOpen}
                                 handleOpenChange={handleOpenChangeDiff}
                                 shownCols={selectedCorrectAnswer}

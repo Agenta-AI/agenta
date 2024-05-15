@@ -473,7 +473,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                             </Space>
                                         ),
                                     }))}
-                                buttonText={removeCorrectAnswerPrefix(selectedCorrectAnswer[0])}
+                                buttonText={
+                                    removeCorrectAnswerPrefix(selectedCorrectAnswer[0]) ===
+                                    "noDiffColumnIsSelected"
+                                        ? "Select Ground Truth"
+                                        : removeCorrectAnswerPrefix(selectedCorrectAnswer[0])
+                                }
                                 isOpen={isDiffDropdownOpen}
                                 handleOpenChange={handleOpenChangeDiff}
                                 shownCols={selectedCorrectAnswer}
