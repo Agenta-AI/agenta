@@ -13,6 +13,7 @@ jobs:
         steps:
             - name: Check out repository
               uses: actions/checkout@v4
+
             - name: Set up python
               id: setup-python
               uses: actions/setup-python@v5
@@ -32,6 +33,8 @@ jobs:
               with:
                   path: .venv
                   key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+                  restore-keys: |
+                    venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
 
             - name: Install dependencies
               if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
@@ -39,14 +42,13 @@ jobs:
                   cd agenta-cli
                   poetry install --no-interaction --no-root
 
-
             - name: Run agenta commands in different directory
               env:
                   BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
-              if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
               run: |
-                  source .venv/bin/activate
-                  cd examples/baby_name_generator
+                  cd agenta-cli
+                  source $(poetry env info --path)/bin/activate
+                  cd ../examples/baby_name_generator
                   agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
                   agenta variant serve --file_name app.py
                   agenta variant serve --file_name app.py --overwrite
