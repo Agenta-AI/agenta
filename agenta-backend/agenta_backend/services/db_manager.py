@@ -257,12 +257,15 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     Returns:
         VariantBaseDB: The fetched base, or None if no base was found.
     """
+
     if base_id is None:
         raise Exception("No base_id provided")
+
     base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id))
-    if base is None:
+    if not base:
         logger.error("Base not found")
-        return False
+        return None
+
     return base
 
 

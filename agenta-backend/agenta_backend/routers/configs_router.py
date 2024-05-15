@@ -13,6 +13,7 @@ from agenta_backend.services import (
     db_manager,
     app_manager,
 )
+from agenta_backend.models.db_models import VariantBaseDB
 
 if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
@@ -93,7 +94,7 @@ async def get_config(
     try:
         base_db = await db_manager.fetch_base_by_id(base_id)
 
-        # detemine whether the user has access to the base
+        # determine whether the user has access to the base
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -110,6 +111,7 @@ async def get_config(
 
         # in case environment_name is provided, find the variant deployed
         if environment_name:
+            await base_db.fetch_link(VariantBaseDB.app)
             app_environments = await db_manager.list_environments(
                 app_id=str(base_db.app.id)
             )
