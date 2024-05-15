@@ -347,36 +347,44 @@ const App: React.FC<TestViewProps> = ({
         if (!revisionNum) return
 
         const fetchData = async () => {
-            const revision = await promptRevision(variant.variantId, parseInt(revisionNum))
-            if (!revision) return
+            await promptRevision.then(async (module: any) => {
+                if (!module) return
 
-            setPromptOptParams((prevState: Parameter[] | null) => {
-                if (!prevState) {
-                    return prevState
-                }
+                const revision = await module.fetchPromptRevision(
+                    variant.variantId,
+                    parseInt(revisionNum),
+                )
 
-                const parameterNames = [
-                    "temperature",
-                    "model",
-                    "max_tokens",
-                    "prompt_system",
-                    "prompt_user",
-                    "top_p",
-                    "frequence_penalty",
-                    "presence_penalty",
-                    "inputs",
-                ]
+                if (!revision) return
 
-                return prevState.map((param: Parameter) => {
-                    if (parameterNames.includes(param.name)) {
-                        const newValue = (revision?.config.parameters as Record<string, any>)[
-                            param.name
-                        ]
-                        if (newValue !== undefined) {
-                            param.default = newValue
-                        }
+                setPromptOptParams((prevState: Parameter[] | null) => {
+                    if (!prevState) {
+                        return prevState
                     }
-                    return param
+
+                    const parameterNames = [
+                        "temperature",
+                        "model",
+                        "max_tokens",
+                        "prompt_system",
+                        "prompt_user",
+                        "top_p",
+                        "frequence_penalty",
+                        "presence_penalty",
+                        "inputs",
+                    ]
+
+                    return prevState.map((param: Parameter) => {
+                        if (parameterNames.includes(param.name)) {
+                            const newValue = (revision?.config.parameters as Record<string, any>)[
+                                param.name
+                            ]
+                            if (newValue !== undefined) {
+                                param.default = newValue
+                            }
+                        }
+                        return param
+                    })
                 })
             })
         }
