@@ -24,12 +24,15 @@ def auto_exact_match(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        correct_answer_keys = settings_values.get("correct_answer_keys")
-        if not correct_answer_keys:
+        correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
             return Result(
-                type="error", value=None, error="No correct answer keys provided."
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
             )
-        correct_answer_key = correct_answer_keys.split(",")[0]
 
         exact_match = True if output == data_point[correct_answer_key] else False
         result = Result(type="bool", value=exact_match)
@@ -53,12 +56,15 @@ def auto_similarity_match(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        correct_answer_keys = settings_values.get("correct_answer_keys")
-        if not correct_answer_keys:
+        correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
             return Result(
-                type="error", value=None, error="No correct answer keys provided."
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
             )
-        correct_answer_key = correct_answer_keys.split(",")[0]
 
         set1 = set(output.split())
         set2 = set(data_point[correct_answer_key].split())
@@ -116,12 +122,15 @@ def field_match_test(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        correct_answer_keys = settings_values.get("correct_answer_keys")
-        if not correct_answer_keys:
+        correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
             return Result(
-                type="error", value=None, error="No correct answer keys provided."
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
             )
-        correct_answer_key = correct_answer_keys.split(",")[0]
 
         output_json = json.loads(output)
         result = (
@@ -142,12 +151,15 @@ def auto_webhook_test(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        correct_answer_keys = settings_values.get("correct_answer_keys")
-        if not correct_answer_keys:
+        correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
             return Result(
-                type="error", value=None, error="No correct answer keys provided."
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
             )
-        correct_answer_key = correct_answer_keys.split(",")[0]
 
         with httpx.Client() as client:
             payload = {
@@ -246,6 +258,14 @@ def auto_ai_critique(
     """
     try:
         correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
+            return Result(
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
+            )
         llm = OpenAI(
             openai_api_key=lm_providers_keys["OPENAI_API_KEY"],
             temperature=0.8,
@@ -481,12 +501,15 @@ def auto_levenshtein_distance(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        correct_answer_keys = settings_values.get("correct_answer_keys")
-        if not correct_answer_keys:
+        correct_answer_key = settings_values.get("correct_answer_keys")
+        if correct_answer_key is None:
             return Result(
-                type="error", value=None, error="No correct answer keys provided."
+                type="error",
+                value=None,
+                error=Error(
+                    message="No correct answer keys provided.",
+                ),
             )
-        correct_answer_key = correct_answer_keys.split(",")[0]
 
         distance = levenshtein_distance(output, data_point[correct_answer_key])
 
