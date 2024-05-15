@@ -5,6 +5,7 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
+RUN pip install --no-cache-dir --disable-pip-version-check -U agenta
 
 EXPOSE 80
 
