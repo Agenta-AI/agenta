@@ -42,15 +42,18 @@ jobs:
                   cd agenta-cli
                   poetry install --no-interaction --no-root
 
-            - name: Run agenta commands in different directory
+            - name: Activate virtual environment and run agenta commands
               env:
                   BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
               run: |
                   cd agenta-cli
-                  poetry run agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
-                  poetry run agenta variant serve --file_name ../examples/baby_name_generator/app.py
-                  poetry run agenta variant serve --file_name ../examples/baby_name_generator/app.py --overwrite
-
+                  poetry shell
+                  cd ../examples/baby_name_generator
+                  agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
+                  agenta variant serve --file_name app.py
+                  agenta variant serve --file_name app.py --overwrite
+              shell: bash
+              
             # - name: Create .env file
             #   run: |
             #       echo "OPEN_API_KEY=${{ secrets.OPEN_API_KEY }}" > .env
