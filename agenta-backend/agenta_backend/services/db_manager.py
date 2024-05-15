@@ -997,17 +997,15 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
         true if it's the last variant, false otherwise
     """
 
-    query_expression = {"base.id": db_app_variant.base.id}
+    query = AppVariantDB.find(AppVariantDB.base.id == ObjectId(db_app_variant.base.id))
 
     if isCloudEE():
-        query_expression.update(
-            {
-                "organization.id": db_app_variant.organization.id,
-                "workspace.id": db_app_variant.workspace.id,
-            }
+        query = query.find(
+            AppVariantDB.organization.id == db_app_variant.organization.id,
+            AppVariantDB.workspace.id == db_app_variant.workspace.id,
         )
 
-    count_variants = await AppVariantDB.find(query_expression).count()
+    count_variants = await query.count()
     return count_variants == 1
 
 
@@ -1020,7 +1018,10 @@ async def remove_deployment(deployment_db: DeploymentDB):
     logger.debug("Removing deployment")
     assert deployment_db is not None, "deployment_db is missing"
 
-    await deployment_db.delete()
+    deployment = await DeploymentDB.find_one(
+        DeploymentDB.id == ObjectId(deployment_db.id)
+    )
+    await deployment.delete()
 
 
 async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
@@ -1044,7 +1045,10 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
     for app_variant_revision in app_variant_revisions:
         await app_variant_revision.delete()
 
-    await app_variant_db.delete()
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.id == ObjectId(app_variant_db.id)
+    )
+    await app_variant.delete()
 
 
 async def deploy_to_environment(
@@ -1379,6 +1383,8 @@ async def remove_image(image: ImageDB):
     """
     if image is None:
         raise ValueError("Image is None")
+
+    image = await ImageDB.find_one(ImageDB.id == ObjectId(image.id))
     await image.delete()
 
 
