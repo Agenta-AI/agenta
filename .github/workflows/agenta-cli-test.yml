@@ -47,11 +47,9 @@ jobs:
                   BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
               run: |
                   cd agenta-cli
-                  source $(poetry env info --path)/bin/activate
-                  cd ../examples/baby_name_generator
-                  agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
-                  agenta variant serve --file_name app.py
-                  agenta variant serve --file_name app.py --overwrite
+                  poetry run agenta init --app_name woooo --backend_host ${{ secrets.BACKEND_HOST }}
+                  poetry run agenta variant serve --file_name ../examples/baby_name_generator/app.py
+                  poetry run agenta variant serve --file_name ../examples/baby_name_generator/app.py --overwrite
 
             # - name: Create .env file
             #   run: |
