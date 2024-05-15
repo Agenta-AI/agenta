@@ -152,10 +152,13 @@ const ParametersView: React.FC<Props> = ({
         setHistoryStatus({loading: true, error: false})
         setIsDrawerOpen(true)
         try {
-            if (variant.variantId && isDemo()) {
-                const revisions = await promptVersioning(variant.variantId)
-                setPromptRevisions(revisions)
-            }
+            await promptVersioning.then(async (module: any) => {
+                if (!module) return
+                if (variant.variantId && isDemo()) {
+                    const revisions = await module.fetchAllPromptVersioning(variant.variantId)
+                    setPromptRevisions(revisions)
+                }
+            })
             setHistoryStatus({loading: false, error: false})
         } catch (error) {
             setHistoryStatus({loading: false, error: true})
