@@ -408,6 +408,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "youcefs21",
+      "name": "Youcef Boumar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/34604972?v=4",
+      "profile": "https://github.com/youcefs21",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

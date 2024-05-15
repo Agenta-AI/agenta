@@ -62,6 +62,17 @@ const getTextContent = (element: React.ReactNode): string => {
 const filterOption = (input: string, option?: {label: React.ReactNode; value: string}) =>
     getTextContent(option?.label).toLowerCase().includes(input.toLowerCase())
 
+export const ModelName: React.FC<{label: string; key: string}> = ({label, key}) => {
+    const classes = useStyles()
+
+    return (
+        <div className={classes.option}>
+            {iconMap[key] ? React.createElement(iconMap[key]) : null}
+            {label}
+        </div>
+    )
+}
+
 export const GroupedSelect: React.FC<GroupedSelectProps> = ({
     choices,
     defaultValue,
@@ -70,19 +81,9 @@ export const GroupedSelect: React.FC<GroupedSelectProps> = ({
     const classes = useStyles()
 
     const options = Object.entries(choices).map(([groupLabel, groupChoices]) => ({
-        label: (
-            <div className={classes.option}>
-                {iconMap[groupLabel] ? React.createElement(iconMap[groupLabel]) : null}
-                {groupLabel}
-            </div>
-        ),
+        label: <ModelName label={groupLabel} key={groupLabel} />,
         options: groupChoices.map((choice) => ({
-            label: (
-                <div className={classes.option}>
-                    {iconMap[groupLabel] ? React.createElement(iconMap[groupLabel]) : null}
-                    {choice}
-                </div>
-            ),
+            label: <ModelName label={choice} key={groupLabel} />,
             value: choice,
         })),
     }))

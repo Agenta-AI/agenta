@@ -1,9 +1,9 @@
 import {GenericObject, JSSTheme, PaginationQuery} from "@/lib/Types"
-import {Button, Dropdown, Input, Space} from "antd"
+import {Button, Dropdown, DropdownProps, Input, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {FilterDropdownProps} from "antd/es/table/interface"
 import dayjs from "dayjs"
-import React, {ReactNode, useMemo} from "react"
+import React, {ReactNode, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {Resizable} from "react-resizable"
 import EnforceAntdStyles from "../EnforceAntdStyles/EnforceAntdStyles"
@@ -100,6 +100,13 @@ interface ColsDropdownProps<T> {
 
 export const ColsDropdown = <T,>({columns, hiddenCols, setHiddenCols}: ColsDropdownProps<T>) => {
     const classes = useStyles()
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
     const shownCols = useMemo(
         () =>
             columns
@@ -119,6 +126,8 @@ export const ColsDropdown = <T,>({columns, hiddenCols, setHiddenCols}: ColsDropd
     return (
         <Dropdown
             trigger={["click"]}
+            open={isFilterColsDropdownOpen}
+            onOpenChange={handleOpenChangeFilterCols}
             menu={{
                 selectedKeys: shownCols,
                 items: columns.map((item) => ({
@@ -130,7 +139,10 @@ export const ColsDropdown = <T,>({columns, hiddenCols, setHiddenCols}: ColsDropd
                         </Space>
                     ),
                 })) as any,
-                onClick: ({key}) => onColToggle(key),
+                onClick: ({key}) => {
+                    onColToggle(key)
+                    setIsFilterColsDropdownOpen(true)
+                },
                 className: classes.dropdownMenu,
             }}
         >
