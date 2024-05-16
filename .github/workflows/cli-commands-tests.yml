@@ -1,4 +1,4 @@
-name: agenta-cli commands
+name: cli commands tests
 
 on:
     pull_request:
