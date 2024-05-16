@@ -23,9 +23,9 @@ jobs:
             - name: Install dependencies
               run: |
                   python -m pip install --upgrade pip setuptools
+                  pip install poetry
                   cd agenta-cli
                   pip install -e .
-                  poetry install --no-interaction
 
             - name: Create .env file
               run: |
