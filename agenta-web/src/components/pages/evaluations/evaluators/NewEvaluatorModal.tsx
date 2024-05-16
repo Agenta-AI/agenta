@@ -141,7 +141,6 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
-    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -220,6 +219,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         expandIcon={({isActive}) => (
                             <CaretRightOutlined rotate={isActive ? 90 : 0} />
                         )}
+                        defaultActiveKey={["1"]}
                         className={"my-[10px]"}
                         items={[
                             {
@@ -316,7 +316,9 @@ const NewEvaluatorModal: React.FC<Props> = ({
         const settingsValues = values.settings_values || {}
 
         if (settingsValues.correct_answer_keys) {
-            settingsValues.correct_answer_keys = [settingsValues.correct_answer_keys]
+            settingsValues.correct_answer_keys = Array.isArray(settingsValues.correct_answer_keys)
+                ? settingsValues.correct_answer_keys
+                : [settingsValues.correct_answer_keys]
         }
 
         const data = {
