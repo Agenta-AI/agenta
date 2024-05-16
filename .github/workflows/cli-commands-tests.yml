@@ -29,7 +29,7 @@ jobs:
 
             - name: Create .env file
               run: |
-                  echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
+                  echo "OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" > .env
               working-directory: examples/baby_name_generator
 
             - name: Run agenta init
