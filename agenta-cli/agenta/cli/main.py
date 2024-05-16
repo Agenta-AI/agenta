@@ -80,7 +80,8 @@ def cli():
 @click.command()
 @click.option("--app_name", default="")
 @click.option("--backend_host", default="")
-def init(app_name: str, backend_host: str):
+@click.option("--organisation", default="")
+def init(app_name: str, backend_host: str, organisation: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
 
@@ -171,18 +172,17 @@ def init(app_name: str, backend_host: str):
 
         filtered_org = None
         if where_question == "On agenta cloud":
-            which_organization = questionary.select(
-                "Which organization do you want to create the app for?",
-                choices=[
-                    f"{org.name}: {org.description}" for org in user_organizations
-                ],
-            ).ask()
+            if not organisation:
+                which_organization = questionary.select(
+                    "Which organization do you want to create the app for?",
+                    choices=[
+                        f"{org.name}: {org.description}" for org in user_organizations
+                    ],
+                ).ask()
+                organisation = which_organization.split(":")[0]
+
             filtered_org = next(
-                (
-                    org
-                    for org in user_organizations
-                    if org.name == which_organization.split(":")[0]
-                ),
+                (org for org in user_organizations if org.name == organisation),
                 None,
             )
 
