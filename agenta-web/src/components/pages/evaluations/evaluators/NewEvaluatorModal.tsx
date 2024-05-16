@@ -312,10 +312,17 @@ const NewEvaluatorModal: React.FC<Props> = ({
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
         if (!selectedEval?.key) throw new Error("No selected key")
+
+        const settingsValues = values.settings_values || {}
+
+        if (settingsValues.correct_answer_keys) {
+            settingsValues.correct_answer_keys = [settingsValues.correct_answer_keys]
+        }
+
         const data = {
             ...values,
             evaluator_key: selectedEval.key,
-            settings_values: values.settings_values || {},
+            settings_values: settingsValues,
         }
         ;(editMode
             ? updateEvaluatorConfig(initialValues?.id!, data)
