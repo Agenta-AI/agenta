@@ -2,9 +2,9 @@ name: Agenta CLI Workflow
 
 on:
     pull_request:
-        # paths:
-        #   - "agenta-backend/**"
-        #   - "agenta-cli/**"
+        paths:
+            - "agenta-backend/**"
+            - "agenta-cli/**"
 
 jobs:
     run-agenta-cli:
