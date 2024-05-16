@@ -13,7 +13,6 @@ from agenta_backend.services import (
     db_manager,
     app_manager,
 )
-from agenta_backend.models.db_models import VariantBaseDB
 
 if isCloudEE():
     from agenta_backend.commons.models.db_models import Permission
@@ -111,9 +110,8 @@ async def get_config(
 
         # in case environment_name is provided, find the variant deployed
         if environment_name:
-            await base_db.fetch_link(VariantBaseDB.app)
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app.id)
+                app_id=str(base_db.app.ref.id)
             )
             found_variant_revision = next(
                 (
