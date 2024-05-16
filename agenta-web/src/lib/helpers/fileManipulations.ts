@@ -5,6 +5,8 @@ export const convertToCsv = (rows: GenericObject[], header: string[]) => {
     return Papa.unparse({fields: header.filter((item) => !!item), data: rows})
 }
 
+export const escapeNewlines = (value: string) => value.replace(/\n/g, "\\n")
+
 export const downloadCsv = (csvContent: string, filename: string): void => {
     if (typeof window === "undefined") return
 
