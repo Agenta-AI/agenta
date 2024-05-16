@@ -29,12 +29,10 @@ jobs:
 
             - name: Create .env file
               run: |
-                  echo "OPEN_API_KEY=${{ secrets.OPEN_API_KEY }}" > .env
+                  echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
               working-directory: examples/baby_name_generator
 
             - name: Run agenta init
-              env:
-                  BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
               run: |
                   APP_NAME="gh-cli-$(shuf -i 1000-9999 -n 1)"
                   cd examples/baby_name_generator
@@ -43,8 +41,6 @@ jobs:
               continue-on-error: false
 
             - name: Run agenta variant serve
-              env:
-                  BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
               run: |
                   cd examples/baby_name_generator
                   agenta variant serve --file_name app.py
@@ -52,8 +48,6 @@ jobs:
               continue-on-error: false
 
             - name: Run agenta variant serve with overwrite
-              env:
-                  BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
               run: |
                   cd examples/baby_name_generator
                   agenta variant serve --file_name app.py --overwrite
