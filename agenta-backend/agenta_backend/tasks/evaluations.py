@@ -429,10 +429,7 @@ def parse_correct_answers(evaluator_config_db, data_point) -> List[CorrectAnswer
     if not correct_answer_keys:
         return []
 
-    # In case one evaluator has multiple correct answers
-    correct_answer_keys_list = [key.strip() for key in correct_answer_keys.split(",")]
-
-    for key in correct_answer_keys_list:
+    for key in correct_answer_keys:
         correct_answer_value = data_point.get(key, "")
         correct_answers.append(CorrectAnswer(key=key, value=correct_answer_value))
 

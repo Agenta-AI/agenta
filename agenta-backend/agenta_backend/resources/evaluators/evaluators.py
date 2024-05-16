@@ -8,8 +8,8 @@ evaluators = [
             "description": "Settings for the Exact Match evaluator",
             "correct_answer_keys": {
                 "label": "Correct Answer",
-                "default": "correct_answer",
-                "type": "string",
+                "default": ["correct_answer"],
+                "type": "array",
             },
         },
         "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
@@ -40,8 +40,8 @@ evaluators = [
             },
             "correct_answer_keys": {
                 "label": "Correct Answer",
-                "default": "correct_answer",
-                "type": "string",
+                "default": ["correct_answer"],
+                "type": "array",
             },
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
@@ -81,7 +81,7 @@ evaluators = [
             },
             "correct_answer_keys": {
                 "label": "Correct Answer",
-                "default": "correct_answer",
+                "default": ["correct_answer"],
                 "type": "string",
             },
         },
@@ -130,7 +130,7 @@ evaluators = [
             },
             "correct_answer_keys": {
                 "label": "Correct Answer",
-                "default": "correct_answer",
+                "default": ["correct_answer"],
                 "type": "string",
             },
         },
@@ -250,7 +250,7 @@ evaluators = [
             "threshold": {"label": "Threshold", "type": "number", "required": False},
             "correct_answer_keys": {
                 "label": "Correct Answer",
-                "default": "correct_answer",
+                "default": ["correct_answer"],
                 "type": "string",
             },
         },
