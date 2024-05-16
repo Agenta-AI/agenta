@@ -1,4 +1,4 @@
-name: Agenta CLI Workflow
+name: agenta-cli commands
 
 on:
     pull_request:
