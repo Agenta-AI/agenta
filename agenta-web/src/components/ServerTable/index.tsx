@@ -65,7 +65,7 @@ const ServerTable = <T extends AnyObject>(
         "tableParams",
         props.defaultTableParams && JSON.stringify(props.defaultTableParams),
     )
-    const [_hiddenCols, _setHiddenCols] = useQueryParam("hiddenCols", "")
+    const [_hiddenCols, _setHiddenCols] = useQueryParam("hiddenCols")
     const [data, setData] = useState<T[]>([])
     const [loading, setLoading] = useState(false)
 
@@ -78,6 +78,10 @@ const ServerTable = <T extends AnyObject>(
         setColumns(
             (props.columns || []).map((item) => ({...item, width: item.width})) as DataCol<T>[],
         )
+        setHiddenCols([
+            ...hiddenCols,
+            ...props.columns.filter((col) => col.hidden).map((col) => col.key as string),
+        ])
     }, [props.columns])
 
     useEffect(() => {

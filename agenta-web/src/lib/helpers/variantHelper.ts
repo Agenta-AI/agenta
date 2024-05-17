@@ -84,7 +84,7 @@ export const variantNameWithRev = (variant: {
 }) => {
     let name = variant.variant_name
     if (![undefined, null].includes(variant.revision as any)) {
-        name += `v${variant.revision}`
+        name += ` v${variant.revision}`
     }
     return name
 }
