@@ -36,7 +36,7 @@ jobs:
               run: |
                   APP_NAME="gh-cli-$(date +'%d-%m-%y_%H-%M-%S')"
                   cd examples/baby_name_generator
-                  agenta init --app_name $APP_NAME --backend_host ${{ secrets.BACKEND_HOST }}
+                  agenta init --app-name $APP_NAME --backend-host ${{ secrets.BACKEND_HOST }}
               shell: bash
               continue-on-error: false
 
@@ -83,7 +83,7 @@ jobs:
               run: |
                   APP_NAME="gh-cli-$(date +'%d-%m-%y_%H-%M-%S')"
                   cd examples/baby_name_generator
-                  AGENTA_API_KEY=${{ secrets.AGENTA_API_KEY }} agenta init --app_name $APP_NAME --backend_host https://cloud.agenta.ai --organisation team
+                  AGENTA_API_KEY=${{ secrets.AGENTA_API_KEY }} agenta init --app-name $APP_NAME --backend-host https://cloud.agenta.ai --organisation-name team
               shell: bash
               continue-on-error: false
 
