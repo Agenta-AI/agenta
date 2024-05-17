@@ -17,6 +17,7 @@ else:
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
+from agenta_backend.resources.evaluators import evaluators
 
 
 def get_evaluators() -> Optional[List[Evaluator]]:
@@ -79,6 +80,16 @@ async def create_evaluator_config(
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
     app = await db_manager.fetch_app_by_id(app_id)
+    evaluator_config = evaluators.get_evaluator_by_key(evaluator_key)
+
+    if evaluator_config is not None:
+        if "correct_answer_keys" in evaluator_config.get("settings_template", {}):
+            if settings_values is None:
+                settings_values = {}
+            settings_values["correct_answer_keys"] = evaluator_config[
+                "settings_template"
+            ]["correct_answer_keys"]["default"]
+
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization if isCloudEE() else None,  # noqa,
