@@ -353,3 +353,10 @@ export const createAndStartTemplate = async ({
         onStatusChange?.("error", error)
     }
 }
+
+export const fetchVariantLogs = async (variantId: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/logs`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    return response.data
+}
