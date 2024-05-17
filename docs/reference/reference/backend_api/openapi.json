@@ -14,7 +14,6 @@
             "get": {
                 "summary": "User Profile",
                 "operationId": "user_profile_profile__get",
-                "description": "An enumeration.",
                 "responses": {
                     "200": {
                         "description": "Successful Response",
