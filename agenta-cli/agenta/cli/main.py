@@ -79,8 +79,13 @@ def cli():
 
 @click.command()
 @click.option("--app-name", "--app_name", default=None)
-@click.option("--backend-host", "backend_host",  default=None)
-@click.option("--organisation-name", "organisation_name", default=None, help="The name of the organisation")
+@click.option("--backend-host", "backend_host", default=None)
+@click.option(
+    "--organisation-name",
+    "organisation_name",
+    default=None,
+    help="The name of the organisation",
+)
 def init(app_name: str, backend_host: str, organisation_name: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
@@ -171,20 +176,19 @@ def init(app_name: str, backend_host: str, organisation_name: str):
                 sys.exit(1)
 
         organization = None
+        organization_choices = {}
         if where_question == "On agenta cloud":
             if not organisation_name:
+                organization_choices = {
+                    f"{org.name}": org for org in user_organizations
+                }
                 which_organization = questionary.select(
                     "Which organization do you want to create the app for?",
-                    choices=[
-                        f"{org.name}: {org.description}" for org in user_organizations
-                    ],
+                    choices=list(organization_choices.keys()),
                 ).ask()
-                organisation_name = which_organization.split(":")[0]
+                organisation_name = which_organization
 
-            organization = next(
-                (org for org in user_organizations if org.name == organisation_name),
-                None,
-            )
+            organization = organization_choices.get(organisation_name)
 
         # Get app_id after creating new app in the backend server
         try:
