@@ -159,11 +159,8 @@
       ]
     },
     {
-      "group": "API Documentation",
+      "group": "API Reference",
       "pages": [
-        {
-          "group": "Backend API",
-          "pages": [
             "reference/api_docs/backend_api/user-profile",
             "reference/api_docs/backend_api/list-app-variants",
             "reference/api_docs/backend_api/get-variant-by-env",
@@ -229,8 +226,6 @@
             "reference/api_docs/backend_api/list-bases",
             "reference/api_docs/backend_api/get-config",
             "reference/api_docs/backend_api/save-config"
-          ]
-        }
       ]
     },
     {
