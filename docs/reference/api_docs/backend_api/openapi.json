@@ -6,7 +6,7 @@
     },
     "servers": [
         {
-            "url": "/api"
+            "url": "https://docs.agenta.ai"
         }
     ],
     "paths": {
