@@ -78,10 +78,10 @@ def cli():
 
 
 @click.command()
-@click.option("--app_name", default="")
-@click.option("--backend_host", default="")
-@click.option("--organisation", default="")
-def init(app_name: str, backend_host: str, organisation: str):
+@click.option("--app-name", "--app_name", default=None)
+@click.option("--backend-host", "backend_host",  default=None)
+@click.option("--organisation-name", "organisation_name", default=None, help="The name of the organisation")
+def init(app_name: str, backend_host: str, organisation_name: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
 
@@ -170,19 +170,19 @@ def init(app_name: str, backend_host: str, organisation: str):
                 click.echo(click.style(f"Error: {ex}", fg="red"))
                 sys.exit(1)
 
-        filtered_org = None
+        organization = None
         if where_question == "On agenta cloud":
-            if not organisation:
+            if not organisation_name:
                 which_organization = questionary.select(
                     "Which organization do you want to create the app for?",
                     choices=[
                         f"{org.name}: {org.description}" for org in user_organizations
                     ],
                 ).ask()
-                organisation = which_organization.split(":")[0]
+                organisation_name = which_organization.split(":")[0]
 
-            filtered_org = next(
-                (org for org in user_organizations if org.name == organisation),
+            organization = next(
+                (org for org in user_organizations if org.name == organisation_name),
                 None,
             )
 
@@ -190,7 +190,7 @@ def init(app_name: str, backend_host: str, organisation: str):
         try:
             app_id = client.apps.create_app(
                 app_name=app_name,
-                organization_id=filtered_org.id if filtered_org else None,
+                organization_id=organization.id if organization else None,
             ).app_id
         except Exception as ex:
             click.echo(click.style(f"Error: {ex}", fg="red"))
