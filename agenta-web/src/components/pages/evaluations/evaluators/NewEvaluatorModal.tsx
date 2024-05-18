@@ -219,7 +219,6 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         expandIcon={({isActive}) => (
                             <CaretRightOutlined rotate={isActive ? 90 : 0} />
                         )}
-                        defaultActiveKey={["1"]}
                         className={"my-[10px]"}
                         items={[
                             {
@@ -319,6 +318,13 @@ const NewEvaluatorModal: React.FC<Props> = ({
             settingsValues.correct_answer_keys = Array.isArray(settingsValues.correct_answer_keys)
                 ? settingsValues.correct_answer_keys
                 : [settingsValues.correct_answer_keys]
+        }
+
+        if (
+            !settingsValues.correct_answer_keys &&
+            selectedEval.settings_template.correct_answer_keys
+        ) {
+            settingsValues["correct_answer_keys"] = ["correct_answer"]
         }
 
         const data = {
