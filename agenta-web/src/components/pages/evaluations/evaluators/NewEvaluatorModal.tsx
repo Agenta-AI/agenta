@@ -285,10 +285,25 @@ const NewEvaluatorModal: React.FC<Props> = ({
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
         if (!selectedEval?.key) throw new Error("No selected key")
+        const settingsValues = values.settings_values || {}
+
+        if (settingsValues.correct_answer_keys) {
+            settingsValues.correct_answer_keys = Array.isArray(settingsValues.correct_answer_keys)
+                ? settingsValues.correct_answer_keys
+                : [settingsValues.correct_answer_keys]
+        }
+
+        if (
+            !settingsValues.correct_answer_keys &&
+            selectedEval.settings_template.correct_answer_keys
+        ) {
+            settingsValues["correct_answer_keys"] = ["correct_answer"]
+        }
+
         const data = {
             ...values,
             evaluator_key: selectedEval.key,
-            settings_values: values.settings_values || {},
+            settings_values: settingsValues,
         }
         ;(editMode
             ? updateEvaluatorConfig(initialValues?.id!, data)
@@ -427,7 +442,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                     ))}
 
                     {advancedSettingsFields.length > 0 && (
-                        <AdvancedSettings settings={advancedSettingsFields} form={form} />
+                        <AdvancedSettings settings={advancedSettingsFields} />
                     )}
 
                     <Form.Item style={{marginBottom: 0}}>
