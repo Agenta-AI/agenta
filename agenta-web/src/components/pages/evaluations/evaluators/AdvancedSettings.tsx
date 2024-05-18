@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react"
+import React from "react"
 import {Form, Input, Collapse} from "antd"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
@@ -16,41 +16,29 @@ const useStyles = createUseStyles((theme: any) => ({
 }))
 
 type AdvancedSettingsProps = {
-    settings: {key: string; label: string; default: string[]; required?: boolean}[]
-    form: any
+    settings: Record<string, any>[]
 }
 
-const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, form}) => {
+const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
     const classes = useStyles()
-    const [isCollapsed, setIsCollapsed] = useState(true)
 
-    const handleCollapseChange = (key: string[]) => {
-        setIsCollapsed(!key.length)
-    }
-
-    useEffect(() => {
-        // Initialize the form with default values for advanced settings
-        const initialValues = settings.reduce((acc, field) => {
-            acc[field.key] = field.default
-            return acc
-        }, {})
-        form.setFieldsValue({advancedSettings: initialValues})
-    }, [form, settings])
-
-    console.log("Passed settings to AdvancedSettings:", settings)
+    const initialValues = settings.reduce((acc, field) => {
+        acc[field.key] = field.default
+        return acc
+    }, {})
 
     return (
         <Collapse
             bordered={false}
             expandIcon={({isActive}) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
             className={"my-[10px]"}
-            onChange={handleCollapseChange}
         >
             <Collapse.Panel key="1" header="Advanced Settings">
                 {settings.map((field) => (
                     <Form.Item
                         key={field.key}
-                        name={["advancedSettings", field.key]}
+                        initialValue={initialValues.correct_answer_keys[0]}
+                        name={["settings_values", "correct_answer_keys"]}
                         label={
                             <div className={classes.label}>
                                 <span>{field.label}</span>
