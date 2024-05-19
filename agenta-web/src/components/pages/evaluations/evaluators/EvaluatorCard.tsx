@@ -85,7 +85,7 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
         <Card
             className={classes.card}
             actions={
-                evaluator.direct_use
+                evaluator.direct_use && !evaluator.settings_template.correct_answer_keys
                     ? []
                     : [
                           <EditOutlined
