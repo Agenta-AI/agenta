@@ -148,6 +148,12 @@ async def create_ready_to_use_evaluators(app: AppDB):
     ]
 
     for evaluator in direct_use_evaluators:
+        settings_values = {}
+        settings_template = evaluator.get("settings_template", {})
+        if "correct_answer_keys" in settings_template:
+            settings_values["correct_answer_keys"] = settings_template[
+                "correct_answer_keys"
+            ].get("default", [])
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization if isCloudEE() else None,  # noqa,
@@ -155,7 +161,7 @@ async def create_ready_to_use_evaluators(app: AppDB):
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],
-            settings_values={},
+            settings_values=settings_values,
         )
 
 
