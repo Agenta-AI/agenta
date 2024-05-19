@@ -1,4 +1,9 @@
 <div align="center" style="margin: 30px">
+  <div>
+    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
+      <img src="https://github.com/Agenta-AI/agenta/raw/main/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
+    </a>
+  </div>
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -147,6 +152,11 @@ To disable anonymized telemetry, follow these steps:
 - For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
 
 After making this change, restart Agenta Compose.
+
+# ⭐️ Join Our Team
+- [Founding Lead Software Engineer Backend](https://agentaai.notion.site/Founding-Lead-Software-Engineer-Backend-d70bfefed6d543778bc4aa38b543a678)
+- [Founding Product Engineer Frontend](https://agentaai.notion.site/Founding-Product-Engineer-Frontend-b6d26a3e9b254be6b6c2bfffbf0b53c5)
+- [Founding Product Designer](https://agentaai.notion.site/Founding-Product-Designer-96b1e760ff0241fd96632578d533a778)
 
 # Contributing
 
