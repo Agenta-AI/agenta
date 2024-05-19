@@ -59,6 +59,7 @@ async def test_create_auto_exact_match_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_exact_match_evaluator_config
     payload["app_id"] = str(app.id)
+    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -75,6 +76,7 @@ async def test_create_auto_similarity_match_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_similarity_match_evaluator_config
     payload["app_id"] = str(app.id)
+    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -92,6 +94,7 @@ async def test_create_auto_regex_test_evaluator_config(
     payload = auto_regex_test_evaluator_config
     payload["app_id"] = str(app.id)
     payload["settings_values"]["regex_pattern"] = "^ig\\d{3}$"
+    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -108,6 +111,7 @@ async def test_create_auto_webhook_test_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_webhook_test_evaluator_config
     payload["app_id"] = str(app.id)
+    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -124,6 +128,7 @@ async def test_create_auto_ai_critique_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_ai_critique_evaluator_config
     payload["app_id"] = str(app.id)
+    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
