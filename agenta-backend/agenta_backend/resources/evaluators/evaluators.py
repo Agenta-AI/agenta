@@ -2,7 +2,7 @@ evaluators = [
     {
         "name": "Exact Match",
         "key": "auto_exact_match",
-        "direct_use": False,
+        "direct_use": True,
         "settings_template": {
             "label": "Exact Match Settings",
             "description": "Settings for the Exact Match evaluator",
