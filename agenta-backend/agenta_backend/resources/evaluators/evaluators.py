@@ -267,18 +267,3 @@ def get_all_evaluators():
         List[dict]: A list of evaluator dictionaries.
     """
     return evaluators
-
-
-def get_evaluator_by_key(key: str):
-    """
-    Returns an evaluator with the specified key
-
-    Args:
-        key (str): The key of the evaluator to retrieve
-
-    Returns:
-        dict or None: The evaluator dictionary if found, otherwise None
-    """
-    return next(
-        (evaluator for evaluator in evaluators if evaluator["key"] == key), None
-    )
