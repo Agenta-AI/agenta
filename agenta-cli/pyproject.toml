@@ -33,7 +33,7 @@ pymongo = "^4.6.3"
 cachetools = "^5.3.3"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
+pytest = "^8.2"
 setuptools = "^69.5.1"
 
 [build-system]
