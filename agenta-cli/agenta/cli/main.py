@@ -155,7 +155,7 @@ def init(app_name: str, backend_host: str, organisation_name: str):
         user_organizations = []
 
         # validate the api key if it is provided
-        if where_question == "On agenta cloud":
+        if where_question == "Test On agenta cloud":
             try:
                 key_prefix = api_key.split(".")[0]
                 client.validate_api_key(key_prefix=key_prefix)
