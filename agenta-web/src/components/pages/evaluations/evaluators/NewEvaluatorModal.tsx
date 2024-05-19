@@ -35,6 +35,7 @@ import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
+import AdvancedSettings from "./AdvancedSettings"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -170,7 +171,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
 
     return (
         <>
-            {label !== "Correct Answer" ? (
+            {label !== "Correct Answer" && (
                 <Form.Item
                     name={name}
                     label={
@@ -213,36 +214,6 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         />
                     ) : null}
                 </Form.Item>
-            ) : (
-                <>
-                    <Collapse
-                        bordered={false}
-                        expandIcon={({isActive}) => (
-                            <CaretRightOutlined rotate={isActive ? 90 : 0} />
-                        )}
-                        className={"my-[10px]"}
-                        items={[
-                            {
-                                key: "1",
-                                label: "Advanced Settings",
-                                children: (
-                                    <Form.Item
-                                        name={name}
-                                        label={
-                                            <div className={classes.label}>
-                                                <span>{label}</span>
-                                            </div>
-                                        }
-                                        initialValue={defaultVal}
-                                        rules={rules}
-                                    >
-                                        <Input className="w-[50%]" />
-                                    </Form.Item>
-                                ),
-                            },
-                        ]}
-                    />
-                </>
             )}
 
             {ExternalHelpInfo}
@@ -309,13 +280,30 @@ const NewEvaluatorModal: React.FC<Props> = ({
         }
     }, [newEvalModalConfigOpen])
 
+    const advancedSettingsFields = evalFields.filter((field) => field.key === "correct_answer_keys")
+
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
         if (!selectedEval?.key) throw new Error("No selected key")
+        const settingsValues = values.settings_values || {}
+
+        if (settingsValues.correct_answer_keys) {
+            settingsValues.correct_answer_keys = Array.isArray(settingsValues.correct_answer_keys)
+                ? settingsValues.correct_answer_keys
+                : [settingsValues.correct_answer_keys]
+        }
+
+        if (
+            !settingsValues.correct_answer_keys &&
+            selectedEval.settings_template.correct_answer_keys
+        ) {
+            settingsValues["correct_answer_keys"] = ["correct_answer"]
+        }
+
         const data = {
             ...values,
             evaluator_key: selectedEval.key,
-            settings_values: values.settings_values || {},
+            settings_values: settingsValues,
         }
         ;(editMode
             ? updateEvaluatorConfig(initialValues?.id!, data)
@@ -452,6 +440,10 @@ const NewEvaluatorModal: React.FC<Props> = ({
                             name={["settings_values", field.key]}
                         />
                     ))}
+
+                    {advancedSettingsFields.length > 0 && (
+                        <AdvancedSettings settings={advancedSettingsFields} />
+                    )}
 
                     <Form.Item style={{marginBottom: 0}}>
                         <div className={classes.evalBtnContainer}>
