@@ -155,26 +155,19 @@ const ViewNavigation: React.FC<Props> = ({
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
             <>
-                {isDelayed ? (
-                    <>
-                        <div className="grid place-items-center">
-                            <ResultComponent
-                                status={"info"}
-                                title="This is taking longer than expected"
-                                spinner={retrying}
-                            />
-                            <Button loading={loading} onClick={handleStopPolling} type="primary">
-                                Show Logs
-                            </Button>
-                        </div>
-                    </>
-                ) : (
+                <div className="grid place-items-center">
                     <ResultComponent
                         status={"info"}
                         title="Waiting for the variant to start"
+                        subtitle={isDelayed ? "This is taking longer than expected" : ""}
                         spinner={retrying}
                     />
-                )}
+                    {isDelayed && (
+                        <Button loading={loading} onClick={handleStopPolling} type="primary">
+                            Show Logs
+                        </Button>
+                    )}
+                </div>
             </>
         )
     }
