@@ -83,6 +83,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const stopperRef = useRef<Function | null>(null)
     const [isDelayed, setIsDelayed] = useState(false)
+    const [loading, setLoading] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -136,15 +137,16 @@ const ViewNavigation: React.FC<Props> = ({
     }, [netWorkError, isError, variant.variantId])
 
     useEffect(() => {
-        if (retrying) {
+        if (retrying && variantErrorLogs) {
             const timeout = setTimeout(() => {
                 setIsDelayed(true)
             }, 6000)
             return () => clearTimeout(timeout)
         }
-    }, [retrying])
+    }, [retrying, variantErrorLogs])
 
     const handleStopPolling = () => {
+        setLoading(true)
         if (stopperRef.current) {
             stopperRef.current()
         }
@@ -161,7 +163,7 @@ const ViewNavigation: React.FC<Props> = ({
                                 title="This is taking longer than expected"
                                 spinner={retrying}
                             />
-                            <Button onClick={handleStopPolling} type="primary">
+                            <Button loading={loading} onClick={handleStopPolling} type="primary">
                                 Show Logs
                             </Button>
                         </div>
