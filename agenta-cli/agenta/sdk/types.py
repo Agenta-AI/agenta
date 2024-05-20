@@ -10,19 +10,6 @@ class InFile:
         self.file_path = file_path
 
 
-class LLMTokenUsage(BaseModel):
-    completion_tokens: int
-    prompt_tokens: int
-    total_tokens: int
-
-
-class FuncResponse(BaseModel):
-    message: str
-    usage: Optional[LLMTokenUsage]
-    cost: Optional[float]
-    latency: float
-
-
 class DictInput(dict):
     def __new__(cls, default_keys=None):
         instance = super().__new__(cls, default_keys)
