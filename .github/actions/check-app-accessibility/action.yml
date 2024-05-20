@@ -25,7 +25,7 @@ runs:
         sleep 5 # Wait for the app to start
 
         echo "Checking if $APP_URL is accessible"
-        status_code=$(curl --write-out %{http_code} --silent --output /dev/null $APP_URL)
+        status_code=$(curl --max-time 10 --write-out %{http_code} --silent --output /dev/null $APP_URL)
         if [ "$status_code" -ne 200 ]; then
             echo "Error: $APP_URL is not accessible"
             exit 1
