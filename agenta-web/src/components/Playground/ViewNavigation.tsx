@@ -96,12 +96,7 @@ const ViewNavigation: React.FC<Props> = ({
         if (netWorkError) {
             retriedOnce.current = true
             setRetrying(true)
-            const waitForAppPromise = waitForAppToStart({
-                appId,
-                variant,
-                timeout: isDemo() ? 40000 : 6000,
-            })
-            waitForAppPromise
+            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
                 .then((result) => {
                     if (result) {
                         stopperRef.current = result.stopper
