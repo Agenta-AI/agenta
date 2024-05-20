@@ -563,8 +563,8 @@ export const createAppFromTemplate = async (
 }
 
 export const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
+    const {data} = await axios(url)
+    return data
 }
 
 export const waitForAppToStart = async ({
@@ -665,13 +665,7 @@ export const createAndStartTemplate = async ({
 }
 
 export const fetchEnvironments = async (appId: string): Promise<Environment[]> => {
-    const response = await fetch(`${getAgentaApiUrl()}/api/apps/${appId}/environments/`)
-
-    if (response.status !== 200) {
-        throw new Error("Failed to fetch environments")
-    }
-
-    const data: Environment[] = await response.json()
+    const {data} = await axios(`${getAgentaApiUrl()}/api/apps/${appId}/environments/`)
     return data
 }
 
