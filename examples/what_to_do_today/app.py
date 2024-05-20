@@ -99,10 +99,4 @@ async def generate(
         completion_params["presence_penalty"] = ag.config.presence_penalty
 
     response = await litellm.acompletion(**completion_params)
-
-    token_usage = response.usage.dict()
-    return {
-        "message": response.choices[0].message.content,
-        **{"usage": token_usage},
-        "cost": ag.calculate_token_usage(ag.config.model, token_usage),
-    }
+    return response.choices[0].message.content
