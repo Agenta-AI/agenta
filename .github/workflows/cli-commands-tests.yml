@@ -2,9 +2,9 @@ name: cli commands tests
 
 on:
     pull_request:
-        paths:
-            - "agenta-backend/**"
-            - "agenta-cli/**"
+        # paths:
+        #     - "agenta-backend/**"
+        #     - "agenta-cli/**"
 
 jobs:
     serve-to-oss:
