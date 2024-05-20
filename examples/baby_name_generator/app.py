@@ -8,7 +8,7 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init(app_name="test", base_name="app")
+ag.init()
 ag.config.default(
     temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
 )
@@ -31,9 +31,4 @@ def generate(country: str, gender: str) -> str:
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    token_usage = chat_completion.usage.dict()
-    return {
-        "message": chat_completion.choices[0].message.content,
-        **{"usage": token_usage},
-        "cost": ag.calculate_token_usage("gpt-3.5-turbo", token_usage),
-    }
+    return chat_completion.choices[0].message.content
