@@ -580,6 +580,8 @@ export const waitForAppToStart = async ({
 }) => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
+        let stopperFunc: Function | null = null
+
         const {stopper, promise} = shortPoll(
             () =>
                 getVariantParametersFromOpenAPI(
@@ -587,10 +589,16 @@ export const waitForAppToStart = async ({
                     _variant.variantId,
                     _variant.baseId,
                     true,
-                ).then(() => stopper()),
+                ).then(() => {
+                    if (stopperFunc) stopperFunc()
+                    stopper()
+                }),
             {delayMs: interval, timeoutMs: timeout},
         )
-        await promise
+
+        stopperFunc = stopper
+
+        return {stopper: stopperFunc, promise}
     }
 }
 
