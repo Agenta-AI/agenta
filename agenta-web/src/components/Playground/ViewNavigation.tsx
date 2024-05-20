@@ -81,6 +81,8 @@ const ViewNavigation: React.FC<Props> = ({
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+    const stopperRef = useRef<Function | null>(null)
+    const [isDelayed, setIsDelayed] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -93,9 +95,23 @@ const ViewNavigation: React.FC<Props> = ({
         if (netWorkError) {
             retriedOnce.current = true
             setRetrying(true)
-            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
-                .then(() => {
-                    refetch()
+            const waitForAppPromise = waitForAppToStart({
+                appId,
+                variant,
+                timeout: isDemo() ? 40000 : 6000,
+            })
+            waitForAppPromise
+                .then((result) => {
+                    if (result) {
+                        stopperRef.current = result.stopper
+                        return result.promise
+                    }
+                    return null
+                })
+                .then((promise: any) => {
+                    if (promise) {
+                        return promise.then(() => refetch())
+                    }
                 })
                 .catch(() => {
                     showNotification({
@@ -106,6 +122,7 @@ const ViewNavigation: React.FC<Props> = ({
                 })
                 .finally(() => {
                     setRetrying(false)
+                    setIsDelayed(false)
                 })
         }
 
@@ -118,13 +135,45 @@ const ViewNavigation: React.FC<Props> = ({
         }
     }, [netWorkError, isError, variant.variantId])
 
+    useEffect(() => {
+        if (retrying) {
+            const timeout = setTimeout(() => {
+                setIsDelayed(true)
+            }, 6000)
+            return () => clearTimeout(timeout)
+        }
+    }, [retrying])
+
+    const handleStopPolling = () => {
+        if (stopperRef.current) {
+            stopperRef.current()
+        }
+    }
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <ResultComponent
-                status={"info"}
-                title="Waiting for the variant to start"
-                spinner={retrying}
-            />
+            <>
+                {isDelayed ? (
+                    <>
+                        <div className="grid place-items-center">
+                            <ResultComponent
+                                status={"info"}
+                                title="This is taking longer than expected"
+                                spinner={retrying}
+                            />
+                            <Button onClick={handleStopPolling} type="primary">
+                                Show Logs
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                    <ResultComponent
+                        status={"info"}
+                        title="Waiting for the variant to start"
+                        spinner={retrying}
+                    />
+                )}
+            </>
         )
     }
 
