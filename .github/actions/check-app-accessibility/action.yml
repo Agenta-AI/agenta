@@ -11,6 +11,7 @@ runs:
       id: check-app
       shell: bash
       run: |
+
         echo "Serve output:"
         cat ${{ inputs.log-file }}
         APP_URL=$(grep -oP 'You can access it here: \K.+' ${{ inputs.log-file }} | head -n 1)
@@ -20,6 +21,9 @@ runs:
             exit 1
         fi
         APP_URL="${APP_URL%/}/openapi.json"
+
+        sleep 5 # Wait for the app to start
+
         echo "Checking if $APP_URL is accessible"
         status_code=$(curl --write-out %{http_code} --silent --output /dev/null $APP_URL)
         if [ "$status_code" -ne 200 ]; then
