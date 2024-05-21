@@ -63,11 +63,6 @@ services:
             mongo:
                 condition: service_healthy
         restart: always
-        deploy:
-            resources:
-                limits:
-                    cpus: "2.00"
-                    memory: "4G"
 
     agenta-web:
         build:
@@ -88,11 +83,6 @@ services:
         environment:
             - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         restart: always
-        deploy:
-            resources:
-                limits:
-                    cpus: "2.00"
-                    memory: "4G"
 
     mongo:
         image: mongo:5.0
