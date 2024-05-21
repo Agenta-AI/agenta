@@ -22,13 +22,19 @@ runs:
         fi
         APP_URL="${APP_URL%/}/openapi.json"
 
-        sleep 5 # Wait for the app to start
-
         echo "Checking if $APP_URL is accessible"
-        status_code=$(curl --max-time 40 --write-out %{http_code} --silent --output /dev/null $APP_URL)
-        if [ "$status_code" -ne 200 ]; then
-            echo "Error: $APP_URL is not accessible"
-            exit 1
-        else
-            echo "$APP_URL is accessible"
-        fi
+        retries=5
+        for i in $(seq 1 $retries); do
+            status_code=$(curl --max-time 60 --write-out %{http_code} --silent --output /dev/null --verbose $APP_URL)
+            echo "Attempt $i: Status code: $status_code"
+            if [ "$status_code" -eq 200 ]; then
+                echo "$APP_URL is accessible"
+                exit 0
+            else
+                echo "Attempt $i failed: $APP_URL is not accessible"
+                sleep 10 # Wait before retrying
+            fi
+        done
+
+        echo "Error: $APP_URL is not accessible after $retries attempts"
+        exit 1
