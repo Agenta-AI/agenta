@@ -165,41 +165,23 @@ async def run_with_retry(
             return result
         except aiohttp.ClientError as e:
             last_exception = e
-            error_message = f"HTTP error occurred during request: {str(e)}"
-            logger.error(error_message)
+            print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
-        except asyncio.TimeoutError as e:
-            last_exception = e
-            error_message = f"Request timed out: {str(e)}"
-            logger.error(error_message)
-            await asyncio.sleep(retry_delay)
-            retries += 1
-        except aiohttp.ClientConnectionError as e:
-            last_exception = e
-            error_message = f"Connection error: {str(e)}"
-            logger.error(error_message)
-            await asyncio.sleep(retry_delay)
-            retries += 1
-        except json.JSONDecodeError as e:
-            last_exception = e
-            error_message = f"Failed to decode JSON from response: {str(e)}"
-            logger.error(error_message)
-            common.capture_exception_in_sentry(e)
-            break  # Exit the loop for non-retriable exceptions
         except Exception as e:
             last_exception = e
-            error_message = (
-                f"Error processing datapoint: {input_data}. Exception: {str(e)}"
-            )
-            logger.error(error_message)
-            logger.error("".join(traceback.format_exception_only(type(e), e)))
+            logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
+            logger.info("".join(traceback.format_exception_only(type(e), e)))
+            retries += 1
             common.capture_exception_in_sentry(e)
-            break  # Exit the loop for non-ClientError exceptions
 
-    logger.info("Max retries reached or a critical error occurred")
+    # If max retries is reached or an exception that isn't in the second block,
+    # update & return the last exception
+    logging.info("Max retries reached")
     exception_message = (
-        "Max retries reached" if retries == max_retry_count else error_message
+        "Max retries reached"
+        if retries == max_retry_count
+        else f"Error processing {input_data} datapoint"
     )
     return InvokationResult(
         result=Result(
