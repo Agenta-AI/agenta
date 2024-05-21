@@ -84,6 +84,7 @@ const ViewNavigation: React.FC<Props> = ({
     const stopperRef = useRef<Function | null>(null)
     const [isDelayed, setIsDelayed] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [isLogsLoading, setIsLogsLoading] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -123,9 +124,22 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         if (isError) {
+            setLoading(false)
             const getLogs = async () => {
-                const logs = await fetchVariantLogs(variant.variantId)
-                setVariantErrorLogs(logs)
+                try {
+                    setIsLogsLoading(true)
+                    const logs = await fetchVariantLogs(variant.variantId)
+                    setVariantErrorLogs(logs)
+                } catch (error) {
+                    console.error(error)
+                    showNotification({
+                        type: "error",
+                        message: "Variant logs unreachable",
+                        description: `Unable to fetch variant logs.`,
+                    })
+                } finally {
+                    setIsLogsLoading(false)
+                }
             }
             getLogs()
         }
@@ -215,7 +229,11 @@ const ViewNavigation: React.FC<Props> = ({
         const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
-                {error ? (
+                {!error ? null : isLogsLoading ? (
+                    <div className="grid place-items-center mt-10">
+                        <Spin />
+                    </div>
+                ) : (
                     <div>
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
@@ -276,7 +294,7 @@ const ViewNavigation: React.FC<Props> = ({
                             </Tooltip>
                         </Button>
                     </div>
-                ) : null}
+                )}
             </div>
         )
     }
