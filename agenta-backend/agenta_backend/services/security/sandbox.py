@@ -91,7 +91,7 @@ def execute_code_safely(
 
     # Call the evaluation function, extract the result if it exists
     # and is a float between 0 and 1
-    result = environment["evaluate"](app_params, inputs, correct_answer, output)
+    result = environment["evaluate"](app_params, inputs, output, correct_answer)
     if isinstance(result, float) and 0 <= result <= 1:
         return result
     return None
