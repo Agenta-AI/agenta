@@ -23,7 +23,7 @@ runs:
         APP_URL="${APP_URL%/}/openapi.json"
 
         echo "Checking if $APP_URL is accessible"
-        retries=5
+        retries=6
         for i in $(seq 1 $retries); do
             status_code=$(curl --max-time 60 --write-out %{http_code} --silent --output /dev/null --verbose $APP_URL)
             echo "Attempt $i: Status code: $status_code"
