@@ -68,6 +68,7 @@ const useStylesBox = createUseStyles({
     },
     row3: {
         margin: "16px 0",
+        position: "relative",
         "& textarea": {
             height: "100%",
             width: "100%",
@@ -211,6 +212,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     form={form}
                     imageSize="large"
                     isPlaygroundComponent={true}
+                    isLoading={loading}
                 />
             </Row>
             {additionalData?.cost || additionalData?.latency ? (
@@ -247,12 +249,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     >
                         Add to Test Set
                     </Button>
-                    <CopyButton
-                        buttonText={isChatVariant ? "Copy last message" : "Copy result"}
-                        text={result}
-                        disabled={loading || !result}
-                        shape="round"
-                    />
                     {loading ? (
                         <Button
                             icon={<CloseCircleOutlined />}
@@ -298,6 +294,13 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                                     : "#000000e0"
                                 : "",
                         }}
+                    />
+                    <CopyButton
+                        buttonText={null}
+                        text={result}
+                        disabled={loading || !result}
+                        icon={true}
+                        className="absolute top-2 right-2 opacity-70"
                     />
                 </Row>
             )}
