@@ -274,7 +274,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
     """
 
-    schema = await _get_openai_json_from_uri(uri)
+    schema = await _get_openapi_json_from_uri(uri)
 
     try:
         body_schema_name = (
@@ -304,7 +304,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
     return parameters
 
 
-async def _get_openai_json_from_uri(uri):
+async def _get_openapi_json_from_uri(uri):
     async with aiohttp.ClientSession() as client:
         resp = await client.get(uri, timeout=5)
         resp_text = await resp.text()

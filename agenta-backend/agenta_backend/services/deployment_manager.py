@@ -149,15 +149,15 @@ async def validate_image(image: Image) -> bool:
 def get_deployment_uri(deployment: DeploymentDB) -> str:
     """
     Builds a URI allowing the backend to access a given deployment.
-    In the case of a self-hosted setup, we bypass traefik and use the docker generated dns entry instead. 
+    In the case of a self-hosted setup, we bypass traefik and use the docker generated dns entry instead.
 
     Args:
         deployment (DeploymentDB): The deployment to reach.
 
     Returns:
-        str: URI leading to the deployment 
+        str: URI leading to the deployment.
     """
     if "localhost" in deployment.uri:
         # the DNS entry automatically created by docker for the container are the first 12 characters of the container's id
-        return "http://"+deployment.container_id[:12]
+        return "http://" + deployment.container_id[:12]
     return deployment.uri
