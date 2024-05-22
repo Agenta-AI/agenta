@@ -7,6 +7,7 @@ import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 import {v4 as uuidv4} from "uuid"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import CopyButton from "../CopyButton/CopyButton"
 
 const useStyles = createUseStyles({
     root: {
@@ -50,6 +51,7 @@ interface Props {
     disableEditRole?: boolean
     disableEditContent?: boolean
     readonly?: boolean
+    isLoading?: boolean
 }
 
 const ChatInputs: React.FC<Props> = ({
@@ -62,6 +64,7 @@ const ChatInputs: React.FC<Props> = ({
     disableEditRole,
     disableEditContent,
     readonly,
+    isLoading,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
@@ -126,6 +129,8 @@ const ChatInputs: React.FC<Props> = ({
         if (Array.isArray(value)) setMessages(cloneDeep(value))
     }, [JSON.stringify(value)])
 
+    const lastAssistantMsg = messages.filter((msg) => msg.role === ChatRole.Assistant)
+
     return (
         <div className={classes.root}>
             {messages.map((msg, ix) => (
@@ -160,16 +165,33 @@ const ChatInputs: React.FC<Props> = ({
                         onChange={(e) => handleInputChange(ix, e)}
                         readOnly={readonly}
                     />
-                    {messages.length > 1 && !disableRemove && (
-                        <Tooltip title="Remove">
-                            <Button
-                                shape="circle"
-                                size="small"
-                                icon={<MinusOutlined />}
-                                onClick={() => handleDelete(ix)}
+                    <div className="flex items-center gap-2">
+                        {lastAssistantMsg[lastAssistantMsg.length - 1]?.id === msg.id && (
+                            <CopyButton
+                                buttonText={null}
+                                text={
+                                    !!lastAssistantMsg.length
+                                        ? lastAssistantMsg[lastAssistantMsg.length - 1].content
+                                        : ""
+                                }
+                                disabled={
+                                    isLoading ||
+                                    !lastAssistantMsg[lastAssistantMsg.length - 1]?.content
+                                }
+                                icon={true}
                             />
-                        </Tooltip>
-                    )}
+                        )}
+                        {messages.length > 1 && !disableRemove && (
+                            <Tooltip title="Remove">
+                                <Button
+                                    shape="circle"
+                                    size="small"
+                                    icon={<MinusOutlined />}
+                                    onClick={() => handleDelete(ix)}
+                                />
+                            </Tooltip>
+                        )}
+                    </div>
                 </div>
             ))}
 

@@ -48,6 +48,7 @@ interface Props {
     form?: FormInstance<GenericObject>
     imageSize?: "small" | "large"
     isPlaygroundComponent?: boolean
+    isLoading?: boolean
 }
 
 const ParamsForm: React.FC<Props> = ({
@@ -59,6 +60,7 @@ const ParamsForm: React.FC<Props> = ({
     form,
     imageSize = "small",
     isPlaygroundComponent = false,
+    isLoading,
 }) => {
     const classes = useStyles()
     const imgHeight = imageSize === "small" ? 90 : 120
@@ -70,6 +72,7 @@ const ParamsForm: React.FC<Props> = ({
             value={useChatDefaultValue ? undefined : chat}
             defaultValue={useChatDefaultValue ? chat : undefined}
             onChange={(val) => onParamChange?.("chat", val)}
+            isLoading={isLoading}
         />
     ) : (
         <Form form={form} className={classes.form} onFinish={onFinish}>
