@@ -2,7 +2,7 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant, promptRevision} from "@/lib/services/api"
-import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -34,7 +34,7 @@ type StyleProps = {
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
 
-const useStylesBox = createUseStyles({
+const useStylesBox = createUseStyles((theme: JSSTheme) => ({
     card: {
         marginTop: 16,
         border: "1px solid #ccc",
@@ -74,7 +74,14 @@ const useStylesBox = createUseStyles({
             width: "100%",
         },
     },
-})
+    copyButton: {
+        position: "absolute",
+        right: 6,
+        opacity: 0.5,
+        bottom: 6,
+        color: theme.colorPrimary,
+    },
+}))
 
 const useStylesApp = createUseStyles({
     testView: {
@@ -300,7 +307,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         text={result}
                         disabled={loading || !result}
                         icon={true}
-                        className="absolute right-1.5 opacity-50 bottom-1.5"
+                        className={classes.copyButton}
                     />
                 </Row>
             )}
