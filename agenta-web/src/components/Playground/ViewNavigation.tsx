@@ -229,7 +229,7 @@ const ViewNavigation: React.FC<Props> = ({
         const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
-                {!error ? null : isLogsLoading ? (
+                {!error ? null : isLogsLoading || !variantErrorLogs ? (
                     <div className="grid place-items-center mt-10">
                         <Spin />
                     </div>
