@@ -20,6 +20,7 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
     return (
         <Button
             icon={icon && buttonIcon}
+            style={{color: "#4AA081"}}
             {...props}
             onClick={async () => {
                 if (text === "") return

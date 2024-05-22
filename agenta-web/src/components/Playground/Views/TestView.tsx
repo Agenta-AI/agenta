@@ -300,7 +300,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         text={result}
                         disabled={loading || !result}
                         icon={true}
-                        className="absolute top-2 right-2 opacity-70"
+                        className="absolute right-1.5 opacity-50 bottom-1.5"
                     />
                 </Row>
             )}

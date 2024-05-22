@@ -145,27 +145,27 @@ const ChatInputs: React.FC<Props> = ({
                         value={msg.role}
                         onChange={(newRole) => handleRoleChange(ix, newRole)}
                     />
-                    <Input.TextArea
-                        style={{
-                            maxWidth: "none",
-                            background: msg.content.startsWith("❌")
-                                ? appTheme === "dark"
-                                    ? "#490b0b"
-                                    : "#fff1f0"
-                                : "",
-                            color: msg.content.startsWith("❌")
-                                ? appTheme === "dark"
-                                    ? "#ffffffd9"
-                                    : "#000000e0"
-                                : "",
-                        }}
-                        disabled={disableEditContent}
-                        autoSize={{maxRows}}
-                        value={msg.content}
-                        onChange={(e) => handleInputChange(ix, e)}
-                        readOnly={readonly}
-                    />
-                    <div className="flex items-center gap-2">
+                    <div className="relative w-[100%]">
+                        <Input.TextArea
+                            style={{
+                                maxWidth: "none",
+                                background: msg.content.startsWith("❌")
+                                    ? appTheme === "dark"
+                                        ? "#490b0b"
+                                        : "#fff1f0"
+                                    : "",
+                                color: msg.content.startsWith("❌")
+                                    ? appTheme === "dark"
+                                        ? "#ffffffd9"
+                                        : "#000000e0"
+                                    : "",
+                            }}
+                            disabled={disableEditContent}
+                            autoSize={{maxRows}}
+                            value={msg.content}
+                            onChange={(e) => handleInputChange(ix, e)}
+                            readOnly={readonly}
+                        />
                         {lastAssistantMsg[lastAssistantMsg.length - 1]?.id === msg.id && (
                             <CopyButton
                                 buttonText={null}
@@ -179,19 +179,20 @@ const ChatInputs: React.FC<Props> = ({
                                     !lastAssistantMsg[lastAssistantMsg.length - 1]?.content
                                 }
                                 icon={true}
+                                className="absolute right-2 border-0 h-[30px] opacity-50 bottom-0"
                             />
                         )}
-                        {messages.length > 1 && !disableRemove && (
-                            <Tooltip title="Remove">
-                                <Button
-                                    shape="circle"
-                                    size="small"
-                                    icon={<MinusOutlined />}
-                                    onClick={() => handleDelete(ix)}
-                                />
-                            </Tooltip>
-                        )}
                     </div>
+                    {messages.length > 1 && !disableRemove && (
+                        <Tooltip title="Remove">
+                            <Button
+                                shape="circle"
+                                size="small"
+                                icon={<MinusOutlined />}
+                                onClick={() => handleDelete(ix)}
+                            />
+                        </Tooltip>
+                    )}
                 </div>
             ))}
 
