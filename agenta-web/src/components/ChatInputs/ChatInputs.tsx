@@ -1,4 +1,4 @@
-import {ChatMessage, ChatRole} from "@/lib/Types"
+import {ChatMessage, ChatRole, JSSTheme} from "@/lib/Types"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
 import {cloneDeep} from "lodash"
@@ -9,7 +9,7 @@ import {v4 as uuidv4} from "uuid"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import CopyButton from "../CopyButton/CopyButton"
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {
         display: "flex",
         flexDirection: "column",
@@ -33,7 +33,16 @@ const useStyles = createUseStyles({
             maxWidth: 800,
         },
     },
-})
+    copyButton: {
+        position: "absolute",
+        right: 4,
+        border: 0,
+        height: 30,
+        opacity: 0.5,
+        bottom: 1,
+        color: theme.colorPrimary,
+    },
+}))
 
 export const getDefaultNewMessage = () => ({
     id: uuidv4(),
@@ -179,7 +188,7 @@ const ChatInputs: React.FC<Props> = ({
                                     !lastAssistantMsg[lastAssistantMsg.length - 1]?.content
                                 }
                                 icon={true}
-                                className="absolute right-2 border-0 h-[30px] opacity-50 bottom-0"
+                                className={classes.copyButton}
                             />
                         )}
                     </div>
