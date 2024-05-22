@@ -247,7 +247,6 @@ class LMProvidersEnum(str, Enum):
     alephalpha = "ALEPHALPHA_API_KEY"
     openrouter = "OPENROUTER_API_KEY"
     groq = "GROQ_API_KEY"
-    gemini = "GEMINI_API_KEY"
 
 
 class NewEvaluation(BaseModel):
