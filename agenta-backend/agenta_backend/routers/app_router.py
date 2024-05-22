@@ -578,7 +578,6 @@ async def create_app_and_variant_from_template(
                 "ALEPHALPHA_API_KEY",
                 "OPENROUTER_API_KEY",
                 "GROQ_API_KEY",
-                "GEMINI_API_KEY",
             ]
             missing_keys = [
                 key for key in supported_llm_prodviders_keys if not os.environ.get(key)

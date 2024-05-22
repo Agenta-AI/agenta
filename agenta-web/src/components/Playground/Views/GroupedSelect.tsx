@@ -13,7 +13,6 @@ import {
     OpenRouter,
     Fireworks,
     Groq,
-    Gemini,
 } from "@lobehub/icons"
 
 const useStyles = createUseStyles({
@@ -46,7 +45,6 @@ const iconMap: {[key: string]: React.ComponentType<any>} = {
     "Together AI": Together.Color,
     OpenRouter: OpenRouter,
     Groq: Groq,
-    Gemini: Gemini,
 }
 
 const getTextContent = (element: React.ReactNode): string => {
