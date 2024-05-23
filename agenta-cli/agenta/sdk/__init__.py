@@ -14,9 +14,9 @@ from .types import (
     BinaryParam,
 )
 from .tracing.llm_tracing import Tracing
-from .decorators.tracing import instrument
+from .decorators.tracing import instrument, tracing
 from .decorators.llm_entrypoint import entrypoint
-from .agenta_init import Config, init, llm_tracing
+from .agenta_init import Config, init
 from .utils.helper.openai_cost import calculate_token_usage
 
 
