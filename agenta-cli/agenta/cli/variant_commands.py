@@ -104,12 +104,13 @@ def add_variant(
     )
 
     if variant_name in config["variants"] and not overwrite:
-        overwrite_question = questionary.confirm(
-            "This variant already exists. Do you want to overwrite it?"
-        ).ask()
-        if not overwrite_question:
-            click.echo("Operation cancelled.")
-            sys.exit(0)
+        if not overwrite:
+            overwrite = questionary.confirm(
+                "This variant already exists. Do you want to overwrite it?"
+            ).ask()
+            if not overwrite:
+                click.echo("Operation cancelled.")
+                return
 
     try:
         click.echo(
@@ -445,7 +446,6 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 @click.option(
     "--overwrite",
     is_flag=True,
-    default=False,
     help="Overwrite the existing variant if it exists",
 )
 @click.pass_context

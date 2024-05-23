@@ -172,6 +172,7 @@ async def run_with_retry(
             last_exception = e
             logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
             logger.info("".join(traceback.format_exception_only(type(e), e)))
+            retries += 1
             common.capture_exception_in_sentry(e)
 
     # If max retries is reached or an exception that isn't in the second block,
@@ -186,7 +187,7 @@ async def run_with_retry(
         result=Result(
             type="error",
             value=None,
-            error=Error(message=exception_message, stacktrace=last_exception),
+            error=Error(message=exception_message, stacktrace=str(last_exception)),
         )
     )
 
