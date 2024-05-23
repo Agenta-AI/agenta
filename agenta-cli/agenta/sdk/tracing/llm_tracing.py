@@ -1,4 +1,5 @@
 # Stdlib Imports
+import os
 from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Union
@@ -27,20 +28,15 @@ class SingletonMeta(type):
 
     def __call__(cls, *args, **kwargs):
         """
-        Possible changes to the value of the `__init__` argument do not affect
-        the returned instance.
+        Ensures that changes to the `__init__` arguments do not affect the
+        returned instance.
+
+        Uses a lock to make this method thread-safe. If an instance of the class
+        does not already exist, it creates one. Otherwise, it returns the
+        existing instance.
         """
-        # Now, imagine that the program has just been launched. Since there's no
-        # Singleton instance yet, multiple threads can simultaneously pass the
-        # previous conditional and reach this point almost at the same time. The
-        # first of them will acquire lock and will proceed further, while the
-        # rest will wait here.
+
         with cls._lock:
-            # The first thread to acquire the lock, reaches this conditional,
-            # goes inside and creates the Singleton instance. Once it leaves the
-            # lock block, a thread that might have been waiting for the lock
-            # release may then enter this section. But since the Singleton field
-            # is already initialized, the thread won't create a new object.
             if cls not in cls._instances:
                 instance = super().__call__(*args, **kwargs)
                 cls._instances[cls] = instance
@@ -76,8 +72,8 @@ class Tracing(metaclass=SingletonMeta):
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=llm_logger
         )
-        self.active_span = CreateSpan
-        self.active_trace = CreateSpan
+        self.active_span: Optional[CreateSpan] = None
+        self.active_trace: Optional[CreateSpan] = None
         self.recording_trace_id: Union[str, None] = None
         self.recorded_spans: List[CreateSpan] = []
         self.tags: List[str] = []
@@ -120,41 +116,18 @@ class Tracing(metaclass=SingletonMeta):
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
 
-    def start_parent_span(
-        self, name: str, inputs: Dict[str, Any], config: Dict[str, Any] = {}, **kwargs
-    ):
-        trace_id = self._create_trace_id()
-        span_id = self._create_span_id()
-        self.llm_logger.info("Recording parent span...")
-        span = CreateSpan(
-            id=span_id,
-            app_id=self.app_id,
-            variant_id=self.variant_id,
-            variant_name=self.variant_name,
-            inputs=inputs,
-            name=name,
-            config=config,
-            environment=kwargs.get("environment"),
-            spankind=SpanKind.WORKFLOW.value,
-            status=SpanStatusCode.UNSET.value,
-            start_time=datetime.now(timezone.utc),
-        )
-        self.active_trace = span
-        self.recording_trace_id = trace_id
-        self.parent_span_id = span.id
-        self.llm_logger.info(
-            f"Recorded active_trace and setting parent_span_id: {span.id}"
-        )
-
     def start_span(
         self,
         name: str,
         spankind: str,
         input: Dict[str, Any],
-        config: Dict[str, Any] = {},
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> CreateSpan:
         span_id = self._create_span_id()
-        self.llm_logger.info(f"Recording {spankind} span...")
+        self.llm_logger.info(
+            f"Recording {'parent' if spankind == 'workflow' else spankind} span..."
+        )
         span = CreateSpan(
             id=span_id,
             inputs=input,
@@ -163,47 +136,67 @@ class Tracing(metaclass=SingletonMeta):
             variant_id=self.variant_id,
             variant_name=self.variant_name,
             config=config,
-            environment=self.active_trace.environment,
-            parent_span_id=self.parent_span_id,
+            environment=(
+                self.active_trace.environment
+                if self.active_trace
+                else os.environ.get("AGENTA_LLM_RUN_ENVIRONMENT", "unset")
+            ),
             spankind=spankind.upper(),
             attributes={},
             status=SpanStatusCode.UNSET.value,
             start_time=datetime.now(timezone.utc),
+            outputs=None,
+            tags=None,
+            user=None,
+            end_time=None,
+            tokens=None,
+            cost=None,
+            token_consumption=None,
+            parent_span_id=None,
         )
 
-        self.active_span = span
-        self.span_dict[span.id] = span
-        self.parent_span_id = span.id
-        self.llm_logger.info(
-            f"Recorded active_span and setting parent_span_id: {span.id}"
-        )
+        if span.spankind == SpanKind.WORKFLOW.value:
+            self.active_trace = span
+            self.parent_span_id = span.id
+            self.recording_trace_id = self._create_trace_id()
+        else:
+            self.active_span = span
+            self.active_span = span
+            self.span_dict[span.id] = span
+            span.parent_span_id = self.parent_span_id # set the parent_span_id to the present span
+            self.parent_span_id = span.id # update parent_span_id to active span
+
+        self.llm_logger.info(f"Recorded span and setting parent_span_id: {span.id}")
         return span
 
     def update_span_status(self, span: CreateSpan, value: str):
-        updated_span = CreateSpan(**{**span.dict(), "status": value})
-        self.active_span = updated_span
+        span.status = value
+        self.active_span = span
 
-    def end_span(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
-        updated_span = CreateSpan(
-            **span.dict(),
-            end_time=datetime.now(timezone.utc),
-            outputs=[outputs["message"]],
-            cost=outputs.get("cost", None),
-            tokens=outputs.get("usage"),
-        )
+    def end_span(self, outputs: Dict[str, Any], span: CreateSpan):
+        span.end_time = datetime.now(timezone.utc)
+        span.outputs = [outputs["message"]]
+        span.cost = outputs.get("cost", None)
+        span.tokens = outputs.get("usage")
 
         # Push span to list of recorded spans
-        self.recorded_spans.append(updated_span)
+        self.recorded_spans.append(span)
         self.llm_logger.info(
-            f"Pushed {updated_span.spankind} span {updated_span.id} to recorded spans."
+            f"Pushed {span.spankind} span {span.id} to recorded spans."
         )
 
-    def end_recording(self, outputs: Dict[str, Any], span: CreateSpan, **kwargs):
-        self.end_span(outputs=outputs, span=span, **kwargs)
+        # End tracing if spankind is workflow
+        if span.spankind == SpanKind.WORKFLOW.value:
+            self.end_recording(span=span)
+
+    def end_recording(self, span: CreateSpan):
         if self.api_key == "":
             return
 
-        self.llm_logger.info(f"Preparing to send recorded spans for processing.")
+        if not self.active_trace:
+            raise RuntimeError("No active trace to end.")
+
+        self.llm_logger.info("Preparing to send recorded spans for processing.")
         self.llm_logger.info(f"Recorded spans => {len(self.recorded_spans)}")
         self.tasks_manager.add_task(
             self.active_trace.id,
