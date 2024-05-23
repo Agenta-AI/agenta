@@ -9,10 +9,6 @@ import agenta as ag
 from agenta.sdk.decorators.base import BaseDecorator
 
 
-# Set global tracing variable to None
-tracing = None
-
-
 class instrument(BaseDecorator):
     """Decorator class for monitoring llm apps functions.
 
@@ -46,9 +42,9 @@ class instrument(BaseDecorator):
             api_key=os.environ["AGENTA_API_KEY"],
         )
 
-        # Update tracing variable to be global
-        global tracing
-        tracing = self.tracing
+        # Set span for global access
+        global span
+        span = self.tracing
 
     def __call__(self, func: Callable[..., Any]):
         @wraps(func)
