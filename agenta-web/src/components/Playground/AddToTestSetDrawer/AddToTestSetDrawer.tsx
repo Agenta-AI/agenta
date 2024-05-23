@@ -18,9 +18,9 @@ import {
     message,
 } from "antd"
 import {useRouter} from "next/router"
-import React, {useCallback, useLayoutEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
+import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import _ from "lodash"
 
@@ -101,9 +101,22 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const router = useRouter()
     const appId = router.query.app_id as string
     const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
-    const [selectedTestset, setSelectedTestset] = useState<string>(
-        testsets.length ? testsets[0]._id : "-1",
+    const storedValue = JSON.parse(localStorage.getItem(`selectedTestset_${appId}`) || "")
+    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
+        `selectedTestset_${appId}`,
+        "",
     )
+
+    useEffect(() => {
+        if (storedValue && testsets.some((testset: testset) => testset._id === storedValue)) {
+            setSelectedTestset(storedValue)
+        } else if (testsets.length > 0) {
+            setSelectedTestset(testsets[0]._id)
+        } else {
+            setSelectedTestset("-1")
+        }
+    }, [testsets])
+
     const isNew = selectedTestset === "-1"
     const chatParams = useRef<{chat: ChatMessage[]; correct_answer: ChatMessage | string}>({
         chat: [],
