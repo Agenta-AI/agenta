@@ -1,10 +1,9 @@
 import os
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi
-from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
 
@@ -36,51 +35,66 @@ class AgentaSingleton:
 
     def init(
         self,
+        app_name: Optional[str] = None,
+        base_name: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_id: Optional[str] = None,
         app_id: Optional[str] = None,
         host: Optional[str] = None,
-        api_key: Optional[str] = None,
+        **kwargs: Any,
     ) -> None:
         """Main function to initialize the singleton.
 
-        Initializes the singleton with the given `app_name`, `base_name`, and `host`. If any of these arguments are not provided,
-        the function will look for them in environment variables.
+        Initializes the singleton with the given `app_name`, `base_name`, and `host`.
+        If any of these arguments are not provided, the function will look for them
+        in environment variables.
 
         Args:
-            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "AGENTA_APP_NAME" in environment variables.
-            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "AGENTA_HOST" in environment variables.
-            api_key (Optional[str]): API Key to use with the host of the backend server.
+            app_name (Optional[str]): Name of the application. Defaults to None.
+            base_name (Optional[str]): Base name for the setup. Defaults to None.
+            api_key (Optional[str]): API Key to use with the host. Defaults to None.
+            base_id (Optional[str]): Base ID for the setup. Defaults to None.
+            app_id (Optional[str]): App ID. Defaults to None.
+            host (Optional[str]): Host name of the backend server. Defaults to "http://localhost".
             kwargs (Any): Additional keyword arguments.
 
         Raises:
-            ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
+            ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments
+            or in the environment variables.
         """
 
+        self.app_name = app_name or os.environ.get("AGENTA_APP_NAME")
+        self.base_name = base_name or os.environ.get("AGENTA_BASE_NAME")
         self.api_key = api_key or os.environ.get("AGENTA_API_KEY")
+        self.base_id = base_id or os.environ.get("AGENTA_BASE_ID")
+        self.app_id = app_id or os.environ.get("AGENTA_APP_ID")
         self.host = host or os.environ.get("AGENTA_HOST", "http://localhost")
 
-        app_id = app_id or os.environ.get("AGENTA_APP_ID")
-        if not app_id:
-            raise ValueError("App ID must be specified.")
-
-        base_id = os.environ.get("AGENTA_BASE_ID")
-        base_name = os.environ.get("AGENTA_BASE_NAME")
-        if base_id is None and (app_id is None or base_name is None):
+        if not self.app_id and (not self.app_name or not self.base_name):
             print(
                 f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
             )
-        else:
+
+        if not self.base_id and self.app_name and self.base_name:
             try:
-                base_id = self.get_app_base(app_id, base_name)  # type: ignore
+                self.app_id = self.get_app(self.app_name)
+                self.base_id = self.get_app_base(self.app_id, self.base_name)
             except Exception as ex:
                 raise APIRequestError(
                     f"Failed to get base id and/or app_id from the server with error: {ex}"
                 )
 
-        self.app_id = app_id
-        self.base_id = base_id
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.config = Config(base_id=base_id, host=host)
+        self.config = Config(base_id=self.base_id, host=self.host)
+
+    def get_app(self, app_name: str) -> str:
+        apps = self.client.apps.list_apps(app_name=app_name)
+        if len(apps) == 0:
+            raise APIRequestError(f"App with name {app_name} not found")
+
+        app_id = apps[0].app_id
+        return app_id
 
     def get_app_base(self, app_id: str, base_name: str) -> str:
         bases = self.client.bases.list_bases(app_id=app_id, base_name=base_name)
@@ -212,34 +226,15 @@ class Config:
             setattr(self, key, value)
 
 
-def init(
-    app_id: Optional[str] = None,
-    host: Optional[str] = None,
-    api_key: Optional[str] = None,
-):
+def init(app_name=None, base_name=None, **kwargs):
     """Main function to be called by the user to initialize the sdk.
 
     Args:
-        app_id (str): The Id of the app.
-        host (str): The host of the backend server.
-        api_key (str): The API key to use for the backend server.
+        app_name: _description_. Defaults to None.
+        base_name: _description_. Defaults to None.
     """
 
     singleton = AgentaSingleton()
 
-    singleton.init(app_id=app_id, host=host, api_key=api_key)
+    singleton.init(app_name=app_name, base_name=base_name, **kwargs)
     set_global(setup=singleton.setup, config=singleton.config)
-
-
-def llm_tracing(max_workers: Optional[int] = None) -> Tracing:
-    """Function to start llm tracing."""
-
-    singleton = AgentaSingleton()
-    return Tracing(
-        base_url=singleton.host,  # type: ignore
-        app_id=singleton.app_id,  # type: ignore
-        variant_id=singleton.variant_id,  # type: ignore
-        variant_name=singleton.variant_name,
-        api_key=singleton.api_key,
-        max_workers=max_workers,
-    )
