@@ -13,10 +13,10 @@ from .types import (
     FileInputURL,
     BinaryParam,
 )
+from .agenta_init import Config, init
 from .tracing.llm_tracing import Tracing
 from .decorators.tracing import instrument
-from .decorators.llm_entrypoint import entrypoint
-from .agenta_init import Config, init
+from .decorators.llm_entrypoint import entrypoint, app
 from .utils.helper.openai_cost import calculate_token_usage
 
 
