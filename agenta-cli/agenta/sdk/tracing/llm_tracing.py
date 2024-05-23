@@ -163,8 +163,10 @@ class Tracing(metaclass=SingletonMeta):
             self.active_span = span
             self.active_span = span
             self.span_dict[span.id] = span
-            span.parent_span_id = self.parent_span_id # set the parent_span_id to the present span
-            self.parent_span_id = span.id # update parent_span_id to active span
+            span.parent_span_id = (
+                self.parent_span_id
+            )  # set the parent_span_id to the present span
+            self.parent_span_id = span.id  # update parent_span_id to active span
 
         self.llm_logger.info(f"Recorded span and setting parent_span_id: {span.id}")
         return span

@@ -14,6 +14,7 @@ tracing = ag.Tracing(
 )
 llm_config = {"environment": "production"}
 
+
 def hosted_platform_call(content: str):
     span = tracing.start_span(
         name="gpt3.5-llm-call",

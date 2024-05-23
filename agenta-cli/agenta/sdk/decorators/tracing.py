@@ -12,6 +12,7 @@ from agenta.sdk.decorators.base import BaseDecorator
 # Set global tracing variable to None
 tracing = None
 
+
 class instrument(BaseDecorator):
     """Decorator class for monitoring llm apps functions.
 
