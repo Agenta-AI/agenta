@@ -12,7 +12,7 @@ tracing = ag.Tracing(
     host="https://cloud.agenta.ai",
     api_key="xxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 )
-
+llm_config = {"environment": "production"}
 
 def hosted_platform_call(content: str):
     span = tracing.start_span(
@@ -24,7 +24,7 @@ def hosted_platform_call(content: str):
         url=API_URL,
         json={
             "inputs": [{"role": "user", "content": content}],
-            "environment": "production",
+            "environment": llm_config["environment"],
         },
     )
     tracing.end_span(outputs=response.json(), span=span)
@@ -32,13 +32,14 @@ def hosted_platform_call(content: str):
 
 
 def query(content: str):
-    tracing.start_parent_span(
+    tracing.start_span(
         name="query",
-        inputs={"content": content},
-        environment=os.environ.get("AGENTA_LLM_RUN_PLAYGROUND"),
+        input={"content": content},
+        spankind="workflow",
+        config=llm_config,
     )
     response = hosted_platform_call(content=content)
-    tracing.end_recording(outputs=response, span=tracing.active_trace)
+    tracing.end_span(outputs=response, span=tracing.active_trace)
     return response
 
 
