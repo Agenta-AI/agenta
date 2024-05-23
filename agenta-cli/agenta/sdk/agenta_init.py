@@ -86,7 +86,7 @@ class AgentaSingleton:
 
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.config = Config(base_id=self.base_id, host=self.host)
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)
 
     def get_app(self, app_name: str) -> str:
         apps = self.client.apps.list_apps(app_name=app_name)
@@ -113,9 +113,10 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id, host):
+    def __init__(self, base_id: str, host: str, api_key: str):
         self.base_id = base_id
         self.host = host
+        self.api_key = api_key
 
         if base_id is None or host is None:
             self.persist = False
@@ -130,8 +131,7 @@ class Config:
             AgentaAPI: instance of agenta api backend
         """
 
-        sdk_client = SDKClient(api_key=self.api_key, host=self.host)  # type: ignore
-        return sdk_client._build_sdk_client()
+        return AgentaApi(base_url=self.host + "/api", api_key=self.api_key)
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
