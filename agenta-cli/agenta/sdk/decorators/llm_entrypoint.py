@@ -68,19 +68,11 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __init__(self, enable_tracing: bool = False):
-        self.enable_tracing = enable_tracing
-
     def __call__(self, func: Callable[..., Any]):
         endpoint_name = "generate"
         func_signature = inspect.signature(func)
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
-
-        if self.enable_tracing:
-            from .tracing import trace
-
-            func = trace()(func)
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
