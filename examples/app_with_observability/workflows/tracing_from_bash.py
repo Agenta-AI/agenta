@@ -1,6 +1,7 @@
 import os
 import asyncio
 import agenta as ag
+from agenta.sdk.decorators import tracing as observe
 from openai import AsyncOpenAI
 
 
@@ -28,7 +29,7 @@ async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    ag.tracing.set_span_attribute(
+    observe.span.set_span_attribute(
         "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
     )  # translates to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()
