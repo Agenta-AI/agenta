@@ -1,4 +1,5 @@
 # Stdlib Imports
+import os
 import inspect
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -7,6 +8,9 @@ from typing import Any, Callable, Optional
 import agenta as ag
 from agenta.sdk.decorators.base import BaseDecorator
 
+
+# Set global tracing variable to None
+tracing = None
 
 class instrument(BaseDecorator):
     """Decorator class for monitoring llm apps functions.
@@ -35,7 +39,15 @@ class instrument(BaseDecorator):
     ) -> None:
         self.config = config
         self.spankind = spankind
-        self.tracing = ag.llm_tracing()
+        self.tracing = ag.Tracing(
+            base_url=os.environ["AGENTA_BASE_URL"],
+            app_id=os.environ["AGENTA_APP_ID"],
+            api_key=os.environ["AGENTA_API_KEY"],
+        )
+
+        # Update tracing variable to be global
+        global tracing
+        tracing = self.tracing
 
     def __call__(self, func: Callable[..., Any]):
         @wraps(func)
