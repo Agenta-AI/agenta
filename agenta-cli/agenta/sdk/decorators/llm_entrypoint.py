@@ -311,12 +311,17 @@ class entrypoint(BaseDecorator):
             if is_main_script(my_function):
                 print("This is the main script.")
         """
-        return os.path.splitext(os.path.basename(inspect.getfile(func)))[
-            0
-        ] == "tracing" or (
-            os.path.splitext(os.path.basename(sys.argv[0]))[0]
-            == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
-        )
+
+        # this ensures that when we call main.py, it starts the fastapi server
+        if os.path.splitext(os.path.basename(sys.argv[0]))[0] == "main":
+            return False
+
+        # the function that gets passed to entrypoint will always be called from sdk/decorators/tracing.py
+        if os.path.splitext(os.path.basename(inspect.getfile(func)))[0] == "tracing":
+            return True
+
+        # same behaviour as the first single-line comment above
+        return False
 
     def handle_terminal_run(
         self,

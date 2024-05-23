@@ -86,7 +86,7 @@ class AgentaSingleton:
 
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
     def get_app(self, app_name: str) -> str:
         apps = self.client.apps.list_apps(app_name=app_name)
@@ -113,7 +113,7 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: str):
+    def __init__(self, base_id: str, host: str, api_key: Optional[str] = None):
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
