@@ -18,9 +18,9 @@ import {
     message,
 } from "antd"
 import {useRouter} from "next/router"
-import React, {useCallback, useLayoutEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
+import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import _ from "lodash"
 
@@ -91,7 +91,6 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [form] = Form.useForm()
-    const [selectedTestset, setSelectedTestset] = useState<string>()
     const [newTesetModalOpen, setNewTestsetModalOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [turnModeChat, setTurnModeChat] = useState<
@@ -101,9 +100,24 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const dirty = useRef(false)
     const router = useRouter()
     const appId = router.query.app_id as string
-    const isNew = selectedTestset === "-1"
-
     const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
+    const storedValue = localStorage.getItem(`selectedTestset_${appId}`)?.replace(/"/g, "")
+    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
+        `selectedTestset_${appId}`,
+        "",
+    )
+
+    useEffect(() => {
+        if (storedValue && testsets.some((testset: testset) => testset._id === storedValue)) {
+            setSelectedTestset(storedValue)
+        } else if (testsets.length > 0) {
+            setSelectedTestset(testsets[0]._id)
+        } else {
+            setSelectedTestset("-1")
+        }
+    }, [testsets])
+
+    const isNew = selectedTestset === "-1"
     const chatParams = useRef<{chat: ChatMessage[]; correct_answer: ChatMessage | string}>({
         chat: [],
         correct_answer: "",
