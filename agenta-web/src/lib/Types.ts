@@ -264,6 +264,7 @@ export interface LlmProvidersKeys {
     TOGETHERAI_API_KEY: string
     MISTRAL_API_KEY: string
     GROQ_API_KEY: string
+    GEMINI_API_KEY: string
 }
 
 export interface AppTemplate {
