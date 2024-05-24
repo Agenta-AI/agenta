@@ -46,7 +46,7 @@ const iconMap: {[key: string]: React.ComponentType<any>} = {
     "Together AI": Together.Color,
     OpenRouter: OpenRouter,
     Groq: Groq,
-    Gemini: Gemini,
+    Gemini: Gemini.Color,
 }
 
 const getTextContent = (element: React.ReactNode): string => {
