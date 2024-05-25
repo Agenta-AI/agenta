@@ -81,6 +81,10 @@ const ViewNavigation: React.FC<Props> = ({
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+    const stopperRef = useRef<Function | null>(null)
+    const [isDelayed, setIsDelayed] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [isLogsLoading, setIsLogsLoading] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -93,38 +97,93 @@ const ViewNavigation: React.FC<Props> = ({
         if (netWorkError) {
             retriedOnce.current = true
             setRetrying(true)
-            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
-                .then(() => {
-                    refetch()
+            const startApp = async () => {
+                const {stopper, promise} = await waitForAppToStart({
+                    appId,
+                    variant,
+                    timeout: isDemo() ? 40000 : 10000,
                 })
-                .catch(() => {
-                    showNotification({
-                        type: "error",
-                        message: "Variant unreachable",
-                        description: `Unable to connect to the variant.`,
+                stopperRef.current = stopper
+
+                promise
+                    .then(() => {
+                        if (!isError) {
+                            refetch()
+                        }
                     })
-                })
-                .finally(() => {
-                    setRetrying(false)
-                })
+                    .catch(() => {
+                        showNotification({
+                            type: "error",
+                            message: "Variant unreachable",
+                            description: `Unable to connect to the variant.`,
+                        })
+                    })
+                    .finally(() => {
+                        setRetrying(false)
+                        setIsDelayed(false)
+                    })
+            }
+            startApp()
         }
 
         if (isError) {
+            setLoading(false)
             const getLogs = async () => {
-                const logs = await fetchVariantLogs(variant.variantId)
-                setVariantErrorLogs(logs)
+                try {
+                    setIsLogsLoading(true)
+                    const logs = await fetchVariantLogs(variant.variantId)
+                    setVariantErrorLogs(logs)
+                } catch (error) {
+                    console.error(error)
+                    showNotification({
+                        type: "error",
+                        message: "Variant logs unreachable",
+                        description: `Unable to fetch variant logs.`,
+                    })
+                } finally {
+                    setIsLogsLoading(false)
+                }
             }
             getLogs()
         }
     }, [netWorkError, isError, variant.variantId])
 
+    useEffect(() => {
+        if (retrying && variantErrorLogs) {
+            const timeout = setTimeout(
+                () => {
+                    setIsDelayed(true)
+                },
+                isDemo() ? 15000 : 5000,
+            )
+            return () => clearTimeout(timeout)
+        }
+    }, [retrying, variantErrorLogs])
+
+    const handleStopPolling = () => {
+        setLoading(true)
+        if (stopperRef.current) {
+            stopperRef.current()
+        }
+    }
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <ResultComponent
-                status={"info"}
-                title="Waiting for the variant to start"
-                spinner={retrying}
-            />
+            <>
+                <div className="grid place-items-center">
+                    <ResultComponent
+                        status={"info"}
+                        title="Waiting for the variant to start"
+                        subtitle={isDelayed ? "This is taking longer than expected" : ""}
+                        spinner={retrying}
+                    />
+                    {isDelayed && (
+                        <Button loading={loading} onClick={handleStopPolling} type="primary">
+                            Show Logs
+                        </Button>
+                    )}
+                </div>
+            </>
         )
     }
 
@@ -176,7 +235,11 @@ const ViewNavigation: React.FC<Props> = ({
         const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
-                {error ? (
+                {!error ? null : isLogsLoading || !variantErrorLogs ? (
+                    <div className="grid place-items-center mt-10">
+                        <Spin />
+                    </div>
+                ) : (
                     <div>
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
@@ -237,7 +300,7 @@ const ViewNavigation: React.FC<Props> = ({
                             </Tooltip>
                         </Button>
                     </div>
-                ) : null}
+                )}
             </div>
         )
     }

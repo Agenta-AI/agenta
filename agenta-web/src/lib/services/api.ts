@@ -577,7 +577,10 @@ export const waitForAppToStart = async ({
     variant?: Variant
     timeout?: number
     interval?: number
-}) => {
+}): Promise<{
+    stopper: () => void
+    promise: Promise<void>
+}> => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
         const {stopper, promise} = shortPoll(
@@ -590,7 +593,10 @@ export const waitForAppToStart = async ({
                 ).then(() => stopper()),
             {delayMs: interval, timeoutMs: timeout},
         )
-        await promise
+
+        return {stopper, promise}
+    } else {
+        return {stopper: () => {}, promise: Promise.reject(new Error("Variant not found"))}
     }
 }
 
@@ -649,7 +655,8 @@ export const createAndStartTemplate = async ({
 
         onStatusChange?.("starting_app", "", app?.data?.app_id)
         try {
-            await waitForAppToStart({appId: app?.data?.app_id, timeout})
+            const {promise} = await waitForAppToStart({appId: app?.data?.app_id, timeout})
+            await promise
         } catch (error: any) {
             if (error.message === "timeout") {
                 onStatusChange?.("timeout", "", app?.data?.app_id)
