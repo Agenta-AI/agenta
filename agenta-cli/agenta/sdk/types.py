@@ -32,13 +32,13 @@ class DictInput(dict):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "dict"}
 
 
 class TextParam(str):
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "text", "type": "string"}
 
 
@@ -49,7 +49,7 @@ class BinaryParam(int):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {
             "x-parameter": "bool",
             "type": "boolean",
@@ -64,7 +64,7 @@ class IntParam(int):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "int", "type": "integer"}
 
 
@@ -77,7 +77,7 @@ class FloatParam(float):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "float", "type": "number"}
 
 
@@ -105,7 +105,7 @@ class MultipleChoiceParam(str):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "choice", "type": "string", "enum": []}
 
 
@@ -141,7 +141,7 @@ class GroupedMultipleChoiceParam(str):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {
             "x-parameter": "grouped_choice",
             "type": "string",
@@ -166,7 +166,7 @@ class MessagesInput(list):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "messages", "type": "array"}
 
 
@@ -177,7 +177,7 @@ class FileInputURL(HttpUrl):
         return instance
 
     @classmethod
-    def __schema__(cls) -> dict:
+    def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "file_url", "type": "string"}
 
 
