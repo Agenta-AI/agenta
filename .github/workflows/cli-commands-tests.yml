@@ -43,8 +43,14 @@ jobs:
             - name: Run agenta variant serve
               run: |
                   cd examples/baby_name_generator
-                  agenta variant serve --file_name app.py
+                  agenta variant serve --file_name app.py 2>&1 | tee ../../serve_output.log
               shell: bash
+              continue-on-error: false
+
+            - name: Check if app is running
+              uses: ./.github/actions/check-app-accessibility
+              with:
+                log-file: serve_output.log
               continue-on-error: false
 
             - name: Run agenta variant serve with overwrite
@@ -90,8 +96,14 @@ jobs:
             - name: Run agenta variant serve
               run: |
                   cd examples/baby_name_generator
-                  agenta variant serve --file_name app.py
+                  agenta variant serve --file_name app.py 2>&1 | tee ../../serve_output.log
               shell: bash
+              continue-on-error: false
+
+            - name: Check if app is running
+              uses: ./.github/actions/check-app-accessibility
+              with:
+                log-file: serve_output.log
               continue-on-error: false
 
             - name: Run agenta variant serve with overwrite

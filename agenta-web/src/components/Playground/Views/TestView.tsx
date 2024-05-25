@@ -2,7 +2,7 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant, promptRevision} from "@/lib/services/api"
-import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -34,7 +34,7 @@ type StyleProps = {
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
 
-const useStylesBox = createUseStyles({
+const useStylesBox = createUseStyles((theme: JSSTheme) => ({
     card: {
         marginTop: 16,
         border: "1px solid #ccc",
@@ -68,12 +68,20 @@ const useStylesBox = createUseStyles({
     },
     row3: {
         margin: "16px 0",
+        position: "relative",
         "& textarea": {
             height: "100%",
             width: "100%",
         },
     },
-})
+    copyButton: {
+        position: "absolute",
+        right: 6,
+        opacity: 0.5,
+        bottom: 6,
+        color: theme.colorPrimary,
+    },
+}))
 
 const useStylesApp = createUseStyles({
     testView: {
@@ -211,6 +219,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     form={form}
                     imageSize="large"
                     isPlaygroundComponent={true}
+                    isLoading={loading}
                 />
             </Row>
             {additionalData?.cost || additionalData?.latency ? (
@@ -247,12 +256,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     >
                         Add to Test Set
                     </Button>
-                    <CopyButton
-                        buttonText={isChatVariant ? "Copy last message" : "Copy result"}
-                        text={result}
-                        disabled={loading || !result}
-                        shape="round"
-                    />
                     {loading ? (
                         <Button
                             icon={<CloseCircleOutlined />}
@@ -298,6 +301,13 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                                     : "#000000e0"
                                 : "",
                         }}
+                    />
+                    <CopyButton
+                        buttonText={null}
+                        text={result}
+                        disabled={loading || !result}
+                        icon={true}
+                        className={classes.copyButton}
                     />
                 </Row>
             )}
