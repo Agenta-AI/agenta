@@ -434,7 +434,9 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         params (dict(param_name, param_val)): The dictionary of the parameters for the function
     """
 
-    def find_in_schema(schema_type_properties: dict, schema: dict, param_name: str, xparam: str):
+    def find_in_schema(
+        schema_type_properties: dict, schema: dict, param_name: str, xparam: str
+    ):
         """Finds a parameter in the schema based on its name and x-parameter value"""
         for _, value in schema.items():
             value_title_lower = str(value.get("title")).lower()
@@ -465,7 +467,10 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
     for param_name, param_val in params.items():
         if isinstance(param_val, GroupedMultipleChoiceParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "grouped_choice"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "grouped_choice",
             )
             assert (
                 subschema
@@ -474,7 +479,10 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = param_val.default  # type: ignore
         if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "choice"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "choice",
             )
             default = str(param_val)
             param_choices = param_val.choices  # type: ignore
@@ -487,14 +495,20 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = default if default in param_choices else choices[0]
         if isinstance(param_val, FloatParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "float"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "float",
             )
             subschema["minimum"] = param_val.minval  # type: ignore
             subschema["maximum"] = param_val.maxval  # type: ignore
             subschema["default"] = param_val
         if isinstance(param_val, IntParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "int"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "int",
             )
             subschema["minimum"] = param_val.minval  # type: ignore
             subschema["maximum"] = param_val.maxval  # type: ignore
@@ -512,7 +526,10 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = param_val.default["default_keys"]
         if isinstance(param_val, TextParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "text"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "text",
             )
             subschema["default"] = param_val
         if (
@@ -539,6 +556,9 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = "https://example.com"
         if isinstance(param_val, BinaryParam):
             subschema = find_in_schema(
-                param_val.__schema_type_properties__(), schema_to_override, param_name, "bool"
+                param_val.__schema_type_properties__(),
+                schema_to_override,
+                param_name,
+                "bool",
             )
             subschema["default"] = param_val.default  # type: ignore
