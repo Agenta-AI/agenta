@@ -4,7 +4,9 @@ import {GenericObject, Parameter} from "../Types"
 
 const getBodySchemaName = (schema: GenericObject): string => {
     return (
-        schema?.paths?.["/generate"]?.post?.requestBody?.content["application/json"]?.schema["$ref"]
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
+            "allOf"
+        ]?.[0]?.["$ref"]
             ?.split("/")
             ?.pop() || ""
     )
@@ -20,6 +22,7 @@ export const detectChatVariantFromOpenAISchema = (schema: GenericObject) => {
 export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => {
     const parameters: Parameter[] = []
     const bodySchemaName = getBodySchemaName(schema)
+    console.log("Body Schema Name: ", bodySchemaName)
 
     // get the actual schema for the body parameters
     Object.entries(schema.components.schemas[bodySchemaName].properties || {}).forEach(
