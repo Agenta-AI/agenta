@@ -2,6 +2,166 @@
 title: "Changelog"
 ---
 
+## v0.14.14
+*25 May 2024*
+
+**Improvements**
+- New Model: Gemini! [`#1703`](https://github.com/Agenta-AI/agenta/pull/1703)
+
+## v0.14.13
+*24 May 2024*
+
+**Improvements**
+- No default set selected when adding a data point to a test set [`#1698`](https://github.com/Agenta-AI/agenta/pull/1698)
+- Moved copy message button to the text input in the playground [`#1691`](https://github.com/Agenta-AI/agenta/pull/1691)
+- Enhanced Docker assets [`#1678`](https://github.com/Agenta-AI/agenta/pull/1678)
+- Added tests for the LLM apps service [`#1681`](https://github.com/Agenta-AI/agenta/pull/1681)
+- Added action to check app accessibility after serving [`#1686`](https://github.com/Agenta-AI/agenta/pull/1686)
+
+**Bug Fixes**
+- Testsets UI was dropping the trailing 0 from the timestamp [`#1688`](https://github.com/Agenta-AI/agenta/pull/1688)
+- Fixed argument order for custom code evaluator [`#1690`](https://github.com/Agenta-AI/agenta/pull/1690)
+
+## v0.14.10
+*18 May 2024*
+
+**Improvements**
+- Workflow for CLI commands for the cloud [`#1661`](https://github.com/Agenta-AI/agenta/pull/1661)
+- Fixed references and updated openapi.json [`#1663`](https://github.com/Agenta-AI/agenta/pull/1663)
+- Workflow for CLI commands [`#1660`](https://github.com/Agenta-AI/agenta/pull/1660)
+- Added openapi to mint.json [`aa5768b`](https://github.com/Agenta-AI/agenta/commit/aa5768bd760df6a979a1d8a949e8c55de7f45161)
+
+**Bug Fixes**
+- Fixed key prop issue in ModelName component [`#1664`](https://github.com/Agenta-AI/agenta/pull/1664)
+- Fixed server URL in openapi.json configuration file [`#1658`](https://github.com/Agenta-AI/agenta/pull/1658)
+
+## v0.14.9
+*15 May 2024*
+
+**Improvements**
+- Added aioboto3 to poetry dependencies [`#1650`](https://github.com/Agenta-AI/agenta/pull/1650)
+- Added "We are hiring" banner in README [`#1653`](https://github.com/Agenta-AI/agenta/pull/1653)
+- Added hiring positions [`#1651`](https://github.com/Agenta-AI/agenta/pull/1651)
+- Improved drawer: input/output columns in tables and export [`adac09f`](https://github.com/Agenta-AI/agenta/commit/adac09f9c3342b0eb909c5e355b5070b009ac3e6)
+
+**Bug Fixes**
+- Fixed connecting to a served variant using CLI [`#1655`](https://github.com/Agenta-AI/agenta/pull/1655)
+
+## v0.14.8
+*13 May 2024*
+
+- Hide cost and usage in playground and evaluation when not specified [`#1607`](https://github.com/Agenta-AI/agenta/pull/1607)
+- Added fallback value for null cost and usage values [`ffb0c4f`](https://github.com/Agenta-AI/agenta/commit/ffb0c4ffcc65828964eacd230cfd470ed37f99de)
+- Removed conditional currency formatter [`638384b`](https://github.com/Agenta-AI/agenta/commit/638384b96df6d06398e9abb0e3996d6c3fd7fdce)
+- Added fallback for null cost and usage values [`6b2c66b`](https://github.com/Agenta-AI/agenta/commit/6b2c66be762f2504b3a11a66f002fd53066795a3)
+
+## v0.14.7
+*12 May 2024*
+
+- Fixed queries [`#1638`](https://github.com/Agenta-AI/agenta/pull/1638)
+- Fixed: swap images in docs [`#1633`](https://github.com/Agenta-AI/agenta/pull/1633)
+- Documentation restructure [`b4b3bfb`](https://github.com/Agenta-AI/agenta/commit/b4b3bfbeb70521e76dc4355cf5e455e1855e2961)
+
+## v0.14.6
+*9 May 2024*
+
+- Less restrictive httpx version in pyproject.toml [`#1628`](https://github.com/Agenta-AI/agenta/pull/1628)
+
+## v0.14.5
+*9 May 2024*
+
+- Improved playground error message [`#1611`](https://github.com/Agenta-AI/agenta/pull/1611)
+- Enhanced error handling: Added Axios logic to fetch variant logs and integrated display logic for container errors in the playground [`b229f40`](https://github.com/Agenta-AI/agenta/commit/b229f40df1019835e892dacbefc3e5755a91148f)
+- Refactored retrieve_variant_logs endpoint and removed duplicate condition for viewing error logs in the playground [`2cec7a6`](https://github.com/Agenta-AI/agenta/commit/2cec7a60042e16afa5a96ed25f9a964d862e79f0)
+- Created endpoint to fetch variant logs [`76cbc4a`](https://github.com/Agenta-AI/agenta/commit/76cbc4a76489b849e94944622c5b8d0df29bb491)
+
+## v0.14.4
+*8 May 2024*
+
+- Changed permission of 'entrypoint.sh' to be executable [`#1625`](https://github.com/Agenta-AI/agenta/pull/1625)
+
+## v0.14.3
+*7 May 2024*
+
+- Added optional interactive mode [`#1621`](https://github.com/Agenta-AI/agenta/pull/1621)
+- Fixed running the CLI directly from the local source [`#1619`](https://github.com/Agenta-AI/agenta/pull/1619)
+- Added traceback for error handling in LLM Apps service [`#1614`](https://github.com/Agenta-AI/agenta/pull/1614)
+- Added poetry lock [`321ba98`](https://github.com/Agenta-AI/agenta/commit/321ba987fa6a35a00b87bd00562a0646eb96ead2)
+- Refactored error handling in invoke_app function [`e7ffce5`](https://github.com/Agenta-AI/agenta/commit/e7ffce588c2ca98fdf07c37d25098ee57d85a5f3)
+- Added overwrite option to skip interactive mode [`6653b65`](https://github.com/Agenta-AI/agenta/commit/6653b657eff85c8424a2f7edd2ae6ff7d6017424)
+
+**Bug Fixes**
+- Increased timeout for invoking evaluation [`#1617`](https://github.com/Agenta-AI/agenta/pull/1617)
+
+## v0.14.2
+*3 May 2024*
+
+- Added support for multiple variants for one application [`#1608`](https://github.com/Agenta-AI/agenta/pull/1608)
+- Removed loading icon in Result component [`#1604`](https://github.com/Agenta-AI/agenta/pull/1604)
+- Removed info icon in Result component [`34b6c16`](https://github.com/Agenta-AI/agenta/commit/34b6c16eadd67cc05a415d0989e19a0c70649ada)
+- Reduced Spin size and removed inline styles [`b9b5ed7`](https://github.com/Agenta-AI/agenta/commit/b9b5ed74ec8ed01c53e381bc71dd06792216bd64)
+- Agenta CLI updates [`933bb92`](https://github.com/Agenta-AI/agenta/commit/933bb922455eb34f28a5743fc34ba9d49ff94933)
+
+## v0.14.1
+*2 May 2024*
+
+- Observability improvements [`#1587`](https://github.com/Agenta-AI/agenta/pull/1587)
+- Fixed fetch config Python code snippet [`#1598`](https://github.com/Agenta-AI/agenta/pull/1598)
+- Revised format changed [`8c485a3`](https://github.com/Agenta-AI/agenta/commit/8c485a3a393df1c5954c8f0905d1a556761b1c6a)
+- Added logic for column updates through props [`7e03a0e`](https://github.com/Agenta-AI/agenta/commit/7e03a0e3237adb27d7fd9cbb828694195dbc0e50)
+- Fixed fetch config Python code snippet [`12e74d9`](https://github.com/Agenta-AI/agenta/commit/12e74d914e0cc1510fcd244cbe975584752daf8b)
+
+## v0.14.0
+*1 May 2024*
+
+- Updated deployment view to show endpoint for fetching the configuration [`#1591`](https://github.com/Agenta-AI/agenta/pull/1591)
+- Prompt fetching endpoint + caching [`#1592`](https://github.com/Agenta-AI/agenta/pull/1592)
+- Enhanced: Published the first variant to the production environment by default [`#1586`](https://github.com/Agenta-AI/agenta/pull/1586)
+- Improved deployment view and UI for config code [`dfcdf8d`](https://github.com/Agenta-AI/agenta/commit/dfcdf8d9d5c8401ec906b6a0eb29b096356b0545)
+- Added TypeScript and curl code snippets [`2e09727`](https://github.com/Agenta-AI/agenta/commit/2e0972714a7daf2062b8c0cb3890d6ecbd5590e5)
+
+**Bug Fixes**
+- Fix error while saving a new configuration for a newly created variant in the playground [`#1562`](https://github.com/Agenta-AI/agenta/pull/1562)
+
+## v0.13.8
+*28 April 2024*
+
+- Added total latency [`#1570`](https://github.com/Agenta-AI/agenta/pull/1570)
+- Fixed wrong MenuItem focus in human evaluation view [`#1523`](https://github.com/Agenta-AI/agenta/pull/1523)
+- Reversed changes in Sidebar and changed URL pattern for human and automatic evaluation [`46845af`](https://github.com/Agenta-AI/agenta/commit/46845afa59b953501c5f44f952539c470e93ce22)
+- Cleanup [`e7f7d03`](https://github.com/Agenta-AI/agenta/commit/e7f7d038e539a43670464ddeba01ced5dabcf26f)
+- Fixed sidebar focus in automatic evaluation results view [`780ebf7`](https://github.com/Agenta-AI/agenta/commit/780ebf7c9ca6c93625385252fd985e51dddfa23b)
+
+## v0.13.7
+*25 April 2024*
+
+- Refactor: Convert timezone to UTC [`#1565`](https://github.com/Agenta-AI/agenta/pull/1565)
+- Updated main.mdx [`92c8100`](https://github.com/Agenta-AI/agenta/commit/92c8100c32511ca7a25749c8c6feee256e5450db)
+- Added observability images to changelog docs [`f2d450e`](https://github.com/Agenta-AI/agenta/commit/f2d450eed6dd25d4f5b779246eb4a700103bada7)
+
+## v0.13.6
+*23 April 2024*
+
+- Refactor: Utilize variant action when starting variant and accessed URI [`8388a7a`](https://github.com/Agenta-AI/agenta/commit/8388a7a5ec38140bb5a84c0fb7625825a42b4f2e)
+- Style: Formatted with black [`64e3e1e`](https://github.com/Agenta-AI/agenta/commit/64e3e1e348bc80651eee18b4d0e8b03206431cea)
+- Refactor: Ensure revision documents with created_at field are added/modified upon creation [`0e5fa14`](https://github.com/Agenta-AI/agenta/commit/0e5fa148d1b4c240b95914bbeed87943127d0856)
+
+**Bug Fixes**
+- Chat template returns error body in case of empty input [`#1554`](https://github.com/Agenta-AI/agenta/pull/1554)
+- Incorrect timestamp in configuration [`#1557`](https://github.com/Agenta-AI/agenta/pull/1557)
+- Incorrect URLs shown when running agenta variant serve [`#1558`](https://github.com/Agenta-AI/agenta/pull/1558)
+- Rendering UI bug in Testset view [`#1552`](https://github.com/Agenta-AI/agenta/pull/1552)
+
+## v0.13.5
+*23 April 2024*
+
+**Improvements**
+- Increased batch invoke by rewriting HTTP call logic using aiohttp [`#1548`](https://github.com/Agenta-AI/agenta/pull/1548)
+- Removed logic to inject OpenAI key at start [`65fe173`](https://github.com/Agenta-AI/agenta/commit/65fe173f27ecb004ce159f73dd78f7a81ad418ee)
+
+**Bug Fixes**
+- Hotfix for key injection issue [`#1549`](https://github.com/Agenta-AI/agenta/pull/1549)
+
 ## v0.13.1-5 - Evaluation Speed Increase and Numerous Quality of Life Improvements
 *23rd April 2024*
 
