@@ -24,6 +24,7 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {useLocalStorage} from "usehooks-ts"
+import EvaluationErrorModal from "../EvaluationErrorModal/EvaluationErrorModal"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -57,6 +58,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
     const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -137,6 +140,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: ResultRenderer,
                 cellRendererParams: {
                     config,
+                    setIsErrorModalOpen,
+                    setModalErrorMsg,
                 },
                 valueGetter: (params) => {
                     return params.data?.results[index].result.value
@@ -272,6 +277,12 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     />
                 </div>
             </Spin>
+
+            <EvaluationErrorModal
+                isErrorModalOpen={isErrorModalOpen}
+                setIsErrorModalOpen={setIsErrorModalOpen}
+                modalErrorMsg={modalErrorMsg}
+            />
         </div>
     )
 }

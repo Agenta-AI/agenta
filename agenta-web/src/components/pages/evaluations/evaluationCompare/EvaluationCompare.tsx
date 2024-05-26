@@ -9,7 +9,7 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {fetchAllComparisonResults} from "@/services/evaluations"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ValueGetterParams} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
 import {Button, Dropdown, DropdownProps, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
@@ -33,6 +33,7 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {useLocalStorage} from "usehooks-ts"
+import EvaluationErrorModal from "../EvaluationErrorModal/EvaluationErrorModal"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -89,6 +90,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [evaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const [filterColsDropdown, setFilterColsDropdown] = useState(false)
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -254,6 +257,36 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     hide:
                         !evalIds.includes(variant.evaluationId) ||
                         hiddenVariants.includes(config.name),
+                    cellRenderer: (params: ValueGetterParams<ComparisonResultRow, any>) => {
+                        const result = params.data?.variants
+                            .find((item) => item.evaluationId === variant.evaluationId)
+                            ?.evaluatorConfigs.find(
+                                (item) => item.evaluatorConfig.id === config.id,
+                            )?.result
+
+                        if (result?.error && result.type === "error") {
+                            setModalErrorMsg({
+                                message: result.error.message,
+                                stackTrace: result.error.stacktrace,
+                            })
+                        }
+
+                        return result?.type === "error" && result.error ? (
+                            <Typography.Text type={"danger"} strong>
+                                Failed to invoke LLM app{" "}
+                                <Button
+                                    size="small"
+                                    className="text-xs"
+                                    type="text"
+                                    onClick={() => setIsErrorModalOpen(true)}
+                                >
+                                    (more details)
+                                </Button>
+                            </Typography.Text>
+                        ) : (
+                            <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                        )
+                    },
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -504,6 +537,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     />
                 </div>
             </Spin>
+
+            <EvaluationErrorModal
+                isErrorModalOpen={isErrorModalOpen}
+                setIsErrorModalOpen={setIsErrorModalOpen}
+                modalErrorMsg={modalErrorMsg}
+            />
         </div>
     )
 }
