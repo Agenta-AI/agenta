@@ -1,9 +1,9 @@
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ValueGetterParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Dropdown, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {Button, Dropdown, DropdownProps, Space, Spin, Tag, Tooltip, Typography, theme} from "antd"
 import {
     CheckOutlined,
     DeleteOutlined,
@@ -266,6 +266,19 @@ const EvaluationResults: React.FC<Props> = () => {
                         ),
                         autoHeaderHeight: true,
                         ...getFilterParams("number"),
+                        cellRenderer: (params: ValueGetterParams<_Evaluation, any>) => {
+                            const result = params.data?.aggregated_results.find(
+                                (item) => item.evaluator_config.id === config.id,
+                            )?.result
+
+                            return result?.error ? (
+                                <Typography.Text type="danger" strong>
+                                    Error
+                                </Typography.Text>
+                            ) : (
+                                <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                            )
+                        },
                         valueGetter: (params) =>
                             getTypedValue(
                                 params.data?.aggregated_results.find(

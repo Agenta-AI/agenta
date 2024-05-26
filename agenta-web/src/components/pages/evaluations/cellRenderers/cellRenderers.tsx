@@ -13,7 +13,7 @@ import {
     InfoCircleOutlined,
 } from "@ant-design/icons"
 import {ICellRendererParams} from "ag-grid-community"
-import {GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
+import {Button, GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -137,19 +137,40 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
 }
 
 export const ResultRenderer = React.memo(
-    (params: ICellRendererParams<_EvaluationScenario> & {config: EvaluatorConfig}) => {
+    (
+        params: ICellRendererParams<_EvaluationScenario> & {
+            config: EvaluatorConfig
+            setIsErrorModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+            setModalErrorMsg: React.Dispatch<
+                React.SetStateAction<{
+                    message: string
+                    stackTrace: string
+                }>
+            >
+        },
+    ) => {
+        const {setIsErrorModalOpen, setModalErrorMsg} = params
         const result = params.data?.results.find(
             (item) => item.evaluator_config === params.config.id,
         )?.result
-        let errorMsg = ""
-        if (result?.type === "error") {
-            errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
+        if (result?.type === "error" && result.error) {
+            setModalErrorMsg({message: result.error.message, stackTrace: result.error.stacktrace})
         }
 
-        return (
-            <Typography.Text type={errorMsg ? "danger" : undefined}>
-                {errorMsg || getTypedValue(result)}
+        return result?.type === "error" && result.error ? (
+            <Typography.Text type={"danger"} strong>
+                Failed to invoke LLM app{" "}
+                <Button
+                    size="small"
+                    className="text-xs"
+                    type="text"
+                    onClick={() => setIsErrorModalOpen(true)}
+                >
+                    (more details)
+                </Button>
             </Typography.Text>
+        ) : (
+            <Typography.Text>{getTypedValue(result)}</Typography.Text>
         )
     },
     (prev, next) => prev.value === next.value,
