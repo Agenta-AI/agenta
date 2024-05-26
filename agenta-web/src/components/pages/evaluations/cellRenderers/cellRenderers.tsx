@@ -13,7 +13,7 @@ import {
     InfoCircleOutlined,
 } from "@ant-design/icons"
 import {ICellRendererParams} from "ag-grid-community"
-import {Button, GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
+import {GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -21,6 +21,7 @@ import Link from "next/link"
 import React, {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getTypedValue} from "@/lib/helpers/evaluate"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -158,17 +159,10 @@ export const ResultRenderer = React.memo(
         }
 
         return result?.type === "error" && result.error ? (
-            <Typography.Text type={"danger"} strong>
-                Failed to invoke LLM app{" "}
-                <Button
-                    size="small"
-                    className="text-xs"
-                    type="text"
-                    onClick={() => setIsErrorModalOpen(true)}
-                >
-                    (more details)
-                </Button>
-            </Typography.Text>
+            <EvaluationErrorText
+                text="Failure to compute evaluation"
+                setIsErrorModalOpen={setIsErrorModalOpen}
+            />
         ) : (
             <Typography.Text>{getTypedValue(result)}</Typography.Text>
         )

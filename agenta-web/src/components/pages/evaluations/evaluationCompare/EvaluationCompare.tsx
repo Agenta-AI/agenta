@@ -33,7 +33,8 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {useLocalStorage} from "usehooks-ts"
-import EvaluationErrorModal from "../EvaluationErrorModal/EvaluationErrorModal"
+import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -272,17 +273,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         }
 
                         return result?.type === "error" && result.error ? (
-                            <Typography.Text type={"danger"} strong>
-                                Failed to invoke LLM app{" "}
-                                <Button
-                                    size="small"
-                                    className="text-xs"
-                                    type="text"
-                                    onClick={() => setIsErrorModalOpen(true)}
-                                >
-                                    (more details)
-                                </Button>
-                            </Typography.Text>
+                            <EvaluationErrorText
+                                text="Failure to compute evaluation"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
                         ) : (
                             <Typography.Text>{getTypedValue(result)}</Typography.Text>
                         )
