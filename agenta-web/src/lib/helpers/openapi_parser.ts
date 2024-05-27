@@ -22,7 +22,6 @@ export const detectChatVariantFromOpenAISchema = (schema: GenericObject) => {
 export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => {
     const parameters: Parameter[] = []
     const bodySchemaName = getBodySchemaName(schema)
-    console.log("Body Schema Name: ", bodySchemaName)
 
     // get the actual schema for the body parameters
     Object.entries(schema.components.schemas[bodySchemaName].properties || {}).forEach(
