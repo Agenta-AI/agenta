@@ -293,6 +293,9 @@ def add_config_params_to_parser(
 ) -> None:
     """Add configuration parameters to function signature."""
     for name, param in config_params.items():
+        assert (
+            len(param.__class__.__bases__) == 1
+        ), f"Inherited standard type of {param.__class__} needs to be one."
         updated_params.append(
             inspect.Parameter(
                 name,
@@ -319,6 +322,9 @@ def add_func_params_to_parser(
                 inspect.Parameter(name, param.kind, annotation=UploadFile)
             )
         else:
+            assert (
+                len(param.default.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.default.__class__} needs to be one."
             updated_params.append(
                 inspect.Parameter(
                     name,
