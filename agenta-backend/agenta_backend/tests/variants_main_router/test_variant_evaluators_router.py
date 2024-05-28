@@ -180,6 +180,7 @@ async def test_create_evaluation():
     evaluator_configs = response.json()
     for evaluator_config in evaluator_configs:
         list_of_configs_ids.append(evaluator_config["id"])
+    print("list_of_configs_ids: ", list_of_configs_ids)
 
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
