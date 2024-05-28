@@ -1,4 +1,3 @@
-import os
 import agenta as ag
 from openai import AsyncOpenAI
 

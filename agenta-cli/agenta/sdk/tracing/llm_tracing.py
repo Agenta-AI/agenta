@@ -47,7 +47,7 @@ class Tracing(metaclass=SingletonMeta):
     """The `Tracing` class is an agent for LLM tracing with specific initialization arguments.
 
     __init__ args:
-        base_url (str): The URL of the backend host
+        host (str): The URL of the backend host
         api_key (str): The API Key of the backend host
         tasks_manager (TaskQueue): The tasks manager dedicated to handling asynchronous tasks
         llm_logger (Logger): The logger associated with the LLM tracing
@@ -56,14 +56,14 @@ class Tracing(metaclass=SingletonMeta):
 
     def __init__(
         self,
-        base_url: str,
+        host: str,
         app_id: str,
         variant_id: Optional[str] = None,
         variant_name: Optional[str] = None,
         api_key: Optional[str] = None,
         max_workers: Optional[int] = None,
     ):
-        self.base_url = base_url + "/api"
+        self.host = host + "/api"
         self.api_key = api_key if api_key is not None else ""
         self.llm_logger = llm_logger
         self.app_id = app_id
@@ -77,6 +77,7 @@ class Tracing(metaclass=SingletonMeta):
         self.recording_trace_id: Union[str, None] = None
         self.recorded_spans: List[CreateSpan] = []
         self.tags: List[str] = []
+        self.trace_config: Dict[str, Any] = {}
         self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
 
     @property
@@ -88,15 +89,25 @@ class Tracing(metaclass=SingletonMeta):
         """
 
         return AsyncAgentaApi(
-            base_url=self.base_url, api_key=self.api_key, timeout=120  # type: ignore
+            base_url=self.host, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
     def set_span_attribute(
-        self, parent_key: Optional[str] = None, attributes: Dict[str, Any] = {}
+        self,
+        parent_key: Optional[str] = None,
+        attributes: Dict[str, Any] = {},
+        is_parent_span: bool = False,
     ):
+        if is_parent_span:
+            for key, value in attributes.items():
+                self.trace_config[key] = value
+            return
+
+        # set the span attributes
         span = self.span_dict[self.active_span.id]  # type: ignore
         for key, value in attributes.items():
             self.set_attribute(span.attributes, key, value, parent_key)  # type: ignore
+        return
 
     def set_attribute(
         self,
@@ -157,6 +168,16 @@ class Tracing(metaclass=SingletonMeta):
 
         if span.spankind == SpanKind.WORKFLOW.value:
             self.active_trace = span
+            self.environment = (
+                self.trace_config.get("environment")
+                if self.trace_config is not None
+                else os.environ.get("environment", "unset")
+            )
+            self.config = (
+                self.trace_config.get("config")
+                if not config and self.trace_config is not None
+                else None
+            )
             self.parent_span_id = span.id
             self.recording_trace_id = self._create_trace_id()
         else:
