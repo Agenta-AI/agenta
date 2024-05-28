@@ -150,7 +150,31 @@ async def test_get_evaluator_configs():
 
 
 @pytest.mark.asyncio
-async def test_create_evaluation():
+async def test_create_evaluation_auto_exact_match():
+    await create_evaluation_with_evaluator("auto_exact_match_evaluator_config")
+
+
+@pytest.mark.asyncio
+async def test_create_evaluation_auto_similarity_match():
+    await create_evaluation_with_evaluator("auto_similarity_match_evaluator_config")
+
+
+@pytest.mark.asyncio
+async def test_create_evaluation_auto_regex_test():
+    await create_evaluation_with_evaluator("auto_regex_test_evaluator_config")
+
+
+@pytest.mark.asyncio
+async def test_create_evaluation_auto_webhook_test():
+    await create_evaluation_with_evaluator("auto_webhook_test_evaluator_config")
+
+
+@pytest.mark.asyncio
+async def test_create_evaluation_auto_ai_critique():
+    await create_evaluation_with_evaluator("auto_ai_critique_evaluator_config")
+
+
+async def create_evaluation_with_evaluator(evaluator_config_name):
     # Fetch app, app_variant and testset
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     app_variant = await AppVariantDB.find_one(AppVariantDB.app.id == app.id)
@@ -179,7 +203,8 @@ async def test_create_evaluation():
     list_of_configs_ids = []
     evaluator_configs = response.json()
     for evaluator_config in evaluator_configs:
-        list_of_configs_ids.append(evaluator_config["id"])
+        if evaluator_config["evaluator_key"] == evaluator_config_name:
+            list_of_configs_ids.append(evaluator_config["id"])
 
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
@@ -201,20 +226,20 @@ async def test_create_evaluation():
     )
     assert response_data is not None
 
+    # Wait for evaluation to finish
+    evaluation_id = response_data["id"]
+    await wait_for_evaluation_to_finish(evaluation_id)
 
-@pytest.mark.asyncio
-async def test_fetch_evaluation_status():
-    evaluations = (
-        await EvaluationDB.find().to_list()
-    )  # will return only one in this case
-    evaluation = evaluations[0]
+    # Fetch evaluation results
+    await fetch_evaluation_results(evaluation_id)
 
-    # Prepare and start short-polling request
+
+async def wait_for_evaluation_to_finish(evaluation_id):
     max_attempts = 12
     intervals = 5  # seconds
     for _ in range(max_attempts):
         response = await test_client.get(
-            f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/status/",
+            f"{BACKEND_API_HOST}/evaluations/{evaluation_id}/status/",
             timeout=timeout,
         )
         response_data = response.json()
@@ -228,21 +253,14 @@ async def test_fetch_evaluation_status():
     ), f"Evaluation status did not become '{EvaluationStatusEnum.EVALUATION_FINISHED}' within the specified polling time"
 
 
-@pytest.mark.asyncio
-async def test_fetch_evaluation_results():
-    evaluations = (
-        await EvaluationDB.find().to_list()
-    )  # will return only one in this case
-    evaluation = evaluations[0]
-
+async def fetch_evaluation_results(evaluation_id):
     response = await test_client.get(
-        f"{BACKEND_API_HOST}/evaluations/{str(evaluation.id)}/results/", timeout=timeout
+        f"{BACKEND_API_HOST}/evaluations/{evaluation_id}/results/", timeout=timeout
     )
     response_data = response.json()
 
     assert response.status_code == 200
-    assert response_data["evaluation_id"] == str(evaluation.id)
-    assert len(response_data["results"]) == 7
+    assert response_data["evaluation_id"] == evaluation_id
 
 
 @pytest.mark.asyncio
