@@ -59,7 +59,7 @@ async def test_create_auto_exact_match_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_exact_match_evaluator_config
     payload["app_id"] = str(app.id)
-    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
+    payload["settings_values"]["correct_answer_key"] = "correct_answer"
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -76,7 +76,7 @@ async def test_create_auto_similarity_match_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_similarity_match_evaluator_config
     payload["app_id"] = str(app.id)
-    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
+    payload["settings_values"]["correct_answer_key"] = "correct_answer"
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -94,7 +94,7 @@ async def test_create_auto_regex_test_evaluator_config(
     payload = auto_regex_test_evaluator_config
     payload["app_id"] = str(app.id)
     payload["settings_values"]["regex_pattern"] = "^ig\\d{3}$"
-    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
+    payload["settings_values"]["correct_answer_key"] = "correct_answer"
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -111,7 +111,7 @@ async def test_create_auto_webhook_test_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_webhook_test_evaluator_config
     payload["app_id"] = str(app.id)
-    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
+    payload["settings_values"]["correct_answer_key"] = "correct_answer"
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -128,7 +128,7 @@ async def test_create_auto_ai_critique_evaluator_config(
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_ai_critique_evaluator_config
     payload["app_id"] = str(app.id)
-    payload["settings_values"]["correct_answer_keys"] = ["correct_answer"]
+    payload["settings_values"]["correct_answer_key"] = "correct_answer"
 
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
@@ -180,7 +180,6 @@ async def test_create_evaluation():
     evaluator_configs = response.json()
     for evaluator_config in evaluator_configs:
         list_of_configs_ids.append(evaluator_config["id"])
-    print("list_of_configs_ids: ", list_of_configs_ids)
 
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
