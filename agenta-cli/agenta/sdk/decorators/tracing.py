@@ -38,8 +38,10 @@ class instrument(BaseDecorator):
         self.tracing = ag.tracing
 
     def __call__(self, func: Callable[..., Any]):
+        is_coroutine_function = inspect.iscoroutinefunction(func)
+
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def async_wrapper(*args, **kwargs):
             result = None
             span = self.tracing.start_span(
                 name=func.__name__,
@@ -49,12 +51,7 @@ class instrument(BaseDecorator):
             )
 
             try:
-                is_coroutine_function = inspect.iscoroutinefunction(func)
-                if is_coroutine_function:
-                    result = await func(*args, **kwargs)
-                else:
-                    result = func(*args, **kwargs)
-
+                result = await func(*args, **kwargs)
                 self.tracing.update_span_status(span=span, value="OK")
             except Exception as e:
                 result = str(e)
@@ -68,4 +65,28 @@ class instrument(BaseDecorator):
                 )
             return result
 
-        return wrapper
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            result = None
+            span = self.tracing.start_span(
+                name=func.__name__,
+                input=kwargs,
+                spankind=self.spankind,
+                config=self.config,
+            )
+
+            try:
+                result = func(*args, **kwargs)
+                self.tracing.update_span_status(span=span, value="OK")
+            except Exception as e:
+                result = str(e)
+                self.tracing.update_span_status(span=span, value="ERROR")
+            finally:
+                self.tracing.end_span(
+                    outputs=(
+                        {"message": result} if not isinstance(result, dict) else result
+                    ),
+                    span=span,
+                )
+
+        return async_wrapper if is_coroutine_function else sync_wrapper
