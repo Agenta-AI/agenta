@@ -1,15 +1,13 @@
-import re
 import json
-import httpx
-from typing import Any, Dict, Tuple, List
-
-from agenta_backend.services.security import sandbox
-from agenta_backend.models.db_models import Error, Result
-
-from langchain.llms import OpenAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
 import logging
+import re
+from typing import Any, Dict, List, Tuple
+
+import httpx
+from openai import OpenAI
+
+from agenta_backend.models.db_models import Error, Result
+from agenta_backend.services.security import sandbox
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -267,11 +265,11 @@ def auto_ai_critique(
             {"role": "user", "content": str(chain_run_args)}
         ]
 
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
-            temperature=0.8,
-            api_key=openai_api_key
+            temperature=0.8
         )
 
         evaluation_output = response.choices[0].message["content"].strip()
@@ -516,6 +514,47 @@ def auto_levenshtein_distance(
         )
 
 
+def auto_similarity_match(
+    inputs: Dict[str, Any],
+    output: str,
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        correct_answer = get_correct_answer(data_point, settings_values)
+        set1 = set(output.split())
+        set2 = set(correct_answer.split())
+        intersect = set1.intersection(set2)
+        union = set1.union(set2)
+
+        similarity = len(intersect) / len(union)
+
+        is_similar = (
+            True if similarity > settings_values["similarity_threshold"] else False
+        )
+        result = Result(type="bool", value=is_similar)
+        return result
+    except ValueError as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=str(e),
+            ),
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Similarity Match evaluation",
+                stacktrace=str(e),
+            ),
+        )
+
+
 EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
@@ -530,6 +569,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_contains_all": auto_contains_all,
     "auto_contains_json": auto_contains_json,
     "auto_levenshtein_distance": auto_levenshtein_distance,
+    "auto_similarity_match": auto_similarity_match,  # Added here
 }
 
 
