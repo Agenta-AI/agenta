@@ -4,8 +4,6 @@ evaluators = [
         "key": "auto_exact_match",
         "direct_use": True,
         "settings_template": {
-            "label": "Exact Match Settings",
-            "description": "Settings for the Exact Match evaluator",
             "correct_answer_key": {
                 "label": "Correct Answer",
                 "default": "correct_answer",
@@ -22,8 +20,6 @@ evaluators = [
         "key": "auto_contains_json",
         "direct_use": True,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the JSON output contains the specified JSON structure.",
         },
         "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
     },
@@ -154,13 +150,12 @@ evaluators = [
         "key": "auto_starts_with",
         "direct_use": False,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the output starts with the specified prefix.",
-            "prefix": {"label": "prefix", "type": "string", "required": True},
+            "prefix": {"label": "prefix", "type": "string", "required": True, description: "The string to match at the start of the output."},
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
                 "default": True,
+                "description": "If the evaluation should be case sensitive.",
             },
         },
         "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
@@ -170,8 +165,6 @@ evaluators = [
         "key": "auto_ends_with",
         "direct_use": False,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the output ends with the specified suffix.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -192,8 +185,6 @@ evaluators = [
         "key": "auto_contains",
         "direct_use": False,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the output contains the specified substring.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -214,8 +205,6 @@ evaluators = [
         "key": "auto_contains_any",
         "direct_use": False,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the output contains any of the specified substrings.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -236,8 +225,6 @@ evaluators = [
         "key": "auto_contains_all",
         "direct_use": False,
         "settings_template": {
-            "label": "Single Model Testing Settings",
-            "description": "Checks if the output contains all of the specified substrings.",
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -258,9 +245,7 @@ evaluators = [
         "key": "auto_levenshtein_distance",
         "direct_use": False,
         "settings_template": {
-            "label": "Levenshtein Distance Settings",
-            "description": "Evaluates the Levenshtein distance between the output and the correct answer. If a threshold is specified, it checks if the distance is below this threshold and returns a boolean value. If no threshold is specified, it returns the numerical Levenshtein distance.",
-            "threshold": {"label": "Threshold", "type": "number", "required": False},
+            "threshold": {"label": "Threshold", "type": "number", "required": False, description: "The maximum allowed Levenshtein distance between the output and the correct answer."},
             "correct_answer_key": {
                 "label": "Correct Answer",
                 "default": "correct_answer",
