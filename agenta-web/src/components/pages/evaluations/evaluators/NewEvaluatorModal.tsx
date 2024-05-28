@@ -240,7 +240,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const evaluators = useAtom(evaluatorsAtom)[0].filter((item) => !item.direct_use)
+    const evaluators = useAtom(evaluatorsAtom)[0]
     const [selectedEval, setSelectedEval] = useState<Evaluator | null>(null)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState<string>("")
