@@ -3,20 +3,18 @@ import requests
 import agenta as ag
 
 
-os.environ["AGENTA_LLM_RUN_ENVIRONMENT"] = "cloud"
 API_URL = "https://xxxxxxx.xxx"
+llm_config = {"environment": "production"}
 
-
-tracing = ag.Tracing(
+ag.init(
     app_id="xxxxxxxx",
     host="https://cloud.agenta.ai",
-    api_key="xxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 )
-llm_config = {"environment": "production"}
 
 
 def hosted_platform_call(content: str):
-    span = tracing.start_span(
+    span = ag.tracing.start_span(
         name="gpt3.5-llm-call",
         spankind="llm",
         input={"content": content},
@@ -28,19 +26,19 @@ def hosted_platform_call(content: str):
             "environment": llm_config["environment"],
         },
     )
-    tracing.end_span(outputs=response.json(), span=span)
+    ag.tracing.end_span(outputs=response.json(), span=span)
     return response.json()
 
 
 def query(content: str):
-    tracing.start_span(
+    ag.tracing.start_span(
         name="query",
         input={"content": content},
         spankind="workflow",
         config=llm_config,
     )
     response = hosted_platform_call(content=content)
-    tracing.end_span(outputs=response, span=tracing.active_trace)
+    ag.tracing.end_span(outputs=response, span=ag.tracing.active_trace)
     return response
 
 
