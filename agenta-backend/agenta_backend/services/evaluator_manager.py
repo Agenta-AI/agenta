@@ -141,19 +141,20 @@ async def create_ready_to_use_evaluators(app: AppDB):
     Returns:
     Nothing. The function works by side effect, modifying the database.
     """
-    evaluators = get_evaluators()
-
     direct_use_evaluators = [
-        evaluator for evaluator in evaluators if evaluator.get("direct_use")
+        evaluator for evaluator in get_evaluators() if evaluator.get("direct_use")
     ]
 
     for evaluator in direct_use_evaluators:
-        settings_values = {}
-        settings_template = evaluator.get("settings_template", {})
-        if "correct_answer_keys" in settings_template:
-            settings_values["correct_answer_keys"] = settings_template[
-                "correct_answer_keys"
-            ].get("default", [])
+        settings_values = {
+            setting_name: setting.get("default")
+            for setting_name, setting in evaluator.get("settings_template", {}).items()
+            if setting.get("ground_truth_key") is True and setting.get("default", "")
+        }
+
+        for setting_name, default_value in settings_values.items():
+            assert default_value != "", f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization if isCloudEE() else None,  # noqa,
