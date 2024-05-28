@@ -1,15 +1,6 @@
-import os
 import asyncio
 import agenta as ag
-from agenta.sdk.decorators import tracing as observe
 from openai import AsyncOpenAI
-
-
-os.environ["AGENTA_LLM_RUN_ENVIRONMENT"] = "cloud"
-os.environ["OPENAI_API_KEY"] = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxx"
-os.environ["AGENTA_BASE_URL"] = "https://cloud.agenta.ai"
-os.environ["AGENTA_APP_ID"] = "xxxxxxxxxxxxxxxxxxx"
-os.environ["AGENTA_API_KEY"] = "xxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 
 client = AsyncOpenAI()
@@ -18,7 +9,11 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init()
+ag.init(
+    app_id="xxxxxxxx",
+    host="https://cloud.agenta.ai",
+    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+)
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
@@ -29,7 +24,7 @@ async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    observe.span.set_span_attribute(
+    ag.tracing.set_span_attribute(
         "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
     )  # translates to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()

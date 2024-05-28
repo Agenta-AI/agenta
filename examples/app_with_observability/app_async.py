@@ -12,18 +12,17 @@ ag.init(
     host="https://cloud.agenta.ai",
     api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 )
-tracing = ag.llm_tracing()
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
 
 
-@ag.span(type="LLM")
+@ag.instrument(spankind="llm")
 async def llm_call(prompt):
     chat_completion = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-    tracing.set_span_attribute(
+    ag.tracing.set_span_attribute(
         "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
     )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()
@@ -34,7 +33,8 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint(enable_tracing=False)
+@ag.entrypoint()
+@ag.instrument()
 async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.

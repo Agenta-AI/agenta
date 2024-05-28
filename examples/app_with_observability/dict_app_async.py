@@ -1,7 +1,12 @@
 import agenta as ag
 import litellm
 
-ag.init()
+
+ag.init(
+    app_id="xxxxxxxx",
+    host="https://cloud.agenta.ai",
+    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+)
 
 prompts = {
     "system_prompt": "You are an expert in geography.",
@@ -33,7 +38,7 @@ ag.config.default(
 )
 
 
-@ag.span(type="llm_request")
+@ag.instrument(spankind="llm")
 async def litellm_call(prompt_system: str, prompt_user: str):
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     if ag.config.force_json and ag.config.model not in GPT_FORMAT_RESPONSE:
@@ -58,7 +63,9 @@ async def litellm_call(prompt_system: str, prompt_user: str):
         presence_penalty=ag.config.presence_penalty,
         response_format=response_format,
     )
-
+    ag.tracing.set_span_attribute(
+        "model_config", {"model": ag.config.model, "temperature": ag.config.temperature}
+    )
     tokens_usage = response.usage.dict()
     return {
         "cost": ag.calculate_token_usage(ag.config.model, tokens_usage),
@@ -67,7 +74,8 @@ async def litellm_call(prompt_system: str, prompt_user: str):
     }
 
 
-@ag.entrypoint
+@ag.entrypoint()
+@ag.instrument()
 async def generate(
     inputs: ag.DictInput = ag.DictInput(default_keys=["country"]),
 ):
