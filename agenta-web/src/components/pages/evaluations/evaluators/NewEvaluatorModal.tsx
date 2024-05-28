@@ -240,9 +240,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const evaluators = useAtom(evaluatorsAtom)[0].filter(
-        (item) => !item.direct_use || item.settings_template.correct_answer_keys,
-    )
+    const evaluators = useAtom(evaluatorsAtom)[0].filter((item) => !item.direct_use)
     const [selectedEval, setSelectedEval] = useState<Evaluator | null>(null)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState<string>("")
@@ -268,6 +266,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 .map((key) => ({
                     key,
                     ...selectedEval?.settings_template[key]!,
+                    advanced: selectedEval?.settings_template[key]?.advanced || false,
                 })),
         [selectedEval],
     )
@@ -282,25 +281,13 @@ const NewEvaluatorModal: React.FC<Props> = ({
         }
     }, [newEvalModalConfigOpen])
 
-    const advancedSettingsFields = evalFields.filter((field) => field.key === "correct_answer_keys")
+    const advancedSettingsFields = evalFields.filter((field) => field.advanced)
+    const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
         if (!selectedEval?.key) throw new Error("No selected key")
         const settingsValues = values.settings_values || {}
-
-        if (settingsValues.correct_answer_keys) {
-            settingsValues.correct_answer_keys = Array.isArray(settingsValues.correct_answer_keys)
-                ? settingsValues.correct_answer_keys
-                : [settingsValues.correct_answer_keys]
-        }
-
-        if (
-            !settingsValues.correct_answer_keys &&
-            selectedEval.settings_template.correct_answer_keys
-        ) {
-            settingsValues["correct_answer_keys"] = ["correct_answer"]
-        }
 
         const data = {
             ...values,
@@ -435,7 +422,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                         <Input data-cy="configure-new-evaluator-modal-input" />
                     </Form.Item>
 
-                    {evalFields.map((field) => (
+                    {basicSettingsFields.map((field) => (
                         <DynamicFormField
                             {...field}
                             key={field.key}

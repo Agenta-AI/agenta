@@ -1,17 +1,20 @@
 import React from "react"
-import {Form, Input, Collapse} from "antd"
-import {CaretRightOutlined} from "@ant-design/icons"
+import {Form, Input, InputNumber, Switch, Tooltip, Collapse, theme} from "antd"
+import {CaretRightOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
-
-type AdvancedSettings = {
-    correct_answer_keys: string[]
-}
+import {Editor} from "@monaco-editor/react"
+import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 
 const useStyles = createUseStyles((theme: any) => ({
     label: {
         display: "flex",
         alignItems: "center",
         gap: "0.5rem",
+    },
+    editor: {
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        overflow: "hidden",
     },
 }))
 
@@ -21,11 +24,8 @@ type AdvancedSettingsProps = {
 
 const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
     const classes = useStyles()
-
-    const initialValues = settings.reduce((acc, field) => {
-        acc[field.key] = field.default
-        return acc
-    }, {})
+    const {appTheme} = useAppTheme()
+    const {token} = theme.useToken()
 
     return (
         <Collapse
@@ -34,23 +34,59 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
             className={"my-[10px]"}
         >
             <Collapse.Panel key="1" header="Advanced Settings">
-                {settings.map((field) => (
-                    <Form.Item
-                        key={field.key}
-                        initialValue={initialValues.correct_answer_keys[0]}
-                        name={["settings_values", "correct_answer_keys"]}
-                        label={
-                            <div className={classes.label}>
-                                <span>{field.label}</span>
-                            </div>
-                        }
-                        rules={[
-                            {required: field.required ?? true, message: "This field is required"},
-                        ]}
-                    >
-                        {field.key === "correct_answer_keys" && <Input />}
-                    </Form.Item>
-                ))}
+                {settings.map((field) => {
+                    const rules = [
+                        {required: field.required ?? true, message: "This field is required"},
+                    ]
+
+                    return (
+                        <Form.Item
+                            key={field.key}
+                            name={["settings_values", field.key]}
+                            label={
+                                <div className={classes.label}>
+                                    <span>{field.label}</span>
+                                    {field.description && (
+                                        <Tooltip title={field.description}>
+                                            <InfoCircleOutlined
+                                                style={{color: token.colorPrimary}}
+                                            />
+                                        </Tooltip>
+                                    )}
+                                </div>
+                            }
+                            initialValue={field.default}
+                            rules={rules}
+                        >
+                            {field.type === "string" || field.type === "regex" ? (
+                                <Input />
+                            ) : field.type === "number" ? (
+                                <InputNumber min={field.min} max={field.max} step={0.1} />
+                            ) : field.type === "boolean" || field.type === "bool" ? (
+                                <Switch />
+                            ) : field.type === "text" ? (
+                                <Input.TextArea rows={10} />
+                            ) : field.type === "code" ? (
+                                <Editor
+                                    className={classes.editor}
+                                    height={400}
+                                    width="100%"
+                                    language="python"
+                                    theme={`vs-${appTheme}`}
+                                />
+                            ) : field.type === "object" ? (
+                                <Editor
+                                    className={classes.editor}
+                                    height={120}
+                                    width="100%"
+                                    language="json"
+                                    options={{lineNumbers: "off"}}
+                                    theme={`vs-${appTheme}`}
+                                />
+                            ) : null}
+                        </Form.Item>
+                    )
+                })}
             </Collapse.Panel>
         </Collapse>
     )
