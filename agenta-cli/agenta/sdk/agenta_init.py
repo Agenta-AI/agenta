@@ -81,7 +81,7 @@ class AgentaSingleton:
         self.base_id = base_id
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key) # type: ignore
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
     def get_app_base(self, app_id: str, base_name: str) -> str:
         bases = self.client.bases.list_bases(app_id=app_id, base_name=base_name)

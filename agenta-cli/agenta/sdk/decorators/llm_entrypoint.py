@@ -106,7 +106,6 @@ class entrypoint(BaseDecorator):
             else:
                 agenta.config.pull(config_name="default")
 
-
             # Set the configuration and environment of the LLM app parent span at run-time
             agenta.tracing.set_span_attribute(
                 attributes={"config": config_params}, is_parent_span=True
