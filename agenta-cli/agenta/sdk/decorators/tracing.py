@@ -1,5 +1,4 @@
 # Stdlib Imports
-import os
 import inspect
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -36,15 +35,7 @@ class instrument(BaseDecorator):
     ) -> None:
         self.config = config
         self.spankind = spankind
-        self.tracing = ag.Tracing(
-            base_url=os.environ["AGENTA_BASE_URL"],
-            app_id=os.environ["AGENTA_APP_ID"],
-            api_key=os.environ["AGENTA_API_KEY"],
-        )
-
-        # Set span for global access
-        global span
-        span = self.tracing
+        self.tracing = ag.tracing
 
     def __call__(self, func: Callable[..., Any]):
         @wraps(func)
