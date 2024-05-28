@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def get_correct_answer(data_point: Dict[str, Any], settings_values: Dict[str, Any]) -> Any:
+def get_correct_answer(
+    data_point: Dict[str, Any], settings_values: Dict[str, Any]
+) -> Any:
     """
     Helper function to retrieve the correct answer from the data point based on the settings values.
 
@@ -31,7 +33,9 @@ def get_correct_answer(data_point: Dict[str, Any], settings_values: Dict[str, An
     if correct_answer_key is None:
         raise ValueError("No correct answer keys provided.")
     if correct_answer_key not in data_point:
-        raise ValueError(f"Correct answer column '{correct_answer_key}' not found in the test set.")
+        raise ValueError(
+            f"Correct answer column '{correct_answer_key}' not found in the test set."
+        )
     return data_point[correct_answer_key]
 
 
@@ -115,9 +119,7 @@ def field_match_test(
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         output_json = json.loads(output)
-        result = (
-            output_json[settings_values["json_field"]] == correct_answer
-        )
+        result = output_json[settings_values["json_field"]] == correct_answer
         return Result(type="bool", value=result)
     except ValueError as e:
         return Result(
@@ -262,14 +264,12 @@ def auto_ai_critique(
         prompt_template = settings_values["prompt_template"]
         messages = [
             {"role": "system", "content": prompt_template},
-            {"role": "user", "content": str(chain_run_args)}
+            {"role": "user", "content": str(chain_run_args)},
         ]
 
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.8
+            model="gpt-3.5-turbo", messages=messages, temperature=0.8
         )
 
         evaluation_output = response.choices[0].message["content"].strip()
