@@ -516,6 +516,23 @@ def auto_levenshtein_distance(
         )
 
 
+EVALUATOR_FUNCTIONS = {
+    "auto_exact_match": auto_exact_match,
+    "auto_regex_test": auto_regex_test,
+    "field_match_test": field_match_test,
+    "auto_webhook_test": auto_webhook_test,
+    "auto_custom_code_run": auto_custom_code_run,
+    "auto_ai_critique": auto_ai_critique,
+    "auto_starts_with": auto_starts_with,
+    "auto_ends_with": auto_ends_with,
+    "auto_contains": auto_contains,
+    "auto_contains_any": auto_contains_any,
+    "auto_contains_all": auto_contains_all,
+    "auto_contains_json": auto_contains_json,
+    "auto_levenshtein_distance": auto_levenshtein_distance,
+}
+
+
 def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
@@ -525,43 +542,15 @@ def evaluate(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    evaluation_function = globals().get(evaluator_key, None)
+    evaluation_function = EVALUATOR_FUNCTIONS.get(evaluator_key, None)
     if not evaluation_function:
-        raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
-    try:
-        return evaluation_function(
-            inputs,
-            output,
-            data_point,
-            app_params,
-            settings_values,
-            return Result(type="bool", value=is_within_threshold)
-
-        return Result(type="number", value=distance)
-
-    except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
             error=Error(
-                message="Error during Levenshtein threshold evaluation",
-                stacktrace=str(e),
+                message=f"Evaluation method '{evaluator_key}' not found.",
             ),
         )
-
-
-def evaluate(
-    evaluator_key: str,
-    inputs: Dict[str, Any],
-    output: str,
-    data_point: Dict[str, Any],
-    app_params: Dict[str, Any],
-    settings_values: Dict[str, Any],
-    lm_providers_keys: Dict[str, Any],
-) -> Result:
-    evaluation_function=globals().get(evaluator_key, None)
-    if not evaluation_function:
-        raise ValueError(f"Evaluation method '{evaluator_key}' not found.")
     try:
         return evaluation_function(
             inputs,
@@ -572,6 +561,11 @@ def evaluate(
             lm_providers_keys,
         )
     except Exception as exc:
-        raise RuntimeError(
-            f"Error occurred while running {evaluator_key} evaluation. Exception: {str(exc)}"
-        ) from exc
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error occurred while running {evaluator_key} evaluation. ",
+                stacktrace=str(exc),
+            ),
+        )
