@@ -338,6 +338,7 @@ export interface EvaluationSettingsTemplate {
     min?: number
     max?: number
     required?: boolean
+    advanced?: boolean
 }
 
 export interface Evaluator {
