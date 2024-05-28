@@ -19,8 +19,7 @@ evaluators = [
         "name": "Contains Json",
         "key": "auto_contains_json",
         "direct_use": True,
-        "settings_template": {
-        },
+        "settings_template": {},
         "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
     },
     {
@@ -45,7 +44,6 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
-
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
     },
@@ -113,7 +111,6 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
-
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
     },
@@ -159,7 +156,12 @@ evaluators = [
         "key": "auto_starts_with",
         "direct_use": False,
         "settings_template": {
-            "prefix": {"label": "prefix", "type": "string", "required": True, "description": "The string to match at the start of the output."},
+            "prefix": {
+                "label": "prefix",
+                "type": "string",
+                "required": True,
+                "description": "The string to match at the start of the output.",
+            },
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -254,7 +256,12 @@ evaluators = [
         "key": "auto_levenshtein_distance",
         "direct_use": False,
         "settings_template": {
-            "threshold": {"label": "Threshold", "type": "number", "required": False, "description": "The maximum allowed Levenshtein distance between the output and the correct answer."},
+            "threshold": {
+                "label": "Threshold",
+                "type": "number",
+                "required": False,
+                "description": "The maximum allowed Levenshtein distance between the output and the correct answer.",
+            },
             "correct_answer_key": {
                 "label": "Correct Answer",
                 "default": "correct_answer",

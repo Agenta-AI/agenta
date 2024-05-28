@@ -153,7 +153,9 @@ async def create_ready_to_use_evaluators(app: AppDB):
         }
 
         for setting_name, default_value in settings_values.items():
-            assert default_value != "", f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+            assert (
+                default_value != ""
+            ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
 
         await db_manager.create_evaluator_config(
             app=app,

@@ -55,7 +55,8 @@ logger.setLevel(logging.DEBUG)
 all_evaluators = get_evaluators()
 ground_truth_keys_dict = {
     evaluator["key"]: [
-        key for key, value in evaluator.get("settings_template", {}).items()
+        key
+        for key, value in evaluator.get("settings_template", {}).items()
         if value.get("ground_truth_key") is True
     ]
     for evaluator in all_evaluators
@@ -215,7 +216,9 @@ def evaluate(
             # Loop over each evaluator configuration to gather the correct answers and evaluate
             ground_truth_column_names = []
             for evaluator_config_db in evaluator_config_dbs:
-                ground_truth_keys = ground_truth_keys_dict.get(evaluator_config_db.evaluator_key, [])
+                ground_truth_keys = ground_truth_keys_dict.get(
+                    evaluator_config_db.evaluator_key, []
+                )
                 ground_truth_column_names.extend(
                     evaluator_config_db.settings_values.get(key, "")
                     for key in ground_truth_keys
@@ -246,7 +249,10 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             all_correct_answers = [
-                CorrectAnswer(key=ground_truth_column_name, value=data_point[ground_truth_column_name])
+                CorrectAnswer(
+                    key=ground_truth_column_name,
+                    value=data_point[ground_truth_column_name],
+                )
                 if ground_truth_column_name in data_point
                 else CorrectAnswer(key=ground_truth_column_name, value="")
                 for ground_truth_column_name in ground_truth_column_names
