@@ -104,7 +104,16 @@ evaluators = [
                 "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nCorrect Answer:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
                 "description": "Template for AI critique prompts",
                 "required": True,
-            }
+            },
+            "correct_answer_key": {
+                "label": "Correct Answer",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
     },
