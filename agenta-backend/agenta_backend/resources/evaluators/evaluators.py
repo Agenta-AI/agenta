@@ -150,7 +150,7 @@ evaluators = [
         "key": "auto_starts_with",
         "direct_use": False,
         "settings_template": {
-            "prefix": {"label": "prefix", "type": "string", "required": True, description: "The string to match at the start of the output."},
+            "prefix": {"label": "prefix", "type": "string", "required": True, "description": "The string to match at the start of the output."},
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -245,7 +245,7 @@ evaluators = [
         "key": "auto_levenshtein_distance",
         "direct_use": False,
         "settings_template": {
-            "threshold": {"label": "Threshold", "type": "number", "required": False, description: "The maximum allowed Levenshtein distance between the output and the correct answer."},
+            "threshold": {"label": "Threshold", "type": "number", "required": False, "description": "The maximum allowed Levenshtein distance between the output and the correct answer."},
             "correct_answer_key": {
                 "label": "Correct Answer",
                 "default": "correct_answer",
