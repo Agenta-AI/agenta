@@ -8,15 +8,14 @@ title: "Changelog"
 **New LLM Provider: Welcome Gemini!**
 
 We are excited to announce the addition of Google's Gemini to our list of supported LLM providers, bringing the total number to 12.
-<img height="600" className="dark:hidden" src="/images/changelog/gemini.png" />
-
+<img height="600" className="dark:hidden" src="/images/changelog/gemini_screenshot.png" />
 
 ## v0.14.1-13
 *24 May 2024*
 
 **Playground Improvements**
 - We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
-<img height="600" className="dark:hidden" src="/images/changelog/default-selected-testset.png" />
+<img height="600" className="dark:hidden" src="/images/changelog/default-selected-testset_video.gif" />
 - We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
 - We moved the copy message button in the playground to the output text area.
 - We now hide the cost and usage in the playground when they aren't specified
@@ -41,15 +40,16 @@ config = agenta.get_config(base_id="xxxxx", environment="production", cache_time
 ```
 You can find additional documentation [here](/prompt_management/integrating). 
 
-**Improvements**- Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
-<img height="600" className="dark:hidden" src="/images/changelog/publish_to_production_by_default.png" />
+**Improvements**
+- Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
+<img height="600" className="dark:hidden" src="/images/changelog/publish_to_production_by_default_screenshot.png" />
 
 ## v0.13.8
 *28 April 2024*
 
 **Improvements**
 - The total cost of an evaluation is now displayed in the evaluation table. This allows you to understand how much evaluations are costing you and track your expenses.
-<img height="600" className="dark:hidden" src="/images/changelog/total_cost.png" />
+<img height="600" className="dark:hidden" src="/images/changelog/total_cost_screenshot.png" />
 
 **Bug Fixes**
 - Fixed sidebar focus in automatic evaluation results view
