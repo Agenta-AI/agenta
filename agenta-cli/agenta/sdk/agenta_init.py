@@ -12,6 +12,19 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
+CLIENT_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
+
+
+# initialize the client with the backend url and api key
+backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
+client = AgentaApi(
+    base_url=backend_url,
+    api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
+)
+
+
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
@@ -56,9 +69,6 @@ class AgentaSingleton:
             ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
         """
 
-        self.api_key = api_key or os.environ.get("AGENTA_API_KEY")
-        self.host = host or os.environ.get("AGENTA_HOST", "http://localhost")
-
         app_id = app_id or os.environ.get("AGENTA_APP_ID")
         if not app_id:
             raise ValueError("App ID must be specified.")
@@ -79,12 +89,14 @@ class AgentaSingleton:
 
         self.app_id = app_id
         self.base_id = base_id
+        self.host = host
+        self.api_key = api_key or ""
         self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
         self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
+        self.config = Config(base_id=self.base_id, host=self.host)  # type: ignore
 
     def get_app_base(self, app_id: str, base_name: str) -> str:
-        bases = self.client.bases.list_bases(app_id=app_id, base_name=base_name)
+        bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
         if len(bases) == 0:
             raise APIRequestError(f"No base was found for the app {app_id}")
         return bases[0].base_id
@@ -100,25 +112,14 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: str):
+    def __init__(self, base_id: str, host: str):
         self.base_id = base_id
         self.host = host
-        self.api_key = api_key
 
         if base_id is None or host is None:
             self.persist = False
         else:
             self.persist = True
-
-    @property
-    def client(self):
-        """API Backend client.
-
-        Returns:
-            AgentaAPI: instance of agenta api backend
-        """
-
-        return AgentaApi(base_url=self.host + "/api", api_key=self.api_key)
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
@@ -150,7 +151,7 @@ class Config:
         if not self.persist:
             return
         try:
-            self.client.configs.save_config(
+            client.configs.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -174,12 +175,12 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = self.client.configs.get_config(
+                    config = client.configs.get_config(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = self.client.configs.get_config(
+                    config = client.configs.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
                     )
@@ -244,7 +245,7 @@ def init(
         app_id=singleton.app_id,  # type: ignore
         variant_id=singleton.variant_id,  # type: ignore
         variant_name=singleton.variant_name,
-        api_key=singleton.api_key,
+        api_key=api_key,
         max_workers=max_workers,
     )
     set_global(setup=singleton.setup, config=singleton.config, tracing=tracing)
