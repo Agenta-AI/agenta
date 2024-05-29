@@ -76,7 +76,9 @@ class Tracing(metaclass=SingletonMeta):
         self.active_trace_id: Optional[str] = None
         self.pending_spans: List[CreateSpan] = []
         self.tags: List[str] = []
-        self.trace_config_cache: Dict[str, Any] = {}  # used to save the trace configuration before starting the first span
+        self.trace_config_cache: Dict[
+            str, Any
+        ] = {}  # used to save the trace configuration before starting the first span
         self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
 
     @property
@@ -95,7 +97,9 @@ class Tracing(metaclass=SingletonMeta):
         self,
         attributes: Dict[str, Any] = {},
     ):
-        if self.active_span is None:  # This is the case where entrypoint wants to save the trace information but the parent span has not been initialized yet
+        if (
+            self.active_span is None
+        ):  # This is the case where entrypoint wants to save the trace information but the parent span has not been initialized yet
             for key, value in attributes.items():
                 self.trace_config_cache[key] = value
         else:
