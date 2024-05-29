@@ -60,8 +60,7 @@ class instrument(BaseDecorator):
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
-                    ),
-                    span=span,
+                    )
                 )
             return result
 
@@ -85,8 +84,7 @@ class instrument(BaseDecorator):
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
-                    ),
-                    span=span,
+                    )
                 )
 
         return async_wrapper if is_coroutine_function else sync_wrapper
