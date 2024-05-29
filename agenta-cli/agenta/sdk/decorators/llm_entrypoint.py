@@ -82,10 +82,7 @@ class entrypoint(BaseDecorator):
 
             # Set the configuration and environment of the LLM app parent span at run-time
             agenta.tracing.set_span_attribute(
-                attributes={"config": config_params}, is_parent_span=True
-            )
-            agenta.tracing.set_span_attribute(
-                attributes={"environment": "playground"}, is_parent_span=True
+               {"config": config_params, "environment": "playground"}
             )
 
             llm_result = await self.execute_function(
@@ -108,10 +105,7 @@ class entrypoint(BaseDecorator):
 
             # Set the configuration and environment of the LLM app parent span at run-time
             agenta.tracing.set_span_attribute(
-                attributes={"config": config_params}, is_parent_span=True
-            )
-            agenta.tracing.set_span_attribute(
-                attributes={"environment": kwargs["environment"]}, is_parent_span=True
+               {"config": config_params, "environment": kwargs["environment"]}
             )
 
             llm_result = await self.execute_function(
@@ -397,11 +391,8 @@ class entrypoint(BaseDecorator):
 
         # Set the configuration and environment of the LLM app parent span at run-time
         agenta.tracing.set_span_attribute(
-            attributes={"config": agenta.config.all()}, is_parent_span=True
-        )
-        agenta.tracing.set_span_attribute(
-            attributes={"environment": "bash"}, is_parent_span=True
-        )
+               {"config": agenta.config.all(), "environment": "bash"}
+            )
 
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(
