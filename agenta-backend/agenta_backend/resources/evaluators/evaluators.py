@@ -5,7 +5,7 @@ evaluators = [
         "direct_use": True,
         "settings_template": {
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
@@ -37,7 +37,7 @@ evaluators = [
                 "required": True,
             },
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
@@ -81,7 +81,7 @@ evaluators = [
                 "required": True,
             },
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
@@ -99,12 +99,12 @@ evaluators = [
             "prompt_template": {
                 "label": "Prompt Template",
                 "type": "text",
-                "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nCorrect Answer:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
                 "description": "Template for AI critique prompts",
                 "required": True,
             },
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
@@ -141,7 +141,7 @@ evaluators = [
                 "required": True,
             },
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
@@ -263,7 +263,7 @@ evaluators = [
                 "description": "The maximum allowed Levenshtein distance between the output and the correct answer.",
             },
             "correct_answer_key": {
-                "label": "Correct Answer",
+                "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
