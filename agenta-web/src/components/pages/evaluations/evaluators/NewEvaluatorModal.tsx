@@ -289,6 +289,14 @@ const NewEvaluatorModal: React.FC<Props> = ({
         if (!selectedEval?.key) throw new Error("No selected key")
         const settingsValues = values.settings_values || {}
 
+        if (
+            !settingsValues.correct_answer_key &&
+            selectedEval.settings_template.correct_answer_key.default
+        ) {
+            settingsValues["correct_answer_key"] =
+                selectedEval.settings_template.correct_answer_key.default
+        }
+
         const data = {
             ...values,
             evaluator_key: selectedEval.key,
