@@ -14,7 +14,7 @@ ag.init(
 
 
 def hosted_platform_call(content: str):
-    span = ag.tracing.start_span(
+    ag.tracing.start_span(
         name="gpt3.5-llm-call",
         spankind="llm",
         input={"content": content},
@@ -26,7 +26,7 @@ def hosted_platform_call(content: str):
             "environment": llm_config["environment"],
         },
     )
-    ag.tracing.end_span(outputs=response.json(), span=span)
+    ag.tracing.end_span(outputs=response.json())
     return response.json()
 
 
@@ -38,7 +38,7 @@ def query(content: str):
         config=llm_config,
     )
     response = hosted_platform_call(content=content)
-    ag.tracing.end_span(outputs=response, span=ag.tracing.active_trace)
+    ag.tracing.end_span(outputs=response)
     return response
 
 
