@@ -8,26 +8,30 @@ const intlCurrency = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 6,
 })
 
-export const formatNumber = (value = 0) => {
-    return intlNumber.format(value)
-}
-
-export const formatCurrency = (value = 0) => {
-    if (value === null) {
-        return "-"
+const handleNullOrUndefined = <T, R extends string>(
+    value: T | undefined | null,
+    callback: (v: T) => R,
+    defaultValue: R = "-" as R,
+): R => {
+    if (value == null || (typeof value === "number" && isNaN(value))) {
+        return defaultValue
     } else {
-        return intlCurrency.format(value)
+        return callback(value)
     }
 }
 
-export const formatLatency = (value = 0) => {
-    return `${Math.round(value * 1000)}ms`
+export const formatNumber = (value: number | undefined | null) => {
+    return handleNullOrUndefined(value, intlNumber.format)
 }
 
-export const formatTokenUsage = (value = 0) => {
-    if (value === null) {
-        return "-"
-    } else {
-        return value
-    }
+export const formatCurrency = (value: number | undefined | null) => {
+    return handleNullOrUndefined(value, intlCurrency.format)
+}
+
+export const formatLatency = (value: number | undefined | null) => {
+    return handleNullOrUndefined(value, (v) => `${Math.round(v * 1000)}ms`)
+}
+
+export const formatTokenUsage = (value: number | undefined | null) => {
+    return handleNullOrUndefined(value, (v) => v.toString())
 }
