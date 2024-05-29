@@ -8,26 +8,9 @@ import {
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/services/evaluations"
-import {
-    ArrowLeftOutlined,
-    CaretRightOutlined,
-    EditOutlined,
-    InfoCircleOutlined,
-    PlusOutlined,
-} from "@ant-design/icons"
+import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {
-    Button,
-    Collapse,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Switch,
-    Table,
-    Tooltip,
-    theme,
-} from "antd"
+import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -283,6 +266,8 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
+    console.log(evalFields)
+    console.log(basicSettingsFields)
 
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
