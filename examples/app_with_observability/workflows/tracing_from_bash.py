@@ -25,7 +25,7 @@ async def llm_call(prompt):
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
     ag.tracing.set_span_attribute(
-        "model_config", {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}
+        {"model_config": {"model": "gpt-3.5-turbo", "temperature": ag.config.temperature}}
     )  # translates to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()
     return {

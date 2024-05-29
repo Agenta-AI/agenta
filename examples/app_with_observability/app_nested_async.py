@@ -61,7 +61,7 @@ async def llm_call(
         presence_penalty=presence_penalty,
     )
     ag.tracing.set_span_attribute(
-        "model_config", {"model": model, "temperature": temperature}
+        {"model_config": {"model": model, "temperature": temperature}}
     )
     tokens_usage = response.usage.dict()  # type: ignore
     return {
