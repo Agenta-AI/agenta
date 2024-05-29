@@ -12,7 +12,7 @@ export const formatNumber = (value = 0) => {
     return intlNumber.format(value)
 }
 
-export const formatCurrency = (value: number) => {
+export const formatCurrency = (value = 0) => {
     if (value === null) {
         return "-"
     } else {
@@ -24,7 +24,7 @@ export const formatLatency = (value = 0) => {
     return `${Math.round(value * 1000)}ms`
 }
 
-export const formatTokenUsage = (value: number) => {
+export const formatTokenUsage = (value = 0) => {
     if (value === null) {
         return "-"
     } else {
