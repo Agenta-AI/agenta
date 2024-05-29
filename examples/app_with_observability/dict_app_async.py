@@ -64,7 +64,12 @@ async def litellm_call(prompt_system: str, prompt_user: str):
         response_format=response_format,
     )
     ag.tracing.set_span_attribute(
-        {"model_config": {"model": ag.config.model, "temperature": ag.config.temperature}}
+        {
+            "model_config": {
+                "model": ag.config.model,
+                "temperature": ag.config.temperature,
+            }
+        }
     )
     tokens_usage = response.usage.dict()
     return {
