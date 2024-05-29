@@ -73,11 +73,10 @@ class Tracing(metaclass=SingletonMeta):
             max_workers if max_workers else 4, logger=llm_logger
         )
         self.active_span: Optional[CreateSpan] = None
-        self.active_trace: Optional[CreateSpan] = None
-        self.recording_trace_id: Union[str, None] = None
-        self.recorded_spans: List[CreateSpan] = []
+        self.active_trace_id: Union[str, None] = None
+        self.pending_spans: List[CreateSpan] = []
         self.tags: List[str] = []
-        self.trace_config: Dict[str, Any] = {}
+        self.trace_config_cache: Dict[str, Any] = {} # used to save the trace configuration before starting the first span
         self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
 
     @property
@@ -94,35 +93,16 @@ class Tracing(metaclass=SingletonMeta):
 
     def set_span_attribute(
         self,
-        parent_key: Optional[str] = None,
         attributes: Dict[str, Any] = {},
-        is_parent_span: bool = False,
     ):
-        if is_parent_span:
+        assert not(self.active_span is None and self.parent_span_id is not None), "The parent_span_id is set, yet there is no active span!"
+        if self.parent_span_id is None and self.active_span is None: # This is the case where entrypoint wants to save the trace information but the parent span has not been initialized yet
             for key, value in attributes.items():
-                self.trace_config[key] = value
-            return
-
-        # set the span attributes
-        span = self.span_dict[self.active_span.id]  # type: ignore
-        for key, value in attributes.items():
-            self.set_attribute(span.attributes, key, value, parent_key)  # type: ignore
-        return
-
-    def set_attribute(
-        self,
-        span_attributes: Dict[str, Any],
-        key: str,
-        value: Any,
-        parent_key: Optional[str] = None,
-    ):
-        if parent_key is not None:
-            model_config = span_attributes.get(parent_key, None)
-            if not model_config:
-                span_attributes[parent_key] = {}
-            span_attributes[parent_key][key] = value
+                self.trace_config_cache[key] = value
         else:
-            span_attributes[key] = value
+            for key, value in attributes.items():
+                self.active_span.attributes[key] = value
+
 
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
@@ -147,11 +127,6 @@ class Tracing(metaclass=SingletonMeta):
             variant_id=self.variant_id,
             variant_name=self.variant_name,
             config=config,
-            environment=(
-                self.active_trace.environment
-                if self.active_trace
-                else os.environ.get("AGENTA_LLM_RUN_ENVIRONMENT", "unset")
-            ),
             spankind=spankind.upper(),
             attributes={},
             status=SpanStatusCode.UNSET.value,
@@ -165,74 +140,79 @@ class Tracing(metaclass=SingletonMeta):
             token_consumption=None,
             parent_span_id=None,
         )
-
-        if span.spankind == SpanKind.WORKFLOW.value:
-            self.active_trace = span
-            self.environment = (
-                self.trace_config.get("environment")
-                if self.trace_config is not None
+        
+        if self.active_trace_id is None: # This is a parent span
+            self.active_trace_id = self._create_trace_id()
+            assert self.parent_span_id is None, "Creating a new trace, yet the parent_span_id is not None"
+            span.environment = (
+                self.trace_config_cache.get("environment")
+                if self.trace_config_cache is not None
                 else os.environ.get("environment", "unset")
             )
-            self.config = (
-                self.trace_config.get("config")
-                if not config and self.trace_config is not None
+            span.config = (
+                self.trace_config_cache.get("config")
+                if not config and self.trace_config_cache is not None
                 else None
             )
-            self.parent_span_id = span.id
-            self.recording_trace_id = self._create_trace_id()
+            self.parent_span = span
         else:
-            self.active_span = span
-            self.active_span = span
-            self.span_dict[span.id] = span
-            span.parent_span_id = (
-                self.parent_span_id
-            )  # set the parent_span_id to the present span
-            self.parent_span_id = span.id  # update parent_span_id to active span
+            self.parent_span_id = self.active_span.id 
+        self.span_dict[span.id] = span
+        self.active_span = span
 
         self.llm_logger.info(f"Recorded span and setting parent_span_id: {span.id}")
         return span
 
     def update_span_status(self, span: CreateSpan, value: str):
         span.status = value
-        self.active_span = span
 
-    def end_span(self, outputs: Dict[str, Any], span: CreateSpan):
-        span.end_time = datetime.now(timezone.utc)
-        span.outputs = [outputs["message"]]
-        span.cost = outputs.get("cost", None)
-        span.tokens = outputs.get("usage")
+    def end_span(self, outputs: Dict[str, Any]):
+        """
+        Ends the active span, if it is a parent span, ends the trace too.
+        """
+        if self.active_span is not None:
+            raise ValueError("There is no active span to end.")
+        self.active_span.end_time = datetime.now(timezone.utc)
+        self.active_span.outputs = [outputs["message"]]
+        self.active_span.cost = outputs.get("cost", None)
+        self.active_span.tokens = outputs.get("usage")
 
         # Push span to list of recorded spans
-        self.recorded_spans.append(span)
+        self.pending_spans.append(self.active_span)
         self.llm_logger.info(
-            f"Pushed {span.spankind} span {span.id} to recorded spans."
+            f"Pushed {self.active_span.spankind} span {self.active_span.id} to recorded spans."
         )
+        if self.parent_span_id is None:
+            self.end_trace(parent_span=self.active_span)
+        else:
+            self.active_span = self.span_dict[self.parent_span_id]
+            self.parent_span_id = self.active_span.parent_span_id            
 
-        # End tracing if spankind is workflow
-        if span.spankind == SpanKind.WORKFLOW.value:
-            self.end_recording(span=span)
-
-    def end_recording(self, span: CreateSpan):
+    def end_trace(self, parent_span: CreateSpan):
         if self.api_key == "":
             return
 
-        if not self.active_trace:
+        if not self.active_trace_id:
             raise RuntimeError("No active trace to end.")
 
         self.llm_logger.info("Preparing to send recorded spans for processing.")
-        self.llm_logger.info(f"Recorded spans => {len(self.recorded_spans)}")
+        self.llm_logger.info(f"Recorded spans => {len(self.pending_spans)}")
         self.tasks_manager.add_task(
-            self.active_trace.id,
+            self.active_trace_id,
             "trace",
             self.client.create_traces(
-                trace=self.recording_trace_id, spans=self.recorded_spans  # type: ignore
+                trace=self.active_trace_id, spans=self.pending_spans  # type: ignore
             ),
             self.client,
         )
         self.llm_logger.info(
             f"Tracing for {span.id} recorded successfully and sent for processing."
         )
-        self._clear_recorded_spans()
+        self._clear_pending_spans()
+        self.active_trace_id = None
+        self.parent_span_id = None
+        self.active_span = None
+        self.trace_config_cache = {}
 
     def _create_trace_id(self) -> str:
         """Creates a unique mongo id for the trace object.
@@ -252,12 +232,12 @@ class Tracing(metaclass=SingletonMeta):
 
         return str(ObjectId())
 
-    def _clear_recorded_spans(self) -> None:
+    def _clear_pending_spans(self) -> None:
         """
         Clear the list of recorded spans to prepare for next batch processing.
         """
 
-        self.recorded_spans = []
+        self.pending_spans = []
         self.llm_logger.info(
-            f"Cleared all recorded spans from batch: {self.recorded_spans}"
+            f"Cleared all recorded spans from batch: {self.pending_spans}"
         )
