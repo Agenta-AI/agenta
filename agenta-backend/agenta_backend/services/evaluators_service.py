@@ -569,7 +569,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_contains_all": auto_contains_all,
     "auto_contains_json": auto_contains_json,
     "auto_levenshtein_distance": auto_levenshtein_distance,
-    "auto_similarity_match": auto_similarity_match,  # Added here
+    "auto_similarity_match": auto_similarity_match,
 }
 
 
