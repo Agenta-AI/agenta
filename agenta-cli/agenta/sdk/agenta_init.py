@@ -12,19 +12,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
-CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
-CLIENT_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
-
-
-# initialize the client with the backend url and api key
-backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
-client = AgentaApi(
-    base_url=backend_url,
-    api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
-)
-
-
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
@@ -68,51 +55,23 @@ class AgentaSingleton:
         Raises:
             ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
         """
-
-        app_id = app_id or os.environ.get("AGENTA_APP_ID")
         if not app_id:
             raise ValueError("App ID must be specified.")
+        self.app_id = app_id or os.environ.get("AGENTA_APP_ID")
+        self.api_key = api_key or os.environ.get("AGENTA_API_KEY")
+        self.host = host or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
 
-        base_id = os.environ.get("AGENTA_BASE_ID")
-        base_name = os.environ.get("AGENTA_BASE_NAME")
-        if base_id is None and (app_id is None or base_name is None):
+        self.base_id = os.environ.get("AGENTA_BASE_ID")
+        if self.base_id is None:
             print(
-                f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
+                f"Warning: Your configuration will not be saved permanently since base_id is not provided."
             )
-        else:
-            try:
-                base_id = self.get_app_base(app_id, base_name)  # type: ignore
-            except Exception as ex:
-                raise APIRequestError(
-                    f"Failed to get base id and/or app_id from the server with error: {ex}"
-                )
 
-        self.app_id = app_id
-        self.base_id = base_id
-        self.host = host
-        self.api_key = api_key or ""
-        self.variant_id = os.environ.get("AGENTA_VARIANT_ID")
-        self.variant_name = os.environ.get("AGENTA_VARIANT_NAME")
         self.config = Config(base_id=self.base_id, host=self.host)  # type: ignore
-
-    def get_app_base(self, app_id: str, base_name: str) -> str:
-        bases = client.bases.list_bases(app_id=app_id, base_name=base_name)
-        if len(bases) == 0:
-            raise APIRequestError(f"No base was found for the app {app_id}")
-        return bases[0].base_id
-
-    def get_current_config(self):
-        """
-        Retrieves the current active configuration
-        """
-
-        if self._config_data is None:
-            raise RuntimeError("AgentaSingleton has not been initialized")
-        return self._config_data
 
 
 class Config:
-    def __init__(self, base_id: str, host: str):
+    def __init__(self, base_id: str, host: str, api_key: str = ""):
         self.base_id = base_id
         self.host = host
 
@@ -120,6 +79,7 @@ class Config:
             self.persist = False
         else:
             self.persist = True
+            self.client = AgentaApi(base_url=self.host + "/api", api_key=api_key)
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
@@ -138,7 +98,7 @@ class Config:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
             logger.warning(
-                "Unable to push the default configuration to the server." + str(ex)
+                "Unable to push the default configuration to the server. %s", str(ex)
             )
 
     def push(self, config_name: str, overwrite=True, **kwargs):
@@ -151,7 +111,7 @@ class Config:
         if not self.persist:
             return
         try:
-            client.configs.save_config(
+            self.client.configs.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -159,7 +119,7 @@ class Config:
             )
         except Exception as ex:
             logger.warning(
-                "Failed to push the configuration to the server with error: " + str(ex)
+                "Failed to push the configuration to the server with error: %s", ex
             )
 
     def pull(
@@ -169,30 +129,29 @@ class Config:
         if not self.persist and (
             config_name != "default" or environment_name is not None
         ):
-            raise Exception(
+            raise ValueError(
                 "Cannot pull the configuration from the server since the app_name and base_name are not provided."
             )
         if self.persist:
             try:
                 if environment_name:
-                    config = client.configs.get_config(
+                    config = self.client.configs.get_config(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.configs.get_config(
+                    config = self.client.configs.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
                     )
             except Exception as ex:
                 logger.warning(
-                    "Failed to pull the configuration from the server with error: "
-                    + str(ex)
+                    "Failed to pull the configuration from the server with error: %s", str(ex)
                 )
         try:
             self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
-            logger.warning("Failed to set the configuration with error: " + str(ex))
+            logger.warning("Failed to set the configuration with error: %s", str(ex))
 
     def all(self):
         """Returns all the parameters for the app variant"""
@@ -243,8 +202,6 @@ def init(
     tracing = Tracing(
         host=singleton.host,  # type: ignore
         app_id=singleton.app_id,  # type: ignore
-        variant_id=singleton.variant_id,  # type: ignore
-        variant_name=singleton.variant_name,
         api_key=api_key,
         max_workers=max_workers,
     )
