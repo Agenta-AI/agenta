@@ -1,5 +1,6 @@
 import os
 import logging
+import toml
 from typing import Optional
 
 from agenta.sdk.utils.globals import set_global
@@ -40,31 +41,39 @@ class AgentaSingleton:
         app_id: Optional[str] = None,
         host: Optional[str] = None,
         api_key: Optional[str] = None,
+        config_fname: Optional[str] = None,
     ) -> None:
         """Main function to initialize the singleton.
 
-        Initializes the singleton with the given `app_name`, `base_name`, and `host`. If any of these arguments are not provided,
-        the function will look for them in environment variables.
+        Initializes the singleton with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
+        1. Explicit argument provided in the function call.
+        2. Value from the configuration file specified by `config_fname`.
+        3. Environment variables.
 
         Args:
-            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "AGENTA_APP_NAME" in environment variables.
-            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "AGENTA_HOST" in environment variables.
-            api_key (Optional[str]): API Key to use with the host of the backend server.
-            kwargs (Any): Additional keyword arguments.
+            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
+            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
+            api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
+            config_fname (Optional[str]): Path to the configuration file. Defaults to None.
 
         Raises:
-            ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
+            ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
-        if not app_id:
+        config = {}
+        if config_fname:
+            config = toml.load(config_fname)
+
+        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
+        self.host = host or config.get("backend_host") or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
+        self.api_key = api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+
+        if not self.app_id:
             raise ValueError("App ID must be specified.")
-        self.app_id = app_id or os.environ.get("AGENTA_APP_ID")
-        self.api_key = api_key or os.environ.get("AGENTA_API_KEY")
-        self.host = host or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
 
         self.base_id = os.environ.get("AGENTA_BASE_ID")
         if self.base_id is None:
             print(
-                f"Warning: Your configuration will not be saved permanently since base_id is not provided."
+                "Warning: Your configuration will not be saved permanently since base_id is not provided."
             )
 
         self.config = Config(base_id=self.base_id, host=self.host)  # type: ignore
@@ -186,23 +195,38 @@ def init(
     app_id: Optional[str] = None,
     host: Optional[str] = None,
     api_key: Optional[str] = None,
+    config_fname: Optional[str] = None,
     max_workers: Optional[int] = None,
 ):
-    """Main function to be called by the user to initialize the sdk.
+    """Main function to initialize the agenta sdk.
 
-    Args:
-        app_id (str): The Id of the app.
-        host (str): The host of the backend server.
-        api_key (str): The API key to use for the backend server.
-    """
+        Initializes agenta with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
+        1. Explicit argument provided in the function call.
+        2. Value from the configuration file specified by `config_fname`.
+        3. Environment variables.
+
+        - `app_id` is a required parameter (to be specified in one of the above ways)
+        - `host` is optional and defaults to "https://cloud.agenta.ai"
+        - `api_key` is optional and defaults to "". It is required only when using cloud or enterprise version of agenta.
+
+
+        Args:
+            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
+            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
+            api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
+            config_fname (Optional[str]): Path to the configuration file. Defaults to None.
+
+        Raises:
+            ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
+        """
 
     singleton = AgentaSingleton()
 
-    singleton.init(app_id=app_id, host=host, api_key=api_key)
+    singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
     tracing = Tracing(
         host=singleton.host,  # type: ignore
         app_id=singleton.app_id,  # type: ignore
-        api_key=api_key,
+        api_key=singleton.api_key,
         max_workers=max_workers,
     )
     set_global(setup=singleton.setup, config=singleton.config, tracing=tracing)
