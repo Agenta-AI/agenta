@@ -55,20 +55,18 @@ app.include_router(router, prefix="")
 class entrypoint(BaseDecorator):
     """Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
-    Args:
-        BaseDecorator (object): base decorator class
 
     Example:
     ```python
         import agenta as ag
 
-        @ag.entrypoint(enable_tracing=True) # Defaults to False
+        @ag.entrypoint
         async def chain_of_prompts_llm(prompt: str):
             return ...
     ```
     """
 
-    def __call__(self, func: Callable[..., Any]):
+    def __init__(self, func: Callable[..., Any]):
         endpoint_name = "generate"
         func_signature = inspect.signature(func)
         config_params = agenta.config.all()
@@ -134,13 +132,12 @@ class entrypoint(BaseDecorator):
         )
 
         if self.is_main_script(func):
-            result = self.handle_terminal_run(
+            self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
                 config_params,
                 ingestible_files,
             )
-            return result
 
     def extract_ingestible_files(
         self,
@@ -205,9 +202,16 @@ class entrypoint(BaseDecorator):
                 return FuncResponse(**result, latency=round(latency, 4))
             if isinstance(result, str):
                 return FuncResponse(message=result, latency=round(latency, 4))  # type: ignore
+            if isinstance(result, int) or isinstance(result, float):
+                return FuncResponse(message=str(result), latency=round(latency, 4))
+            if result is None:
+                return FuncResponse(
+                    message="Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
+                    latency=round(latency, 4),
+                )
         except Exception as e:
             self.handle_exception(e)
-        return FuncResponse(message="Unexpected error occurred", latency=0)  # type: ignore
+        return FuncResponse(message="Unexpected error occurred when calling the @entrypoing decorated function", latency=0)  # type: ignore
 
     def handle_exception(self, e: Exception):
         """Handle exceptions."""
@@ -394,7 +398,6 @@ class entrypoint(BaseDecorator):
         print(
             f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
         )
-        return result
 
     def override_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
