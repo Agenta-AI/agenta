@@ -112,6 +112,8 @@ Here's how our code would look if we combine everything:
 ```python
 import agenta as ag
 
+os.environ["AGENTA_API_KEY"] = ""
+os.environ["AGENTA_APP_ID"] = ""
 ag.init()
 
 @ag.instrument(spankind="llm")
