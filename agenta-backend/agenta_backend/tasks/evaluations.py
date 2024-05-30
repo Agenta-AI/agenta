@@ -3,17 +3,19 @@ import os
 import asyncio
 import logging
 import traceback
-
 from typing import Any, Dict, List
+
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services import evaluators_service, llm_apps_service
-
-from agenta_backend.models.api.evaluation_model import (
-    EvaluationStatusEnum,
+from agenta_backend.services import (
+    evaluators_service,
+    llm_apps_service,
+    deployment_manager,
+    aggregation_service,
 )
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
@@ -24,12 +26,6 @@ from agenta_backend.models.db_models import (
     InvokationResult,
     Error,
     Result,
-)
-from agenta_backend.services import (
-    evaluators_service,
-    llm_apps_service,
-    deployment_manager,
-    aggregation_service,
 )
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -44,22 +40,27 @@ from agenta_backend.services.db_manager import (
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
+from agenta_backend.services.evaluator_manager import get_evaluators
 
 if isCloudEE():
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
-from agenta_backend.models.db_models import (
-    Result,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-)
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Fetch all evaluators and precompute ground truth keys
+all_evaluators = get_evaluators()
+ground_truth_keys_dict = {
+    evaluator["key"]: [
+        key
+        for key, value in evaluator.get("settings_template", {}).items()
+        if value.get("ground_truth_key") is True
+    ]
+    for evaluator in all_evaluators
+}
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate", bind=True)
@@ -74,16 +75,17 @@ def evaluate(
     lm_providers_keys: Dict[str, Any],
 ):
     """
-    Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
-    Saves the results in the Database
+    Evaluates an app variant using the provided evaluators and testset, and saves the results in the database.
 
     Args:
+        self: The task instance.
         app_id (str): The ID of the app.
         variant_id (str): The ID of the app variant.
         evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
         testset_id (str): The ID of the testset.
-        rate_limit_config (Dict[str,int]): See LLMRunRateLimit
-        correct_answer_column (str): The name of the column in the testset that contains the correct answer.
+        evaluation_id (str): The ID of the evaluation.
+        rate_limit_config (Dict[str, int]): Configuration for rate limiting.
+        lm_providers_keys (Dict[str, Any]): Keys for language model providers.
 
     Returns:
         None
@@ -212,12 +214,15 @@ def evaluate(
             evaluators_results: List[EvaluationScenarioResult] = []
 
             # Loop over each evaluator configuration to gather the correct answers and evaluate
-            all_correct_answers = []
+            ground_truth_column_names = []
             for evaluator_config_db in evaluator_config_dbs:
-                correct_answers = parse_correct_answers(evaluator_config_db, data_point)
-
-                all_correct_answers.extend(correct_answers)
-
+                ground_truth_keys = ground_truth_keys_dict.get(
+                    evaluator_config_db.evaluator_key, []
+                )
+                ground_truth_column_names.extend(
+                    evaluator_config_db.settings_values.get(key, "")
+                    for key in ground_truth_keys
+                )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
 
                 result = evaluators_service.evaluate(
@@ -243,6 +248,15 @@ def evaluate(
                 logger.debug(f"Result: {result_object}")
                 evaluators_results.append(result_object)
 
+            all_correct_answers = [
+                CorrectAnswer(
+                    key=ground_truth_column_name,
+                    value=data_point[ground_truth_column_name],
+                )
+                if ground_truth_column_name in data_point
+                else CorrectAnswer(key=ground_truth_column_name, value="")
+                for ground_truth_column_name in ground_truth_column_names
+            ]
             # 4. We save the result of the eval scenario in the db
 
             loop.run_until_complete(
@@ -417,20 +431,3 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
         elif param["type"] == "file_url":
             list_inputs.append({"name": param["name"], "type": "file_url"})
     return list_inputs
-
-
-def parse_correct_answers(evaluator_config_db, data_point) -> List[CorrectAnswer]:
-    """
-    Extracts correct answers based on the evaluator configuration.
-    """
-    correct_answers = []
-    correct_answer_keys = evaluator_config_db.settings_values.get("correct_answer_keys")
-
-    if not correct_answer_keys:
-        return []
-
-    for key in correct_answer_keys:
-        correct_answer_value = data_point.get(key, "")
-        correct_answers.append(CorrectAnswer(key=key, value=correct_answer_value))
-
-    return correct_answers
