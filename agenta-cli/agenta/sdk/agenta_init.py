@@ -64,8 +64,14 @@ class AgentaSingleton:
             config = toml.load(config_fname)
 
         self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
-        self.host = host or config.get("backend_host") or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
-        self.api_key = api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+        self.host = (
+            host
+            or config.get("backend_host")
+            or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
+        )
+        self.api_key = (
+            api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+        )
 
         if not self.app_id:
             raise ValueError("App ID must be specified.")
@@ -155,7 +161,8 @@ class Config:
                     )
             except Exception as ex:
                 logger.warning(
-                    "Failed to pull the configuration from the server with error: %s", str(ex)
+                    "Failed to pull the configuration from the server with error: %s",
+                    str(ex),
                 )
         try:
             self.set(**{"current_version": config.current_version, **config.parameters})
@@ -200,25 +207,25 @@ def init(
 ):
     """Main function to initialize the agenta sdk.
 
-        Initializes agenta with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
-        1. Explicit argument provided in the function call.
-        2. Value from the configuration file specified by `config_fname`.
-        3. Environment variables.
+    Initializes agenta with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
+    1. Explicit argument provided in the function call.
+    2. Value from the configuration file specified by `config_fname`.
+    3. Environment variables.
 
-        - `app_id` is a required parameter (to be specified in one of the above ways)
-        - `host` is optional and defaults to "https://cloud.agenta.ai"
-        - `api_key` is optional and defaults to "". It is required only when using cloud or enterprise version of agenta.
+    - `app_id` is a required parameter (to be specified in one of the above ways)
+    - `host` is optional and defaults to "https://cloud.agenta.ai"
+    - `api_key` is optional and defaults to "". It is required only when using cloud or enterprise version of agenta.
 
 
-        Args:
-            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
-            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
-            api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
-            config_fname (Optional[str]): Path to the configuration file. Defaults to None.
+    Args:
+        app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
+        host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
+        api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
+        config_fname (Optional[str]): Path to the configuration file. Defaults to None.
 
-        Raises:
-            ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
-        """
+    Raises:
+        ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
+    """
 
     singleton = AgentaSingleton()
 

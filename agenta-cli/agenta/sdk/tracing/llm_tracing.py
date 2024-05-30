@@ -10,6 +10,7 @@ from agenta.client.backend.client import AsyncObservabilityClient
 from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanStatusCode
 
 from bson.objectid import ObjectId
+
 VARIANT_TRACKING_FEATURE_FLAG = False
 
 
@@ -150,7 +151,7 @@ class Tracing(metaclass=SingletonMeta):
             if VARIANT_TRACKING_FEATURE_FLAG:
                 # TODO: we should get the variant_id and variant_name (and environment) from the config object
                 span.variant_id = config.variant_id
-                span.variant_name = config.variant_name,
+                span.variant_name = (config.variant_name,)
 
         else:
             span.parent_span_id = self.active_span.id
