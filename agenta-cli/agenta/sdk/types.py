@@ -131,7 +131,9 @@ class GroupedMultipleChoiceParam(str):
     def __new__(cls, default: str = None, choices: Dict[str, List[str]] = None):
         if choices is None:
             choices = {}
-        if default and not any(default in choice_list for choice_list in choices.values()):
+        if default and not any(
+            default in choice_list for choice_list in choices.values()
+        ):
             if not choices:
                 print(
                     f"Warning: Default value {default} provided but choices are empty."
