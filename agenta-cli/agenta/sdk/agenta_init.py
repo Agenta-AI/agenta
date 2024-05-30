@@ -50,11 +50,16 @@ class AgentaSingleton:
         2. Value from the configuration file specified by `config_fname`.
         3. Environment variables.
 
+        Examples:
+        ag.init(app_id="xxxx", api_key="xxx")
+        ag.init(config_fname="config.toml")
+        ag.init() #assuming env vars are set 
+        
         Args:
             app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
             host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
             api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
-            config_fname (Optional[str]): Path to the configuration file. Defaults to None.
+            config_fname (Optional[str]): Path to the configuration file (relative or absolute). Defaults to None.
 
         Raises:
             ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
