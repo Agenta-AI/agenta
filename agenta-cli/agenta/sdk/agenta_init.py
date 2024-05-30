@@ -175,7 +175,15 @@ class Config:
             k: v
             for k, v in self.__dict__.items()
             if k
-            not in ["app_name", "base_name", "host", "base_id", "api_key", "persist", "client"]
+            not in [
+                "app_name",
+                "base_name",
+                "host",
+                "base_id",
+                "api_key",
+                "persist",
+                "client",
+            ]
         }
 
     # function to set the parameters for the app variant
