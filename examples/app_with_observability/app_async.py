@@ -7,11 +7,7 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init(
-    app_id="xxxxxxxx",
-    host="https://cloud.agenta.ai",
-    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-)
+ag.init()
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
@@ -38,7 +34,7 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint()
+@ag.entrypoint
 @ag.instrument()
 async def generate(country: str, gender: str):
     """

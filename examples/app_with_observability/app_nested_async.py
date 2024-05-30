@@ -18,11 +18,7 @@ CHAT_LLM_GPT = [
     "gpt-4-1106-preview",
 ]
 
-ag.init(
-    app_id="xxxxxxxx",
-    host="https://cloud.agenta.ai",
-    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-)
+ag.init()
 ag.config.default(
     temperature_1=ag.FloatParam(default=1, minval=0.0, maxval=2.0),
     model_1=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
@@ -107,7 +103,7 @@ async def wrapper(context_1: str, max_tokens: int):
     return final_response
 
 
-@ag.entrypoint()
+@ag.entrypoint
 @ag.instrument()
 async def generate(context_1: str):
     """
