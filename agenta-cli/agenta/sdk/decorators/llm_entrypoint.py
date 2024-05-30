@@ -323,16 +323,13 @@ class entrypoint(BaseDecorator):
                 print("This is the main script.")
         """
 
-        # this ensures that when we call main.py, it starts the fastapi server
-        if os.path.splitext(os.path.basename(sys.argv[0]))[0] == "main":
-            return False
-
         # the function that gets passed to entrypoint will always be called from sdk/decorators/tracing.py
-        if os.path.splitext(os.path.basename(inspect.getfile(func)))[0] == "tracing":
-            return True
-
-        # same behaviour as the first single-line comment above
-        return False
+        return os.path.splitext(os.path.basename(inspect.getfile(func)))[
+            0
+        ] == "tracing" and os.path.splitext(os.path.basename(sys.argv[0]))[0] not in [
+            "bootstrap",
+            "main",
+        ]  # ensures that the script is called not from mangum or docker
 
     def handle_terminal_run(
         self,
