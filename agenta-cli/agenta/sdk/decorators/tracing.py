@@ -43,9 +43,13 @@ class instrument(BaseDecorator):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             result = None
+            func_args = inspect.getfullargspec(func).args
+            input_dict = {name: value for name, value in zip(func_args, args)}
+            input_dict.update(kwargs)
+
             span = self.tracing.start_span(
                 name=func.__name__,
-                input=kwargs,
+                input=input_dict,
                 spankind=self.spankind,
                 config=self.config,
             )
@@ -67,9 +71,13 @@ class instrument(BaseDecorator):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             result = None
+            func_args = inspect.getfullargspec(func).args
+            input_dict = {name: value for name, value in zip(func_args, args)}
+            input_dict.update(kwargs)
+
             span = self.tracing.start_span(
                 name=func.__name__,
-                input=kwargs,
+                input=input_dict,
                 spankind=self.spankind,
                 config=self.config,
             )

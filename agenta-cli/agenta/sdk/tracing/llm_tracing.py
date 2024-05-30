@@ -1,18 +1,17 @@
-# Stdlib Imports
 import os
 from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Union
 
-# Own Imports
 from agenta.sdk.tracing.logger import llm_logger
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncAgentaApi
 from agenta.client.backend.client import AsyncObservabilityClient
 from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanStatusCode
 
-# Third Party Imports
 from bson.objectid import ObjectId
+
+VARIANT_TRACKING_FEATURE_FLAG = False
 
 
 class SingletonMeta(type):
@@ -58,8 +57,6 @@ class Tracing(metaclass=SingletonMeta):
         self,
         host: str,
         app_id: str,
-        variant_id: Optional[str] = None,
-        variant_name: Optional[str] = None,
         api_key: Optional[str] = None,
         max_workers: Optional[int] = None,
     ):
@@ -67,8 +64,6 @@ class Tracing(metaclass=SingletonMeta):
         self.api_key = api_key if api_key is not None else ""
         self.llm_logger = llm_logger
         self.app_id = app_id
-        self.variant_id = variant_id
-        self.variant_name = variant_name
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=llm_logger
         )
@@ -126,8 +121,6 @@ class Tracing(metaclass=SingletonMeta):
             inputs=input,
             name=name,
             app_id=self.app_id,
-            variant_id=self.variant_id,
-            variant_name=self.variant_name,
             config=config,
             spankind=spankind.upper(),
             attributes={},
@@ -155,6 +148,11 @@ class Tracing(metaclass=SingletonMeta):
                 if not config and self.trace_config_cache is not None
                 else None
             )
+            if VARIANT_TRACKING_FEATURE_FLAG:
+                # TODO: we should get the variant_id and variant_name (and environment) from the config object
+                span.variant_id = config.variant_id
+                span.variant_name = (config.variant_name,)
+
         else:
             span.parent_span_id = self.active_span.id
         self.span_dict[span.id] = span

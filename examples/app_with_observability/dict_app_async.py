@@ -79,7 +79,7 @@ async def litellm_call(prompt_system: str, prompt_user: str):
     }
 
 
-@ag.entrypoint()
+@ag.entrypoint
 @ag.instrument()
 async def generate(
     inputs: ag.DictInput = ag.DictInput(default_keys=["country"]),
