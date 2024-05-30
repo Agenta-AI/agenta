@@ -38,7 +38,7 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint()
+@ag.entrypoint
 @ag.instrument()
 async def generate(country: str, gender: str):
     """

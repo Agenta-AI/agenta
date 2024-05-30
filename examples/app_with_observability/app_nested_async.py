@@ -107,7 +107,7 @@ async def wrapper(context_1: str, max_tokens: int):
     return final_response
 
 
-@ag.entrypoint()
+@ag.entrypoint
 @ag.instrument()
 async def generate(context_1: str):
     """
