@@ -1,6 +1,7 @@
 import agenta as ag
 from openai import AsyncOpenAI
 
+
 client = AsyncOpenAI()
 
 default_prompt = (
@@ -8,6 +9,7 @@ default_prompt = (
 )
 
 ag.init()
+
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
@@ -25,7 +27,7 @@ async def llm_call(prompt):
                 "temperature": ag.config.temperature,
             }
         }
-    )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
+    )  # translates to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()
     return {
         "cost": ag.calculate_token_usage("gpt-3.5-turbo", tokens_usage),
@@ -47,8 +49,4 @@ async def generate(country: str, gender: str):
 
     prompt = ag.config.prompt_template.format(country=country, gender=gender)
     response = await llm_call(prompt=prompt)
-    return {
-        "message": response["message"],
-        "usage": response["usage"],
-        "cost": response["cost"],
-    }
+    return response
