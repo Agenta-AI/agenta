@@ -74,8 +74,12 @@ class AgentaSingleton:
         )
 
         if not self.app_id:
-            raise ValueError("App ID must be specified.")
-
+            raise ValueError(
+                "App ID must be specified. You can provide it in one of the following ways:\n"
+                "1. As an argument when calling ag.init(app_id='your_app_id').\n"
+                "2. In the configuration file specified by config_fname.\n"
+                "3. As an environment variable 'AGENTA_APP_ID'."
+            )
         self.base_id = os.environ.get("AGENTA_BASE_ID")
         if self.base_id is None:
             print(
