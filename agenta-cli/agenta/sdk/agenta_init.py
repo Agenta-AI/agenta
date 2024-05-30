@@ -53,8 +53,8 @@ class AgentaSingleton:
         Examples:
         ag.init(app_id="xxxx", api_key="xxx")
         ag.init(config_fname="config.toml")
-        ag.init() #assuming env vars are set 
-        
+        ag.init() #assuming env vars are set
+
         Args:
             app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
             host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
