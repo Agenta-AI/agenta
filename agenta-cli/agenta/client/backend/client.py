@@ -56,9 +56,9 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx.Client(timeout=timeout)
-            if httpx_client is None
-            else httpx_client,
+            httpx_client=(
+                httpx.Client(timeout=timeout) if httpx_client is None else httpx_client
+            ),
         )
         self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
@@ -1037,9 +1037,11 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx.AsyncClient(timeout=timeout)
-            if httpx_client is None
-            else httpx_client,
+            httpx_client=(
+                httpx.AsyncClient(timeout=timeout)
+                if httpx_client is None
+                else httpx_client
+            ),
         )
         self.observability = AsyncObservabilityClient(
             client_wrapper=self._client_wrapper

@@ -19,7 +19,6 @@ CHAT_LLM_GPT = [
 ]
 
 ag.init()
-tracing = ag.llm_tracing()
 ag.config.default(
     temperature_1=ag.FloatParam(default=1, minval=0.0, maxval=2.0),
     model_1=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
@@ -38,7 +37,7 @@ ag.config.default(
 )
 
 
-@ag.span(type="llm")
+@ag.instrument(spankind="llm")
 async def llm_call(
     prompt: str,
     model: str,
@@ -57,8 +56,8 @@ async def llm_call(
         frequency_penalty=frequency_penalty,
         presence_penalty=presence_penalty,
     )
-    tracing.set_span_attribute(
-        "model_config", {"model": model, "temperature": temperature}
+    ag.tracing.set_span_attribute(
+        {"model_config": {"model": model, "temperature": temperature}}
     )
     tokens_usage = response.usage.dict()  # type: ignore
     return {
@@ -68,7 +67,7 @@ async def llm_call(
     }
 
 
-@ag.span(type="chain")
+@ag.instrument(spankind="chain")
 async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     prompt = ag.config.prompt_user_2.format(topics=llm_response, context_1=context_1)
     response = await llm_call(
@@ -83,7 +82,7 @@ async def finalize_wrapper(context_1: str, max_tokens: int, llm_response: str):
     return response
 
 
-@ag.span(type="chain")
+@ag.instrument(spankind="chain")
 async def wrapper(context_1: str, max_tokens: int):
     prompt = ag.config.prompt_user_1.format(context_1=context_1)
 
@@ -105,6 +104,7 @@ async def wrapper(context_1: str, max_tokens: int):
 
 
 @ag.entrypoint
+@ag.instrument()
 async def generate(context_1: str):
     """
     Generate a baby name based on the given country and gender.
