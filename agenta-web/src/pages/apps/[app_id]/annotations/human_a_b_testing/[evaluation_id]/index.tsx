@@ -1,5 +1,5 @@
 import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEvaluationTable"
-import {Evaluation} from "@/lib/Types"
+import type {Evaluation} from "@/lib/Types"
 import {fetchLoadEvaluation, fetchAllLoadEvaluationsScenarios} from "@/services/human-evaluations"
 import {fetchTestset} from "@/services/testsets"
 import {useRouter} from "next/router"

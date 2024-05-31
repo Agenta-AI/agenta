@@ -23,6 +23,7 @@ import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
 import {fetchTestset} from "@/services/testsets"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
+import _ from "lodash"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -223,6 +224,11 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const inputNames = Array.from(inputsNameSet)
     const inputValuesSet = new Set<string>()
     const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
+    const correctAnswers = _.uniqBy(
+        scenarioGroups.map((group) => group[0].correct_answers).flat(),
+        "key",
+    )
+
     for (const data of testset.csvdata) {
         const inputValues = inputNames
             .filter((name) => data[name] !== undefined)
@@ -236,7 +242,9 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
             inputs: inputNames
                 .map((name) => ({name, value: data[name]}))
                 .filter((ip) => ip.value !== undefined),
-            correctAnswer: data.correct_answer || "",
+            ...correctAnswers.reduce((acc, curr) => {
+                return {...acc, [`correctAnswer_${curr?.key}`]: data[curr?.key!]}
+            }, {}),
             variants: variants.map((variant, ix) => {
                 const group = scenarioGroups[ix]
                 const scenario = group.find((scenario) =>

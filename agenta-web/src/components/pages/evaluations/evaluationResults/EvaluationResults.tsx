@@ -3,15 +3,8 @@ import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Dropdown, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {
-    CheckOutlined,
-    DeleteOutlined,
-    DownOutlined,
-    PlusCircleOutlined,
-    SlidersOutlined,
-    SwapOutlined,
-} from "@ant-design/icons"
+import {Button, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
 import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -37,7 +30,9 @@ import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import Link from "next/link"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -87,7 +82,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
-    const [filterColsDropdown, setFilterColsDropdown] = useState(false)
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -355,9 +350,9 @@ const EvaluationResults: React.FC<Props> = () => {
         [colDefs],
     )
 
-    const handleOpenChange: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
-            setFilterColsDropdown(nextOpen)
+            setIsFilterColsDropdownOpen(nextOpen)
         }
     }
 
@@ -405,32 +400,16 @@ const EvaluationResults: React.FC<Props> = () => {
                     </Space>
 
                     <Space className={classes.buttonsGroup}>
-                        <Dropdown
-                            trigger={["click"]}
-                            open={filterColsDropdown}
-                            onOpenChange={handleOpenChange}
-                            menu={{
-                                selectedKeys: shownCols,
-                                items: colDefs.map((configs) => ({
-                                    key: configs.headerName as string,
-                                    label: (
-                                        <Space>
-                                            <CheckOutlined />
-                                            <>{configs.headerName}</>
-                                        </Space>
-                                    ),
-                                })),
-                                onClick: ({key}) => {
-                                    onToggleEvaluatorVisibility(key)
-                                    setFilterColsDropdown(true)
-                                },
-                                className: classes.dropdownMenu,
+                        <FilterColumns
+                            items={generateFilterItems(colDefs)}
+                            isOpen={isFilterColsDropdownOpen}
+                            handleOpenChange={handleOpenChangeFilterCols}
+                            shownCols={shownCols}
+                            onClick={({key}) => {
+                                onToggleEvaluatorVisibility(key)
+                                setIsFilterColsDropdownOpen(true)
                             }}
-                        >
-                            <Button>
-                                Filter Columns <DownOutlined />
-                            </Button>
-                        </Dropdown>
+                        />
                     </Space>
 
                     <Spin spinning={fetching}>
