@@ -167,3 +167,4 @@ networks:
 volumes:
     mongodb_data:
     redis_data:
+    nextjs_cache:
