@@ -33,7 +33,7 @@ const NLines: React.FC<Props> = ({lines = 8, allowReadMore = false, children}) =
         <Space direction="vertical" size={4}>
             <Typography.Text
                 ref={(elem) => setRef(elem!)}
-                className={`overflow-hidden text-ellipsis ${collapsed ? classes.text : ""}`}
+                className={`overflow-hidden text-ellipsis ${collapsed ? classes.text : ""} whitespace-pre-line`}
             >
                 {children}
             </Typography.Text>

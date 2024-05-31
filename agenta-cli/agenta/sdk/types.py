@@ -117,8 +117,9 @@ class GroupedMultipleChoiceParam(str):
     ):
         if choices is None:
             choices = {}
-
-        if default and not any(default in choices for choices in choices.values()):
+        if default and not any(
+            default in choice_list for choice_list in choices.values()
+        ):
             if not choices:
                 print(
                     f"Warning: Default value {default} provided but choices are empty."
