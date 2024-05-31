@@ -7,7 +7,7 @@ from litellm.integrations.custom_logger import CustomLogger as LitellmCustomLogg
 
 
 class AgentaLiteLLMHandler(LitellmCustomLogger):
-    """This handler is responsible for logging certain events when using litellm to call LLMs.
+    """This handler is responsible for instrumenting certain events when using litellm to call LLMs.
 
     Args:
         LitellmCustomLogger (object): custom logger that allows us to override the events to capture.
@@ -19,12 +19,10 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
 
     def log_pre_api_call(self, model, messages, kwargs):
         self._trace.start_span(
-            name="pre_api_call",
-            input=(
-                {"messages": messages}
-                if isinstance(messages, list)
-                else {"inputs": messages}
-            ),
+            name=kwargs["litellm_params"][
+                "litellm_call_id"
+            ],  # make use of the litellm_call_id as the span name
+            input=kwargs["input"],
             spankind=(
                 "llm"
                 if kwargs.get("call_type") in ["completion", "acompletion"]
@@ -36,22 +34,25 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
             ),
         )
         self._trace.set_span_attribute(
-            "model_config",
             {
-                "model": kwargs.get("model"),
-                "temperature": kwargs["optional_params"]["temperature"],
-            },
+                "model_config",
+                {
+                    "model": kwargs.get("model"),
+                    **kwargs.get("optional_params"),  # model-specific params passed in
+                },
+            }
         )
 
     def log_stream_event(self, kwargs, response_obj, start_time, end_time):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs("complete_streaming_response"),
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": kwargs.get(
+                    "complete_streaming_response"
+                ),  # the complete streamed response (only set if `completion(..stream=True)`)
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
 
     def log_success_event(
@@ -60,11 +61,10 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs["message"],
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": response_obj.choices[0].message.content,
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
 
     def log_failure_event(
@@ -73,54 +73,60 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
         self._trace.update_span_status(span=self._trace.active_span, value="ERROR")
         self._trace.set_span_attribute(
             attributes={
-                "traceback_exception": kwargs["traceback_exception"],
-                "call_end_time": kwargs["end_time"],
+                "traceback_exception": kwargs[
+                    "traceback_exception"
+                ],  # the traceback generated via `traceback.format_exc()`
+                "call_end_time": kwargs[
+                    "end_time"
+                ],  # datetime object of when call was completed
             },
         )
         self._trace.end_span(
             outputs={
-                "message": kwargs["exception"],
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": kwargs["exception"],  # the Exception raised
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
 
     async def async_log_stream_event(self, kwargs, response_obj, start_time, end_time):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs("complete_streaming_response"),
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": kwargs.get(
+                    "complete_streaming_response"
+                ),  # the complete streamed response (only set if `completion(..stream=True)`)
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._trace.update_span_status(span=self._trace.active_span, value="OK")
         self._trace.end_span(
             outputs={
-                "message": kwargs["message"],
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": response_obj.choices[0].message.content,
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
 
     async def async_log_failure_event(self, kwargs, response_obj, start_time, end_time):
         self._trace.update_span_status(span=self._trace.active_span, value="ERROR")
         self._trace.set_span_attribute(
             attributes={
-                "traceback_exception": kwargs["traceback_exception"],
-                "call_end_time": kwargs["end_time"],
+                "traceback_exception": kwargs[
+                    "traceback_exception"
+                ],  # the traceback generated via `traceback.format_exc()`
+                "call_end_time": kwargs[
+                    "end_time"
+                ],  # datetime object of when call was completed
             },
         )
         self._trace.end_span(
             outputs={
-                "message": kwargs["exception"],
-                "usage": kwargs.get("usage"),
-                "cost": kwargs.get("response_cost"),
+                "message": kwargs["exception"],  # the Exception raised
+                "usage": kwargs.get("usage"),  # litellm calculates usage
+                "cost": kwargs.get("response_cost"),  # litellm calculates response cost
             },
-            span=self._trace.active_span,
         )
