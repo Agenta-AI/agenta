@@ -363,6 +363,7 @@ async def environment_db_to_output(
         deployed_variant_name = None
         revision = None
 
+    await environment_db.fetch_link(AppEnvironmentDB.deployed_app_variant_revision)
     environment_output = EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app.id),
