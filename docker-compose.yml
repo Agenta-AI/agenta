@@ -160,6 +160,41 @@ services:
         networks:
             - agenta-network
 
+    postgres:
+        image: postgres:16.2
+        container_name: postgres
+        restart: always
+        environment:
+            POSTGRES_USER: username
+            POSTGRES_PASSWORD: password
+        ports:
+            - "5432:5432"
+        networks:
+            - agenta-network
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    pgadmin:
+        image: dpage/pgadmin4
+        restart: always
+        environment:
+            PGADMIN_DEFAULT_EMAIL: "admin@example.com"
+            PGADMIN_DEFAULT_PASSWORD: "password"
+            PGADMIN_SERVER_HOST: "postgres"
+            PGADMIN_SERVER_PORT: 5432
+            PGADMIN_SERVER_USER: "username"
+            PGADMIN_SERVER_PASSWORD: "password"
+        ports:
+            - "5050:80"
+        networks:
+            - agenta-network
+        depends_on:
+            postgres:
+                condition: service_healthy
+
 networks:
     agenta-network:
         name: agenta-network
