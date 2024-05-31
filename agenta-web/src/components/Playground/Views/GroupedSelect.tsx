@@ -13,6 +13,7 @@ import {
     OpenRouter,
     Fireworks,
     Groq,
+    Gemini,
 } from "@lobehub/icons"
 
 const useStyles = createUseStyles({
@@ -45,22 +46,11 @@ const iconMap: {[key: string]: React.ComponentType<any>} = {
     "Together AI": Together.Color,
     OpenRouter: OpenRouter,
     Groq: Groq,
-}
-
-const getTextContent = (element: React.ReactNode): string => {
-    if (typeof element === "string") {
-        return element
-    } else if (React.isValidElement(element) && element.props.children) {
-        return React.Children.toArray(element.props.children).reduce<string>(
-            (acc, child) => acc + getTextContent(child),
-            "",
-        )
-    }
-    return ""
+    Gemini: Gemini.Color,
 }
 
 const filterOption = (input: string, option?: {label: React.ReactNode; value: string}) =>
-    getTextContent(option?.label).toLowerCase().includes(input.toLowerCase())
+    (option?.value ?? "").toLowerCase().includes(input.toLowerCase())
 
 export const ModelName: React.FC<{label: string; value: string}> = ({label, value}) => {
     const classes = useStyles()
