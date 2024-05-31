@@ -30,7 +30,6 @@ posthog = "^3.1.0"
 pydantic = "1.10.13"
 httpx = ">=0.24, <0.28"
 pymongo = "^4.6.3"
-litellm = "^1.35.33"
 cachetools = "^5.3.3"
 
 [tool.poetry.dev-dependencies]
