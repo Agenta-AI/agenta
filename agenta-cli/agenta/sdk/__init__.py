@@ -19,7 +19,6 @@ from .decorators.tracing import instrument
 from .decorators.llm_entrypoint import entrypoint, app
 from .agenta_init import Config, AgentaSingleton, init
 from .utils.helper.openai_cost import calculate_token_usage
-from .tracing import callbacks
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
