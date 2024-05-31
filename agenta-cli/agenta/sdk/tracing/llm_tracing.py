@@ -100,7 +100,7 @@ class Tracing(metaclass=SingletonMeta):
                 self.trace_config_cache[key] = value
         else:
             for key, value in attributes.items():
-                self.active_span.attributes[key] = value # type: ignore
+                self.active_span.attributes[key] = value  # type: ignore
 
     def set_trace_tags(self, tags: List[str]):
         self.tags.extend(tags)
@@ -151,11 +151,11 @@ class Tracing(metaclass=SingletonMeta):
             )
             if VARIANT_TRACKING_FEATURE_FLAG:
                 # TODO: we should get the variant_id and variant_name (and environment) from the config object
-                span.variant_id = config.variant_id # type: ignore
-                span.variant_name = (config.variant_name,) # type: ignore
+                span.variant_id = config.variant_id  # type: ignore
+                span.variant_name = (config.variant_name,)  # type: ignore
 
         else:
-            span.parent_span_id = self.active_span.id # type: ignore
+            span.parent_span_id = self.active_span.id  # type: ignore
 
         self.span_dict[span.id] = span
         self.active_span = span
