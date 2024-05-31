@@ -17,7 +17,7 @@ CHAT_LLM_GPT = [
 ]
 
 ag.init()
-litellm.callbacks = [ag.agenta_instrument_handler]
+litellm.callbacks = [ag.callbacks.litellm_handler()]
 
 
 ag.config.default(
