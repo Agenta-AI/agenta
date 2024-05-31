@@ -12,6 +12,9 @@
     "light": "#4AA081",
     "dark": "#4AA081"
   },
+  "openapi": [
+    "/reference/backend_api/openapi.json"
+  ],
   "modeToggle": {
     "default": "light",
     "isHidden": false
@@ -94,6 +97,12 @@
         "evaluation/human_evaluation"
       ]
     },
+        {
+      "group": "Observability",
+      "pages": [
+        "observability/quickstart"
+      ]
+    },
     {
       "group": "Self-host agenta",
       "pages": [
@@ -159,76 +168,156 @@
       ]
     },
     {
-      "group": "Reference",
+      "group": "API Reference",
       "pages": [
         {
-          "group": "Backend API",
+          "group": "Endpoints",
           "pages": [
-            "reference/reference/backend_api/user-profile",
-            "reference/reference/backend_api/list-app-variants",
-            "reference/reference/backend_api/get-variant-by-env",
-            "reference/reference/backend_api/list-apps",
-            "reference/reference/backend_api/create-app",
-            "reference/reference/backend_api/add-variant-from-image",
-            "reference/reference/backend_api/remove-app",
-            "reference/reference/backend_api/create-app-and-variant-from-template",
-            "reference/reference/backend_api/list-environments",
-            "reference/reference/backend_api/add-variant-from-base-and-config",
-            "reference/reference/backend_api/start-variant",
-            "reference/reference/backend_api/remove-variant",
-            "reference/reference/backend_api/update-variant-parameters",
-            "reference/reference/backend_api/update-variant-image",
-            "reference/reference/backend_api/fetch-list-evaluations",
-            "reference/reference/backend_api/create-evaluation",
-            "reference/reference/backend_api/delete-evaluations",
-            "reference/reference/backend_api/fetch-evaluation",
-            "reference/reference/backend_api/update-evaluation-router",
-            "reference/reference/backend_api/fetch-evaluation-scenarios",
-            "reference/reference/backend_api/create-evaluation-scenario",
-            "reference/reference/backend_api/update-evaluation-scenario-router",
-            "reference/reference/backend_api/evaluate-ai-critique",
-            "reference/reference/backend_api/get-evaluation-scenario-score-router",
-            "reference/reference/backend_api/update-evaluation-scenario-score-router",
-            "reference/reference/backend_api/fetch-results",
-            "reference/reference/backend_api/create-custom-evaluation",
-            "reference/reference/backend_api/update-custom-evaluation",
-            "reference/reference/backend_api/list-custom-evaluations",
-            "reference/reference/backend_api/get-custom-evaluation",
-            "reference/reference/backend_api/get-custom-evaluation-names",
-            "reference/reference/backend_api/execute-custom-evaluation",
-            "reference/reference/backend_api/webhook-example-fake",
-            "reference/reference/backend_api/upload-file",
-            "reference/reference/backend_api/import-testset",
-            "reference/reference/backend_api/create-testset",
             {
-              "group": "testsets",
+              "group": "Observability",
               "pages": [
-                "reference/reference/backend_api/testsets/get-testset",
-                "reference/reference/backend_api/testsets/get-testsets"
+                "reference/backend_api/observability/get-dashboard-data",
+                "reference/backend_api/observability/create-traces",
+                "reference/backend_api/observability/get-traces",
+                "reference/backend_api/observability/delete-traces",
+                "reference/backend_api/observability/get-trace-detail",
+                "reference/backend_api/observability/get-spans-of-trace",
+                "reference/backend_api/observability/delete-spans-of-trace",
+                "reference/backend_api/observability/get-span-of-trace"
               ]
             },
-            "reference/reference/backend_api/update-testset",
-            "reference/reference/backend_api/delete-testsets",
-            "reference/reference/backend_api/build-image",
-            "reference/reference/backend_api/restart-docker-container",
-            "reference/reference/backend_api/container-templates",
-            "reference/reference/backend_api/construct-app-container-url",
-            "reference/reference/backend_api/deploy-to-environment",
-            "reference/reference/backend_api/create-trace",
-            "reference/reference/backend_api/get-traces",
-            "reference/reference/backend_api/get-trace",
-            "reference/reference/backend_api/update-trace-status",
-            "reference/reference/backend_api/create-span",
-            "reference/reference/backend_api/get-spans-of-trace",
-            "reference/reference/backend_api/get-feedbacks",
-            "reference/reference/backend_api/create-feedback",
-            "reference/reference/backend_api/get-feedback",
-            "reference/reference/backend_api/update-feedback",
-            "reference/reference/backend_api/list-organizations",
-            "reference/reference/backend_api/get-user-organization",
-            "reference/reference/backend_api/list-bases",
-            "reference/reference/backend_api/get-config",
-            "reference/reference/backend_api/save-config"
+            "reference/backend_api/list-api-keys",
+            "reference/backend_api/create-api-key",
+            "reference/backend_api/delete-api-key",
+            "reference/backend_api/validate-api-key",
+            "reference/backend_api/list-organizations",
+            "reference/backend_api/create-organization",
+            "reference/backend_api/get-user-organization",
+            "reference/backend_api/fetch-organization-details",
+            "reference/backend_api/update-organization",
+            "reference/backend_api/invite-user-to-workspace",
+            "reference/backend_api/resend-workspace-invitation",
+            "reference/backend_api/accept-workspace-invitation",
+            "reference/backend_api/create-workspace",
+            "reference/backend_api/update-workspace",
+            "reference/backend_api/get-all-workspace-roles",
+            "reference/backend_api/get-all-workspace-permissions",
+            "reference/backend_api/assign-role-to-user",
+            "reference/backend_api/unassign-role-from-user",
+            "reference/backend_api/remove-user-from-workspace",
+            "reference/backend_api/health-check",
+            "reference/backend_api/user-profile",
+            {
+              "group": "Apps",
+              "pages": [
+                "reference/backend_api/apps/list-app-variants",
+                "reference/backend_api/apps/get-variant-by-env",
+                "reference/backend_api/apps/list-apps",
+                "reference/backend_api/apps/create-app",
+                "reference/backend_api/apps/add-variant-from-image",
+                "reference/backend_api/apps/remove-app",
+                "reference/backend_api/apps/create-app-and-variant-from-template",
+                "reference/backend_api/apps/list-environments",
+                "reference/backend_api/apps/list-app-environment-revisions"
+              ]
+            },
+            {
+              "group": "Variants",
+              "pages": [
+                "reference/backend_api/variants/add-variant-from-base-and-config",
+                "reference/backend_api/variants/get-variant",
+                "reference/backend_api/variants/start-variant",
+                "reference/backend_api/variants/remove-variant",
+                "reference/backend_api/variants/update-variant-parameters",
+                "reference/backend_api/variants/update-variant-image",
+                "reference/backend_api/variants/retrieve-variant-logs",
+                "reference/backend_api/variants/get-variant-revisions",
+                "reference/backend_api/variants/get-variant-revision"
+              ]
+            },
+            {
+              "group": "Evaluations",
+              "pages": [
+                "reference/backend_api/evaluations/fetch-evaluation-ids",
+                "reference/backend_api/evaluations/fetch-list-evaluations",
+                "reference/backend_api/evaluations/create-evaluation",
+                "reference/backend_api/evaluations/delete-evaluations",
+                "reference/backend_api/evaluations/fetch-evaluation-status",
+                "reference/backend_api/evaluations/fetch-evaluation-results",
+                "reference/backend_api/evaluations/fetch-evaluation-scenarios",
+                "reference/backend_api/evaluations/fetch-evaluation",
+                "reference/backend_api/evaluations/webhook-example-fake",
+                "reference/backend_api/evaluations/fetch-evaluation-scenarios-1"
+              ]
+            },
+            {
+              "group": "Human-Evaluations",
+              "pages": [
+                "reference/backend_api/human-evaluations/fetch-list-human-evaluations",
+                "reference/backend_api/human-evaluations/create-evaluation",
+                "reference/backend_api/human-evaluations/delete-evaluations",
+                "reference/backend_api/human-evaluations/fetch-human-evaluation",
+                "reference/backend_api/human-evaluations/update-human-evaluation",
+                "reference/backend_api/human-evaluations/fetch-evaluation-scenarios",
+                "reference/backend_api/human-evaluations/update-evaluation-scenario-router",
+                "reference/backend_api/human-evaluations/get-evaluation-scenario-score-router",
+                "reference/backend_api/human-evaluations/update-evaluation-scenario-score-router",
+                "reference/backend_api/human-evaluations/fetch-results"
+              ]
+            },
+            {
+              "group": "Evaluators",
+              "pages": [
+                "reference/backend_api/evaluators/get-evaluators-endpoint",
+                "reference/backend_api/evaluators/get-evaluator-configs",
+                "reference/backend_api/evaluators/create-new-evaluator-config",
+                "reference/backend_api/evaluators/get-evaluator-config",
+                "reference/backend_api/evaluators/update-evaluator-config",
+                "reference/backend_api/evaluators/delete-evaluator-config"
+              ]
+            },
+            {
+              "group": "Testsets",
+              "pages": [
+                "reference/backend_api/testsets/upload-file",
+                "reference/backend_api/testsets/import-testset",
+                "reference/backend_api/testsets/create-testset",
+                "reference/backend_api/testsets/get-single-testset",
+                "reference/backend_api/testsets/update-testset",
+                "reference/backend_api/testsets/get-testsets",
+                "reference/backend_api/testsets/delete-testsets"
+              ]
+            },
+            {
+              "group": "Containers",
+              "pages": [
+                "reference/backend_api/containers/build-image",
+                "reference/backend_api/containers/restart-docker-container",
+                "reference/backend_api/containers/container-templates",
+                "reference/backend_api/containers/construct-app-container-url"
+              ]
+            },
+            {
+              "group": "Environments",
+              "pages": [
+                "reference/backend_api/environments/deploy-to-environment"
+              ]
+            },
+            {
+              "group": "Bases",
+              "pages": [
+                "reference/backend_api/bases/list-bases"
+              ]
+            },
+            {
+              "group": "Configs",
+              "pages": [
+                "reference/backend_api/configs/get-config",
+                "reference/backend_api/configs/save-config",
+                "reference/backend_api/configs/get-config-deployment-revision",
+                "reference/backend_api/configs/revert-deployment-revision"
+              ]
+            }
           ]
         }
       ]
