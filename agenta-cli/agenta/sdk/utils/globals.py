@@ -1,7 +1,7 @@
 import agenta
 
 
-def set_global(setup=None, config=None):
+def set_global(setup=None, config=None, tracing=None):
     """Allows usage of agenta.config and agenta.setup in the user's code.
 
     Args:
@@ -12,3 +12,5 @@ def set_global(setup=None, config=None):
         agenta.setup = setup
     if config is not None:
         agenta.config = config
+    if tracing is not None:
+        agenta.tracing = tracing

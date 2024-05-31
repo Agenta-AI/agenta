@@ -1,6 +1,4 @@
 from .utils.preinit import PreInitObject  # always the first import!
-from . import agenta_decorator, context, types, utils  # noqa: F401
-from .agenta_decorator import app, entrypoint
 from .context import get_contexts, save_context
 from .types import (
     Context,
@@ -15,10 +13,16 @@ from .types import (
     FileInputURL,
     BinaryParam,
 )
-from .tracing.decorators import span
-from .agenta_init import Config, init, llm_tracing
-from .tracing.callbacks import agenta_litellm_handler
+
+from .tracing.llm_tracing import Tracing
+from .decorators.tracing import instrument
+from .tracing.callbacks import AgentaLiteLLMHandler
+from .decorators.llm_entrypoint import entrypoint, app
+from .agenta_init import Config, AgentaSingleton, init
 from .utils.helper.openai_cost import calculate_token_usage
 
 
 config = PreInitObject("agenta.config", Config)
+DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
+tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
+litellm_handler = AgentaLiteLLMHandler()

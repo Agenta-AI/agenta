@@ -1,5 +1,5 @@
 # Own Imports
-from agenta.sdk import llm_tracing
+import agenta as ag
 
 # Third Party Imports
 from litellm.utils import ModelResponse
@@ -15,7 +15,7 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
 
     @property
     def _trace(self):
-        return llm_tracing()
+        return ag.tracing
 
     def log_pre_api_call(self, model, messages, kwargs):
         self._trace.start_span(
@@ -124,6 +124,3 @@ class AgentaLiteLLMHandler(LitellmCustomLogger):
             },
             span=self._trace.active_span,
         )
-
-
-agenta_litellm_handler = AgentaLiteLLMHandler()
