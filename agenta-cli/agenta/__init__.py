@@ -20,6 +20,7 @@ from .sdk.decorators.llm_entrypoint import entrypoint, app
 from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 from .sdk.client import Agenta
+from .sdk.tracing import callbacks
 
 
 config = PreInitObject("agenta.config", Config)
