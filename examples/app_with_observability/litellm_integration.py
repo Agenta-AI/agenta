@@ -17,8 +17,7 @@ CHAT_LLM_GPT = [
 ]
 
 ag.init()
-ag.llm_tracing()
-litellm.callbacks = [ag.agenta_litellm_handler]
+litellm.callbacks = [ag.agenta_instrument_handler]
 
 
 ag.config.default(
@@ -94,6 +93,7 @@ async def wrapper(context_1: str, max_tokens: int):
 
 
 @ag.entrypoint
+@ag.instrument()
 async def generate(context_1: str):
     """
     Generate a baby name based on the given country and gender.
