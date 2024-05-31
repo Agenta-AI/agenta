@@ -59,6 +59,7 @@ else:
     )
 from agenta_backend.models.db_models import (
     ConfigDB,
+    CorrectAnswer,
     TemplateDB,
     AggregatedResult,
     AppVariantRevisionsDB,
@@ -1907,7 +1908,7 @@ async def create_new_evaluation_scenario(
     variant_id: str,
     inputs: List[EvaluationScenarioInputDB],
     outputs: List[EvaluationScenarioOutputDB],
-    correct_answer: Optional[str],
+    correct_answers: Optional[List[CorrectAnswer]],
     is_pinned: Optional[bool],
     note: Optional[str],
     evaluators_configs: List[EvaluatorConfigDB],
@@ -1925,7 +1926,7 @@ async def create_new_evaluation_scenario(
         variant_id=ObjectId(variant_id),
         inputs=inputs,
         outputs=outputs,
-        correct_answer=correct_answer,
+        correct_answers=correct_answers,
         is_pinned=is_pinned,
         note=note,
         evaluators_configs=evaluators_configs,
