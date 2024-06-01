@@ -266,8 +266,6 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
-    console.log(evalFields)
-    console.log(basicSettingsFields)
 
     const onSubmit = (values: CreateEvaluationConfigData) => {
         setSubmitLoading(true)
@@ -276,7 +274,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
         if (
             !settingsValues.correct_answer_key &&
-            selectedEval.settings_template.correct_answer_key.default
+            selectedEval.settings_template.correct_answer_key?.default
         ) {
             settingsValues["correct_answer_key"] =
                 selectedEval.settings_template.correct_answer_key.default
