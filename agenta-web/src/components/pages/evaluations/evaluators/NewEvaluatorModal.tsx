@@ -10,7 +10,7 @@ import {
 } from "@/services/evaluations"
 import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, theme} from "antd"
+import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, message, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -268,30 +268,36 @@ const NewEvaluatorModal: React.FC<Props> = ({
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
     const onSubmit = (values: CreateEvaluationConfigData) => {
-        setSubmitLoading(true)
-        if (!selectedEval?.key) throw new Error("No selected key")
-        const settingsValues = values.settings_values || {}
+        try {
+            setSubmitLoading(true)
+            if (!selectedEval?.key) throw new Error("No selected key")
+            const settingsValues = values.settings_values || {}
 
-        if (
-            !settingsValues.correct_answer_key &&
-            selectedEval.settings_template.correct_answer_key?.default
-        ) {
-            settingsValues["correct_answer_key"] =
-                selectedEval.settings_template.correct_answer_key.default
-        }
+            if (
+                !settingsValues.correct_answer_key &&
+                selectedEval.settings_template.correct_answer_key?.default
+            ) {
+                settingsValues["correct_answer_key"] =
+                    selectedEval.settings_template.correct_answer_key.default
+            }
 
-        const data = {
-            ...values,
-            evaluator_key: selectedEval.key,
-            settings_values: settingsValues,
+            const data = {
+                ...values,
+                evaluator_key: selectedEval.key,
+                settings_values: settingsValues,
+            }
+            ;(editMode
+                ? updateEvaluatorConfig(initialValues?.id!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
+        } catch (error: any) {
+            setSubmitLoading(false)
+            console.error(error)
+            message.error(error.message)
         }
-        ;(editMode
-            ? updateEvaluatorConfig(initialValues?.id!, data)
-            : createEvaluatorConfig(appId, data)
-        )
-            .then(onSuccess)
-            .catch(console.error)
-            .finally(() => setSubmitLoading(false))
     }
 
     const columns: ColumnsType<Evaluator> = [
