@@ -70,6 +70,7 @@ const useStylesTestset = createUseStyles({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+        textTransform: "lowercase",
         "& input": {
             marginTop: "10px",
             marginBottom: "10px",
