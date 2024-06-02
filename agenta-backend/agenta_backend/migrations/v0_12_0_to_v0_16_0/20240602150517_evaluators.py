@@ -322,12 +322,12 @@ class Forward:
             "field_match_test",
             "auto_webhook_test",
             "auto_ai_critique",
-            "auto_levenshtein_distance"
+            "auto_levenshtein_distance",
         ]
 
         if (
-            input_document.evaluator_key in evaluators_using_correct_answer and
-            "correct_answer_key" not in input_document.settings_values
+            input_document.evaluator_key in evaluators_using_correct_answer
+            and "correct_answer_key" not in input_document.settings_values
         ):
             new_settings_values = input_document.settings_values
             new_settings_values["correct_answer_key"] = "correct_answer"
