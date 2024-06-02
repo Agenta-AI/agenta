@@ -2,7 +2,8 @@ import React, {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
-import {fetchEnvironments, fetchVariants, saveNewVariant} from "@/lib/services/api"
+import {fetchVariants, createNewVariant} from "@/services/api"
+import {fetchEnvironments} from "@/services/deployment"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -78,7 +79,7 @@ const Playground: React.FC = () => {
         }
 
         try {
-            await saveNewVariant(
+            await createNewVariant(
                 newVariant.baseId!,
                 newVariant.variantName!,
                 newVariant.configName!,

@@ -1,5 +1,5 @@
 import {Variant, Parameter, InputParameter} from "@/lib/Types"
-import {getVariantParametersFromOpenAPI} from "@/lib/services/api"
+import {fetchVariantParametersFromOpenAPI} from "@/services/api"
 import {globalErrorHandler} from "./errorHandler"
 
 const inputParamsToParameters = (additionalInputs: InputParameter[]): Parameter[] => {
@@ -49,7 +49,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
     try {
-        const {initOptParams, inputParams, isChatVariant} = await getVariantParametersFromOpenAPI(
+        const {initOptParams, inputParams, isChatVariant} = await fetchVariantParametersFromOpenAPI(
             appId,
             variant.variantId,
             variant.baseId,

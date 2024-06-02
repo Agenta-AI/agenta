@@ -1,11 +1,10 @@
 import {Modal, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
-import {removeApp} from "@/lib/services/api"
+import {deleteApp} from "@/services/api"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
-import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
 
@@ -87,7 +86,7 @@ const AppCard: React.FC<{
     const handleDeleteOk = async () => {
         setConfirmLoading(true)
         try {
-            await removeApp(app.app_id)
+            await deleteApp(app.app_id)
             mutate()
         } catch (error) {
             console.error(error)

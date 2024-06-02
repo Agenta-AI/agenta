@@ -2,7 +2,12 @@ import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useAppTheme} from "../../Layout/ThemeContextProvider"
 import {ChatMessage, ChatRole, GenericObject, testset} from "@/lib/Types"
 import {removeKeys, renameVariables} from "@/lib/helpers/utils"
-import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
+import {
+    createNewTestset,
+    fetchTestset,
+    updateTestset,
+    useLoadTestsetsList,
+} from "@/services/testsets"
 import {
     Button,
     Divider,
@@ -18,7 +23,7 @@ import {
     message,
 } from "antd"
 import {useRouter} from "next/router"
-import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
@@ -193,7 +198,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
             if (isNew) {
                 setNewTestsetModalOpen(true)
             } else {
-                loadTestset(selectedTestset!).then((data) => {
+                fetchTestset(selectedTestset!).then((data) => {
                     const testsetCols = Object.keys(data.csvdata?.[0] || {})
                     const playgroundCols = Object.keys(values[0])
                     const missingColsTestset = testsetCols.filter(

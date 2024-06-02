@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useMemo} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {
@@ -15,7 +15,8 @@ import {
     Typography,
     message,
 } from "antd"
-import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
+import {callVariant} from "@/services/api"
+import {updateEvaluationScenario, updateEvaluation} from "@/services/human-evaluations"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"

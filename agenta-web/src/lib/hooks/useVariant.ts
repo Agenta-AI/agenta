@@ -1,5 +1,5 @@
 import {useState, useEffect} from "react"
-import {saveNewVariant, updateVariantParams} from "@/lib/services/api"
+import {createNewVariant, updateVariantParams} from "@/services/api"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
@@ -74,7 +74,7 @@ export function useVariant(appId: string, variant: Variant) {
         try {
             if (persist) {
                 if (!updateVariant) {
-                    await saveNewVariant(
+                    await createNewVariant(
                         variant.baseId,
                         variant.variantName,
                         variant.configName,
@@ -185,7 +185,7 @@ export function useVariants(appId: string, variants: Variant[]) {
                 try {
                     if (persist) {
                         if (!updateVariant) {
-                            await saveNewVariant(
+                            await createNewVariant(
                                 variant.baseId,
                                 variant.variantName,
                                 variant.configName,
