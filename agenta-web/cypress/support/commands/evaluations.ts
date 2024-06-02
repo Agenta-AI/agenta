@@ -12,21 +12,34 @@ const countries = [
 const apiKey = Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY")
 
 Cypress.Commands.add("createVariant", () => {
-    cy.addingOpenaiKey()
-    cy.visit("/apps")
-
-    // Check if there are app variants present
-    cy.request({
-        url: `${Cypress.env().baseApiURL}/apps`,
-        method: "GET",
-    }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="create-new-app-button"]').click()
-            cy.get('[data-cy="create-from-template"]').click()
-        } else {
-            cy.get('[data-cy="create-from-template__no-app"]').click()
+    const retryRequest = (attempt = 1) => {
+        if (attempt > 3) {
+            throw new Error("Max retry attempts reached")
         }
-    })
+
+        cy.addingOpenaiKey()
+        cy.visit("/apps")
+
+        cy.request({
+            url: `${Cypress.env().baseApiURL}/apps`,
+            method: "GET",
+        }).then((resp) => {
+            if (resp.status === 429) {
+                // HTTP status code 429 indicates rate limit exceeded
+                cy.wait(1000 * attempt) // Wait for some time before retrying (e.g., 1s, 2s, 4s, 8s, 16s)
+                retryRequest(attempt + 1)
+            } else {
+                if (resp.body.length) {
+                    cy.get('[data-cy="create-new-app-button"]').click()
+                    cy.get('[data-cy="create-from-template"]').click()
+                } else {
+                    cy.get('[data-cy="create-from-template__no-app"]').click()
+                }
+            }
+        })
+    }
+
+    retryRequest()
 
     cy.contains("Single Prompt")
         .parentsUntil('[data-cy^="app-template-card"]')
