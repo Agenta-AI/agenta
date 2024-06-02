@@ -33,7 +33,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
             expandIcon={({isActive}) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
             className={"my-[10px]"}
         >
-            <Collapse.Panel key="1" header="Advanced Settings">
+            <Collapse.Panel key="1" header="Advanced Settings" forceRender>
                 {settings.map((field) => {
                     const rules = [
                         {required: field.required ?? true, message: "This field is required"},
