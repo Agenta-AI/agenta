@@ -164,6 +164,20 @@ class Tracing(metaclass=SingletonMeta):
     def update_span_status(self, span: CreateSpan, value: str):
         span.status = value
 
+    def _update_span_cost(self, span: CreateSpan, cost: Optional[float]):
+        if cost is not None and isinstance(cost, float):
+            if span.cost is None:
+                span.cost = cost
+            else:
+                span.cost += cost
+
+    def _update_span_tokens(self, span: CreateSpan, tokens: Optional[int]):
+        if tokens is not None and isinstance(tokens, int):
+            if span.tokens is None:
+                span.tokens = tokens
+            else:
+                span.tokens += tokens
+
     def end_span(self, outputs: Dict[str, Any]):
         """
         Ends the active span, if it is a parent span, ends the trace too.
@@ -172,8 +186,8 @@ class Tracing(metaclass=SingletonMeta):
             raise ValueError("There is no active span to end.")
         self.active_span.end_time = datetime.now(timezone.utc)
         self.active_span.outputs = [outputs.get("message", "")]
-        self.active_span.cost = outputs.get("cost", None)
-        self.active_span.tokens = outputs.get("usage", None)
+        self._update_span_cost(self.active_span, outputs.get("cost", None))
+        self._update_span_tokens(self.active_span, outputs.get("usage", None))
 
         # Push span to list of recorded spans
         self.pending_spans.append(self.active_span)
@@ -183,7 +197,10 @@ class Tracing(metaclass=SingletonMeta):
         if self.active_span.parent_span_id is None:
             self.end_trace(parent_span=self.active_span)
         else:
-            self.active_span = self.span_dict[self.active_span.parent_span_id]
+            parent_span = self.span_dict[self.active_span.parent_span_id]
+            self._update_span_cost(parent_span, self.active_span.cost)
+            self._update_span_tokens(parent_span, self.active_span.tokens)
+            self.active_span = parent_span
 
     def end_trace(self, parent_span: CreateSpan):
         if self.api_key == "":
