@@ -3,15 +3,15 @@ name: Run Frontend tests
 on:
   pull_request:
     paths:
-      - 'agenta-web/**'
-      - 'docker-compose.yml'
-      - 'docker-compose.*.yml'
+      - "agenta-web/**"
+      - "docker-compose.yml"
+      - "docker-compose.*.yml"
   workflow_dispatch:
     inputs:
       debug:
-        description: 'Run Docker logs step (true/false)'
+        description: "Run Docker logs step (true/false)"
         required: true
-        default: 'false'
+        default: "false"
 
 env:
   OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
@@ -46,10 +46,10 @@ jobs:
           curl http://localhost/api/organizations/own/
           curl http://localhost/api/containers/templates/
 
-      - name: Set Node.js 18
+      - name: Set Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install Frontend Depedencies
         run: |
