@@ -220,9 +220,7 @@ def evaluate(
                     evaluator_config_db.evaluator_key, []
                 )
                 ground_truth_column_names.extend(
-                    evaluator_config_db.settings_values.get(
-                        key, "correct_answer"
-                    )  # TODO: Remove hotfix
+                    evaluator_config_db.settings_values.get(key, "")
                     for key in ground_truth_keys
                 )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
