@@ -4,6 +4,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId, iterative_migration
 
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+from beanie import Document, Link, PydanticObjectId
+
+
 class UserDB(Document):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
@@ -277,13 +284,18 @@ class EvaluationDB(Document):
         name = "new_evaluations"
 
 
+class CorrectAnswer(BaseModel):
+    key: str
+    value: str
+
+
 class EvaluationScenarioDB(Document):
     user: Link[UserDB]
     evaluation: Link[EvaluationDB]
     variant_id: PydanticObjectId
     inputs: List[EvaluationScenarioInputDB]
     outputs: List[EvaluationScenarioOutputDB]
-    correct_answer: Optional[str]
+    correct_answers: Optional[List[CorrectAnswer]]
     is_pinned: Optional[bool]
     note: Optional[str]
     evaluators_configs: List[PydanticObjectId]
