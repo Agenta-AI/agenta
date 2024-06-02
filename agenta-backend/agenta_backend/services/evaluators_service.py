@@ -29,9 +29,7 @@ def get_correct_answer(
     Raises:
         ValueError: If the correct answer key is not provided or not found in the data point.
     """
-    correct_answer_key = settings_values.get(
-        "correct_answer_key", "correct_answer"
-    )  # hotfix: default added for backward compatibility. Solution is to update the settings in the database.
+    correct_answer_key = settings_values.get("correct_answer_key")
     if correct_answer_key is None:
         raise ValueError("No correct answer keys provided.")
     if correct_answer_key not in data_point:
