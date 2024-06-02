@@ -271,15 +271,15 @@ const NewEvaluatorModal: React.FC<Props> = ({
         try {
             setSubmitLoading(true)
             if (!selectedEval?.key) throw new Error("No selected key")
-            const settingsValues = values.settings_values || {}
-
-            if (
-                !settingsValues.correct_answer_key &&
-                selectedEval.settings_template.correct_answer_key?.default
-            ) {
-                settingsValues["correct_answer_key"] =
-                    selectedEval.settings_template.correct_answer_key.default
-            }
+            const settingsValues = Object.keys(selectedEval.settings_template).reduce(
+                (acc, curr) => {
+                    if (!acc[curr]) {
+                        acc[curr] = selectedEval.settings_template[curr].default
+                    }
+                    return acc
+                },
+                values.settings_values || {},
+            )
 
             const data = {
                 ...values,
