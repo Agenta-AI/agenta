@@ -334,7 +334,11 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             newColmnDef.pop()
 
             setInputValues([...inputValues, newColumnName])
-            setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
+            setColumnDefs([
+                ...columnDefs,
+                {field: newColumnName, headerName: newColumnName},
+                ADD_BUTTON_COL,
+            ])
             setRowData(updatedRowData)
             setLoading(false)
         }
