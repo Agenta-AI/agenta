@@ -192,7 +192,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     useEffect(() => {
         async function applyColData(colData: {field: string}[] = []) {
-            const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
+            const newColDefs = [
+                CHECKBOX_COL,
+                ...colData.map((col) => ({
+                    ...col,
+                    headerName: col.field,
+                })),
+                ADD_BUTTON_COL,
+            ]
             setColumnDefs(newColDefs)
             if (mode === "create") {
                 const initialRowData = Array(3).fill({})
@@ -241,7 +248,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [CHECKBOX_COL, ...newDataColumns, ADD_BUTTON_COL]
+        const newColumnDefs = [
+            CHECKBOX_COL,
+            ...newDataColumns.map((col) => ({
+                ...col,
+                headerName: col.field,
+            })),
+            ADD_BUTTON_COL,
+        ]
 
         const keyMap = dataColumns.reduce((acc: KeyValuePair, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -271,7 +285,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         )
         const index = attributes["aria-colindex"].nodeValue - 2
         const displayName = params.displayName
-        const columnHeaderName = inputValues[index] || displayName
 
         const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
         const handleOpenEditInput = () => {
@@ -298,10 +311,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 )
             } else {
                 setInputValues(scopedInputValues)
-                setTimeout(() => {
-                    updateTable(scopedInputValues)
-                    setIsEditInputOpen(false)
-                }, 200)
+                updateTable(scopedInputValues)
+                setIsEditInputOpen(false)
             }
         }
 
@@ -365,7 +376,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                                 size="small"
                             />
                         ) : (
-                            columnHeaderName
+                            displayName
                         )}
 
                         <div>
