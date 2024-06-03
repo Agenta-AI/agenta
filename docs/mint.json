@@ -97,6 +97,12 @@
         "evaluation/human_evaluation"
       ]
     },
+        {
+      "group": "Observability",
+      "pages": [
+        "observability/quickstart"
+      ]
+    },
     {
       "group": "Self-host agenta",
       "pages": [

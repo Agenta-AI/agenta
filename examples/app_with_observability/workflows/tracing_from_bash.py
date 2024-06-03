@@ -1,5 +1,7 @@
+import asyncio
 import agenta as ag
 from openai import AsyncOpenAI
+
 
 client = AsyncOpenAI()
 
@@ -7,7 +9,11 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init()
+ag.init(
+    app_id="xxxxxxxx",
+    host="https://cloud.agenta.ai",
+    api_key="xxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+)
 ag.config.default(
     temperature=ag.FloatParam(0.2), prompt_template=ag.TextParam(default_prompt)
 )
@@ -25,7 +31,7 @@ async def llm_call(prompt):
                 "temperature": ag.config.temperature,
             }
         }
-    )  # translate to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
+    )  # translates to {"model_config": {"model": "gpt-3.5-turbo", "temperature": 0.2}}
     tokens_usage = chat_completion.usage.dict()
     return {
         "cost": ag.calculate_token_usage("gpt-3.5-turbo", tokens_usage),
@@ -34,8 +40,7 @@ async def llm_call(prompt):
     }
 
 
-@ag.entrypoint
-@ag.instrument()
+@ag.instrument(config=ag.config.all())
 async def generate(country: str, gender: str):
     """
     Generate a baby name based on the given country and gender.
@@ -47,8 +52,9 @@ async def generate(country: str, gender: str):
 
     prompt = ag.config.prompt_template.format(country=country, gender=gender)
     response = await llm_call(prompt=prompt)
-    return {
-        "message": response["message"],
-        "usage": response["usage"],
-        "cost": response["cost"],
-    }
+    return response
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(generate(country="Germany", gender="Male"))

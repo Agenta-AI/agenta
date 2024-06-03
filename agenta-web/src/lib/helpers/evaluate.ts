@@ -338,3 +338,7 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
     if (type === "number") return getNumber(valueA) - getNumber(valueB)
     return 0
 }
+
+export const removeCorrectAnswerPrefix = (str: string) => {
+    return str.replace(/^correctAnswer_/, "")
+}

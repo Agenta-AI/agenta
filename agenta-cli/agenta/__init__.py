@@ -1,5 +1,4 @@
 from .sdk.utils.preinit import PreInitObject
-from .sdk.agenta_decorator import app, entrypoint
 from .sdk.context import get_contexts, save_context
 from .sdk.types import (
     Context,
@@ -14,9 +13,13 @@ from .sdk.types import (
     FileInputURL,
     BinaryParam,
 )
-from .sdk.tracing.decorators import span
-from .sdk.agenta_init import Config, init, llm_tracing
+from .sdk.tracing.llm_tracing import Tracing
+from .sdk.decorators.tracing import instrument
+from .sdk.decorators.llm_entrypoint import entrypoint, app
+from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 from .sdk.client import Agenta
 
 config = PreInitObject("agenta.config", Config)
+DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
+tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
