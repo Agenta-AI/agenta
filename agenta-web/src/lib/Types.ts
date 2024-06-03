@@ -339,6 +339,7 @@ export interface EvaluationSettingsTemplate {
     min?: number
     max?: number
     required?: boolean
+    advanced?: boolean
 }
 
 export interface Evaluator {
@@ -383,6 +384,11 @@ export enum EvaluationStatusType {
     ERROR = "error",
 }
 
+export interface CorrectAnswer {
+    key: string
+    value: string
+}
+
 export interface _Evaluation {
     id: string
     appId: string
@@ -421,7 +427,7 @@ export interface _EvaluationScenario {
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
     outputs: {result: TypedValue; cost?: number; latency?: number}[]
-    correct_answer?: string
+    correct_answers?: CorrectAnswer[]
     is_pinned?: boolean
     note?: string
     results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
@@ -452,7 +458,6 @@ export interface AnnotationScenario {
 
 export type ComparisonResultRow = {
     inputs: {name: string; value: string}[]
-    correctAnswer: string
     variants: {
         variantId: string
         variantName: string
@@ -464,7 +469,7 @@ export type ComparisonResultRow = {
         }[]
     }[]
     id: string
-}
+} & {[key: string]: any}
 
 export type RequestMetadata = {
     cost: number
