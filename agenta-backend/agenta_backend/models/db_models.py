@@ -290,6 +290,7 @@ class EvaluationScenarioDB(Base):
 
     __tablename__ = "new_evaluation_scenarios"
 
+
 class ConfigDB(BaseModel):
     config_name: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
@@ -297,12 +298,14 @@ class ConfigDB(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class Error(BaseModel):
     message: str
     stacktrace: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
+
 
 class Result(BaseModel):
     type: str
@@ -312,6 +315,7 @@ class Result(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class InvokationResult(BaseModel):
     result: Result
     cost: Optional[float] = None
@@ -320,6 +324,7 @@ class InvokationResult(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class EvaluationScenarioResult(BaseModel):
     evaluator_config: int  # Assuming this should be an ID reference
     result: Result
@@ -327,12 +332,14 @@ class EvaluationScenarioResult(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class AggregatedResult(BaseModel):
     evaluator_config: int  # Assuming this should be an ID reference
     result: Result
 
     class Config:
         arbitrary_types_allowed = True
+
 
 class EvaluationScenarioInputDB(BaseModel):
     name: str
@@ -342,6 +349,7 @@ class EvaluationScenarioInputDB(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class EvaluationScenarioOutputDB(BaseModel):
     result: Result
     cost: Optional[float] = None
@@ -350,12 +358,14 @@ class EvaluationScenarioOutputDB(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
 
     class Config:
         arbitrary_types_allowed = True
+
 
 class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str

@@ -1702,7 +1702,9 @@ async def add_template(**kwargs: dict) -> str:
     """
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(TemplateDB).filter_by(tag_id=kwargs["tag_id"]))
+        result = await session.execute(
+            select(TemplateDB).filter_by(tag_id=kwargs["tag_id"])
+        )
         existing_template = result.scalars().one_or_none()
 
         if existing_template is None:
