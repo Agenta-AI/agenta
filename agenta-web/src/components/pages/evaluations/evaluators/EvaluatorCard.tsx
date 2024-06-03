@@ -84,22 +84,14 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
     return (
         <Card
             className={classes.card}
-            actions={
-                evaluator.direct_use
-                    ? []
-                    : [
-                          <EditOutlined
-                              key="edit"
-                              data-cy="evaluator-card-edit-button"
-                              onClick={onEdit}
-                          />,
-                          <DeleteOutlined
-                              key="delete"
-                              data-cy="evaluator-card-delete-button"
-                              onClick={onDelete}
-                          />,
-                      ]
-            }
+            actions={[
+                <EditOutlined key="edit" data-cy="evaluator-card-edit-button" onClick={onEdit} />,
+                <DeleteOutlined
+                    key="delete"
+                    data-cy="evaluator-card-delete-button"
+                    onClick={onDelete}
+                />,
+            ]}
             data-cy="evaluator-card"
         >
             <div className={classes.body}>
