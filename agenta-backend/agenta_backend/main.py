@@ -17,7 +17,7 @@ from agenta_backend.routers import (
     health_router,
 )
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
-from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.models.db_engine import db_engine
 from agenta_backend.open_api import open_api_tags_metadata
 
 if isEE() or isCloudProd():
@@ -27,6 +27,7 @@ elif isCloudDev() or isOss():
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from celery import Celery
 
@@ -52,7 +53,7 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    await DBEngine().init_db()
+    await db_engine.init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
 

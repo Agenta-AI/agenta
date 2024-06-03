@@ -12,6 +12,11 @@ from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.services.json_importer_helper import get_json
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.exc import NoResultFound
+from agenta_backend.models.db_engine import db_engine
+
 from agenta_backend.models.api.api_models import (
     App,
     Template,
@@ -1693,13 +1698,21 @@ async def add_template(**kwargs: dict) -> str:
         **kwargs (dict): Keyword arguments containing the template data.
 
     Returns:
-        template_id (Str): The Id of the created template.
+        template_id (str): The Id of the created template.
     """
-    existing_template = await TemplateDB.find_one(TemplateDB.tag_id == kwargs["tag_id"])
-    if existing_template is None:
-        db_template = TemplateDB(**kwargs)
-        await db_template.create()
-        return str(db_template.id)
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(TemplateDB).filter_by(tag_id=kwargs["tag_id"]))
+        existing_template = result.scalars().one_or_none()
+
+        if existing_template is None:
+            db_template = TemplateDB(**kwargs)
+            session.add(db_template)
+            await session.commit()
+            await session.refresh(db_template)
+            return str(db_template.id)
+        else:
+            return str(existing_template.id)
 
 
 async def add_zip_template(key, value):

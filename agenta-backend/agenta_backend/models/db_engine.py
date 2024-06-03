@@ -1,11 +1,8 @@
 import os
 import logging
-from typing import List
-
-from pymongo import MongoClient
-from beanie import init_beanie, Document
-from motor.motor_asyncio import AsyncIOMotorClient
-
+from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 from agenta_backend.utils.common import isCloudEE
 
 if isCloudEE():
@@ -52,8 +49,7 @@ from agenta_backend.models.db_models import (
     AppVariantRevisionsDB,
 )
 
-# Define Document Models
-document_models: List[Document] = [
+models = [
     AppDB,
     UserDB,
     ImageDB,
@@ -73,52 +69,52 @@ document_models: List[Document] = [
 ]
 
 if isCloudEE():
-    document_models = document_models + [SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB]
-
+    models.extend([SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB])
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
 class DBEngine:
     """
-    Database engine to initialize Beanie and return the engine based on mode.
+    Database engine to initialize SQLAlchemy and return the engine based on mode.
     """
 
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
-        self.db_url = os.environ["MONGODB_URI"]
-
-    async def initialize_client(self):
-        return AsyncIOMotorClient(self.db_url)
+        self.db_url = os.environ["DATABASE_URL"]  # Use SQLAlchemy compatible database URL
+        self.engine = create_async_engine(self.db_url, echo=True)
+        self.async_session = sessionmaker(
+            self.engine, expire_on_commit=False, class_=AsyncSession
+        )
 
     async def init_db(self):
         """
-        Initialize Beanie based on the mode and store the engine.
+        Initialize the database based on the mode and create all tables.
         """
+        async with self.engine.begin() as conn:
+            # Drop all existing tables (if needed)
+            # await conn.run_sync(Base.metadata.drop_all)
+            # Create tables
+            for model in models:
+                await conn.run_sync(model.metadata.create_all)
+        logger.info(f"Using {self.mode} database...")
 
-        client = await self.initialize_client()
-        db_name = self._get_database_name(self.mode)
-        await init_beanie(database=client[db_name], document_models=document_models)
-        logger.info(f"Using {db_name} database...")
-
-    def _get_database_name(self, mode: str) -> str:
-        """
-        Determine the appropriate database name based on the mode.
-        """
-        if mode in ("test", "default", "v2"):
-            return f"agenta_{mode}"
-
-        return f"agenta_{mode}"
-
-    def remove_db(self) -> None:
+    async def remove_db(self) -> None:
         """
         Remove the database based on the mode.
         """
+        async with self.engine.begin() as conn:
+            for model in models:
+                await conn.run_sync(model.metadata.drop_all)
 
-        client = MongoClient(self.db_url)
-        if self.mode == "default":
-            client.drop_database("agenta")
-        else:
-            client.drop_database(f"agenta_{self.mode}")
+
+    @asynccontextmanager
+    async def get_session(self):
+        session = self.async_session()
+        try:
+            yield session
+        finally:
+            await session.close()
+
+db_engine = DBEngine()
