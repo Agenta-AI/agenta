@@ -70,7 +70,6 @@ const useStylesTestset = createUseStyles({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        textTransform: "lowercase",
         "& input": {
             marginTop: "10px",
             marginBottom: "10px",
@@ -272,6 +271,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         )
         const index = attributes["aria-colindex"].nodeValue - 2
         const displayName = params.displayName
+        const columnHeaderName = inputValues[index] || displayName
 
         const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
         const handleOpenEditInput = () => {
@@ -298,8 +298,10 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 )
             } else {
                 setInputValues(scopedInputValues)
-                updateTable(scopedInputValues)
-                setIsEditInputOpen(false)
+                setTimeout(() => {
+                    updateTable(scopedInputValues)
+                    setIsEditInputOpen(false)
+                }, 200)
             }
         }
 
@@ -363,7 +365,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                                 size="small"
                             />
                         ) : (
-                            displayName
+                            columnHeaderName
                         )}
 
                         <div>
