@@ -10,7 +10,7 @@ import {
 } from "@/services/evaluations"
 import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tag, Tooltip, theme} from "antd"
+import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, message, theme} from "antd"
 import {Rule} from "antd/es/form"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -18,6 +18,7 @@ import Link from "next/link"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
+import AdvancedSettings from "./AdvancedSettings"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
@@ -124,6 +125,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -152,48 +154,51 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
 
     return (
         <>
-            <Form.Item
-                name={name}
-                label={
-                    <div className={classes.label}>
-                        <span>{label}</span>
-                        {description && (
-                            <Tooltip title={description}>
-                                <InfoCircleOutlined style={{color: token.colorPrimary}} />
-                            </Tooltip>
-                        )}
-                    </div>
-                }
-                initialValue={defaultVal}
-                rules={rules}
-            >
-                {type === "string" || type === "regex" ? (
-                    <Input />
-                ) : type === "number" ? (
-                    <InputNumber min={min} max={max} step={0.1} />
-                ) : type === "boolean" || type === "bool" ? (
-                    <Switch />
-                ) : type === "text" ? (
-                    <Input.TextArea rows={10} />
-                ) : type === "code" ? (
-                    <Editor
-                        className={classes.editor}
-                        height={400}
-                        width="100%"
-                        language="python"
-                        theme={`vs-${appTheme}`}
-                    />
-                ) : type === "object" ? (
-                    <Editor
-                        className={classes.editor}
-                        height={120}
-                        width="100%"
-                        language="json"
-                        options={{lineNumbers: "off"}}
-                        theme={`vs-${appTheme}`}
-                    />
-                ) : null}
-            </Form.Item>
+            {label !== "Correct Answer" && (
+                <Form.Item
+                    name={name}
+                    label={
+                        <div className={classes.label}>
+                            <span>{label}</span>
+                            {description && (
+                                <Tooltip title={description}>
+                                    <InfoCircleOutlined style={{color: token.colorPrimary}} />
+                                </Tooltip>
+                            )}
+                        </div>
+                    }
+                    initialValue={defaultVal}
+                    rules={rules}
+                >
+                    {type === "string" || type === "regex" ? (
+                        <Input />
+                    ) : type === "number" ? (
+                        <InputNumber min={min} max={max} step={0.1} />
+                    ) : type === "boolean" || type === "bool" ? (
+                        <Switch />
+                    ) : type === "text" ? (
+                        <Input.TextArea rows={10} />
+                    ) : type === "code" ? (
+                        <Editor
+                            className={classes.editor}
+                            height={400}
+                            width="100%"
+                            language="python"
+                            theme={`vs-${appTheme}`}
+                        />
+                    ) : type === "object" ? (
+                        <Editor
+                            className={classes.editor}
+                            height={120}
+                            width="100%"
+                            language="json"
+                            options={{lineNumbers: "off"}}
+                            theme={`vs-${appTheme}`}
+                        />
+                    ) : null}
+                </Form.Item>
+            )}
+
             {ExternalHelpInfo}
         </>
     )
@@ -218,7 +223,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const evaluators = useAtom(evaluatorsAtom)[0].filter((item) => !item.direct_use)
+    const evaluators = useAtom(evaluatorsAtom)[0]
     const [selectedEval, setSelectedEval] = useState<Evaluator | null>(null)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState<string>("")
@@ -244,6 +249,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 .map((key) => ({
                     key,
                     ...selectedEval?.settings_template[key]!,
+                    advanced: selectedEval?.settings_template[key]?.advanced || false,
                 })),
         [selectedEval],
     )
@@ -258,21 +264,32 @@ const NewEvaluatorModal: React.FC<Props> = ({
         }
     }, [newEvalModalConfigOpen])
 
+    const advancedSettingsFields = evalFields.filter((field) => field.advanced)
+    const basicSettingsFields = evalFields.filter((field) => !field.advanced)
+
     const onSubmit = (values: CreateEvaluationConfigData) => {
-        setSubmitLoading(true)
-        if (!selectedEval?.key) throw new Error("No selected key")
-        const data = {
-            ...values,
-            evaluator_key: selectedEval.key,
-            settings_values: values.settings_values || {},
+        try {
+            setSubmitLoading(true)
+            if (!selectedEval?.key) throw new Error("No selected key")
+            const settingsValues = values.settings_values || {}
+
+            const data = {
+                ...values,
+                evaluator_key: selectedEval.key,
+                settings_values: settingsValues,
+            }
+            ;(editMode
+                ? updateEvaluatorConfig(initialValues?.id!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
+        } catch (error: any) {
+            setSubmitLoading(false)
+            console.error(error)
+            message.error(error.message)
         }
-        ;(editMode
-            ? updateEvaluatorConfig(initialValues?.id!, data)
-            : createEvaluatorConfig(appId, data)
-        )
-            .then(onSuccess)
-            .catch(console.error)
-            .finally(() => setSubmitLoading(false))
     }
 
     const columns: ColumnsType<Evaluator> = [
@@ -394,13 +411,17 @@ const NewEvaluatorModal: React.FC<Props> = ({
                         <Input data-cy="configure-new-evaluator-modal-input" />
                     </Form.Item>
 
-                    {evalFields.map((field) => (
+                    {basicSettingsFields.map((field) => (
                         <DynamicFormField
                             {...field}
                             key={field.key}
                             name={["settings_values", field.key]}
                         />
                     ))}
+
+                    {advancedSettingsFields.length > 0 && (
+                        <AdvancedSettings settings={advancedSettingsFields} />
+                    )}
 
                     <Form.Item style={{marginBottom: 0}}>
                         <div className={classes.evalBtnContainer}>

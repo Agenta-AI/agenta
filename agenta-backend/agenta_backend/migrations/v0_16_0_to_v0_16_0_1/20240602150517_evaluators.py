@@ -2,6 +2,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+from beanie import Document, Link, PydanticObjectId, iterative_migration
+
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 from beanie import Document, Link, PydanticObjectId
 
 
@@ -301,3 +307,34 @@ class EvaluationScenarioDB(Document):
 
     class Settings:
         name = "new_evaluation_scenarios"
+
+
+class Forward:
+    @iterative_migration()
+    async def migrate_settings_values(
+        self,
+        input_document: EvaluatorConfigDB,
+        output_document: EvaluatorConfigDB,
+    ):
+        evaluators_using_correct_answer = [
+            "auto_exact_match",
+            "auto_similarity_match",
+            "field_match_test",
+            "auto_webhook_test",
+            "auto_ai_critique",
+            "auto_levenshtein_distance",
+        ]
+
+        if (
+            input_document.evaluator_key in evaluators_using_correct_answer
+            and "correct_answer_key" not in input_document.settings_values
+        ):
+            new_settings_values = input_document.settings_values
+            new_settings_values["correct_answer_key"] = "correct_answer"
+            output_document.settings_values = new_settings_values
+        else:
+            output_document.settings_values = input_document.settings_values
+
+
+class Backward:
+    ...

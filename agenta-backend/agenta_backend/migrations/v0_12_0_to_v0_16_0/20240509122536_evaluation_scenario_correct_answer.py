@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId
+from beanie import Document, Link, PydanticObjectId, iterative_migration
 
 
 class UserDB(Document):
@@ -301,3 +301,45 @@ class EvaluationScenarioDB(Document):
 
     class Settings:
         name = "new_evaluation_scenarios"
+
+
+class OldEvaluationScenarioDB(Document):
+    user: Link[UserDB]
+    evaluation: Link[EvaluationDB]
+    variant_id: PydanticObjectId
+    inputs: List[EvaluationScenarioInputDB]
+    outputs: List[EvaluationScenarioOutputDB]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    evaluators_configs: List[PydanticObjectId]
+    results: List[EvaluationScenarioResult]
+    latency: Optional[int] = None
+    cost: Optional[int] = None
+    created_at: datetime = Field(default=datetime.now(timezone.utc))
+    updated_at: datetime = Field(default=datetime.now(timezone.utc))
+
+    class Settings:
+        name = "new_evaluation_scenarios"
+
+
+class Forward:
+    @iterative_migration()
+    async def migrate_correct_answers(
+        self,
+        input_document: OldEvaluationScenarioDB,
+        output_document: EvaluationScenarioDB,
+    ):
+        if input_document.correct_answer:
+            output_document.correct_answers = [
+                CorrectAnswer(key="correct_answer", value=input_document.correct_answer)
+            ]
+        else:
+            output_document.correct_answers = []
+
+        if "correct_answer" in input_document.dict():
+            del input_document.__dict__["correct_answer"]
+
+
+class Backward:
+    ...

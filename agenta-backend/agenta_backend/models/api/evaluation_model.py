@@ -158,13 +158,18 @@ class HumanEvaluationScenarioUpdate(BaseModel):
     note: Optional[str]
 
 
+class CorrectAnswer(BaseModel):
+    key: str
+    value: str
+
+
 class EvaluationScenario(BaseModel):
     id: Optional[str]
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
     evaluation: Optional[str]
-    correct_answer: Optional[str]
+    correct_answers: Optional[List[CorrectAnswer]]
     is_pinned: Optional[bool]
     note: Optional[str]
     results: List[EvaluationScenarioResult]

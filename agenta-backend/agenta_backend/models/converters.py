@@ -9,6 +9,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.api.evaluation_model import (
+    CorrectAnswer,
     Evaluation,
     HumanEvaluation,
     EvaluatorConfig,
@@ -253,7 +254,10 @@ def evaluation_scenario_db_to_pydantic(
             EvaluationScenarioOutput(**scenario_output.dict())
             for scenario_output in evaluation_scenario_db.outputs
         ],
-        correct_answer=evaluation_scenario_db.correct_answer,
+        correct_answers=[
+            CorrectAnswer(**correct_answer.dict())
+            for correct_answer in evaluation_scenario_db.correct_answers
+        ],
         is_pinned=evaluation_scenario_db.is_pinned or False,
         note=evaluation_scenario_db.note or "",
         results=evaluation_scenarios_results_to_pydantic(
