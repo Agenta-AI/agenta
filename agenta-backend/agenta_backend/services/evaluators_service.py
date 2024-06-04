@@ -212,8 +212,11 @@ def auto_custom_code_run(
             app_params=app_params,
             inputs=inputs,
             output=output,
-            data_point=data_point,
+            correct_answer=data_point.get(
+                "correct_answer", None
+            ),  # for backward compatibility
             code=settings_values["code"],
+            datapoint=data_point,
         )
         return Result(type="number", value=result)
     except Exception as e:  # pylint: disable=broad-except
