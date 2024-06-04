@@ -192,7 +192,7 @@ def evaluate(
                         inputs=inputs,
                         is_pinned=False,
                         note="",
-                        correct_answer=None,
+                        correct_answers=None,
                         outputs=[
                             EvaluationScenarioOutputDB(
                                 result=Result(
