@@ -28,9 +28,6 @@ class EvaluationScenarioResult(BaseModel):
     evaluator_config: int
     result: Result
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 class AggregatedResult(BaseModel):
     evaluator_config: int
