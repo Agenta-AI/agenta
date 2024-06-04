@@ -193,7 +193,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     useEffect(() => {
         async function applyColData(colData: {field: string}[] = []) {
-            const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
+            const newColDefs = [
+                CHECKBOX_COL,
+                ...colData.map((col) => ({
+                    ...col,
+                    headerName: col.field,
+                })),
+                ADD_BUTTON_COL,
+            ]
             setColumnDefs(newColDefs)
             if (mode === "create") {
                 const initialRowData = Array(3).fill({})
@@ -242,7 +249,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [CHECKBOX_COL, ...newDataColumns, ADD_BUTTON_COL]
+        const newColumnDefs = [
+            CHECKBOX_COL,
+            ...newDataColumns.map((col) => ({
+                ...col,
+                headerName: col.field,
+            })),
+            ADD_BUTTON_COL,
+        ]
 
         const keyMap = dataColumns.reduce((acc: KeyValuePair, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -286,9 +300,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
 
             if (
-                inputValues.some(
-                    (input) => input.toLowerCase() === scopedInputValues[index].toLowerCase(),
-                ) ||
+                inputValues.some((input) => input === scopedInputValues[index]) ||
                 scopedInputValues[index] == ""
             ) {
                 message.error(
@@ -321,7 +333,11 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             newColmnDef.pop()
 
             setInputValues([...inputValues, newColumnName])
-            setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
+            setColumnDefs([
+                ...columnDefs,
+                {field: newColumnName, headerName: newColumnName},
+                ADD_BUTTON_COL,
+            ])
             setRowData(updatedRowData)
             setLoading(false)
         }

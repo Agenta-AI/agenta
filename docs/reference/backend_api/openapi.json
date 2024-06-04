@@ -14,10 +14,6 @@
         {
             "url": "https://cloud.agenta.ai/api",
             "description": "Agenta Cloud"
-        },
-        {
-            "url": "http:/localhost/api",
-            "description": "Local Development"
         }
     ],
     "paths": {

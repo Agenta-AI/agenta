@@ -417,6 +417,26 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "LucasTrg",
+      "name": "LucasTrg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47852577?v=4",
+      "profile": "https://github.com/LucasTrg",
+      "contributions": [
+        "code",
+        "bug"
+      ]
+    },
+    {
+      "login": "ashrafchowdury",
+      "name": "Ashraf Chowdury",
+      "avatar_url": "https://avatars.githubusercontent.com/u/87828904?v=4",
+      "profile": "https://ashrafchowdury.me",
+      "contributions": [
+        "bug",
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

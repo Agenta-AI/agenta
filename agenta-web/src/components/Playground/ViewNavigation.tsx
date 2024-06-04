@@ -211,19 +211,21 @@ const ViewNavigation: React.FC<Props> = ({
                             </a>
                         </p>
 
-                        <Button
-                            type="primary"
-                            onClick={() => {
-                                restartContainerHandler()
-                            }}
-                            disabled={restarting}
-                            loading={restarting}
-                            className={classes.restartBtnMargin}
-                        >
-                            <Tooltip placement="bottom" title="Restart the variant container">
-                                Restart Container
-                            </Tooltip>
-                        </Button>
+                        {!isDemo() && (
+                            <Button
+                                type="primary"
+                                onClick={() => {
+                                    restartContainerHandler()
+                                }}
+                                disabled={restarting}
+                                loading={restarting}
+                                className={classes.restartBtnMargin}
+                            >
+                                <Tooltip placement="bottom" title="Restart the variant container">
+                                    Restart Container
+                                </Tooltip>
+                            </Button>
+                        )}
 
                         <Button
                             type="primary"
