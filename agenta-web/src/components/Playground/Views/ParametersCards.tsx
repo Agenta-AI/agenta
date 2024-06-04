@@ -93,18 +93,26 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     }
     return (
         <>
-            {optParams?.some((param) => !param.input && param.type === "number") && (
+            {optParams?.some(
+                (param) =>
+                    !param.input &&
+                    (param.type === "number" ||
+                        param.type === "integer" ||
+                        param.type === "array" ||
+                        param.type === "grouped_choice" ||
+                        param.type === "boolean"),
+            ) && (
                 <Row gutter={0} className={classes.row1}>
                     <Card className={classes.card} title="Model Parameters">
                         {optParams
                             ?.filter(
                                 (param) =>
-                                    (!param.input &&
-                                        (param.type === "number" ||
-                                            param.type === "integer" ||
-                                            param.type === "array" ||
-                                            param.type === "grouped_choice")) ||
-                                    param.type === "boolean",
+                                    !param.input &&
+                                    (param.type === "number" ||
+                                        param.type === "integer" ||
+                                        param.type === "array" ||
+                                        param.type === "grouped_choice" ||
+                                        param.type === "boolean"),
                             )
                             .map((param, index) => (
                                 <Row key={index} className={classes.row2}>
