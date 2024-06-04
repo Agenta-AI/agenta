@@ -10,8 +10,13 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 //  - delete: DELETE data from server
 
 export const fetchEnvironments = async (appId: string): Promise<Environment[]> => {
-    const {data} = await axios(`${getAgentaApiUrl()}/api/apps/${appId}/environments/`)
+    const response = await fetch(`${getAgentaApiUrl()}/api/apps/${appId}/environments/`)
 
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch environments")
+    }
+
+    const data: Environment[] = await response.json()
     return data
 }
 
