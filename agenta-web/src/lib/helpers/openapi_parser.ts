@@ -3,11 +3,23 @@
 import {GenericObject, Parameter} from "../Types"
 
 const getBodySchemaName = (schema: GenericObject): string => {
-    return (
-        schema?.paths?.["/generate"]?.post?.requestBody?.content["application/json"]?.schema["$ref"]
-            ?.split("/")
-            ?.pop() || ""
-    )
+    // Try v2 structure first
+    const v2BodySchemaRef =
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
+            "allOf"
+        ]?.[0]?.["$ref"]
+
+    // If v2 structure doesn't exist, fall back to v1 structure
+    const v1BodySchemaRef =
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
+            "$ref"
+        ]
+
+    // Determine the body schema reference to use
+    const bodySchemaRef = v2BodySchemaRef || v1BodySchemaRef
+
+    // Return the last part of the reference or an empty string
+    return bodySchemaRef?.split("/")?.pop() || ""
 }
 
 export const detectChatVariantFromOpenAISchema = (schema: GenericObject) => {
