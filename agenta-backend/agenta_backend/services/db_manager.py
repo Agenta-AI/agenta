@@ -1785,9 +1785,7 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
 
     async with db_engine.get_session() as session:
         # Fetch all templates with tag_id in tag_ids
-        templates = await session.execute(
-            select(TemplateDB)
-        )
+        templates = await session.execute(select(TemplateDB))
         templates = templates.scalars().all()
 
         # Filter templates to delete
