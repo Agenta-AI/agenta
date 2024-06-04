@@ -253,8 +253,8 @@ export const createAppFromTemplate = async (
 }
 
 export const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
+    const response = await axios.get(url)
+    return response.data
 }
 
 export const waitForAppToStart = async ({
