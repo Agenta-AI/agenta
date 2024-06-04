@@ -1,3 +1,2 @@
 agenta
 openai
-pydantic>=2
