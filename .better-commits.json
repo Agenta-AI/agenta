@@ -104,6 +104,10 @@
                 "label": "cli"
             },
             {
+                "value": "devops",
+                "label": "devops"
+            },
+            {
                 "value": "",
                 "label": "none"
             }
