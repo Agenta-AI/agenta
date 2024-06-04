@@ -88,16 +88,20 @@
                 "label": "app"
             },
             {
-                "value": "shared",
-                "label": "shared"
+                "value": "frontend",
+                "label": "frontend"
             },
             {
-                "value": "server",
-                "label": "server"
+                "value": "backend",
+                "label": "backend"
             },
             {
-                "value": "tools",
-                "label": "tools"
+                "value": "sdk",
+                "label": "sdk"
+            },
+            {
+                "value": "cli",
+                "label": "cli"
             },
             {
                 "value": "",
