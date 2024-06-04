@@ -71,9 +71,7 @@ else:
 
 from agenta_backend.models.db_models import (
     TemplateDB,
-    AggregatedResult,
     AppVariantRevisionsDB,
-    EvaluationScenarioResult,
 )
 from agenta_backend.models.api.api_models import (
     App,
@@ -84,6 +82,11 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
     PaginationParam,
     WithPagination,
+)
+
+from agenta_backend.models.shared_models import (
+    AggregatedResult,
+    EvaluationScenarioResult,
 )
 
 from fastapi import Depends

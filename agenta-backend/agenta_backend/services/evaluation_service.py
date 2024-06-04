@@ -41,7 +41,7 @@ else:
         HumanEvaluationScenarioDB,
     )
 
-from agenta_backend.models.db_models import (
+from agenta_backend.models.shared_models import (
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
     Result,

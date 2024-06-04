@@ -17,11 +17,13 @@ from agenta_backend.services import (
 )
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
-    AggregatedResult,
     AppDB,
-    CorrectAnswer,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
+)
+from agenta_backend.models.shared_models import (
+    AggregatedResult,
+    CorrectAnswer,
     EvaluationScenarioResult,
     InvokationResult,
     Error,

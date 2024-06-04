@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 import httpx
 from openai import OpenAI
 
-from agenta_backend.models.db_models import Error, Result
+from agenta_backend.models.shared_models import Error, Result
 from agenta_backend.services.security import sandbox
 
 logger = logging.getLogger(__name__)
