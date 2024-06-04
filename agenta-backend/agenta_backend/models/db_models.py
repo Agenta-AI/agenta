@@ -299,7 +299,7 @@ class HumanEvaluationScenarioInputsDB(Base):
     input_name = Column(String)
     input_value = Column(String)
 
-    __tablename__ = "human_evaluations_scenarios_inputs"
+    __tablename__ = "human_evaluation_scenario_inputs"
 
 
 class HumanEvaluationScenarioOutputsDB(Base):
@@ -308,7 +308,7 @@ class HumanEvaluationScenarioOutputsDB(Base):
     variant_id = Column(String)
     variant_output = Column(String)
 
-    __tablename__ = "human_evaluations_scenarios_outputs"
+    __tablename__ = "human_evaluation_scenario_outputs"
 
 
 class EvaluationDB(Base):
@@ -334,18 +334,18 @@ class EvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "new_evaluations"
+    __tablename__ = "evaluations"
 
 
 class EvaluationScenarioDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
-    evaluation_id = Column(Integer, ForeignKey("new_evaluations.id"))
+    evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
     evaluation = relationship("EvaluationDB")
     variant_id = Column(Integer)  # PydanticObjectId
-    inputs = Column(JSON)  # List of EvaluationScenarioInputDB
-    outputs = Column(JSON)  # List of EvaluationScenarioOutputDB
+    inputs = relationship("EvaluationScenarioInputDB", backref="scenario")
+    outputs = relationship("EvaluationScenarioOutputDB", backref="scenario")
     correct_answers = Column(JSON)  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
@@ -360,93 +360,24 @@ class EvaluationScenarioDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "new_evaluation_scenarios"
+    __tablename__ = "evaluation_scenarios"
 
 
-class ConfigDB(BaseModel):
-    config_name: str
-    parameters: Dict[str, Any] = Field(default_factory=dict)
+class EvaluationScenarioInputDB(Base):
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    name = Column(String)
+    type = Column(String)
+    value = Column(String)
 
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class Error(BaseModel):
-    message: str
-    stacktrace: Optional[str] = None
-
-    class Config:
-        arbitrary_types_allowed = True
+    __tablename__ = "evaluation_scenario_inputs"
 
 
-class Result(BaseModel):
-    type: str
-    value: Optional[Any] = None
-    error: Optional[Error] = None
+class EvaluationScenarioOutputDB(Base):
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    result = Column(JSON)  # Result type
+    cost = Column(Float)
+    latency = Column(Float)
 
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class InvokationResult(BaseModel):
-    result: Result
-    cost: Optional[float] = None
-    latency: Optional[float] = None
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class EvaluationScenarioResult(BaseModel):
-    evaluator_config: int  # Assuming this should be an ID reference
-    result: Result
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class AggregatedResult(BaseModel):
-    evaluator_config: int  # Assuming this should be an ID reference
-    result: Result
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class EvaluationScenarioInputDB(BaseModel):
-    name: str
-    type: str
-    value: str
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class EvaluationScenarioOutputDB(BaseModel):
-    result: Result
-    cost: Optional[float] = None
-    latency: Optional[float] = None
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class CorrectAnswer(BaseModel):
-    key: str
-    value: str
+    __tablename__ = "evaluation_scenario_outputs"

@@ -2,7 +2,7 @@ import re
 import traceback
 from typing import List, Optional
 
-from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 
 
 def aggregate_ai_critique(results: List[Result]) -> Result:

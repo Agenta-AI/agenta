@@ -63,14 +63,17 @@ else:
         HumanEvaluationScenarioDB,
     )
 from agenta_backend.models.db_models import (
-    ConfigDB,
-    CorrectAnswer,
     TemplateDB,
-    AggregatedResult,
     AppVariantRevisionsDB,
-    EvaluationScenarioResult,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
+)
+
+from agenta_backend.models.shared_models import (
+    ConfigDB,
+    CorrectAnswer,
+    AggregatedResult,
+    EvaluationScenarioResult,
 )
 
 from beanie.operators import In

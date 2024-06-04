@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from agenta_backend.models.db_models import ConfigDB
+from agenta_backend.models.shared_models import ConfigDB
 
 
 class PaginationParam(BaseModel):

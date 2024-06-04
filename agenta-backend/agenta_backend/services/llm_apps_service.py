@@ -6,7 +6,7 @@ import aiohttp
 from typing import Any, Dict, List
 
 
-from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
 
 # Set logger
