@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from sqlalchemy import (
@@ -22,8 +22,12 @@ class UserDB(Base):
     uid = Column(String, unique=True, index=True, default="0")
     username = Column(String, default="agenta")
     email = Column(String, unique=True, default="demo@agenta.ai")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "users"
 
@@ -37,8 +41,12 @@ class ImageDB(Base):
     deletable = Column(Boolean, default=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "docker_images"
 
@@ -48,8 +56,12 @@ class AppDB(Base):
     app_name = Column(String)
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "app_db"
 
@@ -64,8 +76,12 @@ class DeploymentDB(Base):
     container_id = Column(String)
     uri = Column(String)
     status = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "deployments"
 
@@ -80,8 +96,12 @@ class VariantBaseDB(Base):
     image_id = Column(Integer, ForeignKey("docker_images.id"))
     image = relationship("ImageDB")
     deployment_id = Column(Integer)  # reference to deployment, can be nullable
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "bases"
 
@@ -106,8 +126,12 @@ class AppVariantDB(Base):
     config_name = Column(String)
     config_id = Column(JSON)
     config = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     is_deleted = Column(Boolean, default=False)  # deprecated
 
     __tablename__ = "app_variants"
@@ -123,8 +147,12 @@ class AppVariantRevisionsDB(Base):
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
     config = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "app_variant_revisions"
 
@@ -143,7 +171,9 @@ class AppEnvironmentDB(Base):
     )
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
     deployment_id = Column(Integer)  # reference to deployment
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "environments"
 
@@ -159,7 +189,9 @@ class AppEnvironmentRevisionDB(Base):
         Integer
     )  # reference to app_variant_revision
     deployment_id = Column(Integer)  # reference to deployment
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "environments_revisions"
 
@@ -175,7 +207,9 @@ class TemplateDB(Base):
     description = Column(String)
     size = Column(Integer)
     digest = Column(String)  # sha256 hash of image digest
-    last_pushed = Column(String)
+    last_pushed = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "templates"
 
@@ -188,8 +222,12 @@ class TestSetDB(Base):
     csvdata = Column(JSON)  # List of dictionaries
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "testsets"
 
@@ -203,8 +241,12 @@ class EvaluatorConfigDB(Base):
     name = Column(String)
     evaluator_key = Column(String)
     settings_values = Column(JSON, default=dict)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "evaluators_configs"
 
@@ -221,8 +263,12 @@ class HumanEvaluationDB(Base):
     variants_revisions = Column(JSON)  # List of PydanticObjectId
     testset_id = Column(Integer, ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "human_evaluations"
 
@@ -238,8 +284,12 @@ class HumanEvaluationScenarioDB(Base):
     vote = Column(String)
     score = Column(JSON)  # Any type
     correct_answer = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     is_pinned = Column(Boolean)
     note = Column(String)
 
@@ -262,8 +312,12 @@ class EvaluationDB(Base):
     average_cost = Column(JSON)  # Result type
     total_cost = Column(JSON)  # Result type
     average_latency = Column(JSON)  # Result type
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "new_evaluations"
 
@@ -284,8 +338,12 @@ class EvaluationScenarioDB(Base):
     results = Column(JSON)  # List of EvaluationScenarioResult
     latency = Column(Integer)
     cost = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     __tablename__ = "new_evaluation_scenarios"
 
