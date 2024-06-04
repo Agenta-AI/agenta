@@ -1783,15 +1783,24 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
         tag_ids -- list of template IDs you want to keep
     """
 
-    templates_to_delete = []
-    templates: List[TemplateDB] = await TemplateDB.find().to_list()
+    async with db_engine.get_session() as session:
+        # Fetch all templates with tag_id in tag_ids
+        templates = await session.execute(
+            select(TemplateDB)
+        )
+        templates = templates.scalars().all()
 
-    for temp in templates:
-        if temp.tag_id not in tag_ids:
-            templates_to_delete.append(temp)
+        # Filter templates to delete
+        templates_to_delete = [
+            template for template in templates if template.tag_id not in tag_ids
+        ]
 
-    for template in templates_to_delete:
-        await template.delete()
+        # Delete each template
+        for template in templates_to_delete:
+            await session.delete(template)
+
+        # Commit the changes
+        await session.commit()
 
 
 async def get_templates() -> List[Template]:
