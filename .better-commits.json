@@ -104,8 +104,8 @@
                 "label": "cli"
             },
             {
-                "value": "devops",
-                "label": "devops"
+                "value": "tool",
+                "label": "tool"
             },
             {
                 "value": "",
