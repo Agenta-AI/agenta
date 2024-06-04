@@ -32,6 +32,7 @@ class UserDB(Base):
     __tablename__ = "users"
 
 
+# TODO: Rename ImageDB to DockerImageDB ?
 class ImageDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String, default="image")
@@ -118,8 +119,6 @@ class AppVariantDB(Base):
     user = relationship("UserDB", foreign_keys=[user_id])
     modified_by_id = Column(Integer, ForeignKey("users.id"))
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
-    parameters = Column(JSON, default=dict)  # deprecated
-    previous_variant_name = Column(String)  # deprecated
     base_name = Column(String)
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
@@ -132,7 +131,6 @@ class AppVariantDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    is_deleted = Column(Boolean, default=False)  # deprecated
 
     __tablename__ = "app_variants"
 
@@ -146,7 +144,7 @@ class AppVariantRevisionsDB(Base):
     modified_by = relationship("UserDB")
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
-    config = Column(JSON)
+    config = Column(JSON)  # TODO: Use table ConfigDB
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -240,7 +238,7 @@ class EvaluatorConfigDB(Base):
     user = relationship("UserDB")
     name = Column(String)
     evaluator_key = Column(String)
-    settings_values = Column(JSON, default=dict)
+    settings_values = Column(JSON, default=dict)  # TODO: Check
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -259,8 +257,8 @@ class HumanEvaluationDB(Base):
     user = relationship("UserDB")
     status = Column(String)
     evaluation_type = Column(String)
-    variants = Column(JSON)  # List of PydanticObjectId
-    variants_revisions = Column(JSON)  # List of PydanticObjectId
+    variants = Column(JSON)  # List of PydanticObjectId # TODO: Check
+    variants_revisions = Column(JSON)  # List of PydanticObjectId TODO: Check
     testset_id = Column(Integer, ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
     created_at = Column(
@@ -279,10 +277,10 @@ class HumanEvaluationScenarioDB(Base):
     user = relationship("UserDB")
     evaluation_id = Column(Integer, ForeignKey("human_evaluations.id"))
     evaluation = relationship("HumanEvaluationDB")
-    inputs = Column(JSON)  # List of HumanEvaluationScenarioInput
-    outputs = Column(JSON)  # List of HumanEvaluationScenarioOutput
+    inputs = relationship("HumanEvaluationScenarioInputsDB", backref="scenario")
+    outputs = relationship("HumanEvaluationScenarioOutputsDB", backref="scenario")
     vote = Column(String)
-    score = Column(JSON)  # Any type
+    score = Column(JSON)
     correct_answer = Column(String)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -292,8 +290,25 @@ class HumanEvaluationScenarioDB(Base):
     )
     is_pinned = Column(Boolean)
     note = Column(String)
-
     __tablename__ = "human_evaluations_scenarios"
+
+
+class HumanEvaluationScenarioInputsDB(Base):
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario_id = Column(Integer, ForeignKey("human_evaluations_scenarios.id"))
+    input_name = Column(String)
+    input_value = Column(String)
+
+    __tablename__ = "human_evaluations_scenarios_inputs"
+
+
+class HumanEvaluationScenarioOutputsDB(Base):
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario_id = Column(Integer, ForeignKey("human_evaluations_scenarios.id"))
+    variant_id = Column(String)
+    variant_output = Column(String)
+
+    __tablename__ = "human_evaluations_scenarios_outputs"
 
 
 class EvaluationDB(Base):
@@ -307,7 +322,7 @@ class EvaluationDB(Base):
     testset = relationship("TestSetDB")
     variant = Column(Integer)  # PydanticObjectId
     variant_revision = Column(Integer)  # PydanticObjectId
-    evaluators_configs = Column(JSON)  # List of PydanticObjectId
+    evaluators_configs = Column(JSON)  # List of PydanticObjectId # TODO: Check
     aggregated_results = Column(JSON)  # List of AggregatedResult
     average_cost = Column(JSON)  # Result type
     total_cost = Column(JSON)  # Result type
