@@ -299,9 +299,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
 
             if (
-                inputValues.some(
-                    (input) => input.toLowerCase() === scopedInputValues[index].toLowerCase(),
-                ) ||
+                inputValues.some((input) => input === scopedInputValues[index]) ||
                 scopedInputValues[index] == ""
             ) {
                 message.error(
