@@ -7,7 +7,11 @@ from agenta.sdk.tracing.logger import llm_logger
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncAgentaApi
 from agenta.client.backend.client import AsyncObservabilityClient
-from agenta.client.backend.types.create_span import CreateSpan, SpanKind, SpanStatusCode
+from agenta.client.backend.types.create_span import (
+    CreateSpan,
+    LlmTokens,
+    SpanStatusCode,
+)
 
 from bson.objectid import ObjectId
 
@@ -171,12 +175,14 @@ class Tracing(metaclass=SingletonMeta):
             else:
                 span.cost += cost
 
-    def _update_span_tokens(self, span: CreateSpan, tokens: Optional[int]):
-        if tokens is not None and isinstance(tokens, int):
+    def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]):
+        if tokens is not None and isinstance(tokens, dict):
             if span.tokens is None:
-                span.tokens = tokens
+                span.tokens = LlmTokens(**tokens)
             else:
-                span.tokens += tokens
+                span.tokens.prompt_tokens += tokens["prompt_tokens"]
+                span.tokens.completion_tokens += tokens["completion_tokens"]
+                span.tokens.total_tokens += tokens["total_tokens"]
 
     def end_span(self, outputs: Dict[str, Any]):
         """
@@ -184,6 +190,7 @@ class Tracing(metaclass=SingletonMeta):
         """
         if self.active_span is None:
             raise ValueError("There is no active span to end.")
+
         self.active_span.end_time = datetime.now(timezone.utc)
         self.active_span.outputs = [outputs.get("message", "")]
         self._update_span_cost(self.active_span, outputs.get("cost", None))
