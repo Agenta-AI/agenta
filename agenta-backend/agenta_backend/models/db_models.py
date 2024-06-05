@@ -237,13 +237,19 @@ class TestSetDB(Base):
 
 class EvaluatorConfigDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
+    evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
+    evaluation = relationship("EvaluationDB", back_populates="evaluator_configs")
+    evaluation_scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    evaluation_scenario = relationship(
+        "EvaluationScenarioDB", back_populates="evaluator_configs"
+    )
     app_id = Column(Integer, ForeignKey("app_db.id"))
     app = relationship("AppDB")
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
     name = Column(String)
     evaluator_key = Column(String)
-    settings_values = Column(JSON, default=dict)  # TODO: Check
+    settings_values = Column(JSON, default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -262,8 +268,10 @@ class HumanEvaluationDB(Base):
     user = relationship("UserDB")
     status = Column(String)
     evaluation_type = Column(String)
-    variants = Column(JSON)  # List of PydanticObjectId # TODO: Check
-    variants_revisions = Column(JSON)  # List of PydanticObjectId TODO: Check
+    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant = relationship("AppVariantDB")
+    variant_revision_id = Column(Integer, ForeignKey("app_variant_revisions.id"))
+    variant_revision = relationship("AppVariantRevisionsDB")
     testset_id = Column(Integer, ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
     created_at = Column(
@@ -322,16 +330,18 @@ class EvaluationDB(Base):
     app = relationship("AppDB")
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("UserDB")
-    status = Column(JSON)  # Result type
+    status = Column(JSON)
     testset_id = Column(Integer, ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
-    variant = Column(Integer)  # PydanticObjectId
-    variant_revision = Column(Integer)  # PydanticObjectId
-    evaluators_configs = Column(JSON)  # List of PydanticObjectId # TODO: Check
+    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant = relationship("AppVariantDB")
+    variant_revision_id = Column(Integer, ForeignKey("app_variant_revisions.id"))
+    variant_revision = relationship("AppVariantRevisionsDB")
+    evaluator_configs = relationship("EvaluatorConfigDB", back_populates="evaluation")
     aggregated_results = Column(JSON)  # List of AggregatedResult
-    average_cost = Column(JSON)  # Result type
-    total_cost = Column(JSON)  # Result type
-    average_latency = Column(JSON)  # Result type
+    average_cost = Column(JSON)
+    total_cost = Column(JSON)
+    average_latency = Column(JSON)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -354,7 +364,9 @@ class EvaluationScenarioDB(Base):
     correct_answers = Column(JSON)  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
-    evaluators_configs = Column(JSON)  # List of PydanticObjectId
+    evaluator_configs = relationship(
+        "EvaluatorConfigDB", back_populates="evaluation_scenario"
+    )  # One-to-many relationship
     results = Column(JSON)  # List of EvaluationScenarioResult
     latency = Column(Integer)
     cost = Column(Integer)
@@ -381,7 +393,7 @@ class EvaluationScenarioInputDB(Base):
 class EvaluationScenarioOutputDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
-    result = Column(JSON)  # Result type
+    result = Column(JSON)
     cost = Column(Float)
     latency = Column(Float)
 
