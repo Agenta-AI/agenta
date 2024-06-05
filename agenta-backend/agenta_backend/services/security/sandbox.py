@@ -32,8 +32,9 @@ def execute_code_safely(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: str,
-    correct_answer: str,
+    correct_answer: str,  # for backward compatibility reasons
     code: Text,
+    datapoint: Dict[str, str],
 ) -> Union[float, None]:
     """
     Execute the provided Python code safely using RestrictedPython.
@@ -44,6 +45,7 @@ def execute_code_safely(
         - output (str): The output of the app variant after being called.
         - correct_answer (str): The correct answer (or target) of the app variant.
         - code (Text): The Python code to be executed.
+        - datapoint (Dict[str, str]): The test datapoint.
 
     Returns:
     - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -91,7 +93,14 @@ def execute_code_safely(
 
     # Call the evaluation function, extract the result if it exists
     # and is a float between 0 and 1
-    result = environment["evaluate"](app_params, inputs, output, correct_answer)
-    if isinstance(result, float) and 0 <= result <= 1:
-        return result
-    return None
+    try:
+        result = environment["evaluate"](app_params, inputs, output, correct_answer)
+        if isinstance(result, float) and 0 <= result <= 1:
+            return result
+        else:
+            raise ValueError("Result is not a float between 0 and 1.")
+    except Exception as e:
+        result = environment["evaluate"](app_params, inputs, output, datapoint)
+        if isinstance(result, float) and 0 <= result <= 1:
+            return result
+        return None
