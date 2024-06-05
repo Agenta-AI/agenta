@@ -13,12 +13,20 @@ from sqlalchemy import (
     Float,
 )
 from sqlalchemy.orm import relationship, declarative_base
+import uuid_utils.compat as uuid
+from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
 
 
 class UserDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     uid = Column(String, unique=True, index=True, default="0")
     username = Column(String, default="agenta")
     email = Column(String, unique=True, default="demo@agenta.ai")
@@ -34,13 +42,19 @@ class UserDB(Base):
 
 # TODO: Rename ImageDB to DockerImageDB ?
 class ImageDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     type = Column(String, default="image")
     template_uri = Column(String)
     docker_id = Column(String, index=True)
     tags = Column(String)
     deletable = Column(Boolean, default=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -53,9 +67,15 @@ class ImageDB(Base):
 
 
 class AppDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     app_name = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -68,10 +88,16 @@ class AppDB(Base):
 
 
 class DeploymentDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     container_name = Column(String)
     container_id = Column(String)
@@ -88,13 +114,19 @@ class DeploymentDB(Base):
 
 
 class VariantBaseDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     base_name = Column(String)
-    image_id = Column(Integer, ForeignKey("docker_images.id"))
+    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id"))
     image = relationship("ImageDB")
     deployment_id = Column(Integer)  # reference to deployment, can be nullable
     created_at = Column(
@@ -108,19 +140,25 @@ class VariantBaseDB(Base):
 
 
 class AppVariantDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
     variant_name = Column(String)
     revision = Column(Integer)
-    image_id = Column(Integer, ForeignKey("docker_images.id"))
+    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id"))
     image = relationship("ImageDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB", foreign_keys=[user_id])
-    modified_by_id = Column(Integer, ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     base_name = Column(String)
-    base_id = Column(Integer, ForeignKey("bases.id"))
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
     config_name = Column(String, nullable=False)
     config_parameters = Column(JSON, nullable=False, default=dict)
@@ -135,13 +173,19 @@ class AppVariantDB(Base):
 
 
 class AppVariantRevisionsDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
     revision = Column(Integer)
-    modified_by_id = Column(Integer, ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by = relationship("UserDB")
-    base_id = Column(Integer, ForeignKey("bases.id"))
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
     config_name = Column(String, nullable=False)
     config_parameters = Column(JSON, nullable=False, default=dict)
@@ -156,19 +200,28 @@ class AppVariantRevisionsDB(Base):
 
 
 class AppEnvironmentDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
     name = Column(String)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     revision = Column(Integer)
     deployed_app_variant_id = Column(Integer)  # reference to app_variant
+
     deployed_app_variant_revision_id = Column(
-        Integer, ForeignKey("app_variant_revisions.id")
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
     )
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
+
     deployment_id = Column(Integer)  # reference to deployment
+
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -177,11 +230,17 @@ class AppEnvironmentDB(Base):
 
 
 class AppEnvironmentRevisionDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    environment_id = Column(Integer, ForeignKey("environments.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    environment_id = Column(UUID(as_uuid=True), ForeignKey("environments.id"))
     environment = relationship("AppEnvironmentDB")
     revision = Column(Integer)
-    modified_by_id = Column(Integer, ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by = relationship("UserDB")
     deployed_app_variant_revision_id = Column(
         Integer
@@ -195,7 +254,13 @@ class AppEnvironmentRevisionDB(Base):
 
 
 class TemplateDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     type = Column(String, default="image")
     template_uri = Column(String)
     tag_id = Column(Integer)
@@ -213,12 +278,18 @@ class TemplateDB(Base):
 
 
 class TestSetDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     name = Column(String)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
     csvdata = Column(JSON)  # List of dictionaries
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -231,16 +302,24 @@ class TestSetDB(Base):
 
 
 class EvaluatorConfigDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("evaluations.id"))
     evaluation = relationship("EvaluationDB", back_populates="evaluator_configs")
-    evaluation_scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    evaluation_scenario_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id")
+    )
     evaluation_scenario = relationship(
         "EvaluationScenarioDB", back_populates="evaluator_configs"
     )
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     name = Column(String)
     evaluator_key = Column(String)
@@ -256,18 +335,26 @@ class EvaluatorConfigDB(Base):
 
 
 class HumanEvaluationDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     status = Column(String)
     evaluation_type = Column(String)
-    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
-    variant_revision_id = Column(Integer, ForeignKey("app_variant_revisions.id"))
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
+    )
     variant_revision = relationship("AppVariantRevisionsDB")
-    testset_id = Column(Integer, ForeignKey("testsets.id"))
+    testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -280,10 +367,16 @@ class HumanEvaluationDB(Base):
 
 
 class HumanEvaluationScenarioDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
-    evaluation_id = Column(Integer, ForeignKey("human_evaluations.id"))
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("human_evaluations.id"))
     evaluation = relationship("HumanEvaluationDB")
     inputs = relationship("HumanEvaluationScenarioInputsDB", backref="scenario")
     outputs = relationship("HumanEvaluationScenarioOutputsDB", backref="scenario")
@@ -302,8 +395,16 @@ class HumanEvaluationScenarioDB(Base):
 
 
 class HumanEvaluationScenarioInputsDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    scenario_id = Column(Integer, ForeignKey("human_evaluations_scenarios.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    scenario_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations_scenarios.id")
+    )
     input_name = Column(String)
     input_value = Column(String)
 
@@ -311,8 +412,16 @@ class HumanEvaluationScenarioInputsDB(Base):
 
 
 class HumanEvaluationScenarioOutputsDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    scenario_id = Column(Integer, ForeignKey("human_evaluations_scenarios.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    scenario_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations_scenarios.id")
+    )
     variant_id = Column(String)
     variant_output = Column(String)
 
@@ -320,17 +429,25 @@ class HumanEvaluationScenarioOutputsDB(Base):
 
 
 class EvaluationDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    app_id = Column(Integer, ForeignKey("app_db.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     status = Column(JSON)
-    testset_id = Column(Integer, ForeignKey("testsets.id"))
+    testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
-    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
-    variant_revision_id = Column(Integer, ForeignKey("app_variant_revisions.id"))
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
+    )
     variant_revision = relationship("AppVariantRevisionsDB")
     evaluator_configs = relationship("EvaluatorConfigDB", back_populates="evaluation")
     aggregated_results = Column(JSON)  # List of AggregatedResult
@@ -348,12 +465,18 @@ class EvaluationDB(Base):
 
 
 class EvaluationScenarioDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
-    evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("evaluations.id"))
     evaluation = relationship("EvaluationDB")
-    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
     inputs = relationship("EvaluationScenarioInputDB", backref="scenario")
     outputs = relationship("EvaluationScenarioOutputDB", backref="scenario")
@@ -377,8 +500,14 @@ class EvaluationScenarioDB(Base):
 
 
 class EvaluationScenarioInputDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    scenario_id = Column(UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id"))
     name = Column(String)
     type = Column(String)
     value = Column(String)
@@ -387,8 +516,14 @@ class EvaluationScenarioInputDB(Base):
 
 
 class EvaluationScenarioOutputDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    scenario_id = Column(Integer, ForeignKey("evaluation_scenarios.id"))
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    scenario_id = Column(UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id"))
     result = Column(JSON)
     cost = Column(Float)
     latency = Column(Float)
