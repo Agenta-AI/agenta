@@ -186,7 +186,7 @@ export const StatusRenderer = React.memo(
             params.data?.duration || 0,
             runningStatuses.includes(params.value),
         )
-        const {label, color} = statusMapper(token)[params.value.value as EvaluationStatus]
+        const {label, color} = statusMapper(token)[params.data?.status.value as EvaluationStatus]
         const errorMsg = params.data?.status.error?.message
 
         return (

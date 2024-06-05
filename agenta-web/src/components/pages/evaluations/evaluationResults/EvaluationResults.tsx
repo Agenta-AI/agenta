@@ -293,6 +293,8 @@ const EvaluationResults: React.FC<Props> = () => {
                 filterValueGetter: (params) =>
                     statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
                 cellRenderer: StatusRenderer,
+                valueGetter: (params) =>
+                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
             },
             {
                 flex: 1,
@@ -321,6 +323,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
                 sort: "desc",
+                valueFormatter: (params) => formatDate24(params.value),
             },
         ]
         return colDefs
@@ -368,43 +371,26 @@ const EvaluationResults: React.FC<Props> = () => {
     const onExport = () => {
         if (!gridRef.current) return
         const {currentApp} = getAppValues()
-        const filename = `${currentApp?.app_name}.csv`
+        const filename = `${currentApp?.app_name}_evaluation_scenarios.csv`
         if (!!selected.length) {
             const csvData = convertToCsv(
-                selected.map((item) => {
-                    // NOTE: This is to ensure that when `aggregated_results` is empty, the CSV column displays
-                    // a hyphen ("-") instead of being empty (",,").
-                    const result = !!item.aggregated_results.length
-                        ? {
-                              ...item.aggregated_results.reduce((acc, curr) => {
-                                  if (!acc[curr.evaluator_config.name]) {
-                                      acc[curr.evaluator_config.name] = getTypedValue(curr.result)
-                                  }
-                                  return acc
-                              }, {} as GenericObject),
-                          }
-                        : {
-                              ...colDefs
-                                  .filter((item) => item.field === "aggregated_results")
-                                  .reduce((acc, curr) => {
-                                      acc[curr.headerName!] = "-"
-                                      return acc
-                                  }, {} as GenericObject),
-                          }
-
-                    return {
-                        Variant: variantNameWithRev({
-                            variant_name: item.variants[0].variantName ?? "",
-                            revision: item.revisions[0],
-                        }),
-                        Testset: item.testset.name,
-                        ...result,
-                        "Avg. Latency": getTypedValue(item.average_latency),
-                        "Total Cost": getTypedValue(item.average_cost),
-                        Created: formatDate24(item.created_at),
-                        Status: item.status.value,
-                    }
-                }),
+                selected.map((item) => ({
+                    Variant: variantNameWithRev({
+                        variant_name: item.variants[0].variantName ?? "",
+                        revision: item.revisions[0],
+                    }),
+                    Testset: item.testset.name,
+                    ...item.aggregated_results.reduce((acc, curr) => {
+                        if (!acc[curr.evaluator_config.name]) {
+                            acc[curr.evaluator_config.name] = getTypedValue(curr.result)
+                        }
+                        return acc
+                    }, {} as GenericObject),
+                    "Avg. Latency": getTypedValue(item.average_latency),
+                    "Total Cost": getTypedValue(item.average_cost),
+                    Created: formatDate24(item.created_at),
+                    Status: statusMapper(token)[item.status.value as EvaluationStatus].label,
+                })),
                 colDefs.map((col) => col.headerName!),
             )
             downloadCsv(csvData, filename)
