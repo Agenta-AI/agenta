@@ -93,6 +93,13 @@ class Tracing(metaclass=SingletonMeta):
         self,
         attributes: Dict[str, Any] = {},
     ):
+        """
+        Set attributes for the active span.
+
+        Args:
+            attributes (Dict[str, Any], optional): A dictionary of attributes to set. Defaults to {}.
+        """
+
         if (
             self.active_span is None
         ):  # This is the case where entrypoint wants to save the trace information but the parent span has not been initialized yet
@@ -169,7 +176,21 @@ class Tracing(metaclass=SingletonMeta):
     def end_span(self, outputs: Dict[str, Any]):
         """
         Ends the active span, if it is a parent span, ends the trace too.
+
+        Args:
+            outputs (Dict[str, Any]): A dictionary containing the outputs of the span.
+                It should have the following keys:
+                - "message" (str): The message output of the span.
+                - "cost" (Optional[Any]): The cost of the span.
+                - "usage" (Optional[Any]): The number of tokens used in the span.
+
+        Raises:
+            ValueError: If there is no active span to end.
+
+        Returns:
+            None
         """
+
         if self.active_span is None:
             raise ValueError("There is no active span to end.")
 
@@ -180,15 +201,58 @@ class Tracing(metaclass=SingletonMeta):
 
         # Push span to list of recorded spans
         self.pending_spans.append(self.active_span)
-        self.llm_logger.info(
-            f"Pushed {self.active_span.spankind} span {self.active_span.id} to recorded spans."
-        )
-        if self.active_span.parent_span_id is None:
+
+        active_span_parent_id = self.active_span.parent_span_id
+        if (
+            self.active_span.status == SpanStatusCode.ERROR.value
+            and active_span_parent_id is not None
+        ):
+            self.record_exception_and_end_trace(span_parent_id=active_span_parent_id)
+
+        if active_span_parent_id is None:
             self.end_trace(parent_span=self.active_span)
+
         else:
-            self.active_span = self.span_dict[self.active_span.parent_span_id]
+            self.active_span = self.span_dict.get(active_span_parent_id)
+
+    def record_exception_and_end_trace(self, span_parent_id: str):
+        """
+        Record an exception and end the trace.
+
+        Args:
+            span_parent_id (str): The ID of the parent span.
+
+        Returns:
+            None
+        """
+
+        parent_span = self.span_dict.get(span_parent_id)
+        if parent_span is not None:
+            # Update parent span of active span
+            parent_span.outputs = self.active_span.outputs  # type: ignore
+            parent_span.status = "ERROR"
+            parent_span.end_time = datetime.now(timezone.utc)
+
+            # Push parent span to list of recorded spans and end trace
+            self.pending_spans.append(parent_span)
+            self.end_trace(parent_span=parent_span)
+
+        # TODO: improve exception logic here.
 
     def end_trace(self, parent_span: CreateSpan):
+        """
+        Ends the active trace and sends the recorded spans for processing.
+
+        Args:
+            parent_span (CreateSpan): The parent span of the trace.
+
+        Raises:
+            RuntimeError: If there is no active trace to end.
+
+        Returns:
+            None
+        """
+
         if self.api_key == "":
             return
 
