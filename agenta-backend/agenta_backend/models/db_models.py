@@ -122,10 +122,8 @@ class AppVariantDB(Base):
     base_name = Column(String)
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
-    config_name = Column(String)
-    config_id = Column(Integer, ForeignKey("configs.id"))
     config_name = Column(String, nullable=False)
-    parameters = Column(JSON, nullable=False, default=dict)
+    config_parameters = Column(JSON, nullable=False, default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -145,9 +143,8 @@ class AppVariantRevisionsDB(Base):
     modified_by = relationship("UserDB")
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
-    config_id = Column(Integer, ForeignKey("configs.id"))
     config_name = Column(String, nullable=False)
-    parameters = Column(JSON, nullable=False, default=dict)
+    config_parameters = Column(JSON, nullable=False, default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
