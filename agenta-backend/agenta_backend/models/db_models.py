@@ -358,7 +358,8 @@ class EvaluationScenarioDB(Base):
     user = relationship("UserDB")
     evaluation_id = Column(Integer, ForeignKey("evaluations.id"))
     evaluation = relationship("EvaluationDB")
-    variant_id = Column(Integer)  # PydanticObjectId
+    variant_id = Column(Integer, ForeignKey("app_variants.id"))
+    variant = relationship("AppVariantDB")
     inputs = relationship("EvaluationScenarioInputDB", backref="scenario")
     outputs = relationship("EvaluationScenarioOutputDB", backref="scenario")
     correct_answers = Column(JSON)  # List of CorrectAnswer
@@ -366,7 +367,7 @@ class EvaluationScenarioDB(Base):
     note = Column(String)
     evaluator_configs = relationship(
         "EvaluatorConfigDB", back_populates="evaluation_scenario"
-    )  # One-to-many relationship
+    )
     results = Column(JSON)  # List of EvaluationScenarioResult
     latency = Column(Integer)
     cost = Column(Integer)
