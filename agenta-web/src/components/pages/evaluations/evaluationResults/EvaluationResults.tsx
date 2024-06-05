@@ -4,8 +4,14 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
+import {
+    DeleteOutlined,
+    DownloadOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
+import {EvaluationStatus, GenericObject, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -32,6 +38,9 @@ import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/ev
 import Link from "next/link"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {getAppValues} from "@/contexts/app.context"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -356,6 +365,55 @@ const EvaluationResults: React.FC<Props> = () => {
         }
     }
 
+    const onExport = () => {
+        if (!gridRef.current) return
+        const {currentApp} = getAppValues()
+        const filename = `${currentApp?.app_name}.csv`
+        if (!!selected.length) {
+            const csvData = convertToCsv(
+                selected.map((item) => {
+                    // NOTE: This is to ensure that when `aggregated_results` is empty, the CSV column displays
+                    // a hyphen ("-") instead of being empty (",,").
+                    const result = !!item.aggregated_results.length
+                        ? {
+                              ...item.aggregated_results.reduce((acc, curr) => {
+                                  if (!acc[curr.evaluator_config.name]) {
+                                      acc[curr.evaluator_config.name] = getTypedValue(curr.result)
+                                  }
+                                  return acc
+                              }, {} as GenericObject),
+                          }
+                        : {
+                              ...colDefs
+                                  .filter((item) => item.field === "aggregated_results")
+                                  .reduce((acc, curr) => {
+                                      acc[curr.headerName!] = "-"
+                                      return acc
+                                  }, {} as GenericObject),
+                          }
+
+                    return {
+                        Variant: variantNameWithRev({
+                            variant_name: item.variants[0].variantName ?? "",
+                            revision: item.revisions[0],
+                        }),
+                        Testset: item.testset.name,
+                        ...result,
+                        "Avg. Latency": getTypedValue(item.average_latency),
+                        "Total Cost": getTypedValue(item.average_cost),
+                        Created: formatDate24(item.created_at),
+                        Status: item.status.value,
+                    }
+                }),
+                colDefs.map((col) => col.headerName!),
+            )
+            downloadCsv(csvData, filename)
+        } else {
+            gridRef.current.api.exportDataAsCsv({
+                fileName: filename,
+            })
+        }
+    }
     return (
         <>
             {!fetching && !evaluations.length ? (
@@ -410,6 +468,9 @@ const EvaluationResults: React.FC<Props> = () => {
                                 setIsFilterColsDropdownOpen(true)
                             }}
                         />
+                        <Button onClick={onExport} icon={<DownloadOutlined />}>
+                            {!!selected.length ? `Export (${selected.length})` : "Export All"}
+                        </Button>
                     </Space>
 
                     <Spin spinning={fetching}>
