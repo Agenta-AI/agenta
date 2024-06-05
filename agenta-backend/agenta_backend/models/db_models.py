@@ -124,9 +124,8 @@ class AppVariantDB(Base):
     base = relationship("VariantBaseDB")
     config_name = Column(String)
     config_id = Column(Integer, ForeignKey("configs.id"))
-    config = relationship(
-        "ConfigDB", primaryjoin="AppVariantDB.config_id == ConfigDB.id"
-    )
+    config_name = Column(String, nullable=False)
+    parameters = Column(JSON, nullable=False, default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -147,9 +146,8 @@ class AppVariantRevisionsDB(Base):
     base_id = Column(Integer, ForeignKey("bases.id"))
     base = relationship("VariantBaseDB")
     config_id = Column(Integer, ForeignKey("configs.id"))
-    config = relationship(
-        "ConfigDB", primaryjoin="AppVariantRevisionsDB.config_id == ConfigDB.id"
-    )
+    config_name = Column(String, nullable=False)
+    parameters = Column(JSON, nullable=False, default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -399,12 +397,3 @@ class EvaluationScenarioOutputDB(Base):
     latency = Column(Float)
 
     __tablename__ = "evaluation_scenario_outputs"
-
-
-# TODO: better name?
-class ConfigDB(Base):
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    config_name = Column(String, nullable=False)
-    parameters = Column(JSON, nullable=False, default=dict)
-
-    __tablename__ = "configs"
