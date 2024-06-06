@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
+import enum
 
 
 class ConfigDB(BaseModel):
@@ -47,3 +48,8 @@ class HumanEvaluationScenarioInput(BaseModel):
 class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str
     variant_output: str
+
+
+class TemplateType(enum.Enum):
+    IMAGE = "image"
+    ZIP = "zip"

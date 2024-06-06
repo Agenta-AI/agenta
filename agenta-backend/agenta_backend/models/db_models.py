@@ -9,10 +9,13 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Float,
+    Enum,
 )
 from sqlalchemy.orm import relationship, declarative_base
 import uuid_utils.compat as uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from agenta_backend.models.shared_models import TemplateType
 
 Base = declarative_base()
 
@@ -261,7 +264,7 @@ class TemplateDB(Base):
         unique=True,
         nullable=False,
     )
-    type = Column(String, default="image")
+    type = Column(Enum(TemplateType), default=TemplateType.IMAGE, nullable=False)
     template_uri = Column(String)
     tag_id = Column(Integer)
     name = Column(String, unique=True)
