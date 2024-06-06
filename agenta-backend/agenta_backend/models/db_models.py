@@ -217,7 +217,9 @@ class AppEnvironmentDB(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
     revision = Column(Integer)
-    deployed_app_variant_id = Column(Integer)  # TODO: check missing relationship
+
+    deployed_app_variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
+    deployed_app_variant = relationship("AppVariantDB")
 
     deployed_app_variant_revision_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
