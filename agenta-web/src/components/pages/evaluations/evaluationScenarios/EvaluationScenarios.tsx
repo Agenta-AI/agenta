@@ -26,6 +26,7 @@ import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -280,6 +281,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 }
                 return params.column.getColDef().headerName as string
             },
+            processCellCallback: (params) =>
+                typeof params.value === "string" ? escapeNewlines(params.value) : params.value,
         })
     }
 
