@@ -409,9 +409,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
         gridApi.exportDataAsCsv({
             fileName,
-            processHeaderCallback(params) {
-                return getDynamicHeaderName(params.column.getColDef())
-            },
+            processHeaderCallback: (params) => getDynamicHeaderName(params.column.getColDef()),
         })
     }
 
