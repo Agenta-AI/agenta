@@ -3,32 +3,29 @@ import os
 import asyncio
 import logging
 import traceback
-
 from typing import Any, Dict, List
+
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services import evaluators_service, llm_apps_service
-
-from agenta_backend.models.api.evaluation_model import (
-    EvaluationStatusEnum,
+from agenta_backend.services import (
+    evaluators_service,
+    llm_apps_service,
+    deployment_manager,
+    aggregation_service,
 )
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
     AggregatedResult,
     AppDB,
+    CorrectAnswer,
     EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
     InvokationResult,
     Error,
     Result,
-)
-from agenta_backend.services import (
-    evaluators_service,
-    llm_apps_service,
-    deployment_manager,
-    aggregation_service,
 )
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -43,22 +40,27 @@ from agenta_backend.services.db_manager import (
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
+from agenta_backend.services.evaluator_manager import get_evaluators
 
 if isCloudEE():
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
-from agenta_backend.models.db_models import (
-    Result,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-)
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Fetch all evaluators and precompute ground truth keys
+all_evaluators = get_evaluators()
+ground_truth_keys_dict = {
+    evaluator["key"]: [
+        key
+        for key, value in evaluator.get("settings_template", {}).items()
+        if value.get("ground_truth_key") is True
+    ]
+    for evaluator in all_evaluators
+}
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate", bind=True)
@@ -71,19 +73,19 @@ def evaluate(
     evaluation_id: str,
     rate_limit_config: Dict[str, int],
     lm_providers_keys: Dict[str, Any],
-    correct_answer_column: str,
 ):
     """
-    Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
-    Saves the results in the Database
+    Evaluates an app variant using the provided evaluators and testset, and saves the results in the database.
 
     Args:
+        self: The task instance.
         app_id (str): The ID of the app.
         variant_id (str): The ID of the app variant.
         evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
         testset_id (str): The ID of the testset.
-        rate_limit_config (Dict[str,int]): See LLMRunRateLimit
-        correct_answer_column (str): The name of the column in the testset that contains the correct answer.
+        evaluation_id (str): The ID of the evaluation.
+        rate_limit_config (Dict[str, int]): Configuration for rate limiting.
+        lm_providers_keys (Dict[str, Any]): Keys for language model providers.
 
     Returns:
         None
@@ -178,11 +180,6 @@ def evaluate(
                     )
                     for evaluator_config_db in evaluator_config_dbs
                 ]
-                correct_answer = (
-                    data_point[correct_answer_column]
-                    if correct_answer_column in data_point
-                    else ""
-                )
 
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
@@ -195,7 +192,7 @@ def evaluate(
                         inputs=inputs,
                         is_pinned=False,
                         note="",
-                        correct_answer=correct_answer,
+                        correct_answers=None,
                         outputs=[
                             EvaluationScenarioOutputDB(
                                 result=Result(
@@ -214,27 +211,29 @@ def evaluate(
                 continue
 
             # 3. We evaluate
-            evaluators_results: [EvaluationScenarioResult] = []
+            evaluators_results: List[EvaluationScenarioResult] = []
+
+            # Loop over each evaluator configuration to gather the correct answers and evaluate
+            ground_truth_column_names = []
             for evaluator_config_db in evaluator_config_dbs:
+                ground_truth_keys = ground_truth_keys_dict.get(
+                    evaluator_config_db.evaluator_key, []
+                )
+                ground_truth_column_names.extend(
+                    evaluator_config_db.settings_values.get(key, "")
+                    for key in ground_truth_keys
+                )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
-                if correct_answer_column in data_point:
-                    result = evaluators_service.evaluate(
-                        evaluator_key=evaluator_config_db.evaluator_key,
-                        output=app_output.result.value,
-                        correct_answer=data_point[correct_answer_column],
-                        settings_values=evaluator_config_db.settings_values,
-                        app_params=app_variant_parameters,
-                        inputs=data_point,
-                        lm_providers_keys=lm_providers_keys,
-                    )
-                else:
-                    result = Result(
-                        type="error",
-                        value=None,
-                        error=Error(
-                            message=f"No {correct_answer_column} column in test set"
-                        ),
-                    )
+
+                result = evaluators_service.evaluate(
+                    evaluator_key=evaluator_config_db.evaluator_key,
+                    output=app_output.result.value,
+                    data_point=data_point,
+                    settings_values=evaluator_config_db.settings_values,
+                    app_params=app_variant_parameters,
+                    inputs=data_point,
+                    lm_providers_keys=lm_providers_keys,
+                )
 
                 # Update evaluators aggregated data
                 evaluator_results: List[Result] = evaluators_aggregated_data[
@@ -249,12 +248,17 @@ def evaluate(
                 logger.debug(f"Result: {result_object}")
                 evaluators_results.append(result_object)
 
+            all_correct_answers = [
+                CorrectAnswer(
+                    key=ground_truth_column_name,
+                    value=data_point[ground_truth_column_name],
+                )
+                if ground_truth_column_name in data_point
+                else CorrectAnswer(key=ground_truth_column_name, value="")
+                for ground_truth_column_name in ground_truth_column_names
+            ]
             # 4. We save the result of the eval scenario in the db
-            correct_answer = (
-                data_point[correct_answer_column]
-                if correct_answer_column in data_point
-                else ""
-            )
+
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
@@ -264,7 +268,7 @@ def evaluate(
                     inputs=inputs,
                     is_pinned=False,
                     note="",
-                    correct_answer=correct_answer,
+                    correct_answers=all_correct_answers,
                     outputs=[
                         EvaluationScenarioOutputDB(
                             result=Result(type="text", value=app_output.result.value),

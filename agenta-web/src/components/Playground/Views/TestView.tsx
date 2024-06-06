@@ -224,24 +224,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Row>
             {additionalData?.cost || additionalData?.latency ? (
                 <Space>
-                    <p>
-                        Tokens:{" "}
-                        {additionalData.usage !== null
-                            ? formatTokenUsage(additionalData.usage.total_tokens)
-                            : 0}
-                    </p>
-                    <p>
-                        Cost:{" "}
-                        {additionalData.cost !== null
-                            ? formatCurrency(additionalData.cost)
-                            : "$0.00"}
-                    </p>
-                    <p>
-                        Latency:{" "}
-                        {additionalData.latency !== null
-                            ? formatLatency(additionalData.latency)
-                            : "0ms"}
-                    </p>
+                    <p>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</p>
+                    <p>Cost: {formatCurrency(additionalData?.cost)}</p>
+                    <p>Latency: {formatLatency(additionalData?.latency)}</p>
                 </Space>
             ) : (
                 ""
