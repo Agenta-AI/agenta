@@ -25,6 +25,7 @@ import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -270,6 +271,15 @@ const EvaluationScenarios: React.FC<Props> = () => {
         const {currentApp} = getAppValues()
         gridRef.current.api.exportDataAsCsv({
             fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
+            processHeaderCallback: (params) => {
+                if (params.column.getColDef().headerName === "Output") {
+                    return `Output ${variantNameWithRev({
+                        variant_name: evalaution?.variants[0].variantName ?? "",
+                        revision: evalaution.revisions[0],
+                    })}`
+                }
+                return params.column.getColDef().headerName as string
+            },
         })
     }
 
@@ -303,7 +313,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         <Typography.Link
                             href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
                         >
-                            {evalaution?.variants[0].variantName || ""}
+                            {variantNameWithRev({
+                                variant_name: evalaution?.variants[0].variantName ?? "",
+                                revision: evalaution?.revisions[0],
+                            })}
                         </Typography.Link>
                     </Space>
                 </Space>
