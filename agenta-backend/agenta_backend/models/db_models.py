@@ -413,7 +413,7 @@ class EvaluationDB(Base):
     app = relationship("AppDB")
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
-    status = Column(JSONB)
+    status = Column(JSONB)  # Result
     testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
     variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
@@ -424,9 +424,9 @@ class EvaluationDB(Base):
     variant_revision = relationship("AppVariantRevisionsDB")
     evaluator_configs = relationship("EvaluatorConfigDB", back_populates="evaluation")
     aggregated_results = Column(JSONB)  # List of AggregatedResult
-    average_cost = Column(JSONB)
-    total_cost = Column(JSONB)
-    average_latency = Column(JSONB)
+    average_cost = Column(JSONB)  # Result
+    total_cost = Column(JSONB)  # Result
+    average_latency = Column(JSONB)  # Result
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
