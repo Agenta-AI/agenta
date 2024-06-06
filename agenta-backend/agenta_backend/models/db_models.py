@@ -21,6 +21,8 @@ Base = declarative_base()
 
 
 class UserDB(Base):
+    __tablename__ = "users"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -38,11 +40,11 @@ class UserDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "users"
-
 
 # TODO: Rename ImageDB to DockerImageDB ?
 class ImageDB(Base):
+    __tablename__ = "docker_images"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -64,10 +66,10 @@ class ImageDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "docker_images"
-
 
 class AppDB(Base):
+    __tablename__ = "app_db"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -85,10 +87,10 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "app_db"
-
 
 class DeploymentDB(Base):
+    __tablename__ = "deployments"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -111,10 +113,10 @@ class DeploymentDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "deployments"
-
 
 class VariantBaseDB(Base):
+    __tablename__ = "bases"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -140,10 +142,10 @@ class VariantBaseDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "bases"
-
 
 class AppVariantDB(Base):
+    __tablename__ = "app_variants"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -173,10 +175,10 @@ class AppVariantDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "app_variants"
-
 
 class AppVariantRevisionsDB(Base):
+    __tablename__ = "app_variant_revisions"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -200,10 +202,10 @@ class AppVariantRevisionsDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "app_variant_revisions"
-
 
 class AppEnvironmentDB(Base):
+    __tablename__ = "environments"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -228,15 +230,14 @@ class AppEnvironmentDB(Base):
 
     deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"))
     deployment = relationship("DeploymentDB")
-
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "environments"
-
 
 class AppEnvironmentRevisionDB(Base):
+    __tablename__ = "environments_revisions"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -255,10 +256,10 @@ class AppEnvironmentRevisionDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "environments_revisions"
-
 
 class TemplateDB(Base):
+    __tablename__ = "templates"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -279,10 +280,10 @@ class TemplateDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "templates"
-
 
 class TestSetDB(Base):
+    __tablename__ = "testsets"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -303,10 +304,10 @@ class TestSetDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "testsets"
-
 
 class EvaluatorConfigDB(Base):
+    __tablename__ = "evaluators_configs"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -336,10 +337,10 @@ class EvaluatorConfigDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "evaluators_configs"
-
 
 class HumanEvaluationDB(Base):
+    __tablename__ = "human_evaluations"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -368,10 +369,10 @@ class HumanEvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "human_evaluations"
-
 
 class HumanEvaluationScenarioDB(Base):
+    __tablename__ = "human_evaluations_scenarios"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -396,10 +397,11 @@ class HumanEvaluationScenarioDB(Base):
     )
     is_pinned = Column(Boolean)
     note = Column(String)
-    __tablename__ = "human_evaluations_scenarios"
 
 
 class EvaluationDB(Base):
+    __tablename__ = "evaluations"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -432,10 +434,10 @@ class EvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    __tablename__ = "evaluations"
-
 
 class EvaluationScenarioDB(Base):
+    __tablename__ = "evaluation_scenarios"
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -466,5 +468,3 @@ class EvaluationScenarioDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-
-    __tablename__ = "evaluation_scenarios"
