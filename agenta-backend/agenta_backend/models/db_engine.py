@@ -1,5 +1,6 @@
 import os
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -89,31 +90,15 @@ class DBEngine:
             self.engine, expire_on_commit=False, class_=AsyncSession
         )
 
-    async def init_db(self):
-        """
-        Initialize the database based on the mode and create all tables.
-        """
-        async with self.engine.begin() as conn:
-            # Drop all existing tables (if needed)
-            # await conn.run_sync(Base.metadata.drop_all)
-            # Create tables
-            for model in models:
-                await conn.run_sync(model.metadata.create_all)
-        logger.info(f"Using {self.mode} database...")
-
-    async def remove_db(self) -> None:
-        """
-        Remove the database based on the mode.
-        """
-        async with self.engine.begin() as conn:
-            for model in models:
-                await conn.run_sync(model.metadata.drop_all)
-
     @asynccontextmanager
     async def get_session(self):
         session = self.async_session()
         try:
             yield session
+        except Exception as exc:
+            logger.debug("Exception occurred while commit to table: ", str(exc))
+            logger.debug("Traceback of exception: ", traceback.format_exc())
+            await session.rollback()
         finally:
             await session.close()
 
