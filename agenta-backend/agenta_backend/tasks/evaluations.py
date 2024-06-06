@@ -18,12 +18,12 @@ from agenta_backend.services import (
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
     AppDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
 )
 from agenta_backend.models.shared_models import (
     AggregatedResult,
     CorrectAnswer,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
     EvaluationScenarioResult,
     InvokationResult,
     Error,
@@ -150,7 +150,7 @@ def evaluate(
             logger.debug(f"List of inputs: {list_inputs}")
 
             inputs = [
-                EvaluationScenarioInputDB(
+                EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
                     value=data_point[
@@ -196,7 +196,7 @@ def evaluate(
                         note="",
                         correct_answers=None,
                         outputs=[
-                            EvaluationScenarioOutputDB(
+                            EvaluationScenarioOutput(
                                 result=Result(
                                     type="error",
                                     value=None,

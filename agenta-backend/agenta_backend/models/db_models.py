@@ -381,8 +381,8 @@ class HumanEvaluationScenarioDB(Base):
     user = relationship("UserDB")
     evaluation_id = Column(UUID(as_uuid=True), ForeignKey("human_evaluations.id"))
     evaluation = relationship("HumanEvaluationDB")
-    inputs = relationship("HumanEvaluationScenarioInputsDB", backref="scenario")
-    outputs = relationship("HumanEvaluationScenarioOutputsDB", backref="scenario")
+    inputs = Column(JSONB)  # List of HumanEvaluationScenarioInput
+    outputs = Column(JSONB)  # List of HumanEvaluationScenarioOutput
     vote = Column(String)
     score = Column(JSONB)
     correct_answer = Column(String)
@@ -395,40 +395,6 @@ class HumanEvaluationScenarioDB(Base):
     is_pinned = Column(Boolean)
     note = Column(String)
     __tablename__ = "human_evaluations_scenarios"
-
-
-class HumanEvaluationScenarioInputsDB(Base):
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    scenario_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations_scenarios.id")
-    )
-    input_name = Column(String)
-    input_value = Column(String)
-
-    __tablename__ = "human_evaluation_scenario_inputs"
-
-
-class HumanEvaluationScenarioOutputsDB(Base):
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    scenario_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations_scenarios.id")
-    )
-    variant_id = Column(String)
-    variant_output = Column(String)
-
-    __tablename__ = "human_evaluation_scenario_outputs"
 
 
 class EvaluationDB(Base):
@@ -481,8 +447,8 @@ class EvaluationScenarioDB(Base):
     evaluation = relationship("EvaluationDB")
     variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
-    inputs = relationship("EvaluationScenarioInputDB", backref="scenario")
-    outputs = relationship("EvaluationScenarioOutputDB", backref="scenario")
+    inputs = Column(JSONB)  # List of EvaluationScenarioInput
+    outputs = Column(JSONB)  # List of EvaluationScenarioOutput
     correct_answers = Column(JSONB)  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
@@ -500,35 +466,3 @@ class EvaluationScenarioDB(Base):
     )
 
     __tablename__ = "evaluation_scenarios"
-
-
-class EvaluationScenarioInputDB(Base):
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    scenario_id = Column(UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id"))
-    name = Column(String)
-    type = Column(String)
-    value = Column(String)
-
-    __tablename__ = "evaluation_scenario_inputs"
-
-
-class EvaluationScenarioOutputDB(Base):
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    scenario_id = Column(UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id"))
-    result = Column(JSONB)
-    cost = Column(Float)
-    latency = Column(Float)
-
-    __tablename__ = "evaluation_scenario_outputs"

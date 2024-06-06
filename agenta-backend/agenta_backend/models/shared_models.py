@@ -40,6 +40,18 @@ class CorrectAnswer(BaseModel):
     value: str
 
 
+class EvaluationScenarioInput(BaseModel):
+    name: str
+    type: str
+    value: str
+
+
+class EvaluationScenarioOutput(BaseModel):
+    result: Result
+    cost: Optional[float] = None
+    latency: Optional[float] = None
+
+
 class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
