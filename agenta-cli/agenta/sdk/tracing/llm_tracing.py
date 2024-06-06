@@ -176,6 +176,8 @@ class Tracing(metaclass=SingletonMeta):
                 span.cost += cost
 
     def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]):
+        if isinstance(tokens, LlmTokens):
+            tokens = tokens.dict()
         if tokens is not None and isinstance(tokens, dict):
             if span.tokens is None:
                 span.tokens = LlmTokens(**tokens)
