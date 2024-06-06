@@ -169,13 +169,11 @@ class Tracing(metaclass=SingletonMeta):
         span.status = value
 
     def _update_span_cost(self, span: CreateSpan, cost: Optional[float]):
-        print(f"Updating {span.name} span with cost: {cost}")
         if cost is not None and isinstance(cost, float):
             if span.cost is None:
                 span.cost = cost
             else:
                 span.cost += cost
-        print(f"New cost {span.name} {span.cost}")
 
     def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]):
         if tokens is not None and isinstance(tokens, dict):
@@ -190,7 +188,6 @@ class Tracing(metaclass=SingletonMeta):
         """
         Ends the active span, if it is a parent span, ends the trace too.
         """
-        print(f"Ending span {self.active_span.name}")
         if self.active_span is None:
             raise ValueError("There is no active span to end.")
 
