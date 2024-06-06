@@ -29,6 +29,7 @@ import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import _ from "lodash"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -410,6 +411,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         gridApi.exportDataAsCsv({
             fileName,
             processHeaderCallback: (params) => getDynamicHeaderName(params.column.getColDef()),
+            processCellCallback: (params) =>
+                typeof params.value === "string" ? escapeNewlines(params.value) : params.value,
         })
     }
 
