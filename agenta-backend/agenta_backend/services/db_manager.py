@@ -65,8 +65,6 @@ else:
 from agenta_backend.models.db_models import (
     TemplateDB,
     AppVariantRevisionsDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
 )
 
 from agenta_backend.models.shared_models import (
@@ -74,6 +72,8 @@ from agenta_backend.models.shared_models import (
     CorrectAnswer,
     AggregatedResult,
     EvaluationScenarioResult,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
 )
 
 from beanie.operators import In
@@ -1931,8 +1931,8 @@ async def create_new_evaluation_scenario(
     user: UserDB,
     evaluation: EvaluationDB,
     variant_id: str,
-    inputs: List[EvaluationScenarioInputDB],
-    outputs: List[EvaluationScenarioOutputDB],
+    inputs: List[EvaluationScenarioInput],
+    outputs: List[EvaluationScenarioOutput],
     correct_answers: Optional[List[CorrectAnswer]],
     is_pinned: Optional[bool],
     note: Optional[str],
