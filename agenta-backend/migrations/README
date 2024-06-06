@@ -8,6 +8,8 @@ One of Alembic's key features is its ability to auto-generate migration scripts.
 
 Note that autogenerate sometimes does not detect all database changes and it is always necessary to manually review (and correct if needed) the candidate migrations that autogenerate produces.
 
+### Making migrations
+
 To make migrations after creating a new table schema or modifying a current column in a table, run the following commands:
 
 ```bash
@@ -25,6 +27,8 @@ The above command will create a script that contains the changes that was made t
 - added username column in users table
 - renamed template_uri to template_repository_uri
 - etc
+
+### Applying Migrations
 
 ```bash
 alembic upgrade head
