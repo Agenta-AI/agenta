@@ -201,7 +201,9 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Dict):
                 return FuncResponse(**result, latency=round(latency, 4))
             if isinstance(result, str):
-                return FuncResponse(message=result, usage=None, cost=None, latency=round(latency, 4))  # type: ignore
+                return FuncResponse(
+                    message=result, usage=None, cost=None, latency=round(latency, 4)
+                )
             if isinstance(result, int) or isinstance(result, float):
                 return FuncResponse(
                     message=str(result),
