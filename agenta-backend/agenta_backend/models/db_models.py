@@ -126,7 +126,10 @@ class VariantBaseDB(Base):
     base_name = Column(String)
     image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id"))
     image = relationship("ImageDB")
-    deployment_id = Column(Integer)  # # TODO: check missing relationship
+
+    deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"))
+    deployment = relationship("DeploymentDB")
+
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -218,7 +221,8 @@ class AppEnvironmentDB(Base):
     )
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
 
-    deployment_id = Column(Integer)  # TODO: check missing relationship
+    deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"))
+    deployment = relationship("DeploymentDB")
 
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
