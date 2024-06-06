@@ -28,6 +28,7 @@ import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import _ from "lodash"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -78,6 +79,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [evalIds, setEvalIds] = useState(evaluationIdsArray)
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
     const [fetching, setFetching] = useState(false)
+    const [scenarios, setScenarios] = useState<_Evaluation[]>([])
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
     const [evaluators] = useAtom(evaluatorsAtom)
@@ -238,7 +240,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         Object.entries(confgisMap).forEach(([_, configs]) => {
-            configs.forEach(({config, variant, color}) => {
+            configs.forEach(({config, variant, color}, idx) => {
                 colDefs.push({
                     flex: 1,
                     minWidth: 200,
@@ -259,6 +261,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         )
                     },
                     headerName: config.name,
+                    type: `evaluator_${idx}`,
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
                     hide: hiddenVariants.includes(config.name),
@@ -288,6 +291,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 hide: hiddenVariants.includes("Latency"),
                 minWidth: 120,
                 headerName: "Latency",
+                field: `latency.${vi}` as any,
                 flex: 1,
                 valueGetter: (params) => {
                     const latency = params.data?.variants.find(
@@ -309,6 +313,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                field: `cost.${vi}` as any,
                 headerName: "Cost",
                 minWidth: 120,
                 hide: !evalIds.includes(variant.evaluationId) || hiddenVariants.includes("Cost"),
@@ -329,7 +334,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const fetcher = () => {
         setFetching(true)
         fetchAllComparisonResults(evaluationIds)
-            .then(({rows, testset}) => {
+            .then(({rows, testset, evaluations}) => {
+                setScenarios(evaluations)
                 setRows(rows)
                 setTestset(testset)
                 setTimeout(() => {
@@ -371,13 +377,41 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         [colDefs],
     )
 
-    const onExport = () => {
-        if (!gridRef.current) return
+    const getDynamicHeaderName = (params: ColDef): string => {
+        const {headerName, field, type}: any = params
+
+        const getVariantNameWithRev = (index: number): string => {
+            const scenario = scenarios[index]
+            const variantName = scenario?.variants[0]?.variantName ?? ""
+            const revision = scenario?.revisions[0] ?? ""
+            return variantNameWithRev({variant_name: variantName, revision})
+        }
+
+        if (headerName === "Output" || headerName === "Latency" || headerName === "Cost") {
+            const index = Number(field.split(".")[1])
+            return `${headerName} ${getVariantNameWithRev(index)}`
+        }
+
+        if (type && type.startsWith("evaluator")) {
+            const index = Number(type.split("_")[1])
+            return `${headerName} ${getVariantNameWithRev(index)}`
+        }
+
+        return headerName
+    }
+
+    const onExport = (): void => {
+        const gridApi = gridRef.current?.api
+        if (!gridApi) return
+
         const {currentApp} = getAppValues()
-        gridRef.current.api.exportDataAsCsv({
-            fileName: `${currentApp?.app_name}_${variants
-                .map(({variantName}) => variantName)
-                .join("_")}.csv`,
+        const fileName = `${currentApp?.app_name ?? "export"}_${variants.map(({variantName}) => variantName).join("_")}.csv`
+
+        gridApi.exportDataAsCsv({
+            fileName,
+            processHeaderCallback(params) {
+                return getDynamicHeaderName(params.column.getColDef())
+            },
         })
     }
 
@@ -396,35 +430,29 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         <Space>
                             <Typography.Text strong>Variants:</Typography.Text>
                             <div>
-                                {variants?.map((v, vi) => (
+                                {scenarios?.map((v, vi) => (
                                     <Tag
                                         key={evaluationIds[vi]}
                                         color={colors[vi]}
                                         className={classes.tag}
                                         style={{
-                                            opacity: hiddenVariants.includes(v.evaluationId)
-                                                ? 0.4
-                                                : 1,
+                                            opacity: hiddenVariants.includes(v.id) ? 0.4 : 1,
                                         }}
                                         icon={
                                             evalIds.length < 2 &&
-                                            evalIds.includes(
-                                                v.evaluationId,
-                                            ) ? null : evalIds.includes(v.evaluationId) ? (
+                                            evalIds.includes(v.id) ? null : evalIds.includes(
+                                                  v.id,
+                                              ) ? (
                                                 <CloseCircleOutlined
                                                     onClick={() =>
-                                                        handleToggleVariantVisibility(
-                                                            v.evaluationId,
-                                                        )
+                                                        handleToggleVariantVisibility(v.id)
                                                     }
                                                     style={{cursor: "pointer"}}
                                                 />
                                             ) : (
                                                 <UndoOutlined
                                                     onClick={() =>
-                                                        handleToggleVariantVisibility(
-                                                            v.evaluationId,
-                                                        )
+                                                        handleToggleVariantVisibility(v.id)
                                                     }
                                                     style={{cursor: "pointer"}}
                                                 />
@@ -432,9 +460,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                         }
                                     >
                                         <Link
-                                            href={`/apps/${appId}/playground/?variant=${v.variantName}`}
+                                            href={`/apps/${appId}/playground/?variant=${v.variants[0].variantName}`}
                                         >
-                                            {v.variantName}
+                                            {variantNameWithRev({
+                                                variant_name: v.variants[0].variantName ?? "",
+                                                revision: v.revisions[0],
+                                            })}
                                         </Link>
                                     </Tag>
                                 ))}
