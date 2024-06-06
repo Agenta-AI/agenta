@@ -32,6 +32,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
         command:
