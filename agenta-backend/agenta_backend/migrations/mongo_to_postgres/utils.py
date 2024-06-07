@@ -116,7 +116,9 @@ def print_migration_report():
         print(table_row)
 
 
-async def migrate_collection(collection_name, model_class, transformation_func):
+async def migrate_collection(
+    collection_name, model_class, transformation_func, association_model=None
+):
     """General function to migrate a collection to a SQL table."""
     print(
         f"\n====================== Migrating {collection_name}... ======================\n"
@@ -133,8 +135,17 @@ async def migrate_collection(collection_name, model_class, transformation_func):
                     ),
                 )
                 for document in batch:
-                    transformed_document = await transformation_func(document)
-                    session.add(model_class(**transformed_document))
+                    if association_model:
+                        (
+                            transformed_document,
+                            associated_entities,
+                        ) = await transformation_func(document)
+                        session.add(model_class(**transformed_document))
+                        for assoc_entity in associated_entities:
+                            session.add(association_model(**assoc_entity))
+                    else:
+                        transformed_document = await transformation_func(document)
+                        session.add(model_class(**transformed_document))
                     migrated_docs += 1
                 await session.commit()
     update_migration_report(collection_name, total_docs, migrated_docs)

@@ -1,3 +1,4 @@
+import json
 import os
 import asyncio
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ import uuid_utils.compat as uuid
 
 # Assuming agenta_backend.models.db_models contains your SQLAlchemy models
 from agenta_backend.models.db_models import (
+    EvaluationAggregatedResultDB,
     Base,
     UserDB,
     ImageDB,
@@ -28,6 +30,8 @@ from agenta_backend.models.db_models import (
     EvaluationDB,
     EvaluationScenarioDB,
     IDsMappingDB,
+    EvaluationEvaluatorConfigDB,
+    EvaluationScenarioResultDB,
 )
 
 from agenta_backend.migrations.mongo_to_postgres.utils import (
@@ -61,6 +65,8 @@ tables = [
     EvaluationDB,
     EvaluationScenarioDB,
     IDsMappingDB,
+    EvaluationEvaluatorConfigDB,
+    EvaluationScenarioResultDB,
 ]
 
 
@@ -272,16 +278,12 @@ async def transform_test_set(test_set):
 
 
 async def transform_evaluator_config(config):
-    evaluation_uuid = await get_mapped_uuid(config["evaluation"].id)
-    scenario_uuid = await get_mapped_uuid(config["evaluation_scenario"].id)
     app_uuid = await get_mapped_uuid(config["app"].id)
     user_uuid = await get_mapped_uuid(config["user"].id)
     config_uuid = generate_uuid()
     await store_mapping("evaluators_configs", config["_id"], config_uuid)
     return {
         "id": config_uuid,
-        "evaluation_id": evaluation_uuid,
-        "evaluation_scenario_id": scenario_uuid,
         "app_id": app_uuid,
         "user_id": user_uuid,
         "name": config["name"],
@@ -335,6 +337,40 @@ async def transform_human_evaluation_scenario(scenario):
     }
 
 
+async def convert_aggregated_results(results, evaluation_id):
+    """Convert evaluator_config ObjectIds in aggregated_results to UUIDs and structure them."""
+    aggregated_results = []
+    for result in results:
+        evaluator_config_uuid = await get_mapped_uuid(result["evaluator_config"])
+        result_uuid = generate_uuid()
+        aggregated_results.append(
+            {
+                "id": result_uuid,
+                "evaluation_id": evaluation_id,
+                "evaluator_config_id": evaluator_config_uuid,
+                "result": result["result"],
+            }
+        )
+    return aggregated_results
+
+
+async def convert_scenario_aggregated_results(results, scenario_id):
+    """Convert evaluator_config ObjectIds in scenario aggregated_results to UUIDs and structure them."""
+    scenario_aggregated_results = []
+    for result in results:
+        evaluator_config_uuid = await get_mapped_uuid(result["evaluator_config"])
+        result_uuid = generate_uuid()
+        scenario_aggregated_results.append(
+            {
+                "id": result_uuid,
+                "evaluation_scenario_id": scenario_id,
+                "evaluator_config_id": evaluator_config_uuid,
+                "result": result["result"],
+            }
+        )
+    return scenario_aggregated_results
+
+
 async def transform_evaluation(evaluation):
     app_uuid = await get_mapped_uuid(evaluation["app"].id)
     user_uuid = await get_mapped_uuid(evaluation["user"].id)
@@ -342,8 +378,10 @@ async def transform_evaluation(evaluation):
     variant_uuid = await get_mapped_uuid(evaluation["variant"])
     revision_uuid = await get_mapped_uuid(evaluation["variant_revision"])
     evaluation_uuid = generate_uuid()
+
     await store_mapping("evaluations", evaluation["_id"], evaluation_uuid)
-    return {
+
+    transformed_evaluation = {
         "id": evaluation_uuid,
         "app_id": app_uuid,
         "user_id": user_uuid,
@@ -351,7 +389,6 @@ async def transform_evaluation(evaluation):
         "testset_id": test_set_uuid,
         "variant_id": variant_uuid,
         "variant_revision_id": revision_uuid,
-        "aggregated_results": evaluation["aggregated_results"],
         "average_cost": evaluation["average_cost"],
         "total_cost": evaluation["total_cost"],
         "average_latency": evaluation["average_latency"],
@@ -359,14 +396,22 @@ async def transform_evaluation(evaluation):
         "updated_at": get_datetime(evaluation.get("updated_at")),
     }
 
+    aggregated_results = await convert_aggregated_results(
+        evaluation["aggregated_results"], evaluation_uuid
+    )
+
+    return transformed_evaluation, aggregated_results
+
 
 async def transform_evaluation_scenario(scenario):
     user_uuid = await get_mapped_uuid(scenario["user"].id)
     evaluation_uuid = await get_mapped_uuid(scenario["evaluation"].id)
     variant_uuid = await get_mapped_uuid(scenario["variant_id"])
     scenario_uuid = generate_uuid()
+
     await store_mapping("evaluation_scenarios", scenario["_id"], scenario_uuid)
-    return {
+
+    transformed_scenario = {
         "id": scenario_uuid,
         "user_id": user_uuid,
         "evaluation_id": evaluation_uuid,
@@ -376,12 +421,19 @@ async def transform_evaluation_scenario(scenario):
         "correct_answers": scenario.get("correct_answers"),
         "is_pinned": scenario.get("is_pinned"),
         "note": scenario.get("note"),
-        "results": scenario["results"],
         "latency": scenario.get("latency"),
         "cost": scenario.get("cost"),
         "created_at": get_datetime(scenario.get("created_at")),
         "updated_at": get_datetime(scenario.get("updated_at")),
     }
+
+    aggregated_results = []
+    if "results" in scenario:
+        aggregated_results = await convert_scenario_aggregated_results(
+            scenario["results"], scenario_uuid
+        )
+
+    return transformed_scenario, aggregated_results
 
 
 async def main():
@@ -420,10 +472,19 @@ async def main():
             HumanEvaluationScenarioDB,
             transform_human_evaluation_scenario,
         )
-        await migrate_collection("evaluations", EvaluationDB, transform_evaluation)
         await migrate_collection(
-            "evaluation_scenarios", EvaluationScenarioDB, transform_evaluation_scenario
+            "new_evaluations",
+            EvaluationDB,
+            transform_evaluation,
+            EvaluationAggregatedResultDB,
         )
+        await migrate_collection(
+            "new_evaluation_scenarios",
+            EvaluationScenarioDB,
+            transform_evaluation_scenario,
+            EvaluationScenarioResultDB,
+        )
+
         print("Migration completed successfully.")
     except Exception as e:
         print(f"\n====================== Error ======================\n")
