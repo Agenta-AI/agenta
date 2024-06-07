@@ -17,6 +17,7 @@ else:
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
+from agenta_backend.resources.evaluators import evaluators
 
 
 def get_evaluators() -> Optional[List[Evaluator]]:
@@ -79,6 +80,7 @@ async def create_evaluator_config(
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
     app = await db_manager.fetch_app_by_id(app_id)
+
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization if isCloudEE() else None,  # noqa,
@@ -139,13 +141,22 @@ async def create_ready_to_use_evaluators(app: AppDB):
     Returns:
     Nothing. The function works by side effect, modifying the database.
     """
-    evaluators = get_evaluators()
-
     direct_use_evaluators = [
-        evaluator for evaluator in evaluators if evaluator.get("direct_use")
+        evaluator for evaluator in get_evaluators() if evaluator.get("direct_use")
     ]
 
     for evaluator in direct_use_evaluators:
+        settings_values = {
+            setting_name: setting.get("default")
+            for setting_name, setting in evaluator.get("settings_template", {}).items()
+            if setting.get("ground_truth_key") is True and setting.get("default", "")
+        }
+
+        for setting_name, default_value in settings_values.items():
+            assert (
+                default_value != ""
+            ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+
         await db_manager.create_evaluator_config(
             app=app,
             organization=app.organization if isCloudEE() else None,  # noqa,
@@ -153,7 +164,7 @@ async def create_ready_to_use_evaluators(app: AppDB):
             user=app.user,
             name=evaluator["name"],
             evaluator_key=evaluator["key"],
-            settings_values={},
+            settings_values=settings_values,
         )
 
 

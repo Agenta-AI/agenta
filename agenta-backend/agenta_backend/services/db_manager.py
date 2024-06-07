@@ -59,6 +59,7 @@ else:
     )
 from agenta_backend.models.db_models import (
     ConfigDB,
+    CorrectAnswer,
     TemplateDB,
     AggregatedResult,
     AppVariantRevisionsDB,
@@ -257,14 +258,15 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     Returns:
         VariantBaseDB: The fetched base, or None if no base was found.
     """
+
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await VariantBaseDB.find_one(
-        VariantBaseDB.id == ObjectId(base_id), fetch_links=True
-    )
-    if base is None:
+
+    base = await VariantBaseDB.find_one(VariantBaseDB.id == ObjectId(base_id))
+    if not base:
         logger.error("Base not found")
-        return False
+        return None
+
     return base
 
 
@@ -651,9 +653,7 @@ async def list_variants_for_base(base: VariantBaseDB) -> List[AppVariantDB]:
     """
     assert base is not None, "base cannot be None"
     app_variants_db = (
-        await AppVariantDB.find(
-            AppVariantDB.base.id == ObjectId(base.id), fetch_links=True
-        )
+        await AppVariantDB.find(AppVariantDB.base.id == ObjectId(base.id))
         .sort("variant_name")
         .to_list()
     )
@@ -864,6 +864,10 @@ async def add_variant_from_base_and_config(
         config_name=new_config_name,
         parameters=parameters,
     )
+
+    # Prefetch image in base_db
+    await base_db.fetch_link(VariantBaseDB.image)
+
     db_app_variant = AppVariantDB(
         app=previous_app_variant_db.app,
         variant_name=new_variant_name,
@@ -1904,7 +1908,7 @@ async def create_new_evaluation_scenario(
     variant_id: str,
     inputs: List[EvaluationScenarioInputDB],
     outputs: List[EvaluationScenarioOutputDB],
-    correct_answer: Optional[str],
+    correct_answers: Optional[List[CorrectAnswer]],
     is_pinned: Optional[bool],
     note: Optional[str],
     evaluators_configs: List[EvaluatorConfigDB],
@@ -1922,7 +1926,7 @@ async def create_new_evaluation_scenario(
         variant_id=ObjectId(variant_id),
         inputs=inputs,
         outputs=outputs,
-        correct_answer=correct_answer,
+        correct_answers=correct_answers,
         is_pinned=is_pinned,
         note=note,
         evaluators_configs=evaluators_configs,
