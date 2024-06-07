@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
 import enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, RootModel, Field
 
 
 class ConfigDB(BaseModel):
@@ -30,14 +31,35 @@ class EvaluationScenarioResult(BaseModel):
     result: Result
 
 
+class EvaluationScenarioListResults(RootModel[List[EvaluationScenarioResult]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of EvaluationScenarioResult.
+    # example: [{'evaluator_config': 1, 'result': {'type': 'string', 'value': 'string'}}, ...]
+    pass
+
+
 class AggregatedResult(BaseModel):
     evaluator_config: int
     result: Result
 
 
+class AggregatedListResults(RootModel[List[AggregatedResult]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of AggregatedResult.
+    # example: [{'evaluator_config': 1, 'result': {'type': 'string', 'value': 'string'}}, ...]
+    pass
+
+
 class CorrectAnswer(BaseModel):
     key: str
     value: str
+
+
+class CorrectListAnswers(RootModel[List[CorrectAnswer]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of CorrectAnswer.
+    # example: [{'key': 'key', 'value': 'value'}, ...]
+    pass
 
 
 class EvaluationScenarioInput(BaseModel):
@@ -52,6 +74,20 @@ class EvaluationScenarioOutput(BaseModel):
     latency: Optional[float] = None
 
 
+class EvaluationScenarioListInputs(RootModel[List[EvaluationScenarioInput]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of EvaluationScenarioInput.
+    # example: [{'name': 'name', 'type': 'value', 'value': 'value'}, ...]
+    pass
+
+
+class EvaluationScenarioListOutputs(RootModel[List[EvaluationScenarioOutput]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of EvaluationScenarioOutput.
+    # example: [{'result': {'type': 'string', 'value': 'string'}, 'cost': 1 | None, 'latency': 1 | None}, ...]
+    pass
+
+
 class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
@@ -60,6 +96,22 @@ class HumanEvaluationScenarioInput(BaseModel):
 class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str
     variant_output: str
+
+
+class HumanEvaluationScenarioListInputs(RootModel[List[HumanEvaluationScenarioInput]]):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of HumanEvaluationScenarioInput.
+    # example: [{'input_name': 'name', 'input_value': 'value'}, ...]
+    pass
+
+
+class HumanEvaluationScenarioListOutputs(
+    RootModel[List[HumanEvaluationScenarioOutput]]
+):
+    # we are enforcing that the top-level structure of this model is a list, \
+    # and each item must conform to the structure of HumanEvaluationScenarioOutput.
+    # example: [{'variant_id': 'id', 'variant_output': 'output'}, ...]
+    pass
 
 
 class TemplateType(enum.Enum):
