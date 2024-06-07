@@ -188,38 +188,40 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     </AgCustomHeader>
                 ),
                 headerName: "Output",
-                minWidth: 280,
+                minWidth: 300,
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
                 hide: hiddenVariants.includes("Output"),
                 cellRenderer: (params: any) => {
+                    const result = params.data?.variants.find(
+                        (item: any) => item.evaluationId === variant.evaluationId,
+                    )?.output?.result
+
+                    if (result && result.error && result.type == "error") {
+                        setModalErrorMsg({
+                            message: result.error.message,
+                            stackTrace: result.error.stacktrace,
+                        })
+                        return (
+                            <EvaluationErrorText
+                                text="Failed to invoke LLM app"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
+                        )
+                    }
+
                     return (
                         <>
                             {selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
-                                          variantOutput={getTypedValue(
-                                              params.data?.variants.find(
-                                                  (item: any) =>
-                                                      item.evaluationId === variant.evaluationId,
-                                              )?.output?.result,
-                                          )}
-                                          expectedOutput={
-                                              params.data[selectedCorrectAnswer[0]] || ""
-                                          }
+                                          variantOutput={getTypedValue(result)}
+                                          expectedOutput={params.data?.correctAnswer}
                                       />,
                                   )
-                                : LongTextCellRenderer(
-                                      params,
-                                      getTypedValue(
-                                          params.data?.variants.find(
-                                              (item: any) =>
-                                                  item.evaluationId === variant.evaluationId,
-                                          )?.output?.result,
-                                      ),
-                                  )}
+                                : LongTextCellRenderer(params, getTypedValue(result))}
                         </>
                     )
                 },

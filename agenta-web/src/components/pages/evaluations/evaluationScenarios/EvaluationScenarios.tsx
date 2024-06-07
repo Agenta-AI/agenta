@@ -23,8 +23,8 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
-import {useLocalStorage} from "usehooks-ts"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
@@ -82,7 +82,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.correct_answers || [],
         "key",
     )
-    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
     const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
@@ -148,12 +147,18 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     const correctAnswer = params?.data?.correct_answers?.find(
                         (item: any) => item.key === selectedCorrectAnswer[0],
                     )
-
                     const result = params.data?.outputs[index].result
-                    if (result && result.type == "error") {
-                        return LongTextCellRenderer(
-                            params,
-                            `${result?.error?.message}\n${result?.error?.stacktrace}`,
+
+                    if (result && result.error && result.type == "error") {
+                        setModalErrorMsg({
+                            message: result.error.message,
+                            stackTrace: result.error.stacktrace,
+                        })
+                        return (
+                            <EvaluationErrorText
+                                text="Failed to invoke LLM app"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
                         )
                     }
                     return selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
