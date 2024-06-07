@@ -250,8 +250,15 @@ class AppEnvironmentRevisionDB(Base):
     revision = Column(Integer)
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by = relationship("UserDB")
-    deployed_app_variant_revision_id = Column(Integer)
-    deployment_id = Column(Integer)
+
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
+    )
+    deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
+
+    deployment_id = Column(UUID(as_uuid=True), ForeignKey("deployments.id"))
+    deployment = relationship("DeploymentDB")
+
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -468,3 +475,11 @@ class EvaluationScenarioDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class IDsMappingDB(Base):
+    __tablename__ = "ids_mapping"
+
+    table_name = Column(String, nullable=False)
+    objectid = Column(String, primary_key=True)
+    uuid = Column(UUID(as_uuid=True), nullable=False)
