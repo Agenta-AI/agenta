@@ -7,7 +7,7 @@ client = OpenAI()
 prompt_1 = "Determine the three main topics that a user would ask about based on this documentation page {context_1}"
 prompt_2 = "Create 10 Question and Answers based on the following topics {topics} and the documentation page {context_1} "
 
-ag.init(app_name="test", base_name="app")
+ag.init()
 CHAT_LLM_GPT = [
     "gpt-3.5-turbo-16k-0613",
     "gpt-3.5-turbo-16k",

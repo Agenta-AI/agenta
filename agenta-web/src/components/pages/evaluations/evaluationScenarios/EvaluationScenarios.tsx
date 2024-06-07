@@ -1,15 +1,15 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
-import {JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
+import {CorrectAnswer, JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
 } from "@/services/evaluations"
-import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
+import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -23,7 +23,10 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
-import {useLocalStorage} from "usehooks-ts"
+import _ from "lodash"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -56,7 +59,27 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
-    const [showDiff, setShowDiff] = useLocalStorage("showDiff", "show")
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
+    const [hiddenCols, setHiddenCols] = useState<string[]>([])
+
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
+
+    const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsDiffDropdownOpen(nextOpen)
+        }
+    }
+
+    const uniqueCorrectAnswers: CorrectAnswer[] = _.uniqBy(
+        scenarios[0]?.correct_answers || [],
+        "key",
+    )
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -67,6 +90,17 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 flex: 1,
                 minWidth: 240,
                 headerName: `Input: ${input.name}`,
+                hide: hiddenCols.includes(`Input: ${input.name}`),
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" className="py-2">
+                                <span>{input.name}</span>
+                                <Tag color="blue">Input</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
                 ...getFilterParams(input.type === "number" ? "number" : "text"),
                 field: `inputs.${index}`,
                 valueGetter: (params) => {
@@ -75,25 +109,41 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
-        colDefs.push({
-            flex: 1,
-            minWidth: 300,
-            headerName: "Expected Output",
-            field: "correct_answer",
-            ...getFilterParams("text"),
-            valueGetter: (params) => {
-                return params.data?.correct_answer?.toString() || ""
-            },
-            cellRenderer: (params: any) => LongTextCellRenderer(params),
+
+        uniqueCorrectAnswers.forEach((answer: CorrectAnswer, index: number) => {
+            colDefs.push({
+                headerName: answer.key,
+                hide: hiddenCols.includes(answer.key),
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" className="py-2">
+                                <span>{answer.key}</span>
+                                <Tag color="green">Ground Truth</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
+                minWidth: 200,
+                flex: 1,
+                ...getFilterParams("text"),
+                valueGetter: (params) => params.data?.correct_answers?.[index]?.value || "",
+                cellRenderer: (params: any) => LongTextCellRenderer(params),
+            })
         })
         evalaution?.variants.forEach((_, index) => {
             colDefs.push({
                 flex: 1,
                 minWidth: 300,
                 headerName: "Output",
+                hide: hiddenCols.includes("Output"),
                 ...getFilterParams("text"),
                 field: `outputs.0`,
                 cellRenderer: (params: any) => {
+                    const correctAnswer = params?.data?.correct_answers?.find(
+                        (item: any) => item.key === selectedCorrectAnswer[0],
+                    )
+
                     const result = params.data?.outputs[index].result
                     if (result && result.type == "error") {
                         return LongTextCellRenderer(
@@ -101,12 +151,12 @@ const EvaluationScenarios: React.FC<Props> = () => {
                             `${result?.error?.message}\n${result?.error?.stacktrace}`,
                         )
                     }
-                    return showDiff === "show"
+                    return selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
                                   variantOutput={result?.value}
-                                  expectedOutput={params.data?.correct_answer}
+                                  expectedOutput={correctAnswer?.value || ""}
                               />,
                           )
                         : LongTextCellRenderer(params)
@@ -120,6 +170,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
+                hide: hiddenCols.includes(config.name),
                 headerComponent: (props: any) => {
                     const evaluator = evaluators.find((item) => item.key === config?.evaluator_key)!
                     return (
@@ -147,6 +198,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Cost",
+            hide: hiddenCols.includes("Cost"),
             ...getFilterParams("text"),
             valueGetter: (params) => {
                 return params.data?.outputs[0].cost == undefined
@@ -159,6 +211,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             flex: 1,
             minWidth: 120,
             headerName: "Latency",
+            hide: hiddenCols.includes("Latency"),
             ...getFilterParams("text"),
             valueGetter: (params) => {
                 return params.data?.outputs[0].latency == undefined
@@ -167,7 +220,23 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, showDiff])
+    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols])
+
+    const shownCols = useMemo(
+        () =>
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
+        [colDefs],
+    )
+
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!hiddenCols.includes(evalConfigId)) {
+            setHiddenCols([...hiddenCols, evalConfigId])
+        } else {
+            setHiddenCols(hiddenCols.filter((item) => item !== evalConfigId))
+        }
+    }
 
     const fetcher = () => {
         setFetching(true)
@@ -203,6 +272,17 @@ const EvaluationScenarios: React.FC<Props> = () => {
         const {currentApp} = getAppValues()
         gridRef.current.api.exportDataAsCsv({
             fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
+            processHeaderCallback: (params) => {
+                if (params.column.getColDef().headerName === "Output") {
+                    return `Output ${variantNameWithRev({
+                        variant_name: evalaution?.variants[0].variantName ?? "",
+                        revision: evalaution.revisions[0],
+                    })}`
+                }
+                return params.column.getColDef().headerName as string
+            },
+            processCellCallback: (params) =>
+                typeof params.value === "string" ? escapeNewlines(params.value) : params.value,
         })
     }
 
@@ -236,18 +316,56 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         <Typography.Link
                             href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
                         >
-                            {evalaution?.variants[0].variantName || ""}
+                            {variantNameWithRev({
+                                variant_name: evalaution?.variants[0].variantName ?? "",
+                                revision: evalaution?.revisions[0],
+                            })}
                         </Typography.Link>
                     </Space>
                 </Space>
                 <Space size="middle" align="center">
-                    <Space>
-                        <Typography.Text>Show Difference: </Typography.Text>
-                        <Switch
-                            value={showDiff === "show"}
-                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
-                        />
-                    </Space>
+                    <FilterColumns
+                        items={generateFilterItems(colDefs)}
+                        isOpen={isFilterColsDropdownOpen}
+                        handleOpenChange={handleOpenChangeFilterCols}
+                        shownCols={shownCols}
+                        onClick={({key}) => {
+                            onToggleEvaluatorVisibility(key)
+                            setIsFilterColsDropdownOpen(true)
+                        }}
+                    />
+                    {!!scenarios.length && !!scenarios[0].correct_answers?.length && (
+                        <div className="flex items-center gap-2">
+                            <Typography.Text>Apply difference with: </Typography.Text>
+                            <FilterColumns
+                                items={uniqueCorrectAnswers.map((answer) => ({
+                                    key: answer.key as string,
+                                    label: (
+                                        <Space>
+                                            <CheckOutlined />
+                                            <>{answer.key}</>
+                                        </Space>
+                                    ),
+                                }))}
+                                buttonText={
+                                    selectedCorrectAnswer[0] === "noDiffColumnIsSelected"
+                                        ? "Select Ground Truth"
+                                        : selectedCorrectAnswer[0]
+                                }
+                                isOpen={isDiffDropdownOpen}
+                                handleOpenChange={handleOpenChangeDiff}
+                                shownCols={selectedCorrectAnswer}
+                                onClick={({key}) => {
+                                    if (key === selectedCorrectAnswer[0]) {
+                                        setSelectedCorrectAnswer(["noDiffColumnIsSelected"])
+                                    } else {
+                                        setSelectedCorrectAnswer([key])
+                                    }
+                                    setIsDiffDropdownOpen(true)
+                                }}
+                            />
+                        </div>
+                    )}
                     <Tooltip title="Export as CSV">
                         <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
                     </Tooltip>
