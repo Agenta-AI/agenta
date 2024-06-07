@@ -432,7 +432,7 @@ class EvaluationDB(Base):
     app = relationship("AppDB")
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
-    status = Column(JSONB)
+    status = Column(JSONB)  # Result
     testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
     testset = relationship("TestSetDB")
     variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
