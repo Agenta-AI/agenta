@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+
 from sqlalchemy import (
     Column,
     String,
@@ -8,14 +7,26 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     ForeignKey,
-    Float,
     Enum,
 )
-from sqlalchemy.orm import relationship, declarative_base
 import uuid_utils.compat as uuid
+from sqlalchemy_json import mutable_json_type
+from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from agenta_backend.models.shared_models import TemplateType
+from agenta_backend.models.fields.pydantic_jsonb import PydanticJSONB
+from agenta_backend.models.shared_models import (
+    CorrectListAnswers,
+    EvaluationScenarioListInputs,
+    EvaluationScenarioListOutputs,
+    EvaluationScenarioListResults,
+    Result,
+    TemplateType,
+    AggregatedListResults,
+    HumanEvaluationScenarioListInputs,
+    HumanEvaluationScenarioListOutputs,
+)
+
 
 Base = declarative_base()
 
@@ -384,8 +395,16 @@ class HumanEvaluationScenarioDB(Base):
     user = relationship("UserDB")
     evaluation_id = Column(UUID(as_uuid=True), ForeignKey("human_evaluations.id"))
     evaluation = relationship("HumanEvaluationDB")
-    inputs = Column(JSONB)  # List of HumanEvaluationScenarioInput
-    outputs = Column(JSONB)  # List of HumanEvaluationScenarioOutput
+    inputs = Column(
+        mutable_json_type(
+            dbtype=PydanticJSONB(model=HumanEvaluationScenarioListInputs), nested=True
+        )
+    )  # List of HumanEvaluationScenarioInput
+    outputs = Column(
+        mutable_json_type(
+            dbtype=PydanticJSONB(model=HumanEvaluationScenarioListOutputs), nested=True
+        )
+    )  # List of HumanEvaluationScenarioOutput
     vote = Column(String)
     score = Column(JSONB)
     correct_answer = Column(String)
@@ -423,10 +442,10 @@ class EvaluationDB(Base):
     )
     variant_revision = relationship("AppVariantRevisionsDB")
     evaluator_configs = relationship("EvaluatorConfigDB", back_populates="evaluation")
-    aggregated_results = Column(JSONB)  # List of AggregatedResult
-    average_cost = Column(JSONB)
-    total_cost = Column(JSONB)
-    average_latency = Column(JSONB)
+    aggregated_results = Column(mutable_json_type(dbtype=PydanticJSONB(model=AggregatedListResults), nested=True))  # List of AggregatedResult
+    average_cost = Column(mutable_json_type(dbtype=PydanticJSONB(model=Result), nested=False)) # Result
+    total_cost = Column(mutable_json_type(dbtype=PydanticJSONB(model=Result), nested=False)) # Result
+    average_latency = Column(mutable_json_type(dbtype=PydanticJSONB(model=Result), nested=False)) # Result
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -451,15 +470,15 @@ class EvaluationScenarioDB(Base):
     evaluation = relationship("EvaluationDB")
     variant_id = Column(UUID(as_uuid=True), ForeignKey("app_variants.id"))
     variant = relationship("AppVariantDB")
-    inputs = Column(JSONB)  # List of EvaluationScenarioInput
-    outputs = Column(JSONB)  # List of EvaluationScenarioOutput
-    correct_answers = Column(JSONB)  # List of CorrectAnswer
+    inputs = Column(mutable_json_type(dbtype=PydanticJSONB(model=EvaluationScenarioListInputs), nested=True))  # List of EvaluationScenarioInput
+    outputs = Column(mutable_json_type(dbtype=PydanticJSONB(model=EvaluationScenarioListOutputs), nested=True))  # List of EvaluationScenarioOutput
+    correct_answers = Column(mutable_json_type(dbtype=PydanticJSONB(model=CorrectListAnswers), nested=True))  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
     evaluator_configs = relationship(
         "EvaluatorConfigDB", back_populates="evaluation_scenario"
     )
-    results = Column(JSONB)  # List of EvaluationScenarioResult
+    results = Column(mutable_json_type(dbtype=PydanticJSONB(model=EvaluationScenarioListResults), nested=True))  # List of EvaluationScenarioResult
     latency = Column(Integer)
     cost = Column(Integer)
     created_at = Column(
