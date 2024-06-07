@@ -83,8 +83,7 @@ class DBEngine:
     """
 
     def __init__(self) -> None:
-        self.mode = os.environ.get("DATABASE_MODE", "v2")
-        self.db_url = f"{os.environ.get('POSTGRES_URI')}/agenta_{self.mode}"
+        self.db_url = os.environ.get("POSTGRES_URI")
         self.engine = create_async_engine(self.db_url, echo=True)
         self.async_session = sessionmaker(
             self.engine, expire_on_commit=False, class_=AsyncSession
