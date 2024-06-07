@@ -25,7 +25,7 @@ services:
             - DATABASE_MODE=test
             - FEATURE_FLAG=oss
             - OPENAI_API_KEY=${OPENAI_API_KEY}
-            - AGENTA_TEMPLATE_REPO=agentaai/stage_templates
+            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
             - REGISTRY_REPO_NAME=agentaai
