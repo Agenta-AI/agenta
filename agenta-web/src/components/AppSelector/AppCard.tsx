@@ -1,6 +1,6 @@
 import {Modal, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
-import {deleteApp} from "@/services/api"
+import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"

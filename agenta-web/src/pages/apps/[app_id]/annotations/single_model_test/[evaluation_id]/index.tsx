@@ -1,6 +1,9 @@
 import {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
-import {fetchLoadEvaluation, fetchAllLoadEvaluationsScenarios} from "@/services/human-evaluations"
-import {fetchTestset} from "@/services/testsets"
+import {
+    fetchLoadEvaluation,
+    fetchAllLoadEvaluationsScenarios,
+} from "@/services/human-evaluations/api"
+import {fetchTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/services/api"

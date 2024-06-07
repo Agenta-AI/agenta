@@ -8,16 +8,16 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {
-    fetchAppContainerURL,
-    deleteSingleVariant,
-    fetchVariantLogs,
-    restartAppVariantContainer,
-    waitForAppToStart,
-} from "@/services/api"
+
+import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {
+    deleteSingleVariant,
+    fetchVariantLogs,
+    restartAppVariantContainer,
+} from "@/services/playground/api"
 
 const {Text} = Typography
 
