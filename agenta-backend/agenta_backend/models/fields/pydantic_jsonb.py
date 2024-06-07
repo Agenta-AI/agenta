@@ -1,19 +1,18 @@
 import json
 
+from pydantic import ValidationError
 from sqlalchemy.types import TypeDecorator
-from pydantic import ValidationError, BaseModel
 from sqlalchemy.dialects.postgresql import JSONB
 
 
 class PydanticJSONB(TypeDecorator):
     """
-    A custom SQLAlchemy type that accepts a Pydantic model and converts it to the JSONB value to a Pydantic model
-    instance when loading data into the database, and converts the Pydantic model instance to a JSONB value
-    when retrieving data from the database.
+    A custom SQLAlchemy type that accepts and validates a Pydantic model and converts it to the JSONB value \
+        before inserting the data into the database, and also converts the JSONB value to Pydantic model dictionary \
+            when retrieving the data from the database.
 
     Args:
-        model (Type[BaseModel], optional): The Pydantic model class to use when loading data into the database.
-            Defaults to None.
+        model (Type[BaseModel]): The Pydantic model class to use when loading data into the database.
     """
 
     impl = JSONB
