@@ -2,8 +2,8 @@ import React, {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
-import {fetchVariants, createNewVariant} from "@/services/api"
-import {fetchEnvironments} from "@/services/deployment"
+import {fetchVariants} from "@/services/api"
+import {fetchEnvironments} from "@/services/deployment/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -18,6 +18,7 @@ import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {createNewVariant} from "@/services/playground/api"
 
 const Playground: React.FC = () => {
     const router = useRouter()

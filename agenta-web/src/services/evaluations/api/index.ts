@@ -21,7 +21,7 @@ import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
-import {fetchTestset} from "@/services/testsets"
+import {fetchTestset} from "@/services/testsets/api"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
 import _ from "lodash"
 

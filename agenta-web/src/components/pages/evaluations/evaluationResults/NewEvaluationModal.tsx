@@ -3,8 +3,8 @@ import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchVariants} from "@/services/api"
-import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
-import {fetchTestsets} from "@/services/testsets"
+import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations/api"
+import {fetchTestsets} from "@/services/testsets/api"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
 import {
     Divider,

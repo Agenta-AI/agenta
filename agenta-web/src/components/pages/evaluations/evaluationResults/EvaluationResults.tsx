@@ -18,7 +18,11 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
-import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
+import {
+    deleteEvaluations,
+    fetchAllEvaluations,
+    fetchEvaluationStatus,
+} from "@/services/evaluations/api"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"

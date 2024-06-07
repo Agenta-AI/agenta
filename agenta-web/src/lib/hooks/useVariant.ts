@@ -1,8 +1,8 @@
 import {useState, useEffect} from "react"
-import {createNewVariant, updateVariantParams} from "@/services/api"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
+import {createNewVariant, updateVariantParams} from "@/services/playground/api"
 
 /**
  * Hook for using the variant.

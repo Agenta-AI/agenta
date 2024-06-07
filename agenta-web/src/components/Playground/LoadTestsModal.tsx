@@ -1,4 +1,4 @@
-import {fetchTestset, useLoadTestsetsList} from "@/services/testsets"
+import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 import {Button, Divider, Modal, Select} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"

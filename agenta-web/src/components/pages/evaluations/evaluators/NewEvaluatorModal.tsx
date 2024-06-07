@@ -7,7 +7,7 @@ import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
-} from "@/services/evaluations"
+} from "@/services/evaluations/api"
 import {ArrowLeftOutlined, EditOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
 import {Button, Form, Input, InputNumber, Modal, Switch, Table, Tooltip, message, theme} from "antd"

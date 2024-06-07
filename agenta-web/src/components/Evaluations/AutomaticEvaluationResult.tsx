@@ -2,7 +2,7 @@ import {
     deleteEvaluations,
     fetchEvaluationResults,
     fetchAllLoadEvaluations,
-} from "@/services/human-evaluations"
+} from "@/services/human-evaluations/api"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"

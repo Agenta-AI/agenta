@@ -17,7 +17,7 @@ import {
     updateEvaluationScenario,
     fetchEvaluationResults,
     updateEvaluation,
-} from "@/services/human-evaluations"
+} from "@/services/human-evaluations/api"
 import {callVariant} from "@/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"

@@ -1,12 +1,10 @@
 import axios from "@/lib//helpers/axiosConfig"
-import {dynamicContext} from "@/lib/helpers/dynamic"
-import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
 } from "@/lib/helpers/openapi_parser"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "@/lib/helpers/utils"
-import {Variant, Parameter, AppTemplate, ChatMessage, KeyValuePair} from "@/lib/Types"
+import {Variant, Parameter, ChatMessage, KeyValuePair} from "@/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -47,12 +45,6 @@ export async function fetchVariants(
     }
 
     return []
-}
-
-export function restartAppVariantContainer(variantId: string) {
-    return axios.post(`${getAgentaApiUrl()}/api/containers/restart_container/`, {
-        variant_id: variantId,
-    })
 }
 
 /**
@@ -192,64 +184,10 @@ export const fetchAppContainerURL = async (
     }
 }
 
-/**
- * Saves a new variant to the database based on previous
- */
-export async function createNewVariant(
-    baseId: string,
-    newVariantName: string,
-    newConfigName: string,
-    parameters: Parameter[],
-) {
-    await axios.post(`${getAgentaApiUrl()}/api/variants/from-base/`, {
-        base_id: baseId,
-        new_variant_name: newVariantName,
-        new_config_name: newConfigName,
-        parameters: parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
-        }, {}),
-    })
-}
-
-export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
-    await axios.put(`${getAgentaApiUrl()}/api/variants/${variantId}/parameters/`, {
-        parameters: parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
-        }, {}),
-    })
-}
-
-export async function deleteApp(appId: string) {
-    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}/`, {
-        data: {app_id: appId},
-    })
-}
-
-export async function deleteSingleVariant(variantId: string) {
-    await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}/`)
-}
-
 export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
-}
-
-export const fetchAllTemplates = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/containers/templates/`)
-    return response.data
-}
-
-export const createAppFromTemplate = async (
-    templateObj: AppTemplate,
-    ignoreAxiosError: boolean = false,
-) => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template/`,
-        templateObj,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response
 }
 
 export const fetchData = async (url: string): Promise<any> => {
@@ -282,81 +220,4 @@ export const waitForAppToStart = async ({
         )
         await promise
     }
-}
-
-export const createAndStartTemplate = async ({
-    appName,
-    providerKey,
-    templateId,
-    timeout,
-    onStatusChange,
-}: {
-    appName: string
-    providerKey: Array<LlmProvider>
-    templateId: string
-    timeout?: number
-    onStatusChange?: (
-        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
-        details?: any,
-        appId?: string,
-    ) => void
-}) => {
-    const apiKeys = providerKey.reduce(
-        (acc, {key, name}) => {
-            if (key) acc[name] = key
-            return acc
-        },
-        {} as Record<string, string>,
-    )
-
-    try {
-        const {getOrgValues} = await dynamicContext("org.context", {
-            getOrgValues: () => ({
-                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
-            }),
-        })
-        const {selectedOrg} = getOrgValues()
-        onStatusChange?.("creating_app")
-        let app
-        try {
-            app = await createAppFromTemplate(
-                {
-                    app_name: appName,
-                    template_id: templateId,
-                    organization_id: selectedOrg.id,
-                    workspace_id: selectedOrg.default_workspace.id,
-                    env_vars: apiKeys,
-                },
-                true,
-            )
-        } catch (error: any) {
-            if (error?.response?.status === 400) {
-                onStatusChange?.("bad_request", error)
-                return
-            }
-            throw error
-        }
-
-        onStatusChange?.("starting_app", "", app?.data?.app_id)
-        try {
-            await waitForAppToStart({appId: app?.data?.app_id, timeout})
-        } catch (error: any) {
-            if (error.message === "timeout") {
-                onStatusChange?.("timeout", "", app?.data?.app_id)
-                return
-            }
-            throw error
-        }
-
-        onStatusChange?.("success", "", app?.data?.app_id)
-    } catch (error) {
-        onStatusChange?.("error", error)
-    }
-}
-
-export const fetchVariantLogs = async (variantId: string, ignoreAxiosError: boolean = false) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/logs`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-    return response.data
 }

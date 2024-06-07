@@ -7,7 +7,7 @@ import {
     fetchTestset,
     updateTestset,
     useLoadTestsetsList,
-} from "@/services/testsets"
+} from "@/services/testsets/api"
 import {
     Button,
     Divider,

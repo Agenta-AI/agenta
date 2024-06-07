@@ -1,5 +1,5 @@
 import {fetchData} from "@/services/api"
-import {deleteEvaluations} from "@/services/human-evaluations"
+import {deleteEvaluations} from "@/services/human-evaluations/api"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
