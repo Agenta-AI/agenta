@@ -1,4 +1,3 @@
-import os
 import asyncio
 from logging.config import fileConfig
 
@@ -8,10 +7,14 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+from agenta_backend.models.db_engine import db_engine
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", os.environ.get("DATABASE_URL")) # type: ignore
+config.set_main_option("sqlalchemy.url", db_engine.db_url)  # type: ignore
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -21,7 +24,7 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from agenta_backend.models.db_models import Base
-from agenta_backend.models.db_engine import models # noqa: F403
+from agenta_backend.models.db_engine import models  # noqa: F403
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
