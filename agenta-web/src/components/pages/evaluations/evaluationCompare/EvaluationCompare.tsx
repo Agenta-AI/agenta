@@ -218,7 +218,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                       params,
                                       <CompareOutputDiff
                                           variantOutput={getTypedValue(result)}
-                                          expectedOutput={params.data?.correctAnswer}
+                                          expectedOutput={
+                                              params.data[selectedCorrectAnswer[0]] || ""
+                                          }
                                       />,
                                   )
                                 : LongTextCellRenderer(params, getTypedValue(result))}
