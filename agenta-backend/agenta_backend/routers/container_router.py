@@ -14,7 +14,7 @@ from agenta_backend.utils.common import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.commons.models.api.api_models import Image_ as Image
 else:

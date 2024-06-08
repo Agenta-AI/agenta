@@ -28,7 +28,6 @@ if isCloudEE():
     from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
 
     from agenta_backend.commons.models.db_models import (
-        Permission,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
@@ -43,6 +42,9 @@ if isCloudEE():
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+    from agenta_backend.commons.models.shared_models import (
+        Permission,
     )
 
 else:

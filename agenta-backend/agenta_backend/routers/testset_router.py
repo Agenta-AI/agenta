@@ -28,8 +28,10 @@ if isCloudEE():
         check_action_access,
     )  # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
-        Permission,
         TestSetDB_ as TestSetDB,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.models.shared_models import (
+        Permission,
     )  # noqa pylint: disable-all
 
 else:
