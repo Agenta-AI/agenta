@@ -17,17 +17,15 @@ const useStyles = createUseStyles({
         marginTop: 0,
     },
     container: {
-        marginLeft: 0,
+        margin: "0px 0",
     },
     apiContainer: {
-        margin: "0px 0",
+        marginBottom: 10,
     },
     input: {
         display: "flex",
         alignItems: "center",
         width: 420,
-        marginBottom: 8,
-        marginLeft: 8,
     },
 })
 
@@ -48,12 +46,12 @@ export default function Secrets() {
                 servers!
             </Text>
 
-            <div className={classes.container}>
+            <div>
                 <Title level={5}>Available Providers</Title>
 
-                <div className={classes.apiContainer}>
+                <div className={classes.container}>
                     {llmProviderKeys.map(({title, key}: LlmProvider, i: number) => (
-                        <div key={i}>
+                        <div key={i} className={classes.apiContainer}>
                             <Space direction="horizontal" key={i}>
                                 <Input.Password
                                     data-cy="openai-api-input"
@@ -69,6 +67,7 @@ export default function Secrets() {
                                 />
                                 <Button
                                     data-cy="openai-api-save"
+                                    type="primary"
                                     disabled={key === getLlmProviderKey(title) || !key}
                                     onClick={() => {
                                         saveLlmProviderKey(title, key)
@@ -78,6 +77,7 @@ export default function Secrets() {
                                     Save
                                 </Button>
                                 <Button
+                                    disabled={!Boolean(key)}
                                     onClick={() => {
                                         removeSingleLlmProviderKey(title)
 
