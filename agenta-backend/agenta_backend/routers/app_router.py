@@ -57,7 +57,7 @@ if isCloudEE():
         check_rbac_permission,
         check_apikey_action_access,
     )
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
 
 
 if isCloudProd():
