@@ -1,10 +1,10 @@
-import {GenericObject, JSSTheme} from "@/lib/Types"
-import {ArrowDownOutlined, ArrowUpOutlined, MenuOutlined} from "@ant-design/icons"
 import {Space} from "antd"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {ArrowDownOutlined, ArrowUpOutlined, MenuOutlined} from "@ant-design/icons"
+import {GenericObject} from "@/lib/Types"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
+const useStyles = createUseStyles(() => ({
     root: {
         justifyContent: "space-between",
         width: "100%",
@@ -26,8 +26,13 @@ interface Props {
     children: React.ReactNode
 }
 
+enum Sort {
+    ASC = "asc",
+    DESC = "desc"
+}
+
 const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) => {
-    const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null)
+    const [sortDir, setSortDir] = useState<Sort.ASC | Sort.DESC | null>(null)
     const classes = useStyles()
     const refButton = useRef(null)
 
@@ -39,9 +44,9 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
     const onSortChanged = () => {
         setSortDir(
             props.column.isSortAscending()
-                ? "asc"
+                ? Sort.ASC
                 : props.column.isSortDescending()
-                  ? "desc"
+                  ? Sort.DESC
                   : null,
         )
     }
@@ -52,7 +57,7 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
 
     const onClick = (e: any) => {
         if (!props.enableSorting) return
-        onSortRequested(sortDir === "asc" ? "desc" : sortDir === "desc" ? "" : "asc", e)
+        onSortRequested(sortDir === Sort.ASC ? Sort.DESC : sortDir === Sort.DESC ? "" : Sort.ASC, e)
     }
 
     useEffect(() => {
@@ -60,17 +65,25 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
         onSortChanged()
     }, [])
 
+    const renderArrowIcons = () => {
+        if(props.enableSorting) {
+            if(sortDir === Sort.ASC) {
+                return <ArrowUpOutlined />
+            } else if(sortDir === Sort.DESC) {
+                return <ArrowDownOutlined />
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
+    }
+
     return (
         <Space align="center" onClick={onClick} className={classes.root}>
             <Space align="center">
                 <span>{children}</span>
-                {props.enableSorting ? (
-                    sortDir === "asc" ? (
-                        <ArrowUpOutlined />
-                    ) : sortDir === "desc" ? (
-                        <ArrowDownOutlined />
-                    ) : null
-                ) : null}
+                {renderArrowIcons()}
             </Space>
             {props.enableMenu && <MenuOutlined ref={refButton} onClick={onMenuClicked} />}
         </Space>
