@@ -1,12 +1,12 @@
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 
-import pythonCode from "../../../../../../code_snippets/testsets/create_with_json/python"
-import cURLCode from "../../../../../../code_snippets/testsets/create_with_json/curl"
-import tsCode from "../../../../../../code_snippets/testsets/create_with_json/typescript"
+import pythonCode from "@/code_snippets/testsets/create_with_json/python"
+import cURLCode from "@/code_snippets/testsets/create_with_json/curl"
+import tsCode from "@/code_snippets/testsets/create_with_json/typescript"
 
-import pythonCodeUpload from "../../../../../../code_snippets/testsets/create_with_upload/python"
-import cURLCodeUpload from "../../../../../../code_snippets/testsets/create_with_upload/curl"
-import tsCodeUpload from "../../../../../../code_snippets/testsets/create_with_upload/typescript"
+import pythonCodeUpload from "@/code_snippets/testsets/create_with_upload/python"
+import cURLCodeUpload from "@/code_snippets/testsets/create_with_upload/curl"
+import tsCodeUpload from "@/code_snippets/testsets/create_with_upload/typescript"
 import {Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
