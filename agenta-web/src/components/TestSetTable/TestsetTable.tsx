@@ -292,8 +292,17 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         setIsDataChanged(true)
     }
 
-    const TableHeaderComponentWrapper = (params: IHeaderParams) => {
-        return (
+    const defaultColDef = {
+        flex: 1,
+        minWidth: 100,
+        editable: true,
+        cellRenderer: TableCellsRenderer,
+        cellRendererParams: {
+            onEdit: (ix: number) => {
+                setFocusedRowData(rowData[ix])
+            },
+        },
+        headerComponent: (params: IHeaderParams) => (
             <TableHeaderComponent
                 params={params}
                 columnDefs={columnDefs}
@@ -306,20 +315,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 setColumnDefs={setColumnDefs}
                 setIsDataChanged={setIsDataChanged}
             />
-        )
-    }
-
-    const defaultColDef = {
-        flex: 1,
-        minWidth: 100,
-        editable: true,
-        cellRenderer: TableCellsRenderer,
-        cellRendererParams: {
-            onEdit: (ix: number) => {
-                setFocusedRowData(rowData[ix])
-            },
-        },
-        headerComponent: TableHeaderComponentWrapper,
+        ),
         resizable: true,
     }
 
