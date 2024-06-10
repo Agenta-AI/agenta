@@ -16,8 +16,7 @@ import uuid_utils.compat as uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.shared_models import TemplateType
-
-Base = declarative_base()
+from agenta_backend.models.base import Base
 
 
 class UserDB(Base):
