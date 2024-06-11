@@ -1,6 +1,7 @@
 """Converts db models to pydantic models
 """
 
+import uuid
 import json
 import logging
 from typing import List, Tuple, Any
@@ -290,33 +291,33 @@ def app_variant_db_to_pydantic(
 
 
 async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
-    if app_variant_db.base.deployment:
+    if type(app_variant_db.base_id) == uuid.UUID and type(app_variant_db.base.deployment_id) == uuid.UUID:
         deployment = await db_manager.get_deployment_by_objectid(
-            app_variant_db.base.deployment
+            str(app_variant_db.base.deployment_id)
         )
         uri = deployment.uri
     else:
         deployment = None
         uri = None
-    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
+
+    logger.info(f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)} {deployment}")
     variant_response = AppVariantResponse(
-        app_id=str(app_variant_db.app.id),
+        app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),
-        variant_name=app_variant_db.variant_name,
+        variant_name=app_variant_db.variant_name, # type: ignore
         variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user.id),
-        parameters=app_variant_db.config.parameters,
-        previous_variant_name=app_variant_db.previous_variant_name,
-        base_name=app_variant_db.base_name,
-        base_id=str(app_variant_db.base.id),
-        config_name=app_variant_db.config_name,
+        user_id=str(app_variant_db.user_id),
+        parameters=app_variant_db.config_parameters, # type: ignore
+        base_name=app_variant_db.base_name, # type: ignore
+        base_id=str(app_variant_db.base_id),
+        config_name=app_variant_db.config_name, # type: ignore
         uri=uri,
-        revision=app_variant_db.revision,
+        revision=app_variant_db.revision, # type: ignore
     )
 
     if isCloudEE():
-        variant_response.organization_id = str(app_variant_db.organization.id)
-        variant_response.workspace_id = str(app_variant_db.workspace.id)
+        variant_response.organization_id = str(app_variant_db.organization_id)
+        variant_response.workspace_id = str(app_variant_db.workspace_id)
 
     return variant_response
 
@@ -352,8 +353,8 @@ async def environment_db_to_output(
     environment_db: AppEnvironmentDB,
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
-        str(environment_db.deployed_app_variant)
-        if environment_db.deployed_app_variant
+        str(environment_db.deployed_app_variant_id)
+        if environment_db.deployed_app_variant_id and isinstance(environment_db.deployed_app_variant_id, uuid.UUID) # type: ignore
         else None
     )
     if deployed_app_variant_id:
@@ -366,21 +367,20 @@ async def environment_db_to_output(
         deployed_variant_name = None
         revision = None
 
-    await environment_db.fetch_link(AppEnvironmentDB.deployed_app_variant_revision)
     environment_output = EnvironmentOutput(
         name=environment_db.name,
-        app_id=str(environment_db.app.id),
+        app_id=str(environment_db.app_id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
         deployed_app_variant_revision_id=str(
-            environment_db.deployed_app_variant_revision
+            environment_db.deployed_app_variant_revision_id
         ),
         revision=revision,
     )
 
     if isCloudEE():
-        environment_output.organization_id = str(environment_db.organization.id)
-        environment_output.workspace_id = str(environment_db.workspace.id)
+        environment_output.organization_id = str(environment_db.organization_id)
+        environment_output.workspace_id = str(environment_db.workspace_id)
     return environment_output
 
 
