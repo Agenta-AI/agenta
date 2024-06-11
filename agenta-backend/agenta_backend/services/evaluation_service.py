@@ -1,12 +1,18 @@
+import uuid
 import logging
 from typing import Dict, List
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
+from sqlalchemy.orm import Session
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.db_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -549,7 +555,6 @@ async def create_new_evaluation(
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
-        evaluators_configs=evaluator_config_ids,
         organization=app.organization if isCloudEE() else None,
         workspace=app.workspace if isCloudEE() else None,
     )
@@ -655,21 +660,21 @@ def remove_duplicates(csvdata):
 
 
 async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
-    ids = list(map(lambda x: ObjectId(x), resource_ids))
-    if resource_type == "variant":
-        res = await EvaluationDB.find(In(EvaluationDB.variant, ids)).to_list()
-    elif resource_type == "testset":
-        res = await EvaluationDB.find(In(EvaluationDB.testset.id, ids)).to_list()
-    elif resource_type == "evaluator_config":
-        res = await EvaluationDB.find(
-            In(
-                EvaluationDB.evaluators_configs,
-                ids,
+    ids = list(map(uuid.UUID, resource_ids))
+
+    async with db_engine.get_session() as session:
+        if resource_type == "variant":
+            query = select(EvaluationDB).filter(EvaluationDB.variant_id.in_(ids))
+        elif resource_type == "testset":
+            query = select(EvaluationDB).filter(EvaluationDB.testset_id.in_(ids))
+        # elif resource_type == "evaluator_config":
+        #     query = select(EvaluationDB).filter(EvaluationDB.evaluators_configs_id.in_(ids))
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"resource_type {resource_type} is not supported",
             )
-        ).to_list()
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"resource_type {resource_type} is not supported",
-        )
-    return res
+
+        result = await session.execute(query)
+        res = result.scalars().all()
+        return res
