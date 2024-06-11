@@ -22,7 +22,7 @@ logger.setLevel(logging.DEBUG)
 @router.get("/", response_model=List[BaseOutput], operation_id="list_bases")
 async def list_bases(
     request: Request,
-    app_id: Optional[str] = None,
+    app_id: str,
     base_name: Optional[str] = None,
 ) -> List[BaseOutput]:
     """
@@ -30,7 +30,7 @@ async def list_bases(
 
     Args:
         request (Request): The incoming request.
-        app_id (Optional[str], optional): The ID of the app to filter by. Defaults to None.
+        app_id (str): The ID of the app to filter by.
         base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
     Returns:

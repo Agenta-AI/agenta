@@ -1,5 +1,6 @@
 import io
 import csv
+import uuid
 import json
 import logging
 import requests
@@ -254,27 +255,20 @@ async def create_testset(
                 status_code=403,
             )
 
-    user = await get_user(request.state.user_id)
-    testset = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "name": csvdata.name,
-        "app": app,
-        "csvdata": csvdata.csvdata,
-        "user": user,
-    }
-
-    if isCloudEE():
-        testset["organization"] = app.organization
-        testset["workspace"] = app.workspace
-
     try:
-        testset_instance = TestSetDB(**testset)
-        await testset_instance.create()
-
+        testset_data = {
+            "name": csvdata.name,
+            "csvdata": csvdata.csvdata,
+        }
+        testset_instance = await db_manager.create_testset(
+            app=app,
+            user_uid=request.state.user_id,
+            testset_data=testset_data
+        )
         if testset_instance is not None:
             return TestSetSimpleResponse(
                 id=str(testset_instance.id),
-                name=testset_instance.name,
+                name=testset_instance.name, # type: ignore
                 created_at=str(testset_instance.created_at),
             )
     except Exception as e:
@@ -298,11 +292,15 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if testset is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=test_set,
+            object=testset,
             permission=Permission.EDIT_TESTSET,
         )
         logger.debug(f"User has Permission to update Testset: {has_permission}")
@@ -314,25 +312,20 @@ async def update_testset(
                 status_code=403,
             )
 
-    testset_update = {
-        "name": csvdata.name,
-        "csvdata": csvdata.csvdata,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    if test_set is None:
-        raise HTTPException(status_code=404, detail="testset not found")
-
     try:
-        await test_set.update({"$set": testset_update})
-        if isinstance(test_set.id, ObjectId):
-            return {
-                "status": "success",
-                "message": "testset updated successfully",
-                "_id": testset_id,
-            }
-        else:
-            raise HTTPException(status_code=404, detail="testset not found")
+        testset_update = {
+            "name": csvdata.name,
+            "csvdata": csvdata.csvdata,
+        }
+        await db_manager.update_testset(
+            testset_id=str(testset.id), 
+            values_to_update=testset_update
+        )
+        return {
+            "status": "success",
+            "message": "testset updated successfully",
+            "_id": testset_id,
+        }
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=500, detail=str(e))
@@ -371,12 +364,12 @@ async def get_testsets(
     if app is None:
         raise HTTPException(status_code=404, detail="App not found")
 
-    testsets: List[TestSetDB] = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
+    testsets = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
-            id=str(testset.id),
+            id=str(testset.id), # type: ignore
             name=testset.name,
-            created_at=testset.created_at,
+            created_at=str(testset.created_at),
         )
         for testset in testsets
     ]

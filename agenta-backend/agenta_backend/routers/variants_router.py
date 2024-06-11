@@ -147,6 +147,8 @@ async def remove_variant(
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
