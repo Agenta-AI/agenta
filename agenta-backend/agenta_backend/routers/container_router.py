@@ -179,13 +179,13 @@ async def construct_app_container_url(
             raise HTTPException(status_code=403, detail=error_msg)
 
     try:
-        if getattr(object_db, "deployment", None):  # this is a base
+        if getattr(object_db, "deployment_id", None):  # this is a base
             deployment = await db_manager.get_deployment_by_objectid(
-                object_db.deployment
+                str(object_db.deployment_id) # type: ignore
             )
-        elif getattr(object_db.base, "deployment", None):  # this is a variant
+        elif getattr(object_db, "base_id", None):  # this is a variant
             deployment = await db_manager.get_deployment_by_objectid(
-                object_db.base.deployment
+                str(object_db.base.deployment_id) # type: ignore
             )
         else:
             raise HTTPException(

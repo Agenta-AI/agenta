@@ -52,8 +52,9 @@ async def save_config(
             if variant_db.config_name == payload.config_name:
                 variant_to_overwrite = variant_db
                 break
+
         if variant_to_overwrite is not None:
-            if payload.overwrite or variant_to_overwrite.config.parameters == {}:
+            if payload.overwrite or variant_to_overwrite.config_parameters == {}:
                 print(f"update_variant_parameters  ===> {payload.overwrite}")
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
@@ -79,6 +80,8 @@ async def save_config(
         logger.error(f"save_config http exception ===> {e.detail}")
         raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"save_config exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
