@@ -56,9 +56,9 @@ logger.setLevel(logging.DEBUG)
 # Fetch all evaluators and precompute ground truth keys
 all_evaluators = get_evaluators()
 ground_truth_keys_dict = {
-    evaluator["key"]: [
+    evaluator.key: [
         key
-        for key, value in evaluator.get("settings_template", {}).items()
+        for key, value in evaluator.settings_template.items()
         if value.get("ground_truth_key") is True
     ]
     for evaluator in all_evaluators
