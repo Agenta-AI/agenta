@@ -291,7 +291,10 @@ def app_variant_db_to_pydantic(
 
 
 async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
-    if type(app_variant_db.base_id) == uuid.UUID and type(app_variant_db.base.deployment_id) == uuid.UUID:
+    if (
+        type(app_variant_db.base_id) == uuid.UUID
+        and type(app_variant_db.base.deployment_id) == uuid.UUID
+    ):
         deployment = await db_manager.get_deployment_by_objectid(
             str(app_variant_db.base.deployment_id)
         )
@@ -300,19 +303,21 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         deployment = None
         uri = None
 
-    logger.info(f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)} {deployment}")
+    logger.info(
+        f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)} {deployment}"
+    )
     variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),
-        variant_name=app_variant_db.variant_name, # type: ignore
+        variant_name=app_variant_db.variant_name,  # type: ignore
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user_id),
-        parameters=app_variant_db.config_parameters, # type: ignore
-        base_name=app_variant_db.base_name, # type: ignore
+        parameters=app_variant_db.config_parameters,  # type: ignore
+        base_name=app_variant_db.base_name,  # type: ignore
         base_id=str(app_variant_db.base_id),
-        config_name=app_variant_db.config_name, # type: ignore
+        config_name=app_variant_db.config_name,  # type: ignore
         uri=uri,
-        revision=app_variant_db.revision, # type: ignore
+        revision=app_variant_db.revision,  # type: ignore
     )
 
     if isCloudEE():
@@ -354,7 +359,7 @@ async def environment_db_to_output(
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant_id)
-        if environment_db.deployed_app_variant_id and isinstance(environment_db.deployed_app_variant_id, uuid.UUID) # type: ignore
+        if environment_db.deployed_app_variant_id and isinstance(environment_db.deployed_app_variant_id, uuid.UUID)  # type: ignore
         else None
     )
     if deployed_app_variant_id:

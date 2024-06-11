@@ -261,14 +261,12 @@ async def create_testset(
             "csvdata": csvdata.csvdata,
         }
         testset_instance = await db_manager.create_testset(
-            app=app,
-            user_uid=request.state.user_id,
-            testset_data=testset_data
+            app=app, user_uid=request.state.user_id, testset_data=testset_data
         )
         if testset_instance is not None:
             return TestSetSimpleResponse(
                 id=str(testset_instance.id),
-                name=testset_instance.name, # type: ignore
+                name=testset_instance.name,  # type: ignore
                 created_at=str(testset_instance.created_at),
             )
     except Exception as e:
@@ -318,8 +316,7 @@ async def update_testset(
             "csvdata": csvdata.csvdata,
         }
         await db_manager.update_testset(
-            testset_id=str(testset.id), 
-            values_to_update=testset_update
+            testset_id=str(testset.id), values_to_update=testset_update
         )
         return {
             "status": "success",
@@ -367,7 +364,7 @@ async def get_testsets(
     testsets = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
-            id=str(testset.id), # type: ignore
+            id=str(testset.id),  # type: ignore
             name=testset.name,
             created_at=str(testset.created_at),
         )

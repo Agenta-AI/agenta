@@ -123,6 +123,7 @@ async def list_app_variants(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -493,8 +494,8 @@ async def create_app_and_variant_from_template(
         app = await db_manager.fetch_app_by_name_and_parameters(
             app_name,
             request.state.user_id,
-            payload.organization_id if isCloudEE() else None, # type: ignore
-            payload.workspace_id if isCloudEE() else None, # type: ignore
+            payload.organization_id if isCloudEE() else None,  # type: ignore
+            payload.workspace_id if isCloudEE() else None,  # type: ignore
         )
         if app is not None:
             raise Exception(
@@ -510,8 +511,8 @@ async def create_app_and_variant_from_template(
             app = await db_manager.create_app_and_envs(
                 app_name,
                 request.state.user_id,
-                payload.organization_id if isCloudEE() else None, # type: ignore
-                payload.workspace_id if isCloudEE() else None, # type: ignore
+                payload.organization_id if isCloudEE() else None,  # type: ignore
+                payload.workspace_id if isCloudEE() else None,  # type: ignore
             )
 
         logger.debug(
@@ -531,10 +532,10 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_uri=( # type: ignore
+            docker_id_or_template_uri=(  # type: ignore
                 template_db.template_uri if isCloudEE() else template_db.digest
             ),
-            tags=f"{image_name}" if not isCloudEE() else None, # type: ignore
+            tags=f"{image_name}" if not isCloudEE() else None,  # type: ignore
             base_name="app",
             config_name="default",
             is_template_image=True,
@@ -548,10 +549,10 @@ async def create_app_and_variant_from_template(
         )
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
-            org_id=payload.organization_id if isCloudEE() else None, # type: ignore
-            workspace_id=payload.workspace_id if isCloudEE() else None, # type: ignore
-            template_name=template_db.name, # type: ignore
-            app_name=app.app_name, # type: ignore
+            org_id=payload.organization_id if isCloudEE() else None,  # type: ignore
+            workspace_id=payload.workspace_id if isCloudEE() else None,  # type: ignore
+            template_name=template_db.name,  # type: ignore
+            app_name=app.app_name,  # type: ignore
             user_uid=request.state.user_id,
         )
 
@@ -611,6 +612,7 @@ async def create_app_and_variant_from_template(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.exception(f"Error: Exception caught - {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

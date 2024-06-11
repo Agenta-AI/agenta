@@ -4,7 +4,12 @@ from asyncio import current_task
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker, async_scoped_session
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+    async_scoped_session,
+)
 
 from agenta_backend.utils.common import isCloudEE
 
@@ -72,7 +77,7 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB]) # type: ignore
+    models.extend([SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB])  # type: ignore
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)
@@ -92,8 +97,7 @@ class DBEngine:
             bind=self.engine, class_=AsyncSession, expire_on_commit=False
         )
         self.async_session = async_scoped_session(
-            session_factory=self.async_session_maker,
-            scopefunc=current_task
+            session_factory=self.async_session_maker, scopefunc=current_task
         )
 
     async def init_db(self):
@@ -130,7 +134,7 @@ class DBEngine:
     async def close(self):
         """
         Closes and dispose all the connections using the engine.
-        
+
         :raises     Exception:  if engine is initialized
         """
 
