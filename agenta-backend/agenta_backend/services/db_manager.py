@@ -203,12 +203,9 @@ async def fetch_app_variant_by_id(
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(
-                joinedload(AppVariantDB.base),
-                joinedload(AppVariantDB.app)
-            )
+            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
             .filter_by(id=uuid.UUID(app_variant_id))
-        ) 
+        )
         app_variant = result.scalars().one_or_none()
         return app_variant
 
@@ -303,8 +300,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
         result = await session.execute(
             select(VariantBaseDB)
             .options(
-                joinedload(VariantBaseDB.image),
-                joinedload(VariantBaseDB.deployment)
+                joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
             )
             .filter_by(id=uuid.UUID(base_id))
         )
@@ -450,7 +446,15 @@ async def create_new_app_variant(
 
         session.add(variant)
         await session.commit()
-        await session.refresh(variant, attribute_names=["app", "image", "user", "base", ])  # Ensures the app, image, user and base relationship are loaded
+        await session.refresh(
+            variant,
+            attribute_names=[
+                "app",
+                "image",
+                "user",
+                "base",
+            ],
+        )  # Ensures the app, image, user and base relationship are loaded
 
         variant_revision = AppVariantRevisionsDB(
             variant_id=variant.id,
@@ -1144,7 +1148,7 @@ async def remove_deployment(deployment_db: DeploymentDB):
 
 async def list_deployments(app_id: str):
     """Lists all the deployments that belongs to an app.
-    
+
     Args:
         app_id (str): The ID of the app
 
@@ -1295,8 +1299,7 @@ async def fetch_app_variant_revision_by_id(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantRevisionsDB)
-            .filter_by(id=uuid.UUID(variant_revision_id))
+            select(AppVariantRevisionsDB).filter_by(id=uuid.UUID(variant_revision_id))
         )
         app_revision = result.scalars().one_or_none()
         return app_revision
@@ -1550,7 +1553,8 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
 
 
 async def list_environments_by_variant(
-    session: AsyncSession, app_variant: AppVariantDB,
+    session: AsyncSession,
+    app_variant: AppVariantDB,
 ):
     """
     Returns a list of environments for a given app variant.
@@ -1757,10 +1761,7 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(
-                joinedload(AppVariantDB.base),
-                joinedload(AppVariantDB.app)
-            )
+            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
             .filter_by(id=uuid.UUID(variant_id))
         )
         app_variant_db = result.scalars().one_or_none()
@@ -1812,18 +1813,14 @@ async def create_testset(app: AppDB, user_uid: str, testset_data: Dict[str, Any]
         app (AppDB): The app object
         user_uid (str): The user uID
         testset_data (dict): The data of the testset to create with
-    
+
     Returns:
         returns the newly created TestsetDB
     """
 
     user = await get_user(user_uid=user_uid)
     async with db_engine.get_session() as session:
-        testset_db = TestSetDB(
-            **testset_data, 
-            app_id=app.id, 
-            user_id=user.id
-        )
+        testset_db = TestSetDB(**testset_data, app_id=app.id, user_id=user.id)
         if isCloudEE():
             testset_db.organization_id = app.organization_id
             testset_db.workspace_id = app.workspace_id
@@ -1833,6 +1830,7 @@ async def create_testset(app: AppDB, user_uid: str, testset_data: Dict[str, Any]
         await session.refresh(testset_db)
 
         return testset_db
+
 
 async def update_testset(testset_id: str, values_to_update: dict) -> None:
     """Update a testset.
@@ -1849,11 +1847,7 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         testset = result.scalars().one_or_none()
 
         # Validate keys in values_to_update and update attributes
-        valid_keys = [
-            key
-            for key in values_to_update.keys()
-            if hasattr(testset, key)
-        ]
+        valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
         for key in valid_keys:
             setattr(testset, key, values_to_update[key])
 

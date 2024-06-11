@@ -159,7 +159,9 @@ async def create_ready_to_use_evaluators(app: AppDB):
                 default_value != ""
             ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
 
-        assert hasattr(evaluator, "name") and hasattr(evaluator, "key"), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
+        assert hasattr(evaluator, "name") and hasattr(
+            evaluator, "key"
+        ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             app=app,
             user_id=str(app.user_id),

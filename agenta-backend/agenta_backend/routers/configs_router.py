@@ -81,6 +81,7 @@ async def save_config(
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.error(f"save_config exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

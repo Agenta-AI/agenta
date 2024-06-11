@@ -181,11 +181,11 @@ async def construct_app_container_url(
     try:
         if getattr(object_db, "deployment_id", None):  # this is a base
             deployment = await db_manager.get_deployment_by_objectid(
-                str(object_db.deployment_id) # type: ignore
+                str(object_db.deployment_id)  # type: ignore
             )
         elif getattr(object_db, "base_id", None):  # this is a variant
             deployment = await db_manager.get_deployment_by_objectid(
-                str(object_db.base.deployment_id) # type: ignore
+                str(object_db.base.deployment_id)  # type: ignore
             )
         else:
             raise HTTPException(

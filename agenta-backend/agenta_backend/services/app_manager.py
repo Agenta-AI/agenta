@@ -93,7 +93,7 @@ async def start_variant(
                 "http://host.docker.internal"  # unclear why this stopped working
             )
             # domain_name = "http://localhost"
-        env_vars = {} if env_vars is None else env_vars # type: ignore
+        env_vars = {} if env_vars is None else env_vars  # type: ignore
         env_vars.update(
             {
                 "AGENTA_BASE_ID": str(db_app_variant.base_id),
@@ -115,7 +115,7 @@ async def start_variant(
 
         await db_manager.update_base(
             str(db_app_variant.base_id),
-            deployment_id=deployment.id, # type: ignore
+            deployment_id=deployment.id,  # type: ignore
         )
     except Exception as e:
         import traceback
@@ -128,7 +128,7 @@ async def start_variant(
             f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         ) from e
 
-    return URI(uri=deployment.uri) # type: ignore
+    return URI(uri=deployment.uri)  # type: ignore
 
 
 async def update_variant_image(
@@ -179,7 +179,7 @@ async def update_variant_image(
 
 
 async def terminate_and_remove_app_variant(
-    app_variant_id: Optional[str] = None, app_variant_db: Optional[AppVariantDB] =None
+    app_variant_id: Optional[str] = None, app_variant_db: Optional[AppVariantDB] = None
 ) -> None:
     """
     Removes app variant from the database. If it's the last one using an image, performs additional operations:
@@ -207,7 +207,7 @@ async def terminate_and_remove_app_variant(
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
 
     logger.debug(f"Fetched app variant {app_variant_db}")
-    app_id = str(app_variant_db.app_id) # type: ignore
+    app_id = str(app_variant_db.app_id)  # type: ignore
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
@@ -219,14 +219,16 @@ async def terminate_and_remove_app_variant(
         )
         if is_last_variant_for_image:
             # remove variant + terminate and rm containers + remove base
-            base_db = await db_manager.fetch_base_by_id(base_id=str(app_variant_db.base_id))
+            base_db = await db_manager.fetch_base_by_id(
+                base_id=str(app_variant_db.base_id)
+            )
             if not base_db:
-                raise 
+                raise
 
             image = base_db.image
             logger.debug("is_last_variant_for_image {image}")
 
-            if not isinstance(base_db.image_id, uuid.UUID): # type: ignore
+            if not isinstance(base_db.image_id, uuid.UUID):  # type: ignore
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
@@ -244,15 +246,13 @@ async def terminate_and_remove_app_variant(
                 try:
                     await deployment_manager.stop_and_delete_service(deployment)
                 except RuntimeError as e:
-                    logger.error(
-                        f"Failed to stop and delete service {deployment} {e}"
-                    )
+                    logger.error(f"Failed to stop and delete service {deployment} {e}")
 
             # If image deletable is True, remove docker image and image db
             if image.deletable:
                 try:
                     if isCloudEE():
-                        await deployment_manager.remove_repository(image.tags) # type: ignore
+                        await deployment_manager.remove_repository(image.tags)  # type: ignore
                     else:
                         await deployment_manager.remove_image(image)
                 except RuntimeError as e:
@@ -275,7 +275,9 @@ async def terminate_and_remove_app_variant(
 
         app_variants = await db_manager.list_app_variants(app_id)
         logger.debug(f"Count of app variants available: {len(app_variants)}")
-        if len(app_variants) == 0:  # remove app related resources if the length of the app variants hit 0
+        if (
+            len(app_variants) == 0
+        ):  # remove app related resources if the length of the app variants hit 0
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id)
     except Exception as e:
@@ -296,9 +298,7 @@ async def remove_app_related_resources(app_id: str):
     """
     try:
         # Delete associated environments
-        environments = await db_manager.list_environments(
-            app_id
-        )
+        environments = await db_manager.list_environments(app_id)
         for environment_db in environments:
             await db_manager.remove_environment(environment_db)
             logger.info(f"Successfully deleted environment {environment_db.name}.")
@@ -323,7 +323,9 @@ async def remove_app_related_resources(app_id: str):
         evaluators_configs = await db_manager.fetch_evaluators_configs(app_id)
         for evaluator_config_db in evaluators_configs:
             await db_manager.delete_evaluator_config(str(evaluator_config_db.id))
-            logger.info(f"Successfully deleted evaluator config {str(evaluator_config_db.id)}")
+            logger.info(
+                f"Successfully deleted evaluator config {str(evaluator_config_db.id)}"
+            )
 
         await db_manager.remove_app_by_id(app_id)
         logger.info(f"Successfully remove app object {app_id}.")
@@ -448,7 +450,7 @@ async def add_variant_based_on_image(
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
     variants = await db_manager.list_app_variants_for_app_id(app_id=str(app.id))
-    already_exists = any(av for av in variants if av.variant_name == variant_name) # type: ignore
+    already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
         logger.error("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
