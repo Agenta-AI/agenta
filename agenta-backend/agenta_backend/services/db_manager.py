@@ -28,7 +28,6 @@ if isCloudEE():
     from agenta_backend.commons.services.selectors import get_user_org_and_workspace_id
 
     from agenta_backend.commons.models.db_models import (
-        Permission,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
@@ -43,6 +42,9 @@ if isCloudEE():
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
+    )
+    from agenta_backend.commons.models.shared_models import (
+        Permission,
     )
 
 else:
@@ -74,6 +76,7 @@ from agenta_backend.models.shared_models import (
     EvaluationScenarioResult,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
+    TemplateType,
 )
 
 from beanie.operators import In
@@ -1725,41 +1728,48 @@ async def add_zip_template(key, value):
     Adds a new s3 zip template to the database
 
     Args:
+        session: SQLAlchemy async session
         key: key of the json file
         value (dict): dictionary value of a key
 
     Returns:
         template_id (Str): The Id of the created template.
     """
-    existing_template = await TemplateDB.find_one(TemplateDB.name == key)
+    # Find existing template
+    async with db_engine.get_session() as session:
+        stmt = select(TemplateDB).where(TemplateDB.name == key)
+        result = await session.execute(stmt)
+        existing_template = result.scalars().first()
 
-    if existing_template:
-        # Compare existing values with new values
-        if (
-            existing_template.title == value.get("name")
-            and existing_template.description == value.get("description")
-            and existing_template.template_uri == value.get("template_uri")
-        ):
-            # Values are unchanged, return existing template id
-            return str(existing_template.id)
-        else:
-            # Values are changed, delete existing template
-            await existing_template.delete()
+        if existing_template:
+            # Compare existing values with new values
+            if (
+                existing_template.title == value.get("name")
+                and existing_template.description == value.get("description")
+                and existing_template.template_uri == value.get("template_uri")
+            ):
+                # Values are unchanged, return existing template id
+                return str(existing_template.id)
+            else:
+                # Values are changed, delete existing template
+                await session.delete(existing_template)
+                await session.commit()
 
-    # Create a new template
-    template_name = key
-    title = value.get("name")
-    description = value.get("description")
-    template_uri = value.get("template_uri")
+        # Create a new template
+        template_name = key
+        title = value.get("name")
+        description = value.get("description")
+        template_uri = value.get("template_uri")
 
-    template_db_instance = TemplateDB(
-        type="zip",
-        name=template_name,
-        title=title,
-        description=description,
-        template_uri=template_uri,
-    )
-    await template_db_instance.create()
+        template_db_instance = TemplateDB(
+            type=TemplateType.ZIP,
+            name=template_name,
+            title=title,
+            description=description,
+            template_uri=template_uri,
+        )
+        session.add(template_db_instance)
+        await session.commit()
     return str(template_db_instance.id)
 
 

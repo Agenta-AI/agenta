@@ -21,7 +21,7 @@ from agenta_backend.services.evaluator_manager import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
 from beanie import PydanticObjectId as ObjectId
