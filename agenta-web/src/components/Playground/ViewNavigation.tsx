@@ -167,6 +167,9 @@ const ViewNavigation: React.FC<Props> = ({
         }
     }
 
+    if (isLoading || isLogsLoading || !variantErrorLogs)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
             <>
@@ -235,11 +238,7 @@ const ViewNavigation: React.FC<Props> = ({
         const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
-                {!error ? null : isLogsLoading || !variantErrorLogs ? (
-                    <div className="grid place-items-center mt-10">
-                        <Spin />
-                    </div>
-                ) : (
+                {error ? (
                     <div>
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
@@ -302,13 +301,13 @@ const ViewNavigation: React.FC<Props> = ({
                             </Tooltip>
                         </Button>
                     </div>
-                )}
+                ) : null}
             </div>
         )
     }
 
     return (
-        <Spin spinning={isLoading}>
+        <>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -349,7 +348,7 @@ const ViewNavigation: React.FC<Props> = ({
                     />
                 </Col>
             </Row>
-        </Spin>
+        </>
     )
 }
 
