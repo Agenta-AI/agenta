@@ -16,8 +16,7 @@ import uuid_utils.compat as uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.shared_models import TemplateType
-
-Base = declarative_base()
+from agenta_backend.models.base import Base
 
 
 class UserDB(Base):
@@ -322,14 +321,7 @@ class EvaluatorConfigDB(Base):
         unique=True,
         nullable=False,
     )
-    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("evaluations.id"))
-    evaluation = relationship("EvaluationDB", back_populates="evaluator_configs")
-    evaluation_scenario_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id")
-    )
-    evaluation_scenario = relationship(
-        "EvaluationScenarioDB", back_populates="evaluator_configs"
-    )
+
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
     app = relationship("AppDB")
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
@@ -406,6 +398,46 @@ class HumanEvaluationScenarioDB(Base):
     note = Column(String)
 
 
+class EvaluationAggregatedResultDB(Base):
+    __tablename__ = "evaluation_aggregated_results"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("evaluations.id"))
+    evaluation = relationship("EvaluationDB", back_populates="aggregated_results")
+    evaluator_config_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id")
+    )
+    evaluator_config = relationship("EvaluatorConfigDB")
+    result = Column(JSONB)  # Result
+
+
+class EvaluationScenarioResultDB(Base):
+    __tablename__ = "evaluation_scenario_results"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_scenario_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id")
+    )
+    evaluation_scenario = relationship("EvaluationScenarioDB", back_populates="results")
+    evaluator_config_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id")
+    )
+    evaluator_config = relationship("EvaluatorConfigDB")
+    result = Column(JSONB)  # Result
+
+
 class EvaluationDB(Base):
     __tablename__ = "evaluations"
 
@@ -429,8 +461,9 @@ class EvaluationDB(Base):
         UUID(as_uuid=True), ForeignKey("app_variant_revisions.id")
     )
     variant_revision = relationship("AppVariantRevisionsDB")
-    evaluator_configs = relationship("EvaluatorConfigDB", back_populates="evaluation")
-    aggregated_results = Column(JSONB)  # List of AggregatedResult
+    aggregated_results = relationship(
+        "EvaluationAggregatedResultDB", back_populates="evaluation"
+    )
     average_cost = Column(JSONB)  # Result
     total_cost = Column(JSONB)  # Result
     average_latency = Column(JSONB)  # Result
@@ -439,6 +472,17 @@ class EvaluationDB(Base):
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class EvaluationEvaluatorConfigDB(Base):
+    __tablename__ = "evaluation_evaluator_configs"
+
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluations.id"), primary_key=True
+    )
+    evaluator_config_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id"), primary_key=True
     )
 
 
@@ -463,10 +507,9 @@ class EvaluationScenarioDB(Base):
     correct_answers = Column(JSONB)  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
-    evaluator_configs = relationship(
-        "EvaluatorConfigDB", back_populates="evaluation_scenario"
+    results = relationship(
+        "EvaluationScenarioResultDB", back_populates="evaluation_scenario"
     )
-    results = Column(JSONB)  # List of EvaluationScenarioResult
     latency = Column(Integer)
     cost = Column(Integer)
     created_at = Column(
