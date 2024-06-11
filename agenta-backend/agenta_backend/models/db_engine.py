@@ -127,5 +127,21 @@ class DBEngine:
         finally:
             await session.close()
 
+    async def close(self):
+        """
+        Closes and dispose all the connections using the engine.
+        
+        :raises     Exception:  if engine is initialized
+        """
+
+        if self.engine is None:
+            raise Exception("DBEngine is not initialized")
+
+        await self.engine.dispose()
+
+        self.engine = None
+        self.async_session_maker = None
+        self.async_session = None
+
 
 db_engine = DBEngine()
