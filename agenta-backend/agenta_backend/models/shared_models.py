@@ -26,12 +26,12 @@ class InvokationResult(BaseModel):
 
 
 class EvaluationScenarioResult(BaseModel):
-    evaluator_config: int
+    evaluator_config: str
     result: Result
 
 
 class AggregatedResult(BaseModel):
-    evaluator_config: int
+    evaluator_config: str
     result: Result
 
 
