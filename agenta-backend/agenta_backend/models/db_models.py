@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
+
+import uuid_utils.compat as uuid
+from pydantic import BaseModel, Field
 from sqlalchemy import (
     Column,
     String,
@@ -12,10 +14,10 @@ from sqlalchemy import (
     Enum,
 )
 from sqlalchemy.orm import relationship, declarative_base
-import uuid_utils.compat as uuid
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.shared_models import TemplateType
+
 
 Base = declarative_base()
 
@@ -53,9 +55,9 @@ class ImageDB(Base):
         nullable=False,
     )
     type = Column(String, default="image")
-    template_uri = Column(String)
-    docker_id = Column(String, index=True)
-    tags = Column(String)
+    template_uri = Column(String, nullable=True)
+    docker_id = Column(String, nullable=True, index=True)
+    tags = Column(String, nullable=True)
     deletable = Column(Boolean, default=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     user = relationship("UserDB")
