@@ -155,46 +155,6 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         await eval_scenario_instance.create()
 
 
-async def create_evaluation_scenario(
-    evaluation_id: str, payload: EvaluationScenario
-) -> None:
-    """
-    Create a new evaluation scenario.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation.
-        payload (EvaluationScenario): Evaluation scenario data.
-
-    Raises:
-        HTTPException: If evaluation not found or access denied.
-    """
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-
-    scenario_inputs = [
-        EvaluationScenarioInput(
-            input_name=input_item.input_name,
-            input_value=input_item.input_value,
-        )
-        for input_item in payload.inputs
-    ]
-
-    new_eval_scenario = EvaluationScenarioDB(
-        user=evaluation.user,
-        organization=evaluation.organization,
-        workspace=evaluation.workspace,
-        evaluation=evaluation,
-        inputs=scenario_inputs,
-        outputs=[],
-        is_pinned=False,
-        note="",
-        **_extend_with_evaluation(evaluation.evaluation_type),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-
-    await new_eval_scenario.create()
-
-
 async def update_human_evaluation_service(
     evaluation: EvaluationDB, update_payload: HumanEvaluationUpdate
 ) -> None:
@@ -219,36 +179,28 @@ async def update_human_evaluation_service(
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str = None, evaluation: EvaluationDB = None
-) -> List[EvaluationScenario]:
+    evaluation_id: str
+):
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        evaluation (EvaluationDB): The evaluation instance.
-
-    Raises:
-        HTTPException: If the evaluation is not found or access is denied.
 
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    assert (
-        evaluation_id or evaluation
-    ), "Please provide either evaluation_id or evaluation"
 
-    if not evaluation:
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-
-    scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
-    ).to_list()
-    eval_scenarios = [
-        converters.evaluation_scenario_db_to_pydantic(scenario, str(evaluation.id))
-        for scenario in scenarios
+    evaluation_scenarios = await db_manager.fetch_evaluation_scenarios(
+        evaluation_id=evaluation_id
+    )
+    return [
+        await converters.evaluation_scenario_db_to_pydantic(
+            evaluation_scenario_db=evaluation_scenario,
+            evaluation_id=evaluation_id
+        )
+        for evaluation_scenario in evaluation_scenarios
     ]
-    return eval_scenarios
 
 
 async def fetch_human_evaluation_scenarios_for_evaluation(
@@ -371,14 +323,11 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await EvaluationDB.find(
-        EvaluationDB.app.id == app.id, fetch_links=True
-    ).to_list()
+    evaluations_db = await db_manager.list_evaluations(app_id=str(app.id))
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
     ]
-
 
 async def fetch_list_human_evaluations(
     app_id: str,
@@ -439,9 +388,8 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     Raises:
         HTTPException: If evaluation not found or access denied.
     """
-    for evaluation_id in evaluation_ids:
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-        await evaluation.delete()
+
+    await db_manager.delete_evaluations(evaluation_ids=evaluation_ids)
 
 
 async def create_new_human_evaluation(
@@ -539,24 +487,23 @@ async def create_new_evaluation(
     """
 
     app = await db_manager.fetch_app_by_id(app_id=app_id)
-
-    testset = await db_manager.fetch_testset_by_id(testset_id)
-    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id=variant_id)
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
-        variant_id, variant_db.revision
+        app_variant_id=variant_id, revision=variant_db.revision # type: ignore
     )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
-        user=app.user,
+        user_id=str(app.user_id),
         testset=testset,
         status=Result(
             value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
-        organization=app.organization if isCloudEE() else None,
-        workspace=app.workspace if isCloudEE() else None,
+        organization=str(app.organization_id) if isCloudEE() else None,
+        workspace=str(app.workspace_id) if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 

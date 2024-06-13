@@ -245,6 +245,12 @@ async def fetch_evaluation_scenarios(
 
     try:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Evaluation with id {evaluation_id} not found"
+            )
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -257,20 +263,24 @@ async def fetch_evaluation_scenarios(
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
         eval_scenarios = (
             await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-                evaluation=evaluation
+                evaluation_id=str(evaluation.id)
             )
         )
         return eval_scenarios
 
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+
+        traceback.print_exc()
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -307,7 +317,11 @@ async def fetch_list_evaluations(
 
         return await evaluation_service.fetch_list_evaluations(app)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+
+        traceback.print_exc()
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=f"Could not retrieve evaluation results: {str(exc)}")
 
 
 @router.get(
@@ -327,6 +341,9 @@ async def fetch_evaluation(
     """
     try:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            raise HTTPException(status_code=404, detail=f"Evaluation with id {evaluation_id} not found")
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -340,19 +357,20 @@ async def fetch_evaluation(
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
         return await converters.evaluation_db_to_pydantic(evaluation)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_evaluations")
 async def delete_evaluations(
-    delete_evaluations: DeleteEvaluation,
+    payload: DeleteEvaluation,
     request: Request,
 ):
     """
@@ -367,46 +385,28 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            for evaluation_id in delete_evaluations.evaluations_ids:
-                has_permission = await check_action_access(
-                    user_uid=request.state.user_id,
-                    object_id=evaluation_id,
-                    object_type="evaluation",
-                    permission=Permission.DELETE_EVALUATION,
+            # TODO (abram): improve rbac logic for evaluation permission
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                # object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.DELETE_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to delete evaluation: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
                 )
-                logger.debug(
-                    f"User has permission to delete evaluation: {has_permission}"
-                )
-                if not has_permission:
-                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                    logger.error(error_msg)
-                    return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=403,
-                    )
 
-        await evaluation_service.delete_evaluations(delete_evaluations.evaluations_ids)
+        await evaluation_service.delete_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.post(
-    "/webhook_example_fake/",
-    response_model=EvaluationWebhook,
-    operation_id="webhook_example_fake",
-)
-async def webhook_example_fake():
-    """Returns a fake score response for example webhook evaluation
-
-    Returns:
-        _description_
-    """
-
-    # return a random score b/w 0 and 1
-    random_generator = secrets.SystemRandom()
-    random_number = random_generator.random()
-    return {"score": random_number}
 
 
 @router.get(
