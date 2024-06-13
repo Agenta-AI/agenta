@@ -18,8 +18,8 @@ class EvaluatorConfig(BaseModel):
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
 
 
 class EvaluationType(str, Enum):
@@ -168,7 +168,6 @@ class EvaluationScenario(BaseModel):
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
-    evaluation: Optional[str]
     correct_answers: Optional[List[CorrectAnswer]]
     is_pinned: Optional[bool]
     note: Optional[str]
