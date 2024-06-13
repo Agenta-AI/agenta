@@ -9,6 +9,7 @@ from typing import List, Tuple, Any
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
+from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.api.evaluation_model import (
     CorrectAnswer,
     Evaluation,
@@ -91,7 +92,6 @@ from agenta_backend.models.shared_models import (
 )
 
 from fastapi import Depends
-from beanie import Link, PydanticObjectId as ObjectId
 
 
 logger = logging.getLogger(__name__)
@@ -114,37 +114,32 @@ async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
     variant = await db_manager.get_app_variant_instance_by_id(
-        str(evaluation_db.variant)
+        str(evaluation_db.variant_id)
     )
-    variant_name = variant.variant_name if variant else str(evaluation_db.variant)
+    variant_name = variant.variant_name if variant else str(evaluation_db.variant_id)
     variant_revision = await db_manager.get_app_variant_revision_by_id(
-        str(evaluation_db.variant_revision)
+        str(evaluation_db.variant_revision_id)
     )
     revision = str(variant_revision.revision)
-    aggregated_results = await aggregated_result_to_pydantic(
-        evaluation_db.aggregated_results
+    aggregated_results = await aggregated_result_of_evaluation_to_pydantic(
+        str(evaluation_db.id)
     )
+
     return Evaluation(
         id=str(evaluation_db.id),
-        app_id=str(evaluation_db.app.id),
-        user_id=str(evaluation_db.user.id),
+        app_id=str(evaluation_db.app_id),
+        user_id=str(evaluation_db.user_id),
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
-        variant_ids=[str(evaluation_db.variant)],
-        variant_revision_ids=[str(evaluation_db.variant_revision)],
+        variant_ids=[str(evaluation_db.variant_id)],
+        variant_revision_ids=[str(evaluation_db.variant_revision_id)],
         revisions=[revision],
         variant_names=[variant_name],
-        testset_id=(
-            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
-        ),
-        testset_name=(
-            ""
-            if type(evaluation_db.testset) is Link
-            else str(evaluation_db.testset.name)
-        ),
+        testset_id=str(evaluation_db.testset_id),
+        testset_name=evaluation_db.testset.name,
         aggregated_results=aggregated_results,
-        created_at=evaluation_db.created_at,
-        updated_at=evaluation_db.updated_at,
+        created_at=str(evaluation_db.created_at),
+        updated_at=str(evaluation_db.updated_at),
         average_cost=evaluation_db.average_cost,
         total_cost=evaluation_db.total_cost,
         average_latency=evaluation_db.average_latency,
@@ -210,63 +205,67 @@ def human_evaluation_scenario_db_to_pydantic(
     )
 
 
-async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
+async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> List[dict]:
     transformed_results = []
-    for result in results:
-        evaluator_config_db = await db_manager.fetch_evaluator_config(
-            str(result.evaluator_config)
-        )
+    aggregated_results = await db_manager.fetch_eval_aggregated_results(
+        evaluation_id=evaluation_id
+    )
+    for aggregated_result in aggregated_results:
         evaluator_config_dict = (
-            evaluator_config_db.json() if evaluator_config_db else None
+            aggregated_result.evaluator_config.__dict__
+            if isinstance(aggregated_result.evaluator_config_id, uuid.UUID)
+            else None
         )
         transformed_results.append(
             {
                 "evaluator_config": (
                     {}
                     if evaluator_config_dict is None
-                    else json.loads(evaluator_config_dict)
+                    else evaluator_config_dict
                 ),
-                "result": result.result.dict(),
+                "result": aggregated_result.result,
             }
         )
     return transformed_results
 
 
-def evaluation_scenarios_results_to_pydantic(
-    results: List[EvaluationScenarioResult],
+async def evaluation_scenarios_results_to_pydantic(
+    evaluation_scenario_id: str,
 ) -> List[dict]:
+    scenario_results = await db_manager.fetch_evaluation_scenario_results(evaluation_scenario_id)
     return [
         {
-            "evaluator_config": str(result.evaluator_config),
-            "result": result.result.dict(),
+            "evaluator_config": str(scenario_result.evaluator_config_id),
+            "result": scenario_result.result,
         }
-        for result in results
+        for scenario_result in scenario_results
     ]
 
 
-def evaluation_scenario_db_to_pydantic(
+async def evaluation_scenario_db_to_pydantic(
     evaluation_scenario_db: EvaluationScenarioDB, evaluation_id: str
 ) -> EvaluationScenario:
+    scenario_results = await evaluation_scenarios_results_to_pydantic(
+        str(evaluation_scenario_db.id)
+    )
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=evaluation_id,
         inputs=[
-            EvaluationScenarioInput(**scenario_input.dict())
+            EvaluationScenarioInput(**scenario_input) # type: ignore
             for scenario_input in evaluation_scenario_db.inputs
         ],
         outputs=[
-            EvaluationScenarioOutput(**scenario_output.dict())
+            EvaluationScenarioOutput(**scenario_output) # type: ignore
             for scenario_output in evaluation_scenario_db.outputs
         ],
         correct_answers=[
-            CorrectAnswer(**correct_answer.dict())
+            CorrectAnswer(**correct_answer) # type: ignore
             for correct_answer in evaluation_scenario_db.correct_answers
         ],
-        is_pinned=evaluation_scenario_db.is_pinned or False,
-        note=evaluation_scenario_db.note or "",
-        results=evaluation_scenarios_results_to_pydantic(
-            evaluation_scenario_db.results
-        ),
+        is_pinned=evaluation_scenario_db.is_pinned or False, # type: ignore
+        note=evaluation_scenario_db.note or "", # type: ignore
+        results=scenario_results, # type: ignore
     )
 
 
@@ -295,7 +294,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         type(app_variant_db.base_id) == uuid.UUID
         and type(app_variant_db.base.deployment_id) == uuid.UUID
     ):
-        deployment = await db_manager.get_deployment_by_objectid(
+        deployment = await db_manager.get_deployment_by_id(
             str(app_variant_db.base.deployment_id)
         )
         uri = deployment.uri
@@ -349,8 +348,11 @@ async def app_variant_db_revision_to_output(
     return AppVariantRevision(
         revision=app_variant_revision_db.revision,
         modified_by=app_variant_revision_db.modified_by.username,
-        config=app_variant_revision_db.config,
-        created_at=app_variant_revision_db.created_at,
+        config=ConfigDB(**{
+            "config_name": app_variant_revision_db.config_name,
+            "parameters": app_variant_revision_db.config_parameters
+        }),
+        created_at=str(app_variant_revision_db.created_at),
     )
 
 
@@ -515,8 +517,8 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
-        created_at=evaluator_config.created_at,
-        updated_at=evaluator_config.updated_at,
+        created_at=str(evaluator_config.created_at),
+        updated_at=str(evaluator_config.updated_at),
     )
 
 
