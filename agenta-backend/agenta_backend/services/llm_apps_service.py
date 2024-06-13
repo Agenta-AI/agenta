@@ -52,7 +52,8 @@ async def make_payload(
         elif param["type"] == "file_url":
             payload[param["name"]] = datapoint.get(param["name"], "")
         else:
-            payload[param["name"]] = parameters[param["name"]]
+            if param["name"] in parameters:  # hotfix
+                payload[param["name"]] = parameters[param["name"]]
 
     if inputs_dict:
         payload["inputs"] = inputs_dict
