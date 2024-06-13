@@ -17,15 +17,17 @@ def aggregate_ai_critique(results: List[Result]) -> Result:
 
     numeric_scores = []
     for result in results:
-        # Extract the first number found in the result value
-        match = re.search(r"\d+", result.value)
-        if match:
-            try:
-                score = int(match.group())
-                numeric_scores.append(score)
-            except ValueError:
-                # Ignore if the extracted value is not an integer
+        try:
+            # Extract the first number found in the result value
+            match = re.search(r"\d+", result.value) # type: ignore
+            if not match:
                 continue
+
+            score = int(match.group())
+            numeric_scores.append(score)
+        except (TypeError, ValueError):
+            # Ignore if the extracted value is not an integer or is None
+            continue
 
     # Calculate the average of numeric scores if any are present
     average_value = (
