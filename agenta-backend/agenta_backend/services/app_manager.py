@@ -144,12 +144,12 @@ async def update_variant_image(
     valid_image = await deployment_manager.validate_image(image)
     if not valid_image:
         raise ValueError("Image could not be found in registry.")
-    deployment = await db_manager.get_deployment_by_objectid(
+    deployment = await db_manager.get_deployment_by_id(
         app_variant_db.base.deployment
     )
 
     await deployment_manager.stop_and_delete_service(deployment)
-    await db_manager.remove_deployment(deployment)
+    await db_manager.remove_deployment(str(deployment.id))
 
     if isOssEE():
         await deployment_manager.remove_image(app_variant_db.base.image)
@@ -202,11 +202,10 @@ async def terminate_and_remove_app_variant(
         app_variant_id and app_variant_db
     ), "Only one of app_variant_id or app_variant_db must be provided"
 
-    logger.debug(f"Removing app variant {app_variant_id}")
     if app_variant_id:
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
+        logger.debug(f"Fetched app variant {app_variant_db}")
 
-    logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = str(app_variant_db.app_id)  # type: ignore
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
@@ -218,7 +217,6 @@ async def terminate_and_remove_app_variant(
             app_variant_db
         )
         if is_last_variant_for_image:
-            # remove variant + terminate and rm containers + remove base
             base_db = await db_manager.fetch_base_by_id(
                 base_id=str(app_variant_db.base_id)
             )
@@ -235,7 +233,7 @@ async def terminate_and_remove_app_variant(
 
             logger.debug("_stop_and_delete_app_container")
             try:
-                deployment = await db_manager.get_deployment_by_objectid(
+                deployment = await db_manager.get_deployment_by_id(
                     str(base_db.deployment_id)
                 )
             except Exception as e:
@@ -257,17 +255,8 @@ async def terminate_and_remove_app_variant(
                         await deployment_manager.remove_image(image)
                 except RuntimeError as e:
                     logger.error(f"Failed to remove image {image} {e}")
-                await db_manager.remove_image(image)
-
-            logger.debug("remove base")
-            await db_manager.remove_app_variant_from_db(app_variant_db)
-
-            logger.debug("Remove image object from db")
-            if deployment:
-                await db_manager.remove_deployment(deployment)
-
-            await db_manager.remove_base_from_db(base_db)
-            logger.debug("remove_app_variant_from_db")
+                finally:
+                    await db_manager.remove_image(image)
         else:
             # remove variant + config
             logger.debug("remove_app_variant_from_db")
@@ -276,7 +265,7 @@ async def terminate_and_remove_app_variant(
         app_variants = await db_manager.list_app_variants(app_id)
         logger.debug(f"Count of app variants available: {len(app_variants)}")
         if (
-            len(app_variants) == 0
+            len(app_variants) <= 1
         ):  # remove app related resources if the length of the app variants hit 0
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id)
@@ -288,7 +277,7 @@ async def terminate_and_remove_app_variant(
 
 
 async def remove_app_related_resources(app_id: str):
-    """Removes environments and testsets associated with an app after its deletion.
+    """Removes associated tables with an app after its deletion.
 
     When an app or its last variant is deleted, this function ensures that
     all related resources such as environments and testsets are also deleted.
@@ -296,37 +285,8 @@ async def remove_app_related_resources(app_id: str):
     Args:
         app_name: The name of the app whose associated resources are to be removed.
     """
+
     try:
-        # Delete associated environments
-        environments = await db_manager.list_environments(app_id)
-        for environment_db in environments:
-            await db_manager.remove_environment(environment_db)
-            logger.info(f"Successfully deleted environment {environment_db.name}.")
-
-        # Delete associated testsets
-        await db_manager.remove_app_testsets(app_id)
-        logger.info(f"Successfully deleted test sets associated with app {app_id}.")
-
-        # Delete associated bases
-        bases = await db_manager.list_bases_for_app_id(app_id)
-        for base_db in bases:
-            await db_manager.remove_base(base_db)
-            logger.info(f"Successfully deleted base {base_db.base_name}")
-
-        # Delete associated deployments
-        deployments = await db_manager.list_deployments(app_id)
-        for deployment_db in deployments:
-            await db_manager.remove_deployment(deployment_db)
-            logger.info(f"Successfully deleted deployment {str(deployment_db.id)}")
-
-        # Deleted associated evaluators_configs
-        evaluators_configs = await db_manager.fetch_evaluators_configs(app_id)
-        for evaluator_config_db in evaluators_configs:
-            await db_manager.delete_evaluator_config(str(evaluator_config_db.id))
-            logger.info(
-                f"Successfully deleted evaluator config {str(evaluator_config_db.id)}"
-            )
-
         await db_manager.remove_app_by_id(app_id)
         logger.info(f"Successfully remove app object {app_id}.")
     except Exception as e:
@@ -344,11 +304,12 @@ async def remove_app(app: AppDB):
     Arguments:
         app_name -- the app name to remove
     """
-    # checks if it is the last app variant using its image
+
     if app is None:
         error_msg = f"Failed to delete app {app.id}: Not found in DB."
         logger.error(error_msg)
         raise ValueError(error_msg)
+
     try:
         app_variants = await db_manager.list_app_variants(str(app.id))
         for app_variant_db in app_variants:
@@ -357,7 +318,7 @@ async def remove_app(app: AppDB):
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
-        if len(app_variants) == 0:  # Failsafe in case something went wrong before
+        if len(app_variants) <= 1:  # Failsafe in case something went wrong before
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id))
 
@@ -382,20 +343,12 @@ async def update_variant_parameters(
     assert app_variant_id is not None, "app_variant_id must be provided"
     assert parameters is not None, "parameters must be provided"
 
-    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
-    if app_variant_db is None:
-        error_msg = f"Failed to update app variant {app_variant_id}: Not found in DB."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-
     try:
         await db_manager.update_variant_parameters(
-            app_variant_db=app_variant_db, parameters=parameters, user_uid=user_uid
+            app_variant_id=app_variant_id, parameters=parameters, user_uid=user_uid
         )
     except Exception as e:
-        logger.error(
-            f"Error updating app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}"
-        )
+        logger.error(f"Error updating app variant {app_variant_id}")
         raise e from None
 
 
