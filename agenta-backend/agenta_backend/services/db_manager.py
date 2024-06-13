@@ -17,8 +17,8 @@ from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
 from agenta_backend.models.db_engine import db_engine
+from sqlalchemy.orm import selectinload, joinedload, aliased, load_only
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -69,6 +69,7 @@ else:
     )
 from agenta_backend.models.db_models import (
     TemplateDB,
+    EvaluatorConfigDB,
     AppVariantRevisionsDB,
     EvaluationScenarioResultDB,
     EvaluationAggregatedResultDB,
@@ -642,7 +643,7 @@ async def create_app_and_envs(
         return app
 
 
-async def get_deployment_by_objectid(
+async def get_deployment_by_id(
     deployment_id: str,
 ) -> DeploymentDB:
     """Get the deployment object from the database with the provided id.
@@ -656,10 +657,10 @@ async def get_deployment_by_objectid(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
+            select(DeploymentDB)
+            .filter_by(id=uuid.UUID(deployment_id))
         )
         deployment = result.scalars().one_or_none()
-        logger.debug(f"deployment: {deployment}")
         return deployment
 
 
@@ -1063,18 +1064,22 @@ async def list_apps(
 
             async with db_engine.get_session() as session:
                 result = await session.execute(
-                    select(AppDB).filter_by(
+                    select(AppDB)
+                    .filter_by(
                         organization_id=uuid.UUID(org_id),
                         workspace_id=uuid.UUID(workspace_id),
                     )
                 )
-                apps = result.scalars().all()
+                apps = result.unique().scalars().all()
                 return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         async with db_engine.get_session() as session:
-            result = await session.execute(select(AppDB).filter_by(user_id=user.id))
-            apps = result.scalars().all()
+            result = await session.execute(
+                select(AppDB)
+                .filter_by(user_id=user.id)
+            )
+            apps = result.unique().scalars().all()
             return [converters.app_db_to_pydantic(app) for app in apps]
 
 
@@ -1125,7 +1130,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
         return count_variants == 1
 
 
-async def remove_deployment(deployment_db: DeploymentDB):
+async def remove_deployment(deployment_id: str):
     """Remove a deployment from the db
 
     Arguments:
@@ -1133,18 +1138,19 @@ async def remove_deployment(deployment_db: DeploymentDB):
     """
 
     logger.debug("Removing deployment")
-    assert deployment_db is not None, "deployment_db is missing"
+    assert deployment_id is not None, "deployment_id is missing"
+
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(DeploymentDB).filter_by(id=deployment_db.id)
+            select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
         deployment = result.scalars().one_or_none()
         if not deployment:
-            raise NoResultFound(f"Deployment with {str(deployment_db.id)} not found")
+            raise NoResultFound(f"Deployment with {deployment_id} not found")
 
         await session.delete(deployment)
         await session.commit()
-
+         
 
 async def list_deployments(app_id: str):
     """Lists all the deployments that belongs to an app.
@@ -1307,7 +1313,7 @@ async def fetch_app_variant_revision_by_id(
 
 async def fetch_environment_revisions_for_environment(
     environment: AppEnvironmentDB, **kwargs: dict
-) -> List[AppEnvironmentRevisionDB]:
+):
     """Returns list of app environment revision for the given environment.
 
     Args:
@@ -1544,11 +1550,17 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantRevisionsDB).filter_by(
-                variant_id=uuid.UUID(app_variant), revision=revision_number
+            select(AppVariantRevisionsDB)
+            .options(
+                joinedload(AppVariantRevisionsDB.modified_by)
+                .load_only(UserDB.username) # type: ignore
+            )
+            .filter_by(
+                variant_id=uuid.UUID(app_variant),
+                revision=revision_number
             )
         )
-        app_variant_revisions = result.scalars().all()
+        app_variant_revisions = result.scalars().one_or_none()
         return app_variant_revisions
 
 
@@ -1651,12 +1663,12 @@ async def remove_app_testsets(app_id: str):
         return deleted_count
 
 
-async def remove_base_from_db(base: VariantBaseDB):
+async def remove_base_from_db(base_id: str):
     """
     Remove a base from the database.
 
     Args:
-        base (VariantBaseDB): The base to be removed from the database.
+        base_id (str): The base to be removed from the database.
 
     Raises:
         ValueError: If the base is None.
@@ -1665,10 +1677,15 @@ async def remove_base_from_db(base: VariantBaseDB):
         None
     """
 
-    if base is None:
-        raise ValueError("Base is None")
-
+    assert base_id is None, "base_id is required"
     async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
+        )
+        base = result.scalars().one_or_none()
+        if not base:
+            raise NoResultFound(f"Base with id {base_id} not found")
+
         await session.delete(base)
         await session.commit()
 
@@ -1688,64 +1705,63 @@ async def remove_app_by_id(app_id: str):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    app_db = await fetch_app_by_id(app_id=app_id)
-    assert app_db is not None, f"app instance for {app_id} could not be found"
-
     async with db_engine.get_session() as session:
+        result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+        app_db = result.scalars().one_or_none()
+        if not app_db:
+            raise NoResultFound(f"App with id {app_id} not found")
+
         await session.delete(app_db)
         await session.commit()
 
 
 async def update_variant_parameters(
-    app_variant_db: AppVariantDB, parameters: Dict[str, Any], user_uid: str
+    app_variant_id: str, parameters: Dict[str, Any], user_uid: str
 ) -> None:
     """
     Update the parameters of an app variant in the database.
 
     Args:
-        app_variant_db (AppVariantDB): The app variant to update.
+        app_variant_id (str): The app variant ID.
         parameters (Dict[str, Any]): The new parameters to set for the app variant.
         user_uid (str): The UID of the user that is updating the app variant.
 
     Raises:
-        ValueError: If there is an issue updating the variant parameters.
+        NoResultFound: If there is an issue updating the variant parameters.
     """
 
-    assert app_variant_db is not None, "app_variant is missing"
-    assert parameters is not None, "parameters is missing"
-
-    logging.debug("Updating variant parameters")
     user = await get_user(user_uid)
-
     async with db_engine.get_session() as session:
-        try:
-            # Update associated ConfigDB parameters
-            for key, value in parameters.items():
-                if hasattr(app_variant_db.config_parameters, key):
-                    setattr(app_variant_db.config_parameters, key, value)
+        result = await session.execute(
+            select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
+        )
+        app_variant_db = result.scalars().one_or_none()
+        if not app_variant_db:
+            raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
-            # ...and variant versioning
-            app_variant_db.revision += 1  # type: ignore
-            app_variant_db.modified_by_id = user.id
+        # Update associated ConfigDB parameters
+        for key, value in parameters.items():
+            if hasattr(app_variant_db.config_parameters, key):
+                setattr(app_variant_db.config_parameters, key, value)
 
-            # Save updated ConfigDB
-            await session.commit()
+        # ...and variant versioning
+        app_variant_db.revision += 1  # type: ignore
+        app_variant_db.modified_by_id = user.id
 
-            variant_revision = AppVariantRevisionsDB(
-                variant_id=app_variant_db.id,
-                revision=app_variant_db.revision,
-                modified_by_id=user.id,
-                base_id=app_variant_db.base.id,
-                config_name=app_variant_db.config_name,
-                config_parameters=app_variant_db.config_parameters,
-            )
+        # Save updated ConfigDB
+        await session.commit()
 
-            session.add(variant_revision)
-            await session.commit()
+        variant_revision = AppVariantRevisionsDB(
+            variant_id=app_variant_db.id,
+            revision=app_variant_db.revision,
+            modified_by_id=user.id,
+            base_id=app_variant_db.base_id,
+            config_name=app_variant_db.config_name,
+            config_parameters=app_variant_db.config_parameters,
+        )
 
-        except Exception as e:
-            logging.error(f"Issue updating variant parameters: {e}")
-            raise ValueError("Issue updating variant parameters")
+        session.add(variant_revision)
+        await session.commit()
 
 
 async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
@@ -1874,8 +1890,10 @@ async def fetch_testsets_by_app_id(app_id: str):
 
 async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     """Fetches a evaluation by its ID.
+
     Args:
         evaluation_id (str): The ID of the evaluation to fetch.
+
     Returns:
         EvaluationDB: The fetched evaluation, or None if no evaluation was found.
     """
@@ -1883,7 +1901,12 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+            select(EvaluationDB)
+            .options(
+                joinedload(EvaluationDB.user).load_only(UserDB.username), # type: ignore
+                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name) # type: ignore
+            )
+            .filter_by(id=uuid.UUID(evaluation_id))
         )
         evaluation = result.scalars().one_or_none()
         return evaluation
@@ -1906,6 +1929,52 @@ async def fetch_human_evaluation_by_id(
         )
         evaluation = result.scalars().one_or_none()
         return evaluation
+
+
+async def fetch_evaluation_scenarios(evaluation_id: str):
+    """
+    Fetches evaluation scenarios.
+
+    Args:
+        evaluation_id (str):  The evaluation identifier
+    
+    Returns:
+        The evaluation scenarios.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(EvaluationScenarioDB)
+            .filter_by(evaluation_id=uuid.UUID(evaluation_id))
+        )
+        evaluation_scenarios = result.scalars().all()
+        return evaluation_scenarios
+
+
+async def fetch_evaluation_scenario_results(evaluation_scenario_id: str):
+    """
+    Fetches evaluation scenario results.
+
+    Args:
+        evaluation_scenario_id (str):  The evaluation scenario identifier
+
+    Returns:
+        The evaluation scenario results.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(EvaluationScenarioResultDB)
+            .options(
+                load_only(
+                    EvaluationScenarioResultDB.evaluator_config_id, # type: ignore
+                    EvaluationScenarioResultDB.result # type: ignore
+                )
+            )
+            .filter_by(evaluation_scenario_id=uuid.UUID(evaluation_scenario_id))
+        )
+        scenario_results = result.scalars().all()
+        return scenario_results
 
 
 async def fetch_evaluation_scenario_by_id(
@@ -2220,19 +2289,19 @@ async def fetch_app_by_name_and_parameters(
             )
         else:
             query = (
-                base_query.join(UserDB)
+                base_query
+                .join(UserDB)
                 .filter(UserDB.uid == user_uid)
-                .options(selectinload(AppDB.user))
             )
 
         result = await session.execute(query)
-        app_db = result.scalars().one_or_none()
+        app_db = result.unique().scalars().one_or_none()
         return app_db
 
 
 async def create_new_evaluation(
     app: AppDB,
-    user: UserDB,
+    user_id: str,
     testset: TestSetDB,
     status: Result,
     variant: str,
@@ -2248,7 +2317,7 @@ async def create_new_evaluation(
     async with db_engine.get_session() as session:
         evaluation = EvaluationDB(
             app_id=app.id,
-            user_id=user.id,
+            user_id=uuid.UUID(user_id),
             testset_id=testset.id,
             status=status.dict(),
             variant_id=uuid.UUID(variant),
@@ -2261,18 +2330,57 @@ async def create_new_evaluation(
                 organization is not None and workspace is not None
             ), "organization and workspace must be provided together"
 
-            evaluation.organization_id = organization_id
-            evaluation.workspace_id = workspace_id
+            evaluation.organization_id = uuid.UUID(organization_id) # type: ignore
+            evaluation.workspace_id = uuid.UUID(workspace_id) # type: ignore
 
         session.add(evaluation)
         await session.commit()
-        await session.refresh(evaluation)
+        await session.refresh(evaluation, attribute_names=["user", "testset", "aggregated_results"])
 
         return evaluation
 
 
+async def list_evaluations(app_id: str):
+    """Retrieves evaluations of the specified app from the db.
+
+    Args:
+        app_id (str): The ID of the app
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(EvaluationDB)
+            .options(
+                joinedload(EvaluationDB.user).load_only(UserDB.id, UserDB.username), # type: ignore
+                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name), # type: ignore
+                joinedload(EvaluationDB.aggregated_results)
+            )
+            .filter_by(app_id=uuid.UUID(app_id))
+        )
+        evaluations = result.unique().scalars().all()
+        return evaluations
+
+
+async def delete_evaluations(evaluation_ids: List[str]) -> None:
+    """Delete evaluations based on the ids provided from the db.
+
+    Args:
+        evaluations_ids (list[str]): The IDs of the evaluation
+    """
+
+    async with db_engine.get_session() as session:
+        query = select(EvaluationDB).where(
+            EvaluationDB.id.in_(evaluation_ids)
+        )
+        result = await session.execute(query)
+        evaluations = result.scalars().all()
+        for evaluation in evaluations:
+            await session.delete(evaluation)
+        await session.commit()
+
+
 async def create_new_evaluation_scenario(
-    user: UserDB,
+    user_id: str,
     evaluation: EvaluationDB,
     variant_id: str,
     inputs: List[EvaluationScenarioInput],
@@ -2280,24 +2388,28 @@ async def create_new_evaluation_scenario(
     correct_answers: Optional[List[CorrectAnswer]],
     is_pinned: Optional[bool],
     note: Optional[str],
-    evaluators_configs: List[EvaluatorConfigDB],
     results: List[EvaluationScenarioResult],
     organization=None,
     workspace=None,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
+
     Returns:
         EvaluationScenarioDB: The created evaluation scenario.
     """
 
     async with db_engine.get_session() as session:
         evaluation_scenario = EvaluationScenarioDB(
-            user_id=user.id,
+            user_id=uuid.UUID(user_id),
             evaluation_id=evaluation.id,
             variant_id=uuid.UUID(variant_id),
-            inputs=inputs,
-            outputs=outputs,
-            correct_answers=correct_answers,
+            inputs=[input.dict() for input in inputs],
+            outputs=[output.dict() for output in outputs],
+            correct_answers=(
+                [correct_answer.dict() for correct_answer in correct_answers] 
+                if correct_answers is not None 
+                else []
+            ),
             is_pinned=is_pinned,
             note=note,
         )
@@ -2308,8 +2420,8 @@ async def create_new_evaluation_scenario(
                 organization is not None and workspace is not None
             ), "organization and workspace must be provided together"
 
-            evaluation_scenario.organization_id = organization_id
-            evaluation_scenario.workspace_id = workspace_id
+            evaluation_scenario.organization_id = organization_id # type: ignore
+            evaluation_scenario.workspace_id = workspace_id # type: ignore
 
         session.add(evaluation_scenario)
         await session.commit()
@@ -2335,25 +2447,46 @@ async def update_evaluation_with_aggregated_results(
     evaluation_id: str, aggregated_results: List[AggregatedResult]
 ):
     async with db_engine.get_session() as session:
-        base_query = select(EvaluationAggregatedResultDB).filter_by(
-            evaluation_id=uuid.UUID(evaluation_id)
-        )
         for result in aggregated_results:
-            query = base_query.filter_by(
-                evaluator_config_id=uuid.UUID(result.evaluator_config)
+            aggregated_result = EvaluationAggregatedResultDB(
+                evaluation_id=uuid.UUID(evaluation_id),
+                evaluator_config_id=uuid.UUID(result.evaluator_config),
+                result=result.result.dict()
             )
-            db_result = await session.execute(query)
-            evaluation_aggregated_result = db_result.scalars().one_or_none()
-            if not evaluation_aggregated_result:
-                raise NoResultFound(
-                    f"Aggregated result with id {result.evaluator_config} not found for the evaluation"
-                )
-
-            for key, value in result.result.dict(exclude_unset=True):
-                if hasattr(evaluation_aggregated_result.result, key):
-                    setattr(evaluation_aggregated_result.result, key, value)
+            session.add(aggregated_result)
 
         await session.commit()
+
+
+async def fetch_eval_aggregated_results(evaluation_id: str):
+    """
+    Fetches an evaluation aggregated results by evaluation identifier.
+
+    Args:
+        evaluation_id (str):  The evaluation identifier
+
+    Returns:
+        The evaluation aggregated results by evaluation identifier.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(EvaluationAggregatedResultDB)
+            .options(
+                joinedload(EvaluationAggregatedResultDB.evaluator_config)
+                .load_only(
+                    EvaluatorConfigDB.id, # type: ignore
+                    EvaluatorConfigDB.name, # type: ignore
+                    EvaluatorConfigDB.evaluator_key, # type: ignore
+                    EvaluatorConfigDB.settings_values, # type: ignore
+                    EvaluatorConfigDB.created_at, # type: ignore
+                    EvaluatorConfigDB.updated_at, # type: ignore
+                )
+            )
+            .filter_by(evaluation_id=uuid.UUID(evaluation_id))
+        )
+        aggregated_results = result.scalars().all()
+        return aggregated_results
 
 
 async def fetch_evaluators_configs(app_id: str):
@@ -2562,11 +2695,14 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
     evaluation_id: str,
 ) -> bool:
     async with db_engine.get_session() as session:
-        query = select(func.count(EvaluationScenarioDB.id)).where(
-            EvaluationScenarioDB.evaluation_id == uuid.UUID(evaluation_id),
-            EvaluationScenarioDB.results.any(
-                EvaluationScenarioDB.result.has(type="error")
-            ),
+        EvaluationResultAlias = aliased(EvaluationScenarioResultDB)
+        query = (
+            select(func.count(EvaluationScenarioDB.id))
+            .join(EvaluationResultAlias, EvaluationScenarioDB.results)
+            .where(
+                EvaluationScenarioDB.evaluation_id == uuid.UUID(evaluation_id),
+                EvaluationResultAlias.result["type"].astext == "error"
+            )
         )
 
         result = await session.execute(query)
