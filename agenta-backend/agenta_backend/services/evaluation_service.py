@@ -96,7 +96,9 @@ async def prepare_csvdata_and_create_evaluation_scenario(
                 for name in payload_inputs
             ]
         except KeyError:
-            await db_manager.delete_human_evaluation(evaluation_id=str(new_evaluation.id))
+            await db_manager.delete_human_evaluation(
+                evaluation_id=str(new_evaluation.id)
+            )
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
             Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
@@ -125,7 +127,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             user_id=str(user.id),
             app=app,
             evaluation_id=str(new_evaluation.id),
-            evaluation_extend=evaluation_scenario_extend_payload
+            evaluation_extend=evaluation_scenario_extend_payload,
         )
 
 
@@ -142,8 +144,7 @@ async def update_human_evaluation_service(
 
     # Update the evaluation
     await db_manager.update_human_evaluation(
-        evaluation_id=str(evaluation.id),
-        values_to_update=update_payload.dict()
+        evaluation_id=str(evaluation.id), values_to_update=update_payload.dict()
     )
 
 
@@ -190,7 +191,7 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(
             evaluation_scenario_db=human_evaluation_scenario,
-            evaluation_id=str(human_evaluation.id)
+            evaluation_id=str(human_evaluation.id),
         )
         for human_evaluation_scenario in human_evaluation_scenarios
     ]
@@ -217,10 +218,16 @@ async def update_human_evaluation_scenario(
     values_to_update = {}
     payload = evaluation_scenario_data.dict()
 
-    if payload["score"] is not None and evaluation_type == EvaluationType.single_model_test:
+    if (
+        payload["score"] is not None
+        and evaluation_type == EvaluationType.single_model_test
+    ):
         values_to_update["score"] = payload["score"]
-    
-    if payload["vote"] is not None and evaluation_type == EvaluationType.human_a_b_testing:
+
+    if (
+        payload["vote"] is not None
+        and evaluation_type == EvaluationType.human_a_b_testing
+    ):
         values_to_update["vote"] = payload["vote"]
 
     if payload["outputs"] is not None:
@@ -254,7 +261,7 @@ async def update_human_evaluation_scenario(
 
     await db_manager.update_human_evaluation_scenario(
         evaluation_scenario_id=str(evaluation_scenario_db.id),
-        values_to_update=values_to_update
+        values_to_update=values_to_update,
     )
 
 
@@ -386,7 +393,7 @@ async def create_new_human_evaluation(
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         testset_id=payload.testset_id,
-        variants_ids=payload.variant_ids
+        variants_ids=payload.variant_ids,
     )
     if human_evaluation is None:
         raise HTTPException(

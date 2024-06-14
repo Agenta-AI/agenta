@@ -1970,8 +1970,7 @@ async def create_human_evaluation(
 
         # create variants for human evaluation
         await create_human_evaluation_variants(
-            human_evaluation_id=str(human_evaluation.id),
-            variants_ids=variants_ids
+            human_evaluation_id=str(human_evaluation.id), variants_ids=variants_ids
         )
         return human_evaluation
 
@@ -1991,10 +1990,12 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         result = await session.execute(
             select(HumanEvaluationVariantDB)
             .options(
-                joinedload(HumanEvaluationVariantDB.variant)
-                .load_only(AppVariantDB.id, AppVariantDB.variant_name), # type: ignore
-                joinedload(HumanEvaluationVariantDB.variant_revision)
-                .load_only(AppVariantRevisionsDB.revision, AppVariantRevisionsDB.id) # type: ignore
+                joinedload(HumanEvaluationVariantDB.variant).load_only(
+                    AppVariantDB.id, AppVariantDB.variant_name
+                ),  # type: ignore
+                joinedload(HumanEvaluationVariantDB.variant_revision).load_only(
+                    AppVariantRevisionsDB.revision, AppVariantRevisionsDB.id
+                ),  # type: ignore
             )
             .filter_by(human_evaluation_id=uuid.UUID(human_evaluation_id))
         )
@@ -2002,7 +2003,9 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         return evaluation_variants
 
 
-async def create_human_evaluation_variants(human_evaluation_id: str, variants_ids: List[str]):
+async def create_human_evaluation_variants(
+    human_evaluation_id: str, variants_ids: List[str]
+):
     """
     Creates human evaluation variants.
 
@@ -2035,7 +2038,7 @@ async def create_human_evaluation_variants(human_evaluation_id: str, variants_id
             human_evaluation_variant = HumanEvaluationVariantDB(
                 human_evaluation_id=uuid.UUID(human_evaluation_id),
                 variant_id=variant.id,  # type: ignore
-                variant_revision_id=variant_revision.id # type: ignore
+                variant_revision_id=variant_revision.id,  # type: ignore
             )
             session.add(human_evaluation_variant)
 
@@ -2057,8 +2060,8 @@ async def fetch_human_evaluation_by_id(
         result = await session.execute(
             select(HumanEvaluationDB)
             .options(
-                joinedload(HumanEvaluationDB.user).load_only(UserDB.username), # type: ignore
-                joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.name) # type: ignore
+                joinedload(HumanEvaluationDB.user).load_only(UserDB.username),  # type: ignore
+                joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.name),  # type: ignore
             )
             .filter_by(id=uuid.UUID(evaluation_id))
         )
@@ -2118,7 +2121,7 @@ async def create_human_evaluation_scenario(
     user_id: str,
     app: AppDB,
     evaluation_id: str,
-    evaluation_extend: Dict[str, Any]
+    evaluation_extend: Dict[str, Any],
 ):
     """
     Creates a human evaluation scenario.
@@ -2148,7 +2151,9 @@ async def create_human_evaluation_scenario(
         await session.commit()
 
 
-async def update_human_evaluation_scenario(evaluation_scenario_id: str, values_to_update: dict):
+async def update_human_evaluation_scenario(
+    evaluation_scenario_id: str, values_to_update: dict
+):
     """Updates human evaluation scenario with the specified values.
 
     Args:
@@ -2161,12 +2166,15 @@ async def update_human_evaluation_scenario(evaluation_scenario_id: str, values_t
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(HumanEvaluationScenarioDB)
-            .filter_by(id=uuid.UUID(evaluation_scenario_id))
+            select(HumanEvaluationScenarioDB).filter_by(
+                id=uuid.UUID(evaluation_scenario_id)
+            )
         )
         human_evaluation_scenario = result.scalars().one_or_none()
         if not human_evaluation_scenario:
-            raise NoResultFound(f"Human evaluation scenario with id {evaluation_scenario_id} not found")
+            raise NoResultFound(
+                f"Human evaluation scenario with id {evaluation_scenario_id} not found"
+            )
 
         for key, value in values_to_update.items():
             if hasattr(human_evaluation_scenario, key):
