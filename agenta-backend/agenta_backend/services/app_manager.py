@@ -144,9 +144,7 @@ async def update_variant_image(
     valid_image = await deployment_manager.validate_image(image)
     if not valid_image:
         raise ValueError("Image could not be found in registry.")
-    deployment = await db_manager.get_deployment_by_id(
-        app_variant_db.base.deployment
-    )
+    deployment = await db_manager.get_deployment_by_id(app_variant_db.base.deployment)
 
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))

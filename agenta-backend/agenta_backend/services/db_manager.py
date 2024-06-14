@@ -657,8 +657,7 @@ async def get_deployment_by_id(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(DeploymentDB)
-            .filter_by(id=uuid.UUID(deployment_id))
+            select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
         deployment = result.scalars().one_or_none()
         return deployment
@@ -1064,8 +1063,7 @@ async def list_apps(
 
             async with db_engine.get_session() as session:
                 result = await session.execute(
-                    select(AppDB)
-                    .filter_by(
+                    select(AppDB).filter_by(
                         organization_id=uuid.UUID(org_id),
                         workspace_id=uuid.UUID(workspace_id),
                     )
@@ -1075,10 +1073,7 @@ async def list_apps(
 
     else:
         async with db_engine.get_session() as session:
-            result = await session.execute(
-                select(AppDB)
-                .filter_by(user_id=user.id)
-            )
+            result = await session.execute(select(AppDB).filter_by(user_id=user.id))
             apps = result.unique().scalars().all()
             return [converters.app_db_to_pydantic(app) for app in apps]
 
@@ -1150,7 +1145,7 @@ async def remove_deployment(deployment_id: str):
 
         await session.delete(deployment)
         await session.commit()
-         
+
 
 async def list_deployments(app_id: str):
     """Lists all the deployments that belongs to an app.
@@ -1552,13 +1547,11 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .options(
-                joinedload(AppVariantRevisionsDB.modified_by)
-                .load_only(UserDB.username) # type: ignore
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
-            .filter_by(
-                variant_id=uuid.UUID(app_variant),
-                revision=revision_number
-            )
+            .filter_by(variant_id=uuid.UUID(app_variant), revision=revision_number)
         )
         app_variant_revisions = result.scalars().one_or_none()
         return app_variant_revisions
@@ -1903,8 +1896,8 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         result = await session.execute(
             select(EvaluationDB)
             .options(
-                joinedload(EvaluationDB.user).load_only(UserDB.username), # type: ignore
-                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name) # type: ignore
+                joinedload(EvaluationDB.user).load_only(UserDB.username),  # type: ignore
+                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
             .filter_by(id=uuid.UUID(evaluation_id))
         )
@@ -1937,15 +1930,16 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
 
     Args:
         evaluation_id (str):  The evaluation identifier
-    
+
     Returns:
         The evaluation scenarios.
     """
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluationScenarioDB)
-            .filter_by(evaluation_id=uuid.UUID(evaluation_id))
+            select(EvaluationScenarioDB).filter_by(
+                evaluation_id=uuid.UUID(evaluation_id)
+            )
         )
         evaluation_scenarios = result.scalars().all()
         return evaluation_scenarios
@@ -1967,8 +1961,8 @@ async def fetch_evaluation_scenario_results(evaluation_scenario_id: str):
             select(EvaluationScenarioResultDB)
             .options(
                 load_only(
-                    EvaluationScenarioResultDB.evaluator_config_id, # type: ignore
-                    EvaluationScenarioResultDB.result # type: ignore
+                    EvaluationScenarioResultDB.evaluator_config_id,  # type: ignore
+                    EvaluationScenarioResultDB.result,  # type: ignore
                 )
             )
             .filter_by(evaluation_scenario_id=uuid.UUID(evaluation_scenario_id))
@@ -2288,11 +2282,7 @@ async def fetch_app_by_name_and_parameters(
                 workspace_id=uuid.UUID(workspace_id),
             )
         else:
-            query = (
-                base_query
-                .join(UserDB)
-                .filter(UserDB.uid == user_uid)
-            )
+            query = base_query.join(UserDB).filter(UserDB.uid == user_uid)
 
         result = await session.execute(query)
         app_db = result.unique().scalars().one_or_none()
@@ -2330,12 +2320,14 @@ async def create_new_evaluation(
                 organization is not None and workspace is not None
             ), "organization and workspace must be provided together"
 
-            evaluation.organization_id = uuid.UUID(organization_id) # type: ignore
-            evaluation.workspace_id = uuid.UUID(workspace_id) # type: ignore
+            evaluation.organization_id = uuid.UUID(organization_id)  # type: ignore
+            evaluation.workspace_id = uuid.UUID(workspace_id)  # type: ignore
 
         session.add(evaluation)
         await session.commit()
-        await session.refresh(evaluation, attribute_names=["user", "testset", "aggregated_results"])
+        await session.refresh(
+            evaluation, attribute_names=["user", "testset", "aggregated_results"]
+        )
 
         return evaluation
 
@@ -2351,9 +2343,9 @@ async def list_evaluations(app_id: str):
         result = await session.execute(
             select(EvaluationDB)
             .options(
-                joinedload(EvaluationDB.user).load_only(UserDB.id, UserDB.username), # type: ignore
-                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name), # type: ignore
-                joinedload(EvaluationDB.aggregated_results)
+                joinedload(EvaluationDB.user).load_only(UserDB.id, UserDB.username),  # type: ignore
+                joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+                joinedload(EvaluationDB.aggregated_results),
             )
             .filter_by(app_id=uuid.UUID(app_id))
         )
@@ -2369,9 +2361,7 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     """
 
     async with db_engine.get_session() as session:
-        query = select(EvaluationDB).where(
-            EvaluationDB.id.in_(evaluation_ids)
-        )
+        query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
         result = await session.execute(query)
         evaluations = result.scalars().all()
         for evaluation in evaluations:
@@ -2406,8 +2396,8 @@ async def create_new_evaluation_scenario(
             inputs=[input.dict() for input in inputs],
             outputs=[output.dict() for output in outputs],
             correct_answers=(
-                [correct_answer.dict() for correct_answer in correct_answers] 
-                if correct_answers is not None 
+                [correct_answer.dict() for correct_answer in correct_answers]
+                if correct_answers is not None
                 else []
             ),
             is_pinned=is_pinned,
@@ -2420,8 +2410,8 @@ async def create_new_evaluation_scenario(
                 organization is not None and workspace is not None
             ), "organization and workspace must be provided together"
 
-            evaluation_scenario.organization_id = organization_id # type: ignore
-            evaluation_scenario.workspace_id = workspace_id # type: ignore
+            evaluation_scenario.organization_id = organization_id  # type: ignore
+            evaluation_scenario.workspace_id = workspace_id  # type: ignore
 
         session.add(evaluation_scenario)
         await session.commit()
@@ -2451,7 +2441,7 @@ async def update_evaluation_with_aggregated_results(
             aggregated_result = EvaluationAggregatedResultDB(
                 evaluation_id=uuid.UUID(evaluation_id),
                 evaluator_config_id=uuid.UUID(result.evaluator_config),
-                result=result.result.dict()
+                result=result.result.dict(),
             )
             session.add(aggregated_result)
 
@@ -2473,14 +2463,13 @@ async def fetch_eval_aggregated_results(evaluation_id: str):
         result = await session.execute(
             select(EvaluationAggregatedResultDB)
             .options(
-                joinedload(EvaluationAggregatedResultDB.evaluator_config)
-                .load_only(
-                    EvaluatorConfigDB.id, # type: ignore
-                    EvaluatorConfigDB.name, # type: ignore
-                    EvaluatorConfigDB.evaluator_key, # type: ignore
-                    EvaluatorConfigDB.settings_values, # type: ignore
-                    EvaluatorConfigDB.created_at, # type: ignore
-                    EvaluatorConfigDB.updated_at, # type: ignore
+                joinedload(EvaluationAggregatedResultDB.evaluator_config).load_only(
+                    EvaluatorConfigDB.id,  # type: ignore
+                    EvaluatorConfigDB.name,  # type: ignore
+                    EvaluatorConfigDB.evaluator_key,  # type: ignore
+                    EvaluatorConfigDB.settings_values,  # type: ignore
+                    EvaluatorConfigDB.created_at,  # type: ignore
+                    EvaluatorConfigDB.updated_at,  # type: ignore
                 )
             )
             .filter_by(evaluation_id=uuid.UUID(evaluation_id))
@@ -2701,7 +2690,7 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
             .join(EvaluationResultAlias, EvaluationScenarioDB.results)
             .where(
                 EvaluationScenarioDB.evaluation_id == uuid.UUID(evaluation_id),
-                EvaluationResultAlias.result["type"].astext == "error"
+                EvaluationResultAlias.result["type"].astext == "error",
             )
         )
 

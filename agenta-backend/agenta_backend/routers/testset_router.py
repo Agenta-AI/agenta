@@ -114,9 +114,7 @@ async def upload_file(
 
     try:
         testset = await db_manager.create_testset(
-            app=app,
-            user_uid=request.state.user_id,
-            testset_data=document
+            app=app, user_uid=request.state.user_id, testset_data=document
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -181,9 +179,7 @@ async def import_testset(
             document["csvdata"].append(row)
 
         testset = await db_manager.create_testset(
-            app=app,
-            user_uid=request.state.user_id,
-            testset_data=document
+            app=app, user_uid=request.state.user_id, testset_data=document
         )
         return TestSetSimpleResponse(
             id=str(testset.id),

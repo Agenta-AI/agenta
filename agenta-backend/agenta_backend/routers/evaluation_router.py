@@ -247,8 +247,7 @@ async def fetch_evaluation_scenarios(
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if not evaluation:
             raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation with id {evaluation_id} not found"
+                status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
             )
 
         if isCloudEE():
@@ -321,7 +320,10 @@ async def fetch_list_evaluations(
 
         traceback.print_exc()
         status_code = exc.status_code if hasattr(exc, "status_code") else 500
-        raise HTTPException(status_code=status_code, detail=f"Could not retrieve evaluation results: {str(exc)}")
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Could not retrieve evaluation results: {str(exc)}",
+        )
 
 
 @router.get(
@@ -342,7 +344,9 @@ async def fetch_evaluation(
     try:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if not evaluation:
-            raise HTTPException(status_code=404, detail=f"Evaluation with id {evaluation_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
+            )
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -392,9 +396,7 @@ async def delete_evaluations(
                 object_type="evaluation",
                 permission=Permission.DELETE_EVALUATION,
             )
-            logger.debug(
-                f"User has permission to delete evaluation: {has_permission}"
-            )
+            logger.debug(f"User has permission to delete evaluation: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
