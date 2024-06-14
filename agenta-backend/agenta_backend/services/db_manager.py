@@ -71,11 +71,13 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     EvaluatorConfigDB,
     AppVariantRevisionsDB,
+    HumanEvaluationVariantDB,
     EvaluationScenarioResultDB,
     EvaluationAggregatedResultDB,
 )
 
 from agenta_backend.models.shared_models import (
+    HumanEvaluationScenarioInput,
     Result,
     ConfigDB,
     CorrectAnswer,
@@ -205,7 +207,10 @@ async def fetch_app_variant_by_id(
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
+            .options(
+                joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.app),
+            )
             .filter_by(id=uuid.UUID(app_variant_id))
         )
         app_variant = result.scalars().one_or_none()
@@ -1906,6 +1911,137 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         return evaluation
 
 
+async def list_human_evaluations(app_id: str):
+    """
+    Fetches human evaluations belonging to an App.
+
+    Args:
+        app_id (str):  The application identifier
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationDB)
+            .options(
+                joinedload(HumanEvaluationDB.user).load_only(UserDB.id, UserDB.username),  # type: ignore
+                joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+            )
+            .filter_by(app_id=uuid.UUID(app_id))
+        )
+        human_evaluations = result.scalars().all()
+        return human_evaluations
+
+
+async def create_human_evaluation(
+    app: AppDB,
+    user_id: str,
+    status: str,
+    evaluation_type: str,
+    testset_id: str,
+    variants_ids: List[str],
+):
+    """
+    Creates a human evaluation.
+
+    Args:
+        app (AppDB: The app object
+        user_id (id): The ID of the user
+        status (str): The status of the evaluation
+        evaluation_type (str): The evaluation type
+        testset_id (str): The ID of the evaluation testset
+        variants_ids (List[str]): The IDs of the variants for the evaluation
+    """
+
+    async with db_engine.get_session() as session:
+        human_evaluation = HumanEvaluationDB(
+            app_id=app.id,
+            user_id=uuid.UUID(user_id),
+            status=status,
+            evaluation_type=evaluation_type,
+            testset_id=testset_id,
+        )
+        if isCloudEE():
+            human_evaluation.organization_id = str(app.organization_id)
+            human_evaluation.workspace_id = str(app.workspace_id)
+
+        session.add(human_evaluation)
+        await session.commit()
+        await session.refresh(human_evaluation, attribute_names=["testset"])
+
+        # create variants for human evaluation
+        await create_human_evaluation_variants(
+            human_evaluation_id=str(human_evaluation.id),
+            variants_ids=variants_ids
+        )
+        return human_evaluation
+
+
+async def fetch_human_evaluation_variants(human_evaluation_id: str):
+    """
+    Fetches human evaluation variants.
+
+    Args:
+        human_evaluation_id (str): The human evaluation ID
+
+    Returns:
+        The human evaluation variants.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationVariantDB)
+            .options(
+                joinedload(HumanEvaluationVariantDB.variant)
+                .load_only(AppVariantDB.id, AppVariantDB.variant_name), # type: ignore
+                joinedload(HumanEvaluationVariantDB.variant_revision)
+                .load_only(AppVariantRevisionsDB.revision, AppVariantRevisionsDB.id) # type: ignore
+            )
+            .filter_by(human_evaluation_id=uuid.UUID(human_evaluation_id))
+        )
+        evaluation_variants = result.scalars().all()
+        return evaluation_variants
+
+
+async def create_human_evaluation_variants(human_evaluation_id: str, variants_ids: List[str]):
+    """
+    Creates human evaluation variants.
+
+    Args:
+        human_evaluation_id (str):  The human evaluation identifier
+        variants_ids (List[str]):  The variants identifiers
+    """
+
+    variants_dict = {}
+    for variant_id in variants_ids:
+        variant = await fetch_app_variant_by_id(app_variant_id=variant_id)
+        if variant:
+            variants_dict[variant_id] = variant
+
+    variants_revisions_dict = {}
+    for variant_id, variant in variants_dict.items():
+        variant_revision = await fetch_app_variant_revision_by_variant(
+            app_variant_id=str(variant.id), revision=variant.revision  # type: ignore
+        )
+        if variant_revision:
+            variants_revisions_dict[variant_id] = variant_revision
+
+    if set(variants_dict.keys()) != set(variants_revisions_dict.keys()):
+        raise ValueError("Mismatch between variants and their revisions")
+
+    async with db_engine.get_session() as session:
+        for variant_id in variants_ids:
+            variant = variants_dict[variant_id]
+            variant_revision = variants_revisions_dict[variant_id]
+            human_evaluation_variant = HumanEvaluationVariantDB(
+                human_evaluation_id=uuid.UUID(human_evaluation_id),
+                variant_id=variant.id,  # type: ignore
+                variant_revision_id=variant_revision.id # type: ignore
+            )
+            session.add(human_evaluation_variant)
+
+        await session.commit()
+
+
 async def fetch_human_evaluation_by_id(
     evaluation_id: str,
 ) -> Optional[HumanEvaluationDB]:
@@ -1919,10 +2055,146 @@ async def fetch_human_evaluation_by_id(
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+            select(HumanEvaluationDB)
+            .options(
+                joinedload(HumanEvaluationDB.user).load_only(UserDB.username), # type: ignore
+                joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.name) # type: ignore
+            )
+            .filter_by(id=uuid.UUID(evaluation_id))
         )
         evaluation = result.scalars().one_or_none()
         return evaluation
+
+
+async def update_human_evaluation(evaluation_id: str, values_to_update: dict):
+    """Updates human evaluation with the specified values.
+
+    Args:
+        evaluation_id (str): The evaluation ID
+        values_to_update (dict):  The values to update
+
+    Exceptions:
+        NoResultFound: if human evaluation is not found
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+        )
+        human_evaluation = result.scalars().one_or_none()
+        if not human_evaluation:
+            raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
+
+        for key, value in values_to_update.items():
+            if hasattr(human_evaluation, key):
+                setattr(human_evaluation, key, value)
+
+        await session.commit()
+        await session.refresh(human_evaluation)
+
+
+async def delete_human_evaluation(evaluation_id: str):
+    """Delete the evaluation by its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation to delete.
+    """
+
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+        )
+        evaluation = result.scalars().one_or_none()
+        if not evaluation:
+            raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
+
+        await session.delete(evaluation)
+        await session.commit()
+
+
+async def create_human_evaluation_scenario(
+    inputs: List[HumanEvaluationScenarioInput],
+    user_id: str,
+    app: AppDB,
+    evaluation_id: str,
+    evaluation_extend: Dict[str, Any]
+):
+    """
+    Creates a human evaluation scenario.
+
+    Args:
+        inputs (List[HumanEvaluationScenarioInput]): The inputs.
+        user_id (str): The user ID.
+        app (AppDB): The app object.
+        evaluation_id (str): The evaluation identifier.
+        evaluation_extend (Dict[str, any]): An extended required payload for the evaluation scenario. Contains score, vote, and correct_answer.
+    """
+
+    async with db_engine.get_session() as session:
+        evaluation_scenario = HumanEvaluationScenarioDB(
+            **evaluation_extend,
+            user_id=uuid.UUID(user_id),
+            evaluation_id=uuid.UUID(evaluation_id),
+            inputs=[input.dict() for input in inputs],
+            outputs=[],
+        )
+
+        if isCloudEE():
+            evaluation_scenario.organization_id = str(app.organization_id)
+            evaluation_scenario.workspace_id = str(app.workspace_id)
+
+        session.add(evaluation_scenario)
+        await session.commit()
+
+
+async def update_human_evaluation_scenario(evaluation_scenario_id: str, values_to_update: dict):
+    """Updates human evaluation scenario with the specified values.
+
+    Args:
+        evaluation_scenario_id (str): The evaluation scenario ID
+        values_to_update (dict):  The values to update
+
+    Exceptions:
+        NoResultFound: if human evaluation scenario is not found
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationScenarioDB)
+            .filter_by(id=uuid.UUID(evaluation_scenario_id))
+        )
+        human_evaluation_scenario = result.scalars().one_or_none()
+        if not human_evaluation_scenario:
+            raise NoResultFound(f"Human evaluation scenario with id {evaluation_scenario_id} not found")
+
+        for key, value in values_to_update.items():
+            if hasattr(human_evaluation_scenario, key):
+                setattr(human_evaluation_scenario, key, value)
+
+        await session.commit()
+        await session.refresh(human_evaluation_scenario)
+
+
+async def fetch_human_evaluation_scenarios(evaluation_id: str):
+    """
+    Fetches human evaluation scenarios.
+
+    Args:
+        evaluation_id (str):  The evaluation identifier
+
+    Returns:
+        The evaluation scenarios.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(HumanEvaluationScenarioDB).filter_by(
+                evaluation_id=uuid.UUID(evaluation_id)
+            )
+        )
+        evaluation_scenarios = result.scalars().all()
+        return evaluation_scenarios
 
 
 async def fetch_evaluation_scenarios(evaluation_id: str):
