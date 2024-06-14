@@ -2133,7 +2133,7 @@ async def add_zip_template(key, value):
         )
         session.add(template_db_instance)
         await session.commit()
- 
+
     return str(template_db_instance.id)
 
 
