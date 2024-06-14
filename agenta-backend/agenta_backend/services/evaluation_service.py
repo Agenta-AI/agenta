@@ -178,9 +178,7 @@ async def update_human_evaluation_service(
     await evaluation.update({"$set": updates})
 
 
-async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str
-):
+async def fetch_evaluation_scenarios_for_evaluation(evaluation_id: str):
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
@@ -196,8 +194,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
     )
     return [
         await converters.evaluation_scenario_db_to_pydantic(
-            evaluation_scenario_db=evaluation_scenario,
-            evaluation_id=evaluation_id
+            evaluation_scenario_db=evaluation_scenario, evaluation_id=evaluation_id
         )
         for evaluation_scenario in evaluation_scenarios
     ]
@@ -328,6 +325,7 @@ async def fetch_list_evaluations(
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
     ]
+
 
 async def fetch_list_human_evaluations(
     app_id: str,
@@ -490,7 +488,7 @@ async def create_new_evaluation(
     testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     variant_db = await db_manager.get_app_variant_instance_by_id(variant_id=variant_id)
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
-        app_variant_id=variant_id, revision=variant_db.revision # type: ignore
+        app_variant_id=variant_id, revision=variant_db.revision  # type: ignore
     )
 
     evaluation_db = await db_manager.create_new_evaluation(

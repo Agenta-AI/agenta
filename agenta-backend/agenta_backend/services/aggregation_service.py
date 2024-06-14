@@ -19,7 +19,7 @@ def aggregate_ai_critique(results: List[Result]) -> Result:
     for result in results:
         try:
             # Extract the first number found in the result value
-            match = re.search(r"\d+", result.value) # type: ignore
+            match = re.search(r"\d+", result.value)  # type: ignore
             if not match:
                 continue
 

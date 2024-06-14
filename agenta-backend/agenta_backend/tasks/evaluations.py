@@ -117,7 +117,7 @@ def evaluate(
         deployment_db = loop.run_until_complete(
             get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
-        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri) # type: ignore
+        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri)  # type: ignore
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
@@ -132,8 +132,8 @@ def evaluate(
         app_outputs: List[InvokationResult] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
-                testset_db.csvdata, # type: ignore
-                app_variant_parameters, # type: ignore
+                testset_db.csvdata,  # type: ignore
+                app_variant_parameters,  # type: ignore
                 rate_limit_config,
             )
         )
@@ -143,7 +143,7 @@ def evaluate(
             llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
         )
 
-        for data_point, app_output in zip(testset_db.csvdata, app_outputs): # type: ignore
+        for data_point, app_output in zip(testset_db.csvdata, app_outputs):  # type: ignore
             # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
@@ -231,7 +231,7 @@ def evaluate(
                     output=app_output.result.value,
                     data_point=data_point,
                     settings_values=evaluator_config_db.settings_values,
-                    app_params=app_variant_parameters, # type: ignore
+                    app_params=app_variant_parameters,  # type: ignore
                     inputs=data_point,
                     lm_providers_keys=lm_providers_keys,
                 )
@@ -313,10 +313,7 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(
-                            message="Evaluation Failed",
-                            stacktrace=str(e)
-                        )
+                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
                     ).dict()
                 },
             )
@@ -334,7 +331,9 @@ def evaluate(
     )
 
     failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(str(new_evaluation_db.id))
+        check_if_evaluation_contains_failed_evaluation_scenarios(
+            str(new_evaluation_db.id)
+        )
     )
 
     evaluation_status = Result(
@@ -351,17 +350,17 @@ def evaluate(
     loop.run_until_complete(
         update_evaluation(
             evaluation_id=str(new_evaluation_db.id),
-            updates={"status": evaluation_status.dict()}
+            updates={"status": evaluation_status.dict()},
         )
     )
 
 
 async def aggregate_evaluator_results(
-    evaluators_aggregated_data: dict
+    evaluators_aggregated_data: dict,
 ) -> List[AggregatedResult]:
     """
     Aggregate the results of the evaluation evaluator.
-    
+
     Args:
         evaluators_aggregated_data (dict):  The evaluators aggregated data
 
@@ -407,7 +406,7 @@ async def aggregate_evaluator_results(
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
-            evaluator_config=str(evaluator_config.id), # type: ignore
+            evaluator_config=str(evaluator_config.id),  # type: ignore
             result=result,
         )
         aggregated_results.append(aggregated_result)

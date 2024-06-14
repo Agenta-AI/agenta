@@ -219,9 +219,7 @@ async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> Lis
         transformed_results.append(
             {
                 "evaluator_config": (
-                    {}
-                    if evaluator_config_dict is None
-                    else evaluator_config_dict
+                    {} if evaluator_config_dict is None else evaluator_config_dict
                 ),
                 "result": aggregated_result.result,
             }
@@ -232,7 +230,9 @@ async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> Lis
 async def evaluation_scenarios_results_to_pydantic(
     evaluation_scenario_id: str,
 ) -> List[dict]:
-    scenario_results = await db_manager.fetch_evaluation_scenario_results(evaluation_scenario_id)
+    scenario_results = await db_manager.fetch_evaluation_scenario_results(
+        evaluation_scenario_id
+    )
     return [
         {
             "evaluator_config": str(scenario_result.evaluator_config_id),
@@ -252,20 +252,20 @@ async def evaluation_scenario_db_to_pydantic(
         id=str(evaluation_scenario_db.id),
         evaluation_id=evaluation_id,
         inputs=[
-            EvaluationScenarioInput(**scenario_input) # type: ignore
+            EvaluationScenarioInput(**scenario_input)  # type: ignore
             for scenario_input in evaluation_scenario_db.inputs
         ],
         outputs=[
-            EvaluationScenarioOutput(**scenario_output) # type: ignore
+            EvaluationScenarioOutput(**scenario_output)  # type: ignore
             for scenario_output in evaluation_scenario_db.outputs
         ],
         correct_answers=[
-            CorrectAnswer(**correct_answer) # type: ignore
+            CorrectAnswer(**correct_answer)  # type: ignore
             for correct_answer in evaluation_scenario_db.correct_answers
         ],
-        is_pinned=evaluation_scenario_db.is_pinned or False, # type: ignore
-        note=evaluation_scenario_db.note or "", # type: ignore
-        results=scenario_results, # type: ignore
+        is_pinned=evaluation_scenario_db.is_pinned or False,  # type: ignore
+        note=evaluation_scenario_db.note or "",  # type: ignore
+        results=scenario_results,  # type: ignore
     )
 
 
@@ -348,10 +348,12 @@ async def app_variant_db_revision_to_output(
     return AppVariantRevision(
         revision=app_variant_revision_db.revision,
         modified_by=app_variant_revision_db.modified_by.username,
-        config=ConfigDB(**{
-            "config_name": app_variant_revision_db.config_name,
-            "parameters": app_variant_revision_db.config_parameters
-        }),
+        config=ConfigDB(
+            **{
+                "config_name": app_variant_revision_db.config_name,
+                "parameters": app_variant_revision_db.config_parameters,
+            }
+        ),
         created_at=str(app_variant_revision_db.created_at),
     )
 

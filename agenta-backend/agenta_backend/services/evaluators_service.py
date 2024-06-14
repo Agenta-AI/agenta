@@ -284,7 +284,7 @@ def auto_ai_critique(
             value=None,
             error=Error(
                 message="Error during Auto AI Critique",
-                stacktrace=traceback.format_exc()
+                stacktrace=traceback.format_exc(),
             ),
         )
 
