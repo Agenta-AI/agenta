@@ -98,15 +98,21 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def human_evaluation_db_to_simple_evaluation_output(
+async def human_evaluation_db_to_simple_evaluation_output(
     human_evaluation_db: HumanEvaluationDB,
 ) -> SimpleEvaluationOutput:
+    evaluation_variants = await db_manager.fetch_human_evaluation_variants(
+        human_evaluation_id=str(human_evaluation_db.id)
+    )
     return SimpleEvaluationOutput(
         id=str(human_evaluation_db.id),
-        app_id=str(human_evaluation_db.app.id),
-        status=human_evaluation_db.status,
-        evaluation_type=human_evaluation_db.evaluation_type,
-        variant_ids=[str(variant) for variant in human_evaluation_db.variants],
+        app_id=str(human_evaluation_db.app_id),
+        status=human_evaluation_db.status, # type: ignore
+        evaluation_type=human_evaluation_db.evaluation_type, # type: ignore
+        variant_ids=[
+            str(evaluation_variant.variant_id)
+            for evaluation_variant in evaluation_variants
+        ],
     )
 
 
@@ -149,43 +155,40 @@ async def evaluation_db_to_pydantic(
 async def human_evaluation_db_to_pydantic(
     evaluation_db: HumanEvaluationDB,
 ) -> HumanEvaluation:
-    variant_names = []
-    for variant_id in evaluation_db.variants:
-        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
-        variant_name = variant.variant_name if variant else str(variant_id)
-        variant_names.append(str(variant_name))
+    evaluation_variants = await db_manager.fetch_human_evaluation_variants(
+        human_evaluation_id=str(evaluation_db.id) # type: ignore
+    )
+
     revisions = []
-    for variant_revision_id in evaluation_db.variants_revisions:
-        variant_revision = await db_manager.get_app_variant_revision_by_id(
-            str(variant_revision_id)
+    variants_ids = []
+    variants_names = []
+    variants_revision_ids = []
+    for evaluation_variant in evaluation_variants:
+        variant_name = (
+            evaluation_variant.variant.variant_name
+            if isinstance(evaluation_variant.variant_id, uuid.UUID)
+            else str(evaluation_variant.variant.variant_id)
         )
-        revision = variant_revision.revision
-        revisions.append(str(revision))
+        variants_names.append(str(variant_name))
+        variants_ids.append(str(evaluation_variant.variant.id))
+        revisions.append(str(evaluation_variant.variant_revision.revision))
+        variants_revision_ids.append(str(evaluation_variant.variant_revision.id))
 
     return HumanEvaluation(
         id=str(evaluation_db.id),
-        app_id=str(evaluation_db.app.id),
-        user_id=str(evaluation_db.user.id),
+        app_id=str(evaluation_db.app_id),
+        user_id=str(evaluation_db.user_id),
         user_username=evaluation_db.user.username or "",
-        status=evaluation_db.status,
-        evaluation_type=evaluation_db.evaluation_type,
-        variant_ids=[str(variant) for variant in evaluation_db.variants],
-        variant_names=variant_names,
-        testset_id=(
-            "" if type(evaluation_db.testset) is Link else str(evaluation_db.testset.id)
-        ),
-        testset_name=(
-            ""
-            if type(evaluation_db.testset) is Link
-            else str(evaluation_db.testset.name)
-        ),
-        variants_revision_ids=[
-            str(variant_revision)
-            for variant_revision in evaluation_db.variants_revisions
-        ],
+        status=evaluation_db.status, # type: ignore
+        evaluation_type=evaluation_db.evaluation_type, # type: ignore
+        variant_ids=variants_ids,
+        variant_names=variants_names,
+        testset_id=str(evaluation_db.testset_id),
+        testset_name=evaluation_db.testset.name,
+        variants_revision_ids=variants_revision_ids,
         revisions=revisions,
-        created_at=evaluation_db.created_at,
-        updated_at=evaluation_db.updated_at,
+        created_at=str(evaluation_db.created_at), # type: ignore
+        updated_at=str(evaluation_db.updated_at), # type: ignore
     )
 
 
@@ -195,13 +198,13 @@ def human_evaluation_scenario_db_to_pydantic(
     return HumanEvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=evaluation_id,
-        inputs=evaluation_scenario_db.inputs,
-        outputs=evaluation_scenario_db.outputs,
-        vote=evaluation_scenario_db.vote,
-        score=evaluation_scenario_db.score,
-        correct_answer=evaluation_scenario_db.correct_answer,
-        is_pinned=evaluation_scenario_db.is_pinned or False,
-        note=evaluation_scenario_db.note or "",
+        inputs=evaluation_scenario_db.inputs, # type: ignore
+        outputs=evaluation_scenario_db.outputs, # type: ignore
+        vote=evaluation_scenario_db.vote, # type: ignore
+        score=evaluation_scenario_db.score, # type: ignore
+        correct_answer=evaluation_scenario_db.correct_answer, # type: ignore
+        is_pinned=evaluation_scenario_db.is_pinned or False, # type: ignore
+        note=evaluation_scenario_db.note or "", # type: ignore
     )
 
 
@@ -291,8 +294,8 @@ def app_variant_db_to_pydantic(
 
 async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
     if (
-        type(app_variant_db.base_id) == uuid.UUID
-        and type(app_variant_db.base.deployment_id) == uuid.UUID
+        isinstance(app_variant_db.base_id, uuid.UUID)
+        and isinstance(app_variant_db.base.deployment_id, uuid.UUID)
     ):
         deployment = await db_manager.get_deployment_by_id(
             str(app_variant_db.base.deployment_id)
