@@ -99,6 +99,9 @@ class AppDB(Base):
     evaluation = relationship(
         "EvaluationDB", cascade="all, delete-orphan", backref="app"
     )
+    human_evaluation = relationship(
+        "HumanEvaluationDB", cascade="all, delete-orphan", backref="app"
+    )
 
 
 class DeploymentDB(Base):
@@ -188,8 +191,8 @@ class AppVariantDB(Base):
     user = relationship("UserDB", foreign_keys=[user_id])
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     base = relationship("VariantBaseDB")
-    revisions = relationship(
-        "AppVariantRevisionsDB", cascade="all, delete-orphan", backref="variant"
+    variant_revision = relationship(
+        "AppVariantRevisionsDB", cascade="all, delete-orphan", backref="variant_revision"
     )
 
 
@@ -359,6 +362,30 @@ class EvaluatorConfigDB(Base):
     user = relationship("UserDB")
 
 
+class HumanEvaluationVariantDB(Base):
+    __tablename__ = "human_evaluation_variants"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    human_evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+
+    variant = relationship("AppVariantDB", backref="evaluation_variant")
+    variant_revision = relationship("AppVariantRevisionsDB", backref="evaluation_variant_revision")
+
+
 class HumanEvaluationDB(Base):
     __tablename__ = "human_evaluations"
 
@@ -369,28 +396,22 @@ class HumanEvaluationDB(Base):
         unique=True,
         nullable=False,
     )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
-    app = relationship("AppDB")
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    user = relationship("UserDB")
     status = Column(String)
     evaluation_type = Column(String)
-    variant_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
-    )
-    variant = relationship("AppVariantDB")
-    variant_revision_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
-    )
-    variant_revision = relationship("AppVariantRevisionsDB")
     testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
-    testset = relationship("TestSetDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    user = relationship("UserDB")
+    testset = relationship("TestSetDB")
+    evaluation_variant = relationship("HumanEvaluationVariantDB", cascade="all, delete-orphan", backref="human_evaluation")
+    evaluation_scenario = relationship("HumanEvaluationScenarioDB", cascade="all, delete-orphan", backref="evaluation_scenario")
 
 
 class HumanEvaluationScenarioDB(Base):
@@ -404,13 +425,13 @@ class HumanEvaluationScenarioDB(Base):
         nullable=False,
     )
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    user = relationship("UserDB")
-    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("human_evaluations.id"))
-    evaluation = relationship("HumanEvaluationDB")
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
+    )
     inputs = Column(JSONB)  # List of HumanEvaluationScenarioInput
     outputs = Column(JSONB)  # List of HumanEvaluationScenarioOutput
     vote = Column(String)
-    score = Column(JSONB)
+    score = Column(String)
     correct_answer = Column(String)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -510,6 +531,13 @@ class EvaluationDB(Base):
 class EvaluationEvaluatorConfigDB(Base):
     __tablename__ = "evaluation_evaluator_configs"
 
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluations.id"), primary_key=True
     )
