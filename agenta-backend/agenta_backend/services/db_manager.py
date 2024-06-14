@@ -838,9 +838,6 @@ async def get_users_by_ids(user_ids: List):
 
     Args:
         user_ids (List): A list of user IDs to retrieve.
-
-    Returns:
-        List: A list of dictionaries representing the retrieved users.
     """
 
     async with db_engine.get_session() as session:

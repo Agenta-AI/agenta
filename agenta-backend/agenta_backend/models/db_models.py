@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import uuid_utils.compat as uuid
-from pydantic import BaseModel, Field
 from sqlalchemy import (
     Column,
     String,
@@ -10,10 +9,9 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     ForeignKey,
-    Float,
     Enum,
 )
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.base import Base
@@ -465,13 +463,14 @@ class EvaluationAggregatedResultDB(Base):
         unique=True,
         nullable=False,
     )
-    evaluation_id = Column(UUID(as_uuid=True), ForeignKey("evaluations.id"))
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluations.id", ondelete="CASCADE")
+    )
     evaluator_config_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluators_configs.id")
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
     )
     result = Column(JSONB)  # Result
 
-    evaluation = relationship("EvaluationDB", back_populates="aggregated_results")
     evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
 
 
@@ -486,13 +485,11 @@ class EvaluationScenarioResultDB(Base):
         nullable=False,
     )
     evaluation_scenario_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id")
+        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id", ondelete="CASCADE")
     )
-    evaluation_scenario = relationship("EvaluationScenarioDB", back_populates="results")
     evaluator_config_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluators_configs.id")
     )
-    evaluator_config = relationship("EvaluatorConfigDB")
     result = Column(JSONB)  # Result
 
 
@@ -533,10 +530,17 @@ class EvaluationDB(Base):
     variant = relationship("AppVariantDB")
     variant_revision = relationship("AppVariantRevisionsDB")
     aggregated_results = relationship(
-        "EvaluationAggregatedResultDB", back_populates="evaluation"
+        "EvaluationAggregatedResultDB",
+        cascade="all, delete-orphan",
+        backref="evaluation",
     )
     evaluation_scenarios = relationship(
         "EvaluationScenarioDB", cascade="all, delete-orphan", backref="evaluation"
+    )
+    evaluator_configs = relationship(
+        "EvaluationEvaluatorConfigDB",
+        cascade="all, delete-orphan",
+        backref="evaluation",
     )
 
 
@@ -551,10 +555,14 @@ class EvaluationEvaluatorConfigDB(Base):
         nullable=False,
     )
     evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluations.id"), primary_key=True
+        UUID(as_uuid=True),
+        ForeignKey("evaluations.id", ondelete="CASCADE"),
+        primary_key=True,
     )
     evaluator_config_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluators_configs.id"), primary_key=True
+        UUID(as_uuid=True),
+        ForeignKey("evaluators_configs.id", ondelete="SET NULL"),
+        primary_key=True,
     )
 
 
@@ -592,7 +600,9 @@ class EvaluationScenarioDB(Base):
     user = relationship("UserDB")
     variant = relationship("AppVariantDB")
     results = relationship(
-        "EvaluationScenarioResultDB", back_populates="evaluation_scenario"
+        "EvaluationScenarioResultDB",
+        cascade="all, delete-orphan",
+        backref="evaluation_scenario",
     )
 
 
