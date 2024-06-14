@@ -107,8 +107,8 @@ async def human_evaluation_db_to_simple_evaluation_output(
     return SimpleEvaluationOutput(
         id=str(human_evaluation_db.id),
         app_id=str(human_evaluation_db.app_id),
-        status=human_evaluation_db.status, # type: ignore
-        evaluation_type=human_evaluation_db.evaluation_type, # type: ignore
+        status=human_evaluation_db.status,  # type: ignore
+        evaluation_type=human_evaluation_db.evaluation_type,  # type: ignore
         variant_ids=[
             str(evaluation_variant.variant_id)
             for evaluation_variant in evaluation_variants
@@ -156,7 +156,7 @@ async def human_evaluation_db_to_pydantic(
     evaluation_db: HumanEvaluationDB,
 ) -> HumanEvaluation:
     evaluation_variants = await db_manager.fetch_human_evaluation_variants(
-        human_evaluation_id=str(evaluation_db.id) # type: ignore
+        human_evaluation_id=str(evaluation_db.id)  # type: ignore
     )
 
     revisions = []
@@ -179,16 +179,16 @@ async def human_evaluation_db_to_pydantic(
         app_id=str(evaluation_db.app_id),
         user_id=str(evaluation_db.user_id),
         user_username=evaluation_db.user.username or "",
-        status=evaluation_db.status, # type: ignore
-        evaluation_type=evaluation_db.evaluation_type, # type: ignore
+        status=evaluation_db.status,  # type: ignore
+        evaluation_type=evaluation_db.evaluation_type,  # type: ignore
         variant_ids=variants_ids,
         variant_names=variants_names,
         testset_id=str(evaluation_db.testset_id),
         testset_name=evaluation_db.testset.name,
         variants_revision_ids=variants_revision_ids,
         revisions=revisions,
-        created_at=str(evaluation_db.created_at), # type: ignore
-        updated_at=str(evaluation_db.updated_at), # type: ignore
+        created_at=str(evaluation_db.created_at),  # type: ignore
+        updated_at=str(evaluation_db.updated_at),  # type: ignore
     )
 
 
@@ -198,13 +198,13 @@ def human_evaluation_scenario_db_to_pydantic(
     return HumanEvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=evaluation_id,
-        inputs=evaluation_scenario_db.inputs, # type: ignore
-        outputs=evaluation_scenario_db.outputs, # type: ignore
-        vote=evaluation_scenario_db.vote, # type: ignore
-        score=evaluation_scenario_db.score, # type: ignore
-        correct_answer=evaluation_scenario_db.correct_answer, # type: ignore
-        is_pinned=evaluation_scenario_db.is_pinned or False, # type: ignore
-        note=evaluation_scenario_db.note or "", # type: ignore
+        inputs=evaluation_scenario_db.inputs,  # type: ignore
+        outputs=evaluation_scenario_db.outputs,  # type: ignore
+        vote=evaluation_scenario_db.vote,  # type: ignore
+        score=evaluation_scenario_db.score,  # type: ignore
+        correct_answer=evaluation_scenario_db.correct_answer,  # type: ignore
+        is_pinned=evaluation_scenario_db.is_pinned or False,  # type: ignore
+        note=evaluation_scenario_db.note or "",  # type: ignore
     )
 
 
@@ -293,9 +293,8 @@ def app_variant_db_to_pydantic(
 
 
 async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantResponse:
-    if (
-        isinstance(app_variant_db.base_id, uuid.UUID)
-        and isinstance(app_variant_db.base.deployment_id, uuid.UUID)
+    if isinstance(app_variant_db.base_id, uuid.UUID) and isinstance(
+        app_variant_db.base.deployment_id, uuid.UUID
     ):
         deployment = await db_manager.get_deployment_by_id(
             str(app_variant_db.base.deployment_id)

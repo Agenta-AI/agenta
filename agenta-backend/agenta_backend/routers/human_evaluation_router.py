@@ -396,8 +396,8 @@ async def update_evaluation_scenario_score_router(
                 )
 
         await db_manager.update_human_evaluation_scenario(
-            evaluation_scenario_id=str(evaluation_scenario.id), # type: ignore
-            values_to_update=payload.dict()
+            evaluation_scenario_id=str(evaluation_scenario.id),  # type: ignore
+            values_to_update=payload.dict(),
         )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -457,7 +457,7 @@ async def fetch_results(
         raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
-@router.delete("/", response_model=List[str]) 
+@router.delete("/", response_model=List[str])
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,

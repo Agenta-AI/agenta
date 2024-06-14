@@ -32,8 +32,7 @@ async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
         human_evaluation_id=str(evaluation.id)
     )
     results["variants"] = [
-        str(evaluation_variant.variant_id)
-        for evaluation_variant in evaluation_variants
+        str(evaluation_variant.variant_id) for evaluation_variant in evaluation_variants
     ]
 
     variant_names: list[str] = []
@@ -48,7 +47,7 @@ async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     results["variant_names"] = variant_names
     results["nb_of_rows"] = len(evaluation_scenarios)
 
-    if evaluation.evaluation_type == EvaluationType.human_a_b_testing: # type: ignore
+    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:  # type: ignore
         results.update(
             await _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios)
         )
@@ -66,7 +65,7 @@ async def _compute_stats_for_evaluation(evaluation_scenarios: list, classes: lis
 
 
 async def _compute_stats_for_human_a_b_testing_evaluation(
-    evaluation_scenarios: Sequence[EvaluationScenarioDB]
+    evaluation_scenarios: Sequence[EvaluationScenarioDB],
 ):
     results = {}
     results["variants_votes_data"] = {}

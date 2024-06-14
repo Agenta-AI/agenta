@@ -192,7 +192,9 @@ class AppVariantDB(Base):
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     base = relationship("VariantBaseDB")
     variant_revision = relationship(
-        "AppVariantRevisionsDB", cascade="all, delete-orphan", backref="variant_revision"
+        "AppVariantRevisionsDB",
+        cascade="all, delete-orphan",
+        backref="variant_revision",
     )
 
 
@@ -383,7 +385,9 @@ class HumanEvaluationVariantDB(Base):
     )
 
     variant = relationship("AppVariantDB", backref="evaluation_variant")
-    variant_revision = relationship("AppVariantRevisionsDB", backref="evaluation_variant_revision")
+    variant_revision = relationship(
+        "AppVariantRevisionsDB", backref="evaluation_variant_revision"
+    )
 
 
 class HumanEvaluationDB(Base):
@@ -410,8 +414,16 @@ class HumanEvaluationDB(Base):
 
     user = relationship("UserDB")
     testset = relationship("TestSetDB")
-    evaluation_variant = relationship("HumanEvaluationVariantDB", cascade="all, delete-orphan", backref="human_evaluation")
-    evaluation_scenario = relationship("HumanEvaluationScenarioDB", cascade="all, delete-orphan", backref="evaluation_scenario")
+    evaluation_variant = relationship(
+        "HumanEvaluationVariantDB",
+        cascade="all, delete-orphan",
+        backref="human_evaluation",
+    )
+    evaluation_scenario = relationship(
+        "HumanEvaluationScenarioDB",
+        cascade="all, delete-orphan",
+        backref="evaluation_scenario",
+    )
 
 
 class HumanEvaluationScenarioDB(Base):
