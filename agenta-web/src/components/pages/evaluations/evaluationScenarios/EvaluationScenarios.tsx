@@ -5,7 +5,7 @@ import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
-} from "@/services/evaluations"
+} from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"

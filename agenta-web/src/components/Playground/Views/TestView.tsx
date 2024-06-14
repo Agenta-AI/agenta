@@ -1,7 +1,7 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {callVariant, promptRevision} from "@/lib/services/api"
+import {callVariant} from "@/services/api"
 import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
@@ -23,6 +23,9 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
+import {dynamicService} from "@/lib/helpers/dynamic"
+
+const promptRevision: any = dynamicService("promptVersioning/api")
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -333,42 +336,50 @@ const App: React.FC<TestViewProps> = ({
             usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
-    const [revisionNum, setRevisionNum] = useQueryParam("revision")
+    const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
         if (!revisionNum) return
 
         const fetchData = async () => {
-            const revision = await promptRevision(variant.variantId, parseInt(revisionNum))
-            if (!revision) return
+            await promptRevision.then(async (module: any) => {
+                if (!module) return
 
-            setPromptOptParams((prevState: Parameter[] | null) => {
-                if (!prevState) {
-                    return prevState
-                }
+                const revision = await module.fetchPromptRevision(
+                    variant.variantId,
+                    parseInt(revisionNum),
+                )
 
-                const parameterNames = [
-                    "temperature",
-                    "model",
-                    "max_tokens",
-                    "prompt_system",
-                    "prompt_user",
-                    "top_p",
-                    "frequence_penalty",
-                    "presence_penalty",
-                    "inputs",
-                ]
+                if (!revision) return
 
-                return prevState.map((param: Parameter) => {
-                    if (parameterNames.includes(param.name)) {
-                        const newValue = (revision?.config.parameters as Record<string, any>)[
-                            param.name
-                        ]
-                        if (newValue !== undefined) {
-                            param.default = newValue
-                        }
+                setPromptOptParams((prevState: Parameter[] | null) => {
+                    if (!prevState) {
+                        return prevState
                     }
-                    return param
+
+                    const parameterNames = [
+                        "temperature",
+                        "model",
+                        "max_tokens",
+                        "prompt_system",
+                        "prompt_user",
+                        "top_p",
+                        "frequence_penalty",
+                        "presence_penalty",
+                        "inputs",
+                    ]
+
+                    return prevState.map((param: Parameter) => {
+                        if (parameterNames.includes(param.name)) {
+                            const newValue = (revision?.config.parameters as Record<string, any>)[
+                                param.name
+                            ]
+                            if (newValue !== undefined) {
+                                param.default = newValue
+                            }
+                        }
+                        return param
+                    })
                 })
             })
         }

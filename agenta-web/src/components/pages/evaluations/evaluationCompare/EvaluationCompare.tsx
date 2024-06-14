@@ -8,7 +8,7 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
-import {fetchAllComparisonResults} from "@/services/evaluations"
+import {fetchAllComparisonResults} from "@/services/evaluations/api"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
