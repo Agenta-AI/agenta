@@ -16,10 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
+from agenta_backend.models.base import Base
 from agenta_backend.models.shared_models import TemplateType
-
-
-Base = declarative_base()
 
 
 class UserDB(Base):
