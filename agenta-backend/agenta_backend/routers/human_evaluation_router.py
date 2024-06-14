@@ -64,15 +64,15 @@ async def create_evaluation(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
         new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
             payload, request.state.user_id
         )
-        return converters.human_evaluation_db_to_simple_evaluation_output(
+        return await converters.human_evaluation_db_to_simple_evaluation_output(
             new_human_evaluation_db
         )
     except KeyError:
@@ -95,6 +95,7 @@ async def fetch_list_human_evaluations(
     Returns:
         List[HumanEvaluation]: A list of evaluations.
     """
+
     try:
         if isCloudEE():
             has_permission = await check_action_access(
@@ -105,14 +106,15 @@ async def fetch_list_human_evaluations(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
         return await evaluation_service.fetch_list_human_evaluations(app_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.get("/{evaluation_id}/", response_model=HumanEvaluation)
@@ -142,14 +144,15 @@ async def fetch_human_evaluation(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
         return await evaluation_service.fetch_human_evaluation(human_evaluation)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.get(
@@ -180,6 +183,7 @@ async def fetch_evaluation_scenarios(
                 status_code=404,
                 detail=f"Evaluation with id {evaluation_id} not found",
             )
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -189,8 +193,8 @@ async def fetch_evaluation_scenarios(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
@@ -202,7 +206,11 @@ async def fetch_evaluation_scenarios(
 
         return eval_scenarios
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.put("/{evaluation_id}/", operation_id="update_human_evaluation")
@@ -219,6 +227,7 @@ async def update_human_evaluation(
     Returns:
         None: A 204 No Content status code, indicating that the update was successful.
     """
+
     try:
         human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if not human_evaluation:
@@ -232,8 +241,8 @@ async def update_human_evaluation(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
@@ -283,8 +292,8 @@ async def update_evaluation_scenario_router(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
@@ -298,7 +307,8 @@ async def update_evaluation_scenario_router(
         import traceback
 
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
@@ -334,8 +344,8 @@ async def get_evaluation_scenario_score_router(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
@@ -344,7 +354,8 @@ async def get_evaluation_scenario_score_router(
             "score": evaluation_scenario.score,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
@@ -379,17 +390,20 @@ async def update_evaluation_scenario_score_router(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
-        evaluation_scenario.score = payload.score
-        await evaluation_scenario.save()
+        await db_manager.update_human_evaluation_scenario(
+            evaluation_scenario_id=str(evaluation_scenario.id), # type: ignore
+            values_to_update=payload.dict()
+        )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
 @router.get("/{evaluation_id}/results/", operation_id="fetch_results")
@@ -421,8 +435,8 @@ async def fetch_results(
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
+                    detail=error_msg,
                     status_code=403,
                 )
 
@@ -436,10 +450,14 @@ async def fetch_results(
             )
             return {"results_data": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
 
-@router.delete("/", response_model=List[str])
+@router.delete("/", response_model=List[str]) 
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,
@@ -465,8 +483,8 @@ async def delete_evaluations(
                 )
                 if not has_permission:
                     error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                    return JSONResponse(
-                        {"detail": error_msg},
+                    raise HTTPException(
+                        detail=error_msg,
                         status_code=403,
                     )
 
@@ -475,4 +493,5 @@ async def delete_evaluations(
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e)) from e

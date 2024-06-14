@@ -130,8 +130,8 @@ class HumanEvaluation(BaseModel):
     testset_id: str
     testset_name: str
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
 
 
 class HumanEvaluationScenario(BaseModel):
@@ -141,7 +141,6 @@ class HumanEvaluationScenario(BaseModel):
     outputs: List[HumanEvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[Union[str, int]]
-    evaluation: Optional[str]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
