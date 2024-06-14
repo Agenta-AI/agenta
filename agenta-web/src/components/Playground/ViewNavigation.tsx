@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
+import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-
 import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
@@ -167,7 +166,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
     }
 
-    if (isLoading || isLogsLoading || !variantErrorLogs)
+    if (isLoading || isLogsLoading)
         return <ResultComponent status="info" title="Loading variants..." spinner={true} />
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
