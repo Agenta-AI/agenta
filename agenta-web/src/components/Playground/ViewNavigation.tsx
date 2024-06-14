@@ -8,16 +8,16 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {
-    fetchVariantLogs,
-    getAppContainerURL,
-    removeVariant,
-    restartAppVariantContainer,
-    waitForAppToStart,
-} from "@/lib/services/api"
+
+import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {
+    deleteSingleVariant,
+    fetchVariantLogs,
+    restartAppVariantContainer,
+} from "@/services/playground/api"
 
 const {Text} = Typography
 
@@ -203,7 +203,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
+            const url = await fetchAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURI(url)
         }
         if (!containerURI) {
@@ -293,7 +293,7 @@ const ViewNavigation: React.FC<Props> = ({
                             type="primary"
                             danger
                             onClick={() => {
-                                deleteVariant(() => removeVariant(variant.variantId))
+                                deleteVariant(() => deleteSingleVariant(variant.variantId))
                             }}
                         >
                             <Tooltip placement="bottom" title="Delete the variant permanently">
