@@ -523,6 +523,13 @@ class EvaluationScenarioDB(Base):
 class IDsMappingDB(Base):
     __tablename__ = "ids_mapping"
 
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     table_name = Column(String, nullable=False)
-    objectid = Column(String, primary_key=True)
+    objectid = Column(String, nullable=False)
     uuid = Column(UUID(as_uuid=True), nullable=False)
