@@ -176,6 +176,8 @@ services:
             - "5432:5432"
         networks:
             - agenta-network
+        volumes:
+          - postgresdb-data:/var/lib/postgresql/data/
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U postgres"]
             interval: 10s
@@ -196,6 +198,8 @@ services:
             - "5050:80"
         networks:
             - agenta-network
+        volumes:
+          - pgadmin-data:/var/lib/pgadmin
         depends_on:
             postgres:
                 condition: service_healthy
@@ -205,6 +209,8 @@ networks:
         name: agenta-network
 
 volumes:
-    mongodb_data:
+    # mongodb_data:
     redis_data:
     nextjs_cache:
+    postgresdb-data:
+    pgadmin-data:
