@@ -49,12 +49,14 @@ async def create_all_tables(tables):
 
 async def store_mapping(table_name, mongo_id, uuid):
     """Store the mapping of MongoDB ObjectId to UUID in the mapping table."""
+    id = generate_uuid()
     async with db_engine.get_session() as session:
         async with session.begin():
             mapping = IDsMappingDB(
-                table_name=table_name, objectid=str(mongo_id), uuid=uuid
+                id=id, table_name=table_name, objectid=str(mongo_id), uuid=uuid
             )
             session.add(mapping)
+        await session.commit()
 
 
 async def get_mapped_uuid(mongo_id):
@@ -91,6 +93,10 @@ def print_migration_report():
     # Headers
     headers = ["Table", "Total in MongoDB", "Migrated to PostgreSQL"]
 
+    if not migration_report:
+        print("No data available in the migration report.")
+        return
+
     # Determine the maximum lengths for each column including headers
     max_table_length = max(
         len(headers[0]), max(len(table) for table in migration_report.keys())
@@ -125,15 +131,16 @@ async def migrate_collection(
     )
     total_docs = mongo_db[collection_name].count_documents({})
     migrated_docs = 0
+
     async with db_engine.get_session() as session:
-        async with session.begin():
-            for skip in range(0, total_docs, BATCH_SIZE):
-                batch = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: list(
-                        mongo_db[collection_name].find().skip(skip).limit(BATCH_SIZE)
-                    ),
-                )
+        for skip in range(0, total_docs, BATCH_SIZE):
+            batch = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: list(
+                    mongo_db[collection_name].find().skip(skip).limit(BATCH_SIZE)
+                ),
+            )
+            async with session.begin():
                 for document in batch:
                     if association_model:
                         (
@@ -147,5 +154,5 @@ async def migrate_collection(
                         transformed_document = await transformation_func(document)
                         session.add(model_class(**transformed_document))
                     migrated_docs += 1
-                await session.commit()
+            await session.commit()
     update_migration_report(collection_name, total_docs, migrated_docs)
