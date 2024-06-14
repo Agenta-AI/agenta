@@ -1,7 +1,7 @@
 import EvaluationResults from "@/components/pages/evaluations/evaluationResults/EvaluationResults"
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations"
+import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {useAtom} from "jotai"
 import React, {useEffect} from "react"
 
