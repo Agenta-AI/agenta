@@ -77,7 +77,8 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([SpanDB, OrganizationDB, WorkspaceDB, APIKeyDB])  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB])  # type: ignore
+
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)

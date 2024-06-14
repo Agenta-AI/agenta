@@ -83,6 +83,7 @@ from agenta_backend.models.shared_models import (
     EvaluationScenarioResult,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
+    TemplateType,
 )
 
 
@@ -2091,6 +2092,7 @@ async def add_zip_template(key, value):
     Adds a new s3 zip template to the database
 
     Args:
+        session: SQLAlchemy async session
         key: key of the json file
         value (dict): dictionary value of a key
 
@@ -2099,8 +2101,9 @@ async def add_zip_template(key, value):
     """
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(TemplateDB).filter_by(name=key))
-        existing_template = result.scalars().one_or_none()
+        query = select(TemplateDB).where(TemplateDB.name == key)
+        result = await session.execute(query)
+        existing_template = result.scalars().first()
         if existing_template:
             # Compare existing values with new values
             if (
@@ -2113,6 +2116,7 @@ async def add_zip_template(key, value):
             else:
                 # Values are changed, delete existing template
                 await session.delete(existing_template)
+                await session.commit()
 
         # Create a new template
         template_name = key
@@ -2121,18 +2125,16 @@ async def add_zip_template(key, value):
         template_uri = value.get("template_uri")
 
         template_db_instance = TemplateDB(
-            type="zip",
+            type=TemplateType.ZIP,
             name=template_name,
             title=title,
             description=description,
             template_uri=template_uri,
         )
-
         session.add(template_db_instance)
         await session.commit()
-        await session.refresh(template_db_instance)
-
-        return str(template_db_instance.id)
+ 
+    return str(template_db_instance.id)
 
 
 async def get_template(template_id: str) -> TemplateDB:
