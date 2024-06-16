@@ -292,7 +292,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`/apps/${appId}/evaluations`))
+                    .then(() => router.push(`/apps/${appId}/evaluations/results`))
                     .catch(console.error),
         })
     }
