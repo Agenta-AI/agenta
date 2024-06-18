@@ -91,7 +91,7 @@ class AgentaSingleton:
                 "Warning: Your configuration will not be saved permanently since base_id is not provided."
             )
 
-        self.config = Config(base_id=self.base_id, host=self.host)  # type: ignore
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
 
 class Config:
