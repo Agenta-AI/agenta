@@ -315,6 +315,11 @@ async def remove_app(app: AppDB):
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
+
+        if len(app_variants) <= 1:
+            logger.debug("remove_app_related_resources")
+            await remove_app_related_resources(str(app.id))
+
     except Exception as e:
         # Failsafe: in case something went wrong,
         # delete app and its related resources
