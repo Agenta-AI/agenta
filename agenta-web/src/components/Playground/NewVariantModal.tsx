@@ -13,7 +13,6 @@ interface Props {
     setNewVariantName: (value: string) => void
     newVariantName: string
     setTemplateVariantName: (value: string) => void
-    templateVariantName: string
 }
 
 const useStyles = createUseStyles({
@@ -30,7 +29,6 @@ const NewVariantModal: React.FC<Props> = ({
     setNewVariantName,
     newVariantName,
     setTemplateVariantName,
-    templateVariantName,
 }) => {
     const classes = useStyles()
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
@@ -63,6 +61,7 @@ const NewVariantModal: React.FC<Props> = ({
             onCancel={() => setIsModalOpen(false)}
             centered
             okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
+            destroyOnClose
         >
             <Space direction="vertical" size={20}>
                 <div>
@@ -72,7 +71,6 @@ const NewVariantModal: React.FC<Props> = ({
                         data-cy="new-variant-modal-select"
                         placeholder="Select a variant"
                         onChange={handleTemplateVariantChange}
-                        value={templateVariantName}
                         options={variants.map((variant) => ({
                             value: variant.variantName,
                             label: (
@@ -87,7 +85,6 @@ const NewVariantModal: React.FC<Props> = ({
                     <Input
                         addonBefore={variantPlaceHolder}
                         onChange={handleVariantNameChange}
-                        value={newVariantName}
                         data-cy="new-variant-modal-input"
                     />
                 </div>
