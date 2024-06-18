@@ -495,9 +495,15 @@ async def create_image(
         ImageDB: The created image.
     """
 
-    assert image_type == TemplateType.IMAGE.value and docker_id is None, "docker_id must be provided for type image"
-    assert image_type == TemplateType.ZIP.value and docker_id is None, "template_uri must be provided for zip image"
-    assert (docker_id is None) == (template_uri is None), "Provide either docker_id or template_uri, but not both"
+    assert (
+        image_type == TemplateType.IMAGE.value and docker_id is None
+    ), "docker_id must be provided for type image"
+    assert (
+        image_type == TemplateType.ZIP.value and docker_id is None
+    ), "template_uri must be provided for zip image"
+    assert (docker_id is None) == (
+        template_uri is None
+    ), "Provide either docker_id or template_uri, but not both"
 
     async with db_engine.get_session() as session:
         image = ImageDB(
@@ -505,10 +511,7 @@ async def create_image(
             user_id=user.id,
         )
 
-        image_types = {
-            "zip": TemplateType.ZIP.value,
-            "image": TemplateType.IMAGE.value
-        }
+        image_types = {"zip": TemplateType.ZIP.value, "image": TemplateType.IMAGE.value}
 
         image_type_value = image_types.get(image_type)
         if image_type_value is None:
@@ -1404,12 +1407,11 @@ async def list_environments(app_id: str, **kwargs: dict):
         result = await session.execute(
             select(AppEnvironmentDB)
             .options(
-                joinedload(AppEnvironmentDB.deployed_app_variant_revision)
-                .load_only(
-                    AppVariantRevisionsDB.base_id, # type: ignore
-                    AppVariantRevisionsDB.revision, # type: ignore
-                    AppVariantRevisionsDB.config_name, # type: ignore
-                    AppVariantRevisionsDB.config_parameters # type: ignore
+                joinedload(AppEnvironmentDB.deployed_app_variant_revision).load_only(
+                    AppVariantRevisionsDB.base_id,  # type: ignore
+                    AppVariantRevisionsDB.revision,  # type: ignore
+                    AppVariantRevisionsDB.config_name,  # type: ignore
+                    AppVariantRevisionsDB.config_parameters,  # type: ignore
                 )
             )
             .filter_by(app_id=uuid.UUID(app_id))
