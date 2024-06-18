@@ -1412,7 +1412,17 @@ async def list_environments(app_id: str, **kwargs: dict):
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppEnvironmentDB).filter_by(app_id=uuid.UUID(app_id))
+            select(AppEnvironmentDB)
+            .options(
+                joinedload(AppEnvironmentDB.deployed_app_variant_revision)
+                .load_only(
+                    AppVariantRevisionsDB.base_id, # type: ignore
+                    AppVariantRevisionsDB.revision, # type: ignore
+                    AppVariantRevisionsDB.config_name, # type: ignore
+                    AppVariantRevisionsDB.config_parameters # type: ignore
+                )
+            )
+            .filter_by(app_id=uuid.UUID(app_id))
         )
         environments_db = result.scalars().all()
         return environments_db
