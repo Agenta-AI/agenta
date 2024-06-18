@@ -18,7 +18,7 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from agenta_backend.models.db_engine import db_engine
-from sqlalchemy.orm import selectinload, joinedload, aliased, load_only
+from sqlalchemy.orm import joinedload, aliased, load_only
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -73,6 +73,7 @@ from agenta_backend.models.db_models import (
     AppVariantRevisionsDB,
     HumanEvaluationVariantDB,
     EvaluationScenarioResultDB,
+    EvaluationEvaluatorConfigDB,
     EvaluationAggregatedResultDB,
 )
 
@@ -1627,6 +1628,23 @@ async def remove_environment(environment_db: AppEnvironmentDB):
         await session.commit()
 
 
+async def remove_testsets(testset_ids: List[str]):
+    """
+    Removes testsets.
+
+    Args:
+        testset_ids (List[str]):  The testset identifiers
+    """
+
+    async with db_engine.get_session() as session:
+        query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
+        result = await session.execute(query)
+        testsets = result.scalars().all()
+        for testset in testsets:
+            await session.delete(testset)
+        await session.commit()
+
+
 async def remove_app_testsets(app_id: str):
     """Returns a list of testsets owned by an app.
 
@@ -2630,6 +2648,45 @@ async def list_evaluations(app_id: str):
         )
         evaluations = result.unique().scalars().all()
         return evaluations
+
+
+async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
+    """
+    Fetches an evaluations by resource.
+
+    Args:
+        resource_type:  The resource type
+        resource_ids:   The resource identifiers
+
+    Returns:
+        The evaluations by resource.
+
+    Raises:
+        HTTPException:400 resource_type {type} is not supported
+    """
+
+    ids = list(map(uuid.UUID, resource_ids))
+
+    async with db_engine.get_session() as session:
+        if resource_type == "variant":
+            query = select(EvaluationDB).filter(EvaluationDB.variant_id.in_(ids))
+        elif resource_type == "testset":
+            query = select(EvaluationDB).filter(EvaluationDB.testset_id.in_(ids))
+        elif resource_type == "evaluator_config":
+            query = (
+                select(EvaluationDB)
+                .join(EvaluationDB.evaluator_configs)
+                .filter(EvaluationEvaluatorConfigDB.evaluator_config_id.in_(ids))
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"resource_type {resource_type} is not supported",
+            )
+
+        result = await session.execute(query)
+        res = result.scalars().all()
+        return res
 
 
 async def delete_evaluations(evaluation_ids: List[str]) -> None:
