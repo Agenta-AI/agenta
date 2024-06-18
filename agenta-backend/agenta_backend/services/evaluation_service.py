@@ -548,24 +548,3 @@ def remove_duplicates(csvdata):
             unique_entries.append(entry)
 
     return unique_entries
-
-
-async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
-    ids = list(map(uuid.UUID, resource_ids))
-
-    async with db_engine.get_session() as session:
-        if resource_type == "variant":
-            query = select(EvaluationDB).filter(EvaluationDB.variant_id.in_(ids))
-        elif resource_type == "testset":
-            query = select(EvaluationDB).filter(EvaluationDB.testset_id.in_(ids))
-        # elif resource_type == "evaluator_config":
-        #     query = select(EvaluationDB).filter(EvaluationDB.evaluators_configs_id.in_(ids))
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"resource_type {resource_type} is not supported",
-            )
-
-        result = await session.execute(query)
-        res = result.scalars().all()
-        return res
