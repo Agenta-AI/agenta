@@ -3,27 +3,20 @@ import uuid
 import logging
 from pathlib import Path
 from urllib.parse import urlparse
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
-from fastapi.responses import JSONResponse
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.db_engine import db_engine
 from agenta_backend.services.json_importer_helper import get_json
 
 from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
-from agenta_backend.models.db_engine import db_engine
 from sqlalchemy.orm import joinedload, aliased, load_only
-
-from agenta_backend.models.api.api_models import (
-    App,
-    Template,
-)
 
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
@@ -78,15 +71,15 @@ from agenta_backend.models.db_models import (
 )
 
 from agenta_backend.models.shared_models import (
-    HumanEvaluationScenarioInput,
     Result,
     ConfigDB,
+    TemplateType,
     CorrectAnswer,
     AggregatedResult,
     EvaluationScenarioResult,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
-    TemplateType,
+    HumanEvaluationScenarioInput,
 )
 
 
@@ -502,20 +495,9 @@ async def create_image(
         ImageDB: The created image.
     """
 
-    # Validate image type
-    valid_image_types = ["image", "zip"]
-    if image_type not in valid_image_types:
-        raise Exception("Invalid image type")
-
-    # Validate either docker_id or template_uri, but not both
-    if (docker_id is None) == (template_uri is None):
-        raise Exception("Provide either docker_id or template_uri, but not both")
-
-    # Validate docker_id or template_uri based on image_type
-    if image_type == "image" and docker_id is None:
-        raise Exception("Docker id must be provided for type image")
-    elif image_type == "zip" and template_uri is None:
-        raise Exception("template_uri must be provided for type zip")
+    assert image_type == TemplateType.IMAGE.value and docker_id is None, "docker_id must be provided for type image"
+    assert image_type == TemplateType.ZIP.value and docker_id is None, "template_uri must be provided for zip image"
+    assert (docker_id is None) == (template_uri is None), "Provide either docker_id or template_uri, but not both"
 
     async with db_engine.get_session() as session:
         image = ImageDB(
@@ -523,11 +505,19 @@ async def create_image(
             user_id=user.id,
         )
 
-        if image_type == "zip":
-            image.type = "zip"  # type: ignore
+        image_types = {
+            "zip": TemplateType.ZIP.value,
+            "image": TemplateType.IMAGE.value
+        }
+
+        image_type_value = image_types.get(image_type)
+        if image_type_value is None:
+            raise ValueError(f"Invalid image_type: {image_type}")
+
+        image.type = image_type_value  # type: ignore
+        if image_type_value == "zip":
             image.template_uri = template_uri  # type: ignore
-        elif image_type == "image":
-            image.type = "image"  # type: ignore
+        else:
             image.tags = tags  # type: ignore
             image.docker_id = docker_id  # type: ignore
 
