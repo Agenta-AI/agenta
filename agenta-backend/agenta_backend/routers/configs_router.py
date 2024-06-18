@@ -156,7 +156,7 @@ async def get_config(
             variant_revision = found_variant.revision
             config = {"name": found_variant.config_name, "parameters": found_variant.config_parameters}
 
-        assert "name" and "parameters" in config, "'name' and 'parameters' not found in "
+        assert "name" and "parameters" in config, "'name' and 'parameters' not found in configuration"
         return GetConfigResponse(
             config_name=config["name"], # type: ignore
             current_version=variant_revision, # type: ignore

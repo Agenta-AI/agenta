@@ -316,7 +316,7 @@ async def remove_app(app: AppDB):
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
     except Exception as e:
-        # Failsafe: in case something went wrong, 
+        # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
             if len(app_variants) <= 1:
