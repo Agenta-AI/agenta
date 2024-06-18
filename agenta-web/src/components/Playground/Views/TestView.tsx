@@ -2,7 +2,7 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/services/api"
-import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -29,10 +29,6 @@ const promptRevision: any = dynamicService("promptVersioning/api")
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
