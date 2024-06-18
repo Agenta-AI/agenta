@@ -86,9 +86,6 @@ class AppDB(Base):
 
     user = relationship("UserDB")
     variant = relationship("AppVariantDB", cascade="all, delete-orphan", backref="app")
-    evaluator_config = relationship(
-        "EvaluatorConfigDB", cascade="all, delete-orphan", backref="app"
-    )
     testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
     base = relationship("DeploymentDB", cascade="all, delete-orphan", backref="app")
     deployment = relationship(
@@ -347,7 +344,7 @@ class EvaluatorConfigDB(Base):
         nullable=False,
     )
 
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="SET NULL"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     name = Column(String)
     evaluator_key = Column(String)
@@ -488,7 +485,7 @@ class EvaluationScenarioResultDB(Base):
         UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id", ondelete="CASCADE")
     )
     evaluator_config_id = Column(
-        UUID(as_uuid=True), ForeignKey("evaluators_configs.id")
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
     )
     result = Column(JSONB)  # Result
 
