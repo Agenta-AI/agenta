@@ -24,8 +24,6 @@ if isCloudEE():
     from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
-from beanie import PydanticObjectId as ObjectId
-
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,7 +32,7 @@ logger.setLevel(logging.DEBUG)
 
 @router.get(
     "/by_resource/",
-    response_model=List[ObjectId],
+    response_model=List[str],
 )
 async def fetch_evaluation_ids(
     app_id: str,
@@ -73,11 +71,14 @@ async def fetch_evaluation_ids(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        evaluations = await evaluation_service.fetch_evaluations_by_resource(
+        evaluations = await db_manager.fetch_evaluations_by_resource(
             resource_type, resource_ids
         )
-        return list(map(lambda x: x.id, evaluations))
+        return list(map(lambda x: str(x.id), evaluations))
     except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
