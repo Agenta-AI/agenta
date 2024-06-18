@@ -495,15 +495,20 @@ async def create_image(
         ImageDB: The created image.
     """
 
-    assert (
-        image_type == TemplateType.IMAGE.value and docker_id is None
-    ), "docker_id must be provided for type image"
-    assert (
-        image_type == TemplateType.ZIP.value and docker_id is None
-    ), "template_uri must be provided for zip image"
-    assert (docker_id is None) == (
-        template_uri is None
-    ), "Provide either docker_id or template_uri, but not both"
+    # Validate image type
+    valid_image_types = ["image", "zip"]
+    if image_type not in valid_image_types:
+        raise Exception("Invalid image type")
+
+    # Validate either docker_id or template_uri, but not both
+    if (docker_id is None) == (template_uri is None):
+        raise Exception("Provide either docker_id or template_uri, but not both")
+
+    # Validate docker_id or template_uri based on image_type
+    if image_type == "image" and docker_id is None:
+        raise Exception("Docker id must be provided for type image")
+    elif image_type == "zip" and template_uri is None:
+        raise Exception("template_uri must be provided for type zip")
 
     async with db_engine.get_session() as session:
         image = ImageDB(
