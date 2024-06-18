@@ -308,23 +308,25 @@ async def remove_app(app: AppDB):
         logger.error(error_msg)
         raise ValueError(error_msg)
 
+    app_variants = await db_manager.list_app_variants(str(app.id))
     try:
-        app_variants = await db_manager.list_app_variants(str(app.id))
         for app_variant_db in app_variants:
             await terminate_and_remove_app_variant(app_variant_db=app_variant_db)
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
-
-        if len(app_variants) <= 1:  # Failsafe in case something went wrong before
-            logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(str(app.id))
-
     except Exception as e:
-        logger.error(
-            f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"
-        )
-        raise e from None
+        # Failsafe: in case something went wrong, 
+        # delete app and its related resources
+        try:
+            if len(app_variants) <= 1:
+                logger.debug("remove_app_related_resources")
+                await remove_app_related_resources(str(app.id))
+        except Exception as e:
+            logger.error(
+                f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"
+            )
+            raise e from None
 
 
 async def update_variant_parameters(
