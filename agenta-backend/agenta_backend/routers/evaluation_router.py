@@ -263,8 +263,8 @@ async def fetch_evaluation_scenarios(
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
-                raise HTTPException(
-                    detail=error_msg,
+                return JSONResponse(
+                    {"detail": error_msg},
                     status_code=403,
                 )
 
@@ -362,8 +362,8 @@ async def fetch_evaluation(
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
-                raise HTTPException(
-                    detail=error_msg,
+                return JSONResponse(
+                    {"detail": error_msg},
                     status_code=403,
                 )
 
