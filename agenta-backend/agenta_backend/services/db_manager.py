@@ -203,7 +203,9 @@ async def fetch_app_variant_by_id(
             select(AppVariantDB)
             .options(
                 joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.user).load_only(UserDB.uid), # type: ignore
                 joinedload(AppVariantDB.app),
+                joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags) # type: ignore
             )
             .filter_by(id=uuid.UUID(app_variant_id))
         )
@@ -2555,7 +2557,8 @@ async def update_app_variant(
                 setattr(app_variant, key, value)
 
         await session.commit()
-        await session.refresh(app_variant)
+        await session.refresh(app_variant, attribute_names=["user", "app", "image", "base"])
+
         return app_variant
 
 
