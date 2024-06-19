@@ -89,7 +89,9 @@ class AppDB(Base):
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
     testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
-    deployment = relationship("DeploymentDB", cascade="all, delete-orphan", back_populates="app")
+    deployment = relationship(
+        "DeploymentDB", cascade="all, delete-orphan", back_populates="app"
+    )
     base = relationship(
         "VariantBaseDB", cascade="all, delete-orphan", back_populates="app"
     )
@@ -141,7 +143,9 @@ class VariantBaseDB(Base):
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL"))
+    image_id = Column(
+        UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
+    )
     deployment_id = Column(
         UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
     )

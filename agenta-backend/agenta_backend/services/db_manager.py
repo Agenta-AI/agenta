@@ -203,9 +203,9 @@ async def fetch_app_variant_by_id(
             select(AppVariantDB)
             .options(
                 joinedload(AppVariantDB.base),
-                joinedload(AppVariantDB.user).load_only(UserDB.uid), # type: ignore
+                joinedload(AppVariantDB.user).load_only(UserDB.uid),  # type: ignore
                 joinedload(AppVariantDB.app),
-                joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags) # type: ignore
+                joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
             .filter_by(id=uuid.UUID(app_variant_id))
         )
@@ -2542,22 +2542,31 @@ async def remove_base(base_db: VariantBaseDB):
 
 
 async def update_app_variant(
-    app_variant: AppVariantDB,
+    app_variant_id: str,
     **kwargs: dict,
 ) -> AppVariantDB:
     """Update the app variant object in the database with the provided id.
 
     Arguments:
-        app_variant (AppVariantDB): The app variant object to update.
+        app_variant_id (str): The app variant oIDbject to update.
     """
 
     async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
+        )
+        app_variant = result.scalars().one_or_none()
+        if not app_variant:
+            raise NoResultFound(f"App variant with id {app_variant_id} not found")
+
         for key, value in kwargs.items():
             if hasattr(app_variant, key):
                 setattr(app_variant, key, value)
 
         await session.commit()
-        await session.refresh(app_variant, attribute_names=["user", "app", "image", "base"])
+        await session.refresh(
+            app_variant, attribute_names=["user", "app", "image", "base"]
+        )
 
         return app_variant
 
