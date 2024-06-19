@@ -218,16 +218,13 @@ async def update_human_evaluation_scenario(
     values_to_update = {}
     payload = evaluation_scenario_data.dict(exclude_unset=True)
 
-    if (
-        hasattr(payload, "score")
-        and evaluation_type == EvaluationType.single_model_test
-    ):
-        values_to_update["score"] = payload["score"]
+    if "score" in payload and evaluation_type == EvaluationType.single_model_test:
+        values_to_update["score"] = str(payload["score"])
 
-    if hasattr(payload, "vote") and evaluation_type == EvaluationType.human_a_b_testing:
+    if "vote" in payload and evaluation_type == EvaluationType.human_a_b_testing:
         values_to_update["vote"] = payload["vote"]
 
-    if hasattr(payload, "outputs"):
+    if "outputs" in payload:
         new_outputs = [
             HumanEvaluationScenarioOutput(
                 variant_id=output["variant_id"],
@@ -237,7 +234,7 @@ async def update_human_evaluation_scenario(
         ]
         values_to_update["outputs"] = new_outputs
 
-    if hasattr(payload, "inputs"):
+    if "inputs" in payload:
         new_inputs = [
             HumanEvaluationScenarioInput(
                 input_name=input_item["input_name"],
@@ -247,13 +244,13 @@ async def update_human_evaluation_scenario(
         ]
         values_to_update["inputs"] = new_inputs
 
-    if hasattr(payload, "is_pinned"):
+    if "is_pinned" in payload:
         values_to_update["is_pinned"] = payload["is_pinned"]
 
-    if hasattr(payload, "note"):
+    if "note" in payload:
         values_to_update["note"] = payload["note"]
 
-    if hasattr(payload, "correct_answer"):
+    if "correct_answer" in payload:
         values_to_update["correct_answer"] = payload["correct_answer"]
 
     await db_manager.update_human_evaluation_scenario(

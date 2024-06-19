@@ -1,12 +1,11 @@
 from typing import List, Dict
-from fastapi.responses import JSONResponse
-from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.services import results_service
 from agenta_backend.services import evaluation_service
+from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
