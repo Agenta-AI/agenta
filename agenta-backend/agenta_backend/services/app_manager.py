@@ -222,7 +222,7 @@ async def terminate_and_remove_app_variant(
                 raise
 
             image = base_db.image
-            logger.debug("is_last_variant_for_image {image}")
+            logger.debug(f"is_last_variant_for_image {image}")
 
             if not isinstance(base_db.image_id, uuid.UUID):  # type: ignore
                 logger.debug(
@@ -255,6 +255,9 @@ async def terminate_and_remove_app_variant(
                     logger.error(f"Failed to remove image {image} {e}")
                 finally:
                     await db_manager.remove_image(image)
+
+            # remove app variant
+            await db_manager.remove_app_variant_from_db(app_variant_db)
         else:
             # remove variant + config
             logger.debug("remove_app_variant_from_db")
@@ -263,7 +266,7 @@ async def terminate_and_remove_app_variant(
         app_variants = await db_manager.list_app_variants(app_id)
         logger.debug(f"Count of app variants available: {len(app_variants)}")
         if (
-            len(app_variants) <= 1
+            len(app_variants) == 0
         ):  # remove app related resources if the length of the app variants hit 0
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id)
@@ -316,7 +319,7 @@ async def remove_app(app: AppDB):
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
-        if len(app_variants) <= 1:
+        if len(app_variants) == 0:
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id))
 
@@ -324,7 +327,7 @@ async def remove_app(app: AppDB):
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
-            if len(app_variants) <= 1:
+            if len(app_variants) == 0:
                 logger.debug("remove_app_related_resources")
                 await remove_app_related_resources(str(app.id))
         except Exception as e:
