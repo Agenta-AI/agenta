@@ -19,7 +19,7 @@ async def user_profile(
             username=str(user.username),
             email=str(user.email),
             created_at=str(user.created_at),
-            updated_at=str(user.updated_at)
+            updated_at=str(user.updated_at),
         ).dict(exclude_unset=True)
 
     except Exception as e:

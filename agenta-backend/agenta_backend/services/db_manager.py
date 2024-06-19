@@ -1841,9 +1841,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
 
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(TestSetDB).filter_by(id=testset_uuid)
-        )
+        result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().one_or_none()
         return testset
 

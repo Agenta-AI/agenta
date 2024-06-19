@@ -391,7 +391,7 @@ async def get_single_testset(
             raise HTTPException(status_code=404, detail="testset not found")
         return testset_db_to_pydantic(test_set)
     except Exception as exc:
-        status_code = exc.status_code if hasattr(exc, "status_code") else 500 # type: ignore
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500  # type: ignore
         raise HTTPException(status_code=status_code, detail=str(exc))
 
 
