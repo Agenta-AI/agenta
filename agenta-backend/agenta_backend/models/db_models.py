@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
 
 import uuid_utils.compat as uuid
 from sqlalchemy import (
@@ -12,6 +11,7 @@ from sqlalchemy import (
     Enum,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.base import Base
@@ -174,7 +174,9 @@ class AppVariantDB(Base):
     base_name = Column(String)
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     config_name = Column(String, nullable=False)
-    config_parameters = Column(JSONB, nullable=False, default=dict)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+    )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -210,7 +212,9 @@ class AppVariantRevisionsDB(Base):
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     config_name = Column(String, nullable=False)
-    config_parameters = Column(JSONB, nullable=False, default=dict)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+    )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -321,7 +325,7 @@ class TestSetDB(Base):
     )
     name = Column(String)
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    csvdata = Column(JSONB)
+    csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -348,7 +352,7 @@ class EvaluatorConfigDB(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     name = Column(String)
     evaluator_key = Column(String)
-    settings_values = Column(JSONB, default=dict)
+    settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -435,8 +439,12 @@ class HumanEvaluationScenarioDB(Base):
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
     )
-    inputs = Column(JSONB)  # List of HumanEvaluationScenarioInput
-    outputs = Column(JSONB)  # List of HumanEvaluationScenarioOutput
+    inputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of HumanEvaluationScenarioInput
+    outputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of HumanEvaluationScenarioOutput
     vote = Column(String)
     score = Column(String)
     correct_answer = Column(String)
@@ -466,7 +474,7 @@ class EvaluationAggregatedResultDB(Base):
     evaluator_config_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
     )
-    result = Column(JSONB)  # Result
+    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
 
     evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
 
@@ -487,7 +495,7 @@ class EvaluationScenarioResultDB(Base):
     evaluator_config_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
     )
-    result = Column(JSONB)  # Result
+    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
 
 
 class EvaluationDB(Base):
@@ -502,7 +510,7 @@ class EvaluationDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    status = Column(JSONB)  # Result
+    status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     testset_id = Column(
         UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
     )
@@ -512,9 +520,9 @@ class EvaluationDB(Base):
     variant_revision_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
     )
-    average_cost = Column(JSONB)  # Result
-    total_cost = Column(JSONB)  # Result
-    average_latency = Column(JSONB)  # Result
+    average_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    total_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    average_latency = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -580,9 +588,15 @@ class EvaluationScenarioDB(Base):
     variant_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
     )
-    inputs = Column(JSONB)  # List of EvaluationScenarioInput
-    outputs = Column(JSONB)  # List of EvaluationScenarioOutput
-    correct_answers = Column(JSONB)  # List of CorrectAnswer
+    inputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of EvaluationScenarioInput
+    outputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of EvaluationScenarioOutput
+    correct_answers = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of CorrectAnswer
     is_pinned = Column(Boolean)
     note = Column(String)
     latency = Column(Integer)
