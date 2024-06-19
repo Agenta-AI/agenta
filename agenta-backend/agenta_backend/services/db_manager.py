@@ -1385,7 +1385,7 @@ async def update_app_environment_deployed_variant_revision(
                 f"App variant revision {deployed_variant_revision} not found"
             )
 
-        app_environment.deployed_app_variant_revision = app_variant_revision
+        app_environment.deployed_app_variant_revision_id = app_variant_revision.id
 
         await session.commit()
         await session.refresh(app_environment)
@@ -1761,9 +1761,7 @@ async def update_variant_parameters(
             raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
         # Update associated ConfigDB parameters
-        for key, value in parameters.items():
-            if hasattr(app_variant_db.config_parameters, key):
-                setattr(app_variant_db.config_parameters, key, value)
+        app_variant_db.config_parameters.update(parameters)
 
         # ...and variant versioning
         app_variant_db.revision += 1  # type: ignore
@@ -1771,6 +1769,7 @@ async def update_variant_parameters(
 
         # Save updated ConfigDB
         await session.commit()
+        await session.refresh(app_variant_db)
 
         variant_revision = AppVariantRevisionsDB(
             variant_id=app_variant_db.id,
@@ -1833,10 +1832,17 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         TestSetDB: The fetched testset, or None if no testset was found.
     """
 
-    assert testset_id is not None, "testset_id cannot be None"
+    if not isinstance(testset_id, str) or not testset_id:
+        raise ValueError(f"testset_id {testset_id} must be a non-empty string")
+
+    try:
+        testset_uuid = uuid.UUID(testset_id)
+    except ValueError as e:
+        raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
+
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
+            select(TestSetDB).filter_by(id=testset_uuid)
         )
         testset = result.scalars().one_or_none()
         return testset
@@ -2964,9 +2970,10 @@ async def update_evaluator_config(
                 f"Evaluator config with id {evaluator_config_id} not found"
             )
 
+        # Update evaluator config settings values
         for key, value in updates.items():
-            if hasattr(evaluator_config.settings_values, key):
-                setattr(evaluator_config.settings_values, key, value)
+            if hasattr(evaluator_config, key):
+                setattr(evaluator_config, key, value)
 
         await session.commit()
         await session.refresh(evaluator_config)
