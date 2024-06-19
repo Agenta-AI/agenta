@@ -154,7 +154,7 @@ export default function Testsets() {
                     loading={isTestsetsLoading}
                     onRow={(record) => {
                         return {
-                            onClick: () => router.push(`/apps/${appId}/testsets/${record.id}`),
+                            onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
                         }
                     }}
                 />
