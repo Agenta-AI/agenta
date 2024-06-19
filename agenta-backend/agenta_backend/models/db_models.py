@@ -89,9 +89,9 @@ class AppDB(Base):
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
     testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
-    base = relationship("DeploymentDB", cascade="all, delete-orphan", backref="app")
-    deployment = relationship(
-        "VariantBaseDB", cascade="all, delete-orphan", backref="app"
+    deployment = relationship("DeploymentDB", cascade="all, delete-orphan", back_populates="app")
+    base = relationship(
+        "VariantBaseDB", cascade="all, delete-orphan", back_populates="app"
     )
     evaluation = relationship(
         "EvaluationDB", cascade="all, delete-orphan", backref="app"
@@ -111,7 +111,7 @@ class DeploymentDB(Base):
         unique=True,
         nullable=False,
     )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     container_name = Column(String)
     container_id = Column(String)
@@ -125,6 +125,7 @@ class DeploymentDB(Base):
     )
 
     user = relationship("UserDB")
+    app = relationship("AppDB", back_populates="deployment")
 
 
 class VariantBaseDB(Base):
@@ -137,10 +138,10 @@ class VariantBaseDB(Base):
         unique=True,
         nullable=False,
     )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id"))
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id"))
+    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL"))
     deployment_id = Column(
         UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
     )
@@ -151,10 +152,10 @@ class VariantBaseDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    # app = relationship("AppDB", back_populates="base")
     user = relationship("UserDB")
     image = relationship("ImageDB")
     deployment = relationship("DeploymentDB")
+    app = relationship("AppDB", back_populates="base")
 
 
 class AppVariantDB(Base):

@@ -14,13 +14,11 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.models.db_models import (
     AppVariantDB,
-    AppEnvironmentDB,
     AppDB,
 )
 
 from agenta_backend.services import (
     db_manager,
-    evaluator_manager,
 )
 
 from agenta_backend.utils.common import (
@@ -74,6 +72,7 @@ async def start_variant(
         ValueError: If the app variant does not have a corresponding image in the database.
         RuntimeError: If there is an error starting the Docker container.
     """
+
     try:
         logger.debug(
             "Starting variant %s with image name %s and tags %s and app_name %s and organization %s and workspace %s",
@@ -109,6 +108,7 @@ async def start_variant(
                 hidden=True,
             )
             env_vars.update({"AGENTA_API_KEY": api_key})
+
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
@@ -144,7 +144,9 @@ async def update_variant_image(
     valid_image = await deployment_manager.validate_image(image)
     if not valid_image:
         raise ValueError("Image could not be found in registry.")
-    deployment = await db_manager.get_deployment_by_id(app_variant_db.base.deployment)
+
+    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
+    deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
 
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
@@ -153,6 +155,7 @@ async def update_variant_image(
         await deployment_manager.remove_image(app_variant_db.base.image)
 
     await db_manager.remove_image(app_variant_db.base.image)
+
     # Create a new image instance
     db_image = await db_manager.create_image(
         image_type="image",
@@ -167,7 +170,7 @@ async def update_variant_image(
     await db_manager.update_base(str(app_variant_db.base_id), image=db_image)
     # Update variant to remove configuration
     await db_manager.update_variant_parameters(
-        app_variant_db=app_variant_db, parameters={}, user_uid=user_uid
+        str(app_variant_db.id), parameters={}, user_uid=user_uid
     )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
@@ -318,7 +321,7 @@ async def remove_app(app: AppDB):
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
-
+        print("LEN: ", len(app_variants))
         if len(app_variants) == 0:
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id))
@@ -327,14 +330,13 @@ async def remove_app(app: AppDB):
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
-            if len(app_variants) == 0:
-                logger.debug("remove_app_related_resources")
-                await remove_app_related_resources(str(app.id))
+            logger.debug("remove_app_related_resources")
+            await remove_app_related_resources(str(app.id))
         except Exception as e:
             logger.error(
                 f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"
             )
-            raise e from None
+            raise e
 
 
 async def update_variant_parameters(
