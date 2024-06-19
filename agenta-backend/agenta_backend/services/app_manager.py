@@ -152,9 +152,9 @@ async def update_variant_image(
     await db_manager.remove_deployment(str(deployment.id))
 
     if isOssEE():
-        await deployment_manager.remove_image(app_variant_db.base.image)
+        await deployment_manager.remove_image(base.image)
 
-    await db_manager.remove_image(app_variant_db.base.image)
+    await db_manager.remove_image(base.image)
 
     # Create a new image instance
     db_image = await db_manager.create_image(
@@ -173,7 +173,9 @@ async def update_variant_image(
         str(app_variant_db.id), parameters={}, user_uid=user_uid
     )
     # Update variant with new image
-    app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
+    app_variant_db = await db_manager.update_app_variant(
+        app_variant_id=str(app_variant_db.id), image_id=db_image.id
+    )
 
     # Start variant
     await start_variant(app_variant_db)
@@ -321,7 +323,7 @@ async def remove_app(app: AppDB):
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
-        print("LEN: ", len(app_variants))
+
         if len(app_variants) == 0:
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id))
