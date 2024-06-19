@@ -215,7 +215,14 @@ async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> Lis
     )
     for aggregated_result in aggregated_results:
         evaluator_config_dict = (
-            aggregated_result.evaluator_config.__dict__
+            {
+                "id": str(aggregated_result.evaluator_config.id),
+                "name": aggregated_result.evaluator_config.name,
+                "evaluator_key": aggregated_result.evaluator_config.evaluator_key,
+                "settings_values": aggregated_result.evaluator_config.settings_values,
+                "created_at": str(aggregated_result.evaluator_config.created_at),
+                "updated_at": str(aggregated_result.evaluator_config.updated_at),
+            }
             if isinstance(aggregated_result.evaluator_config_id, uuid.UUID)
             else None
         )

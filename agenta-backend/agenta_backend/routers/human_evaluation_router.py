@@ -263,7 +263,7 @@ async def update_evaluation_scenario_router(
     evaluation_id: str,
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
-    evaluation_scenario: HumanEvaluationScenarioUpdate,
+    payload: HumanEvaluationScenarioUpdate,
     request: Request,
 ):
     """Updates an evaluation scenario's vote or score based on its type.
@@ -299,7 +299,7 @@ async def update_evaluation_scenario_router(
 
         await update_human_evaluation_scenario(
             evaluation_scenario_db,
-            evaluation_scenario,
+            payload,
             evaluation_type,
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)

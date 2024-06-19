@@ -85,7 +85,9 @@ class AppDB(Base):
     )
 
     user = relationship("UserDB")
-    variant = relationship("AppVariantDB", cascade="all, delete-orphan", backref="app")
+    variant = relationship(
+        "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
+    )
     testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
     base = relationship("DeploymentDB", cascade="all, delete-orphan", backref="app")
     deployment = relationship(
@@ -185,6 +187,7 @@ class AppVariantDB(Base):
     )
 
     image = relationship("ImageDB")
+    app = relationship("AppDB", back_populates="variant")
     user = relationship("UserDB", foreign_keys=[user_id])
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     base = relationship("VariantBaseDB")
