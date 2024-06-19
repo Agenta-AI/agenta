@@ -3,12 +3,12 @@ import pytest
 import logging
 from datetime import datetime, timezone
 
+from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     AppDB,
     UserDB,
     VariantBaseDB,
     ImageDB,
-    ConfigDB,
     AppVariantDB,
 )
 

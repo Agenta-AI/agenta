@@ -52,7 +52,8 @@ async def make_payload(
         elif param["type"] == "file_url":
             payload[param["name"]] = datapoint.get(param["name"], "")
         else:
-            payload[param["name"]] = parameters[param["name"]]
+            if param["name"] in parameters:  # hotfix
+                payload[param["name"]] = parameters[param["name"]]
 
     if inputs_dict:
         payload["inputs"] = inputs_dict
@@ -80,7 +81,6 @@ async def invoke_app(
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
-
     async with aiohttp.ClientSession() as client:
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
@@ -157,6 +157,7 @@ async def run_with_retry(
         InvokationResult: The invokation result.
 
     """
+
     retries = 0
     last_exception = None
     while retries < max_retry_count:
