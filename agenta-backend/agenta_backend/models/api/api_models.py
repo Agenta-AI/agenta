@@ -93,7 +93,6 @@ class AppVariantResponse(BaseModel):
     variant_id: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]
-    previous_variant_name: Optional[str]
     user_id: str
     base_name: str
     base_id: str
