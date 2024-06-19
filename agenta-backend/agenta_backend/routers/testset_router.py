@@ -347,7 +347,7 @@ async def get_testsets(
     testsets = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
-            id=str(testset.id),  # type: ignore
+            _id=str(testset.id),  # type: ignore
             name=testset.name,
             created_at=str(testset.created_at),
         )

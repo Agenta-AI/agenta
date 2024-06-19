@@ -5,7 +5,7 @@ import {GlobalToken} from "antd"
 export type JSSTheme = GlobalToken & {isDark: boolean}
 
 export interface testset {
-    id: string
+    _id: string
     name: string
     created_at: string
 }
