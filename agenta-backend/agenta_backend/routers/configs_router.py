@@ -52,8 +52,9 @@ async def save_config(
             if variant_db.config_name == payload.config_name:
                 variant_to_overwrite = variant_db
                 break
+
         if variant_to_overwrite is not None:
-            if payload.overwrite or variant_to_overwrite.config.parameters == {}:
+            if payload.overwrite or variant_to_overwrite.config_parameters == {}:
                 print(f"update_variant_parameters  ===> {payload.overwrite}")
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
@@ -79,6 +80,9 @@ async def save_config(
         logger.error(f"save_config http exception ===> {e.detail}")
         raise
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.error(f"save_config exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -111,7 +115,7 @@ async def get_config(
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app.ref.id)
+                app_id=str(base_db.app_id) # type: ignore
             )
             found_variant_revision = next(
                 (
@@ -126,20 +130,21 @@ async def get_config(
                     status_code=400,
                     detail=f"Environment name {environment_name} not found for base {base_id}",
                 )
-            if str(found_variant_revision.base.id) != base_id:
+            if str(found_variant_revision.base_id) != base_id:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment {environment_name} does not deploy base {base_id}",
                 )
+
             variant_revision = found_variant_revision.revision
-            config = found_variant_revision.config
+            config = {"name": found_variant_revision.config_name, "parameters": found_variant_revision.config_parameters}
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = next(
                 (
                     variant_db
                     for variant_db in variants_db
-                    if variant_db.config_name == config_name
+                    if variant_db.config_name == config_name # type: ignore
                 ),
                 None,
             )
@@ -149,12 +154,13 @@ async def get_config(
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
             variant_revision = found_variant.revision
-            config = found_variant.config
-        logger.debug(config.parameters)
+            config = {"name": found_variant.config_name, "parameters": found_variant.config_parameters}
+
+        assert "name" and "parameters" in config, "'name' and 'parameters' not found in configuration"
         return GetConfigResponse(
-            config_name=config.config_name,
-            current_version=variant_revision,
-            parameters=config.parameters,
+            config_name=config["name"], # type: ignore
+            current_version=variant_revision, # type: ignore
+            parameters=config["parameters"], # type: ignore
         )
     except HTTPException as e:
         logger.error(f"get_config http exception: {e.detail}")

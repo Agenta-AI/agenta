@@ -1,6 +1,7 @@
+import re
 import json
 import logging
-import re
+import traceback
 from typing import Any, Dict, List, Tuple
 
 import httpx
@@ -212,8 +213,11 @@ def auto_custom_code_run(
             app_params=app_params,
             inputs=inputs,
             output=output,
-            data_point=data_point,
+            correct_answer=data_point.get(
+                "correct_answer", None
+            ),  # for backward compatibility
             code=settings_values["code"],
+            datapoint=data_point,
         )
         return Result(type="number", value=result)
     except Exception as e:  # pylint: disable=broad-except
@@ -272,14 +276,16 @@ def auto_ai_critique(
             model="gpt-3.5-turbo", messages=messages, temperature=0.8
         )
 
-        evaluation_output = response.choices[0].message["content"].strip()
-
+        evaluation_output = response.choices[0].message.content.strip()
         return Result(type="text", value=evaluation_output)
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Auto AI Critique", stacktrace=str(e)),
+            error=Error(
+                message="Error during Auto AI Critique",
+                stacktrace=traceback.format_exc(),
+            ),
         )
 
 

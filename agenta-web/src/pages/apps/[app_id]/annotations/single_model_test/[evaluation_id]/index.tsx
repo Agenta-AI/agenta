@@ -1,8 +1,12 @@
-import type {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
-import {loadEvaluation, loadEvaluationsScenarios, loadTestset} from "@/lib/services/api"
+import {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
+import {
+    fetchLoadEvaluation,
+    fetchAllLoadEvaluationsScenarios,
+} from "@/services/human-evaluations/api"
+import {fetchTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
-import {fetchVariants} from "@/lib/services/api"
+import {fetchVariants} from "@/services/api"
 import {getTestsetChatColumn} from "@/lib/helpers/testset"
 import SingleModelEvaluationTable from "@/components/EvaluationTable/SingleModelEvaluationTable"
 
@@ -23,7 +27,7 @@ export default function Evaluation() {
         const init = async () => {
             setIsLoading(true)
             try {
-                const data = await loadEvaluationsScenarios(evaluationTableId, evaluation)
+                const data = await fetchAllLoadEvaluationsScenarios(evaluationTableId, evaluation)
                 setEvaluationScenarios(
                     data.map((item: GenericObject) => {
                         const numericScore = parseInt(item.score)
@@ -42,9 +46,9 @@ export default function Evaluation() {
             return
         }
         const init = async () => {
-            const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
+            const evaluation: Evaluation = await fetchLoadEvaluation(evaluationTableId)
             const backendVariants = await fetchVariants(appId)
-            const testset = await loadTestset(evaluation.testset._id)
+            const testset = await fetchTestset(evaluation.testset._id)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
             backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantId, obj))

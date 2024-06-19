@@ -1,5 +1,6 @@
 # Stdlib Imports
 import inspect
+import traceback
 from functools import wraps
 from typing import Any, Callable, Optional
 
@@ -59,6 +60,9 @@ class instrument(BaseDecorator):
                 self.tracing.update_span_status(span=span, value="OK")
             except Exception as e:
                 result = str(e)
+                self.tracing.set_span_attribute(
+                    {"traceback_exception": traceback.format_exc()}
+                )
                 self.tracing.update_span_status(span=span, value="ERROR")
             finally:
                 self.tracing.end_span(
@@ -87,6 +91,9 @@ class instrument(BaseDecorator):
                 self.tracing.update_span_status(span=span, value="OK")
             except Exception as e:
                 result = str(e)
+                self.tracing.set_span_attribute(
+                    {"traceback_exception": traceback.format_exc()}
+                )
                 self.tracing.update_span_status(span=span, value="ERROR")
             finally:
                 self.tracing.end_span(
