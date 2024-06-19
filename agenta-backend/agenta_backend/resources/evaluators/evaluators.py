@@ -122,10 +122,18 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
+                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str, # output of the llm app\n    datapoint: Dict[str, str] # contains the testset row \n) -> float:\n    if output in datapoint.get('correct_answer', None):\n        return 1.0\n    else:\n        return 0.0\n",
                 "description": "Code for evaluating submissions",
                 "required": True,
-            }
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
+            },
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
     },
