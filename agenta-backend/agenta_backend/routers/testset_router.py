@@ -369,26 +369,30 @@ async def get_single_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-    if isCloudEE():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            object=test_set,
-            permission=Permission.VIEW_TESTSET,
-        )
-        logger.debug(f"User has Permission to view Testset: {has_permission}")
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+
+    try:
+        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=test_set,
+                permission=Permission.VIEW_TESTSET,
             )
+            logger.debug(f"User has Permission to view Testset: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
-    if test_set is None:
-        raise HTTPException(status_code=404, detail="testset not found")
-
-    return testset_db_to_pydantic(test_set)
+        if test_set is None:
+            raise HTTPException(status_code=404, detail="testset not found")
+        return testset_db_to_pydantic(test_set)
+    except Exception as exc:
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500 # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_testsets")
