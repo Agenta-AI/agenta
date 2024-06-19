@@ -45,7 +45,7 @@ class NewTestset(BaseModel):
 
 
 class TestSetOutputResponse(BaseModel):
-    id: str = Field(..., alias="_id")
+    id: str
     name: str
     created_at: str
 
