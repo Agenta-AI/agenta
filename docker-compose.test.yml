@@ -151,7 +151,6 @@ services:
 networks:
     agenta-network:
         name: agenta-network
-        external: true
 
 volumes:
     postgresdb-data:
