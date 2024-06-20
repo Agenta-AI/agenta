@@ -61,6 +61,7 @@ const NewVariantModal: React.FC<Props> = ({
             onCancel={() => setIsModalOpen(false)}
             centered
             okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
+            destroyOnClose
         >
             <Space direction="vertical" size={20}>
                 <div>
