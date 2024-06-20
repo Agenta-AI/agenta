@@ -2,7 +2,15 @@ import React, {useContext, useEffect, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/services/api"
-import {ChatMessage, ChatRole, GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
+import {
+    ChatMessage,
+    ChatRole,
+    GenericObject,
+    JSSTheme,
+    Parameter,
+    Variant,
+    StyleProps,
+} from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"

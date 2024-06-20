@@ -22,7 +22,6 @@ import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
-
 const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
         marginTop: 10,
