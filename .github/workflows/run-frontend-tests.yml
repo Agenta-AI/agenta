@@ -33,7 +33,7 @@ jobs:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: |
           sudo apt install curl -y
-          docker-compose -f "docker-compose.test.yml" up -d --build
+          docker-compose -f "docker-compose.yml" up -d --build
 
       - name: Restart Backend Service To Fetch Template(s)
         run: docker container restart agenta-backend-test
