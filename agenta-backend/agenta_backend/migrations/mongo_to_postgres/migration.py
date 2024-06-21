@@ -11,27 +11,27 @@ import uuid_utils.compat as uuid
 
 # Assuming agenta_backend.models.db_models contains your SQLAlchemy models
 from agenta_backend.models.db_models import (
-    EvaluationAggregatedResultDB,
-    Base,
     UserDB,
     ImageDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
     AppVariantDB,
-    AppVariantRevisionsDB,
     AppEnvironmentDB,
     AppEnvironmentRevisionDB,
     TemplateDB,
     TestSetDB,
     EvaluatorConfigDB,
     HumanEvaluationDB,
+    HumanEvaluationVariantDB,
     HumanEvaluationScenarioDB,
+    EvaluationAggregatedResultDB,
+    EvaluationScenarioResultDB,
     EvaluationDB,
+    EvaluationEvaluatorConfigDB,
     EvaluationScenarioDB,
     IDsMappingDB,
-    EvaluationEvaluatorConfigDB,
-    EvaluationScenarioResultDB,
+    AppVariantRevisionsDB,
 )
 
 from agenta_backend.migrations.mongo_to_postgres.utils import (
@@ -294,26 +294,48 @@ async def transform_evaluator_config(config):
     }
 
 
+async def convert_human_evaluations_associated_variants(
+    variants, variants_revisions, evaluation_id
+):
+    """Convert variant and revision ObjectIds to UUIDs and structure them."""
+    associated_variants = []
+    for variant_id, revision_id in zip(variants, variants_revisions):
+        variant_uuid = await get_mapped_uuid(variant_id)
+        revision_uuid = await get_mapped_uuid(revision_id)
+        associated_variants.append(
+            {
+                "human_evaluation_id": evaluation_id,
+                "variant_id": variant_uuid,
+                "variant_revision_id": revision_uuid,
+            }
+        )
+    return associated_variants
+
+
 async def transform_human_evaluation(evaluation):
     app_uuid = await get_mapped_uuid(evaluation["app"].id)
     user_uuid = await get_mapped_uuid(evaluation["user"].id)
     test_set_uuid = await get_mapped_uuid(evaluation["testset"].id)
-    variant_uuid = await get_mapped_uuid(evaluation["variants"][0])
-    revision_uuid = await get_mapped_uuid(evaluation["variants_revisions"][0])
     evaluation_uuid = generate_uuid()
+
     await store_mapping("human_evaluations", evaluation["_id"], evaluation_uuid)
-    return {
+
+    transformed_evaluation = {
         "id": evaluation_uuid,
         "app_id": app_uuid,
         "user_id": user_uuid,
         "status": evaluation["status"],
         "evaluation_type": evaluation["evaluation_type"],
-        "variant_id": variant_uuid,
-        "variant_revision_id": revision_uuid,
         "testset_id": test_set_uuid,
         "created_at": get_datetime(evaluation.get("created_at")),
         "updated_at": get_datetime(evaluation.get("updated_at")),
     }
+
+    associated_variants = await convert_human_evaluations_associated_variants(
+        evaluation["variants"], evaluation["variants_revisions"], evaluation_uuid
+    )
+
+    return transformed_evaluation, associated_variants
 
 
 async def transform_human_evaluation_scenario(scenario):
@@ -465,7 +487,10 @@ async def main():
             "evaluators_configs", EvaluatorConfigDB, transform_evaluator_config
         )
         await migrate_collection(
-            "human_evaluations", HumanEvaluationDB, transform_human_evaluation
+            "human_evaluations",
+            HumanEvaluationDB,
+            transform_human_evaluation,
+            HumanEvaluationVariantDB,
         )
         await migrate_collection(
             "human_evaluations_scenarios",
