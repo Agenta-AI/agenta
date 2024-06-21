@@ -11,7 +11,6 @@ from sqlalchemy.orm import sessionmaker
 import uuid_utils.compat as uuid
 from sqlalchemy.future import select
 
-
 from agenta_backend.models.db_engine import db_engine
 
 from agenta_backend.models.db_models import (
@@ -35,7 +34,9 @@ async def drop_all_tables():
     """Drop all tables in the database."""
     async with db_engine.engine.begin() as conn:
         await conn.run_sync(Base.metadata.reflect)
-        await conn.run_sync(Base.metadata.drop_all)
+        # Drop all tables with CASCADE option
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
 
 
 async def create_all_tables(tables):
@@ -51,24 +52,20 @@ async def store_mapping(table_name, mongo_id, uuid):
     """Store the mapping of MongoDB ObjectId to UUID in the mapping table."""
     id = generate_uuid()
     async with db_engine.get_session() as session:
-        async with session.begin():
-            mapping = IDsMappingDB(
-                id=id, table_name=table_name, objectid=str(mongo_id), uuid=uuid
-            )
-            session.add(mapping)
+        mapping = IDsMappingDB(
+            id=id, table_name=table_name, objectid=str(mongo_id), uuid=uuid
+        )
+        session.add(mapping)
         await session.commit()
 
 
 async def get_mapped_uuid(mongo_id):
     """Retrieve the mapped UUID for a given MongoDB ObjectId."""
     async with db_engine.get_session() as session:
-        async with session.begin():
-            stmt = select(IDsMappingDB.uuid).filter(
-                IDsMappingDB.objectid == str(mongo_id)
-            )
-            result = await session.execute(stmt)
-            row = result.first()
-            return row[0] if row else None
+        stmt = select(IDsMappingDB.uuid).filter(IDsMappingDB.objectid == str(mongo_id))
+        result = await session.execute(stmt)
+        row = result.first()
+        return row[0] if row else None
 
 
 def get_datetime(value):
@@ -140,19 +137,19 @@ async def migrate_collection(
                     mongo_db[collection_name].find().skip(skip).limit(BATCH_SIZE)
                 ),
             )
-            async with session.begin():
-                for document in batch:
-                    if association_model:
-                        (
-                            transformed_document,
-                            associated_entities,
-                        ) = await transformation_func(document)
-                        session.add(model_class(**transformed_document))
-                        for assoc_entity in associated_entities:
-                            session.add(association_model(**assoc_entity))
-                    else:
-                        transformed_document = await transformation_func(document)
-                        session.add(model_class(**transformed_document))
-                    migrated_docs += 1
-            await session.commit()
+            for document in batch:
+                if association_model:
+                    (
+                        transformed_document,
+                        associated_entities,
+                    ) = await transformation_func(document)
+                    session.add(model_class(**transformed_document))
+                    for assoc_entity in associated_entities:
+                        session.add(association_model(**assoc_entity))
+                else:
+                    transformed_document = await transformation_func(document)
+                    session.add(model_class(**transformed_document))
+                await session.commit()
+                migrated_docs += 1
+
     update_migration_report(collection_name, total_docs, migrated_docs)
