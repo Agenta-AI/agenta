@@ -61,9 +61,7 @@ async def test_create_auto_exact_match_evaluator_config(
     auto_exact_match_evaluator_config,
 ):
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         payload = auto_exact_match_evaluator_config
@@ -83,9 +81,7 @@ async def test_create_auto_similarity_match_evaluator_config(
     auto_similarity_match_evaluator_config,
 ):
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         payload = auto_similarity_match_evaluator_config
@@ -105,9 +101,7 @@ async def test_create_auto_regex_test_evaluator_config(
     auto_regex_test_evaluator_config,
 ):
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         payload = auto_regex_test_evaluator_config
@@ -128,9 +122,7 @@ async def test_create_auto_webhook_test_evaluator_config(
     auto_webhook_test_evaluator_config,
 ):
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         payload = auto_webhook_test_evaluator_config
@@ -150,9 +142,7 @@ async def test_create_auto_ai_critique_evaluator_config(
     auto_ai_critique_evaluator_config,
 ):
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         payload = auto_ai_critique_evaluator_config
@@ -170,9 +160,7 @@ async def test_create_auto_ai_critique_evaluator_config(
 @pytest.mark.asyncio
 async def test_get_evaluator_configs():
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         response = await test_client.get(
@@ -217,9 +205,7 @@ async def wait_for_evaluation_to_finish(evaluation_id):
 async def create_evaluation_with_evaluator(evaluator_config_name):
     # Fetch app, app_variant and testset
     async with db_engine.get_session() as session:
-        app_result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = app_result.scalars().first()
 
         app_variant_result = await session.execute(
@@ -311,9 +297,7 @@ async def test_create_evaluation_auto_ai_critique():
 @pytest.mark.asyncio
 async def test_delete_evaluator_config():
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
         response = await test_client.get(
@@ -337,9 +321,7 @@ async def test_delete_evaluator_config():
 async def test_evaluation_scenario_match_evaluation_testset_length():
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluationDB).options(
-                joinedload(EvaluationDB.testset)
-            )
+            select(EvaluationDB).options(joinedload(EvaluationDB.testset))
         )
         evaluations = result.scalars().all()
 
@@ -359,12 +341,10 @@ async def test_remove_running_template_app_container():
     # Connect to the Docker daemon
     client = docker.from_env()
     async with db_engine.get_session() as session:
-        app_result = await session.execute(
-            select(AppDB).filter_by(app_name=APP_NAME)
-        )
+        app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = app_result.scalars().first()
 
-        deployment_result =await session.execute(
+        deployment_result = await session.execute(
             select(DeploymentDB).filter_by(app_id=app.id)
         )
         deployment = deployment_result.scalars().first()

@@ -95,7 +95,7 @@ async def get_first_user_app(get_first_user_object):
             container_name="container_a_test",
             container_id="w243e34red",
             uri="http://localhost/app/w243e34red",
-            status="stale"
+            status="stale",
         )
         session.add(db_deployment)
 
@@ -104,7 +104,7 @@ async def get_first_user_app(get_first_user_object):
             image_id=db_image.id,
             user_id=user.id,
             app_id=app.id,
-            deployment_id=db_deployment.id
+            deployment_id=db_deployment.id,
         )
         session.add(db_base)
         await session.commit()

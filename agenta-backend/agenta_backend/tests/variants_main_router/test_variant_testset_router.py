@@ -11,7 +11,6 @@ from agenta_backend.models.db_models import (
 )
 
 
-
 # Initialize http client
 test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
@@ -31,7 +30,9 @@ elif ENVIRONMENT == "github":
 @pytest.mark.asyncio
 async def test_create_testset():
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name="app_variant_test"))
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
         app = result.scalars().first()
 
         payload = {
@@ -61,10 +62,14 @@ async def test_create_testset():
 @pytest.mark.asyncio
 async def test_update_testset():
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name="app_variant_test"))
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
         app = result.scalars().first()
 
-        testset_result = await session.execute(select(TestSetDB).filter_by(app_id=app.id))
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
         testset = testset_result.scalars().first()
 
         payload = {
@@ -97,7 +102,9 @@ async def test_update_testset():
 @pytest.mark.asyncio
 async def test_get_testsets():
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name="app_variant_test"))
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
         app = result.scalars().first()
 
         response = await test_client.get(
@@ -111,13 +118,19 @@ async def test_get_testsets():
 @pytest.mark.asyncio()
 async def test_get_testset():
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name="app_variant_test"))
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
         app = result.scalars().first()
 
-        testset_result = await session.execute(select(TestSetDB).filter_by(app_id=app.id))
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
         testset = testset_result.scalars().first()
 
-        response = await test_client.get(f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/")
+        response = await test_client.get(
+            f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/"
+        )
 
         assert response.status_code == 200
         assert response.json()["name"] == testset.name
@@ -127,10 +140,14 @@ async def test_get_testset():
 @pytest.mark.asyncio
 async def test_delete_testsets():
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name="app_variant_test"))
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
         app = result.scalars().first()
 
-        testset_result = await session.execute(select(TestSetDB).filter_by(app_id=app.id))
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
         testsets = testset_result.scalars().all()
 
         testset_ids = [str(testset.id) for testset in testsets]

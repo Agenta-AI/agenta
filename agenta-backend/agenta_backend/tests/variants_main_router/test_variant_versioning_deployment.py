@@ -34,10 +34,14 @@ async def test_update_app_variant_parameters(app_variant_parameters_updated):
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
-        testset_result = await session.execute(select(TestSetDB).filter_by(app_id=app.id))
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
         testset = testset_result.scalars().first()
 
-        app_variant_result = await session.execute(select(AppVariantDB).filter_by(app_id=app.id, variant_name="app.default"))
+        app_variant_result = await session.execute(
+            select(AppVariantDB).filter_by(app_id=app.id, variant_name="app.default")
+        )
         app_variant = app_variant_result.scalars().first()
 
         for _ in VARIANT_DEPLOY_ENVIRONMENTS:
@@ -61,7 +65,9 @@ async def test_deploy_to_environment(deploy_to_environment_payload):
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
-        app_variant_result = await session.execute(select(AppVariantDB).filter_by(app_id=app.id))
+        app_variant_result = await session.execute(
+            select(AppVariantDB).filter_by(app_id=app.id)
+        )
         app_variant = app_variant_result.scalars().first()
 
         list_of_response_status_codes = []
@@ -71,7 +77,9 @@ async def test_deploy_to_environment(deploy_to_environment_payload):
             payload["environment_name"] = environment
 
             response = await test_client.post(
-                f"{BACKEND_API_HOST}/environments/deploy/", json=payload, timeout=timeout
+                f"{BACKEND_API_HOST}/environments/deploy/",
+                json=payload,
+                timeout=timeout,
             )
             list_of_response_status_codes.append(response.status_code)
 
