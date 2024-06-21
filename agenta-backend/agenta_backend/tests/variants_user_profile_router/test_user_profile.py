@@ -35,7 +35,7 @@ async def test_user_profile():
             username=str(user_db.username),
             email=str(user_db.email),
             created_at=str(user_db.created_at),
-            updated_at=str(user_db.updated_at)
+            updated_at=str(user_db.updated_at),
         ).dict(exclude_unset=True)
 
         response = await test_client.get(f"{BACKEND_API_HOST}/profile/")

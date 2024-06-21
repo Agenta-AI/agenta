@@ -87,7 +87,7 @@ async def test_create_app_variant(get_first_user_object):
             container_name="container_a_test",
             container_id="w243e34red",
             uri="http://localhost/app/w243e34red",
-            status="stale"
+            status="stale",
         )
         session.add(db_deployment)
         await session.commit()
@@ -97,7 +97,7 @@ async def test_create_app_variant(get_first_user_object):
             app_id=app.id,
             user_id=user.id,
             image_id=db_image.id,
-            deployment_id=db_deployment.id
+            deployment_id=db_deployment.id,
         )
         session.add(db_base)
         await session.commit()
@@ -130,9 +130,7 @@ async def test_list_app_variants():
         )
         app = result.scalars().first()
 
-    response = await test_client.get(
-        f"{BACKEND_API_HOST}/apps/{str(app.id)}/variants/"
-    )
+    response = await test_client.get(f"{BACKEND_API_HOST}/apps/{str(app.id)}/variants/")
 
     assert response.status_code == 200
     assert len(response.json()) == 1

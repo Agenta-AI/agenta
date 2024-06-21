@@ -115,7 +115,7 @@ async def get_config(
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app_id) # type: ignore
+                app_id=str(base_db.app_id)  # type: ignore
             )
             found_variant_revision = next(
                 (
@@ -130,6 +130,7 @@ async def get_config(
                     status_code=400,
                     detail=f"Environment name {environment_name} not found for base {base_id}",
                 )
+
             if str(found_variant_revision.base_id) != base_id:
                 raise HTTPException(
                     status_code=400,
@@ -137,14 +138,17 @@ async def get_config(
                 )
 
             variant_revision = found_variant_revision.revision
-            config = {"name": found_variant_revision.config_name, "parameters": found_variant_revision.config_parameters}
+            config = {
+                "name": found_variant_revision.config_name,
+                "parameters": found_variant_revision.config_parameters,
+            }
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = next(
                 (
                     variant_db
                     for variant_db in variants_db
-                    if variant_db.config_name == config_name # type: ignore
+                    if variant_db.config_name == config_name  # type: ignore
                 ),
                 None,
             )
@@ -153,14 +157,20 @@ async def get_config(
                     status_code=400,
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
-            variant_revision = found_variant.revision
-            config = {"name": found_variant.config_name, "parameters": found_variant.config_parameters}
 
-        assert "name" and "parameters" in config, "'name' and 'parameters' not found in configuration"
+            variant_revision = found_variant.revision
+            config = {
+                "name": found_variant.config_name,
+                "parameters": found_variant.config_parameters,
+            }
+
+        assert (
+            "name" and "parameters" in config  # type: ignore
+        ), "'name' and 'parameters' not found in configuration"
         return GetConfigResponse(
-            config_name=config["name"], # type: ignore
-            current_version=variant_revision, # type: ignore
-            parameters=config["parameters"], # type: ignore
+            config_name=config["name"],  # type: ignore
+            current_version=variant_revision,  # type: ignore
+            parameters=config["parameters"],  # type: ignore
         )
     except HTTPException as e:
         logger.error(f"get_config http exception: {e.detail}")
