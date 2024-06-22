@@ -11,26 +11,22 @@ if isCloud():
 else:
     from agenta_backend.models.db_models import UserDB
 
-from agenta_backend.models.api.user_models import User, UserUpdate
+from agenta_backend.models.api.user_models import UserUpdate
 
 
-async def create_new_user(payload: User) -> UserDB:
+async def create_new_user(payload: dict) -> UserDB:
     """
     This function creates a new user.
 
     Args:
-        payload (User): The payload data to create the user.
+        payload (dict): The payload data to create the user.
 
     Returns:
         UserDB: The created user object.
     """
 
     async with db_engine.get_session() as session:
-        user = UserDB(
-            uid=payload.uid,
-            username=payload.username,
-            email=payload.email,
-        )
+        user = UserDB(**payload)
 
         session.add(user)
         await session.commit()
