@@ -28,12 +28,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: 6,
     },
     paramValueContainer: {
-        border: `1px solid ${theme.colorBorder}`,
-        width: "100%",
-        borderRadius: theme.borderRadius,
-        padding: theme.paddingSM,
-        maxHeight: 300,
-        overflowY: "scroll",
+        "&:disabled": {
+            color: "inherit",
+            backgroundColor: "inherit",
+            cursor: "text",
+        },
     },
 }))
 
@@ -109,20 +108,19 @@ const ParamsForm: React.FC<Props> = ({
                                             alt={param.name}
                                         />
                                     )}
-                                {isPlaygroundComponent ? (
-                                    <Input.TextArea
-                                        data-cy={`testview-input-parameters-${index}`}
-                                        key={index}
-                                        value={param.value}
-                                        placeholder={`${renameVariables(param.name)} (${type})`}
-                                        onChange={(e) =>
-                                            onParamChange?.(param.name, e.target.value)
-                                        }
-                                        autoSize={{minRows: 2, maxRows: 8}}
-                                    />
-                                ) : (
-                                    <div className={classes.paramValueContainer}>{param.value}</div>
-                                )}
+
+                                <Input.TextArea
+                                    data-cy={`testview-input-parameters-${index}`}
+                                    key={index}
+                                    className={
+                                        !isPlaygroundComponent ? classes.paramValueContainer : ""
+                                    }
+                                    value={param.value}
+                                    placeholder={`${renameVariables(param.name)} (${type})`}
+                                    onChange={(e) => onParamChange?.(param.name, e.target.value)}
+                                    disabled={!isPlaygroundComponent}
+                                    autoSize={{minRows: 2, maxRows: 8}}
+                                />
                             </div>
                         </Form.Item>
                     )

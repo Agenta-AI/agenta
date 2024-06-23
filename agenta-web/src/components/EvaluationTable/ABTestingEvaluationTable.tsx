@@ -374,6 +374,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </div>
                 </div>
             ),
+            width: 300,
             dataIndex: "inputs",
             render: (_: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                 return (
