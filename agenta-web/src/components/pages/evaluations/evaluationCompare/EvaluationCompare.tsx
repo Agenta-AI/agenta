@@ -544,7 +544,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         ref={gridRef as any}
                         rowData={rows}
                         columnDefs={colDefs}
-                        getRowId={(params) => params.data.id}
+                        getRowId={(params) => params.data.rowId}
                         headerHeight={64}
                     />
                 </div>
