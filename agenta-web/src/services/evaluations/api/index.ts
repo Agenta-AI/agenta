@@ -14,6 +14,7 @@ import {
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
 import {stringToNumberInRange} from "@/lib/helpers/utils"
+import {v4 as uuidv4} from "uuid"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"
@@ -239,6 +240,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
 
         rows.push({
             id: inputValuesStr,
+            rowId: uuidv4(),
             inputs: inputNames
                 .map((name) => ({name, value: data[name]}))
                 .filter((ip) => ip.value !== undefined),
