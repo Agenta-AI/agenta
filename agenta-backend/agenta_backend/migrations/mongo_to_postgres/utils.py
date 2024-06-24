@@ -14,10 +14,8 @@ from sqlalchemy.future import select
 
 from agenta_backend.models.db_engine import db_engine
 
-from agenta_backend.models.db_models import (
-    IDsMappingDB,
-    Base,
-)
+from agenta_backend.models.db_models import IDsMappingDB
+from agenta_backend.models.base import Base
 
 BATCH_SIZE = 1000
 
