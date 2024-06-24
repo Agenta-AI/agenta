@@ -52,10 +52,10 @@ async def create_all_tables(tables):
 
 async def store_mapping(table_name, mongo_id, uuid):
     """Store the mapping of MongoDB ObjectId to UUID in the mapping table."""
-    id = generate_uuid()
+    id_ = generate_uuid()
     async with db_engine.get_session() as session:
         mapping = IDsMappingDB(
-            id=id, table_name=table_name, objectid=str(mongo_id), uuid=uuid
+            id=id_, table_name=table_name, objectid=str(mongo_id), uuid=uuid
         )
         session.add(mapping)
         await session.commit()
