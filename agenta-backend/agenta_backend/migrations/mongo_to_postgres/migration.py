@@ -9,7 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 import uuid_utils.compat as uuid
 
-# Assuming agenta_backend.models.db_models contains your SQLAlchemy models
 from agenta_backend.models.db_models import (
     UserDB,
     ImageDB,
