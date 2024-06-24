@@ -511,8 +511,11 @@ async def main():
 
         print("Migration completed successfully.")
     except Exception as e:
+        import traceback
+
         print(f"\n====================== Error ======================\n")
         print(f"Error occurred: {e}")
+        traceback.print_exc()
     finally:
         print_migration_report()
 
