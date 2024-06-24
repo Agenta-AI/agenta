@@ -508,7 +508,7 @@ async def main():
             transform_evaluation_scenario,
             EvaluationScenarioResultDB,
         )
-
+        print("\n ========================================================")
         print("Migration completed successfully.")
     except Exception as e:
         import traceback

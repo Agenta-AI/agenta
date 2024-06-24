@@ -1,6 +1,7 @@
 import os
 import asyncio
 from datetime import datetime, timezone
+from tqdm import tqdm
 
 from pymongo import MongoClient
 from bson import ObjectId, DBRef
@@ -37,16 +38,16 @@ async def drop_all_tables():
         # Drop all tables with CASCADE option
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
-    print("All tables are dropped.")
+    print("\n====================== All tables are dropped.\n")
 
 
 async def create_all_tables(tables):
     """Create all tables in the database."""
     async with db_engine.engine.begin() as conn:
         for table in tables:
-            print(f"====================== Creating table for {table.__name__}")
+            print(f"Creating table for {table.__name__}")
             await conn.run_sync(table.metadata.create_all)
-    print("All tables are created.")
+    print("\n====================== All tables are created.\n")
 
 
 async def store_mapping(table_name, mongo_id, uuid):
@@ -86,7 +87,9 @@ def update_migration_report(collection_name, total_docs, migrated_docs):
 
 
 def print_migration_report():
-    print("\n====================== Migration Report ======================")
+    print(
+        "\n ============================ Migration Report ============================"
+    )
 
     # Headers
     headers = ["Table", "Total in MongoDB", "Migrated to PostgreSQL"]
@@ -124,14 +127,16 @@ async def migrate_collection(
     collection_name, model_class, transformation_func, association_model=None
 ):
     """General function to migrate a collection to a SQL table."""
-    print(
-        f"\n====================== Migrating {collection_name}... ======================\n"
-    )
+    print(f"\n")
     total_docs = mongo_db[collection_name].count_documents({})
     migrated_docs = 0
 
     async with db_engine.get_session() as session:
-        for skip in range(0, total_docs, BATCH_SIZE):
+        for skip in tqdm(
+            range(0, total_docs, BATCH_SIZE),
+            total=(total_docs - 1) // BATCH_SIZE + 1,
+            desc=f"Migrating: {collection_name}",
+        ):
             batch = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: list(
