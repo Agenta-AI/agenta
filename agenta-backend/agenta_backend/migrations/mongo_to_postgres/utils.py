@@ -61,10 +61,13 @@ async def store_mapping(table_name, mongo_id, uuid):
         await session.commit()
 
 
-async def get_mapped_uuid(mongo_id):
-    """Retrieve the mapped UUID for a given MongoDB ObjectId."""
+async def get_mapped_uuid(table_name, mongo_id):
+    """Retrieve the mapped UUID for a given MongoDB ObjectId and table name."""
     async with db_engine.get_session() as session:
-        stmt = select(IDsMappingDB.uuid).filter(IDsMappingDB.objectid == str(mongo_id))
+        stmt = select(IDsMappingDB.uuid).filter(
+            IDsMappingDB.table_name == table_name,
+            IDsMappingDB.objectid == str(mongo_id),
+        )
         result = await session.execute(stmt)
         row = result.first()
         return row[0] if row else None

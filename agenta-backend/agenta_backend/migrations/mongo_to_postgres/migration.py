@@ -84,7 +84,7 @@ async def transform_user(user):
 
 async def transform_image(image):
     user_uuid = await get_mapped_uuid(
-        image["user"].id if isinstance(image["user"], DBRef) else image["user"]
+        "users", image["user"].id if isinstance(image["user"], DBRef) else image["user"]
     )
     image_uuid = generate_uuid()
     await store_mapping("docker_images", image["_id"], image_uuid)
@@ -102,7 +102,7 @@ async def transform_image(image):
 
 
 async def transform_app(app):
-    user_uuid = await get_mapped_uuid(app["user"].id)
+    user_uuid = await get_mapped_uuid("users", app["user"].id)
     app_uuid = generate_uuid()
     await store_mapping("app_db", app["_id"], app_uuid)
     return {
@@ -115,8 +115,8 @@ async def transform_app(app):
 
 
 async def transform_deployment(deployment):
-    app_uuid = await get_mapped_uuid(deployment["app"].id)
-    user_uuid = await get_mapped_uuid(deployment["user"].id)
+    app_uuid = await get_mapped_uuid("app_db", deployment["app"].id)
+    user_uuid = await get_mapped_uuid("users", deployment["user"].id)
     deployment_uuid = generate_uuid()
     await store_mapping("deployments", deployment["_id"], deployment_uuid)
     return {
@@ -133,10 +133,12 @@ async def transform_deployment(deployment):
 
 
 async def transform_variant_base(base):
-    app_uuid = await get_mapped_uuid(base["app"].id)
-    user_uuid = await get_mapped_uuid(base["user"].id)
-    image_uuid = await get_mapped_uuid(base["image"].id)
-    deployment_uuid = base["deployment"] and await get_mapped_uuid(base["deployment"])
+    app_uuid = await get_mapped_uuid("app_db", base["app"].id)
+    user_uuid = await get_mapped_uuid("users", base["user"].id)
+    image_uuid = await get_mapped_uuid("docker_images", base["image"].id)
+    deployment_uuid = base["deployment"] and await get_mapped_uuid(
+        "deployments", base["deployment"]
+    )
     base_uuid = generate_uuid()
     await store_mapping("bases", base["_id"], base_uuid)
     return {
@@ -152,11 +154,11 @@ async def transform_variant_base(base):
 
 
 async def transform_app_variant(variant):
-    app_uuid = await get_mapped_uuid(variant["app"].id)
-    image_uuid = await get_mapped_uuid(variant["image"].id)
-    user_uuid = await get_mapped_uuid(variant["user"].id)
-    modified_by_uuid = await get_mapped_uuid(variant["modified_by"].id)
-    base_uuid = await get_mapped_uuid(variant["base"].id)
+    app_uuid = await get_mapped_uuid("app_db", variant["app"].id)
+    image_uuid = await get_mapped_uuid("docker_images", variant["image"].id)
+    user_uuid = await get_mapped_uuid("users", variant["user"].id)
+    modified_by_uuid = await get_mapped_uuid("users", variant["modified_by"].id)
+    base_uuid = await get_mapped_uuid("bases", variant["base"].id)
     variant_uuid = generate_uuid()
     await store_mapping("app_variants", variant["_id"], variant_uuid)
     return {
@@ -177,9 +179,9 @@ async def transform_app_variant(variant):
 
 
 async def transform_app_variant_revision(revision):
-    variant_uuid = await get_mapped_uuid(revision["variant"].id)
-    modified_by_uuid = await get_mapped_uuid(revision["modified_by"].id)
-    base_uuid = await get_mapped_uuid(revision["base"].id)
+    variant_uuid = await get_mapped_uuid("app_variants", revision["variant"].id)
+    modified_by_uuid = await get_mapped_uuid("users", revision["modified_by"].id)
+    base_uuid = await get_mapped_uuid("bases", revision["base"].id)
     revision_uuid = generate_uuid()
     await store_mapping("app_variant_revisions", revision["_id"], revision_uuid)
     return {
@@ -196,11 +198,15 @@ async def transform_app_variant_revision(revision):
 
 
 async def transform_app_environment(environment):
-    app_uuid = await get_mapped_uuid(environment["app"].id)
-    user_uuid = await get_mapped_uuid(environment["user"].id)
-    variant_uuid = await get_mapped_uuid(environment["deployed_app_variant"])
-    revision_uuid = await get_mapped_uuid(environment["deployed_app_variant_revision"])
-    deployment_uuid = await get_mapped_uuid(environment["deployment"])
+    app_uuid = await get_mapped_uuid("app_db", environment["app"].id)
+    user_uuid = await get_mapped_uuid("users", environment["user"].id)
+    variant_uuid = await get_mapped_uuid(
+        "app_variants", environment["deployed_app_variant"]
+    )
+    revision_uuid = await get_mapped_uuid(
+        "app_variant_revisions", environment["deployed_app_variant_revision"]
+    )
+    deployment_uuid = await get_mapped_uuid("deployments", environment["deployment"])
     environment_uuid = generate_uuid()
     await store_mapping("environments", environment["_id"], environment_uuid)
     return {
@@ -217,12 +223,12 @@ async def transform_app_environment(environment):
 
 
 async def transform_app_environment_revision(revision):
-    environment_uuid = await get_mapped_uuid(revision["environment"].id)
-    modified_by_uuid = await get_mapped_uuid(revision["modified_by"].id)
+    environment_uuid = await get_mapped_uuid("environments", revision["environment"].id)
+    modified_by_uuid = await get_mapped_uuid("users", revision["modified_by"].id)
     variant_revision_uuid = await get_mapped_uuid(
-        revision["deployed_app_variant_revision"]
+        "app_variant_revisions", revision["deployed_app_variant_revision"]
     )
-    deployment_uuid = await get_mapped_uuid(revision["deployment"])
+    deployment_uuid = await get_mapped_uuid("deployments", revision["deployment"])
     revision_uuid = generate_uuid()
     await store_mapping("environments_revisions", revision["_id"], revision_uuid)
     return {
@@ -240,7 +246,6 @@ async def transform_template(template):
     template_uuid = generate_uuid()
     await store_mapping("templates", template["_id"], template_uuid)
 
-    # Ensure type is correctly mapped to TemplateType enum
     template_type = (
         TemplateType(template["type"]) if "type" in template else TemplateType.IMAGE
     )
@@ -261,8 +266,8 @@ async def transform_template(template):
 
 
 async def transform_test_set(test_set):
-    app_uuid = await get_mapped_uuid(test_set["app"].id)
-    user_uuid = await get_mapped_uuid(test_set["user"].id)
+    app_uuid = await get_mapped_uuid("app_db", test_set["app"].id)
+    user_uuid = await get_mapped_uuid("users", test_set["user"].id)
     test_set_uuid = generate_uuid()
     await store_mapping("testsets", test_set["_id"], test_set_uuid)
     return {
@@ -277,8 +282,8 @@ async def transform_test_set(test_set):
 
 
 async def transform_evaluator_config(config):
-    app_uuid = await get_mapped_uuid(config["app"].id)
-    user_uuid = await get_mapped_uuid(config["user"].id)
+    app_uuid = await get_mapped_uuid("app_db", config["app"].id)
+    user_uuid = await get_mapped_uuid("users", config["user"].id)
     config_uuid = generate_uuid()
     await store_mapping("evaluators_configs", config["_id"], config_uuid)
     return {
@@ -299,8 +304,8 @@ async def convert_human_evaluations_associated_variants(
     """Convert variant and revision ObjectIds to UUIDs and structure them."""
     associated_variants = []
     for variant_id, revision_id in zip(variants, variants_revisions):
-        variant_uuid = await get_mapped_uuid(variant_id)
-        revision_uuid = await get_mapped_uuid(revision_id)
+        variant_uuid = await get_mapped_uuid("app_variants", variant_id)
+        revision_uuid = await get_mapped_uuid("app_variant_revisions", revision_id)
         associated_variants.append(
             {
                 "human_evaluation_id": evaluation_id,
@@ -312,9 +317,9 @@ async def convert_human_evaluations_associated_variants(
 
 
 async def transform_human_evaluation(evaluation):
-    app_uuid = await get_mapped_uuid(evaluation["app"].id)
-    user_uuid = await get_mapped_uuid(evaluation["user"].id)
-    test_set_uuid = await get_mapped_uuid(evaluation["testset"].id)
+    app_uuid = await get_mapped_uuid("app_db", evaluation["app"].id)
+    user_uuid = await get_mapped_uuid("users", evaluation["user"].id)
+    test_set_uuid = await get_mapped_uuid("testsets", evaluation["testset"].id)
     evaluation_uuid = generate_uuid()
 
     await store_mapping("human_evaluations", evaluation["_id"], evaluation_uuid)
@@ -338,8 +343,10 @@ async def transform_human_evaluation(evaluation):
 
 
 async def transform_human_evaluation_scenario(scenario):
-    user_uuid = await get_mapped_uuid(scenario["user"].id)
-    evaluation_uuid = await get_mapped_uuid(scenario["evaluation"].id)
+    user_uuid = await get_mapped_uuid("users", scenario["user"].id)
+    evaluation_uuid = await get_mapped_uuid(
+        "human_evaluations", scenario["evaluation"].id
+    )
     scenario_uuid = generate_uuid()
     await store_mapping("human_evaluations_scenarios", scenario["_id"], scenario_uuid)
     return {
@@ -362,7 +369,9 @@ async def convert_aggregated_results(results, evaluation_id):
     """Convert evaluator_config ObjectIds in aggregated_results to UUIDs and structure them."""
     aggregated_results = []
     for result in results:
-        evaluator_config_uuid = await get_mapped_uuid(result["evaluator_config"])
+        evaluator_config_uuid = await get_mapped_uuid(
+            "evaluators_configs", result["evaluator_config"]
+        )
         result_uuid = generate_uuid()
         aggregated_results.append(
             {
@@ -379,7 +388,9 @@ async def convert_scenario_aggregated_results(results, scenario_id):
     """Convert evaluator_config ObjectIds in scenario aggregated_results to UUIDs and structure them."""
     scenario_aggregated_results = []
     for result in results:
-        evaluator_config_uuid = await get_mapped_uuid(result["evaluator_config"])
+        evaluator_config_uuid = await get_mapped_uuid(
+            "evaluators_configs", result["evaluator_config"]
+        )
         result_uuid = generate_uuid()
         scenario_aggregated_results.append(
             {
@@ -393,11 +404,13 @@ async def convert_scenario_aggregated_results(results, scenario_id):
 
 
 async def transform_evaluation(evaluation):
-    app_uuid = await get_mapped_uuid(evaluation["app"].id)
-    user_uuid = await get_mapped_uuid(evaluation["user"].id)
-    test_set_uuid = await get_mapped_uuid(evaluation["testset"].id)
-    variant_uuid = await get_mapped_uuid(evaluation["variant"])
-    revision_uuid = await get_mapped_uuid(evaluation["variant_revision"])
+    app_uuid = await get_mapped_uuid("app_db", evaluation["app"].id)
+    user_uuid = await get_mapped_uuid("users", evaluation["user"].id)
+    test_set_uuid = await get_mapped_uuid("testsets", evaluation["testset"].id)
+    variant_uuid = await get_mapped_uuid("app_variants", evaluation["variant"])
+    revision_uuid = await get_mapped_uuid(
+        "app_variant_revisions", evaluation["variant_revision"]
+    )
     evaluation_uuid = generate_uuid()
 
     await store_mapping("evaluations", evaluation["_id"], evaluation_uuid)
@@ -425,9 +438,9 @@ async def transform_evaluation(evaluation):
 
 
 async def transform_evaluation_scenario(scenario):
-    user_uuid = await get_mapped_uuid(scenario["user"].id)
-    evaluation_uuid = await get_mapped_uuid(scenario["evaluation"].id)
-    variant_uuid = await get_mapped_uuid(scenario["variant_id"])
+    user_uuid = await get_mapped_uuid("users", scenario["user"].id)
+    evaluation_uuid = await get_mapped_uuid("evaluations", scenario["evaluation"].id)
+    variant_uuid = await get_mapped_uuid("app_variants", scenario["variant_id"])
     scenario_uuid = generate_uuid()
 
     await store_mapping("evaluation_scenarios", scenario["_id"], scenario_uuid)
