@@ -37,6 +37,7 @@ async def drop_all_tables():
         # Drop all tables with CASCADE option
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
+    print("All tables are dropped.")
 
 
 async def create_all_tables(tables):
@@ -45,7 +46,7 @@ async def create_all_tables(tables):
         for table in tables:
             print(f"====================== Creating table for {table.__name__}")
             await conn.run_sync(table.metadata.create_all)
-    print("All tables dropped and created.")
+    print("All tables are created.")
 
 
 async def store_mapping(table_name, mongo_id, uuid):
