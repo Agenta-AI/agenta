@@ -172,7 +172,7 @@ async def transform_app_variant(variant):
         "base_name": variant.get("base_name"),
         "base_id": base_uuid,
         "config_name": variant["config_name"],
-        "config_parameters": variant["config"],
+        "config_parameters": variant["config"]["parameters"],
         "created_at": get_datetime(variant.get("created_at")),
         "updated_at": get_datetime(variant.get("updated_at")),
     }
