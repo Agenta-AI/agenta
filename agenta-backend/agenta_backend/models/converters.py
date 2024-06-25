@@ -345,8 +345,8 @@ async def app_variant_db_revisions_to_output(
                 revision=app_variant_revision_db.revision,
                 modified_by=app_variant_revision_db.modified_by.username,
                 config={
-                    "config_name": app_variant_revision_db.config_name, # type: ignore
-                    "parameters": app_variant_revision_db.config_parameters # type: ignore
+                    "config_name": app_variant_revision_db.config_name,  # type: ignore
+                    "parameters": app_variant_revision_db.config_parameters,  # type: ignore
                 },
                 created_at=str(app_variant_revision_db.created_at),
             )

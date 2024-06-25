@@ -149,7 +149,7 @@ async def create_evaluation(
         import traceback
 
         traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500 # type: ignore
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code, detail=str(e))
 
 
