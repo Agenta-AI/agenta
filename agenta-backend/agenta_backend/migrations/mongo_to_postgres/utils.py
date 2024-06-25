@@ -137,6 +137,7 @@ async def migrate_collection(
             range(0, total_docs, BATCH_SIZE),
             total=(total_docs - 1) // BATCH_SIZE + 1,
             desc=f"Migrating: {collection_name}",
+            ncols=85,
         ):
             batch = await asyncio.get_event_loop().run_in_executor(
                 None,
