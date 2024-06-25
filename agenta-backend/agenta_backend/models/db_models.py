@@ -233,6 +233,9 @@ class AppVariantRevisionsDB(Base):
     modified_by = relationship("UserDB")
     base = relationship("VariantBaseDB")
 
+    def get_config(self) -> dict:
+        return {"config_name": self.config_name, "parameters": self.config_parameters}
+
 
 class AppEnvironmentDB(Base):
     __tablename__ = "environments"
