@@ -156,7 +156,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
     const [writeMode, setWriteMode] = useState(mode)
-    const [duplicateTestsetId, setDuplicateTestsetId] = useState(undefined)
+    const [testsetId, setTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
@@ -457,14 +457,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 } else {
                     const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
-                    setDuplicateTestsetId(response.data.id)
+                    setTestsetId(response.data.id)
                 }
             } else if (writeMode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
                     const response = await updateTestset(
-                        (duplicateTestsetId || testset_id) as string,
+                        (testsetId || testset_id) as string,
                         testsetName,
                         rowData,
                     )
