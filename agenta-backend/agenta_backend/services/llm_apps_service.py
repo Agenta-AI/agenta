@@ -6,7 +6,7 @@ import aiohttp
 from typing import Any, Dict, List
 
 
-from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
 
 # Set logger
@@ -81,7 +81,6 @@ async def invoke_app(
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
-
     async with aiohttp.ClientSession() as client:
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
@@ -158,6 +157,7 @@ async def run_with_retry(
         InvokationResult: The invokation result.
 
     """
+
     retries = 0
     last_exception = None
     while retries < max_retry_count:

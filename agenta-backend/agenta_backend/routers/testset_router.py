@@ -1,5 +1,6 @@
 import io
 import csv
+import uuid
 import json
 import logging
 import requests
@@ -28,8 +29,10 @@ if isCloudEE():
         check_action_access,
     )  # noqa pylint: disable-all
     from agenta_backend.commons.models.db_models import (
-        Permission,
         TestSetDB_ as TestSetDB,
+    )  # noqa pylint: disable-all
+    from agenta_backend.commons.models.shared_models import (
+        Permission,
     )  # noqa pylint: disable-all
 
 else:
@@ -82,15 +85,9 @@ async def upload_file(
 
     # Create a document
     document = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
         "name": testset_name if testset_name else file.filename,
-        "app": app,
         "csvdata": [],
     }
-
-    if isCloudEE():
-        document["organization"] = app.organization
-        document["workspace"] = app.workspace
 
     if upload_type == "JSON":
         # Read and parse the JSON file
@@ -115,19 +112,17 @@ async def upload_file(
         for row in csv_reader:
             document["csvdata"].append(row)
 
-    user = await get_user(request.state.user_id)
     try:
-        testset_instance = TestSetDB(**document, user=user)
+        testset = await db_manager.create_testset(
+            app=app, user_uid=request.state.user_id, testset_data=document
+        )
+        return TestSetSimpleResponse(
+            id=str(testset.id),
+            name=document["name"],
+            created_at=str(testset.created_at),
+        )
     except ValidationError as e:
         raise HTTPException(status_code=403, detail=e.errors())
-    result = await testset_instance.create()
-
-    if isinstance(result.id, ObjectId):
-        return TestSetSimpleResponse(
-            id=str(result.id),
-            name=document["name"],
-            created_at=document["created_at"],
-        )
 
 
 @router.post(
@@ -167,7 +162,6 @@ async def import_testset(
 
     try:
         response = requests.get(endpoint, timeout=10)
-
         if response.status_code != 200:
             raise HTTPException(
                 status_code=400, detail="Failed to fetch testset from endpoint"
@@ -175,31 +169,23 @@ async def import_testset(
 
         # Create a document
         document = {
-            "created_at": datetime.now(timezone.utc).isoformat(),
             "name": testset_name,
-            "app": app,
             "csvdata": [],
         }
-
-        if isCloudEE():
-            document["organization"] = app.organization
-            document["workspace"] = app.workspace
 
         # Populate the document with column names and values
         json_response = response.json()
         for row in json_response:
             document["csvdata"].append(row)
 
-        user = await get_user(request.state.user_id)
-        testset_instance = TestSetDB(**document, user=user)
-        result = await testset_instance.create()
-
-        if isinstance(result.id, ObjectId):
-            return TestSetSimpleResponse(
-                id=str(result.id),
-                name=document["name"],
-                created_at=document["created_at"],
-            )
+        testset = await db_manager.create_testset(
+            app=app, user_uid=request.state.user_id, testset_data=document
+        )
+        return TestSetSimpleResponse(
+            id=str(testset.id),
+            name=document["name"],
+            created_at=str(testset.created_at),
+        )
 
     except HTTPException as error:
         print(error)
@@ -252,27 +238,18 @@ async def create_testset(
                 status_code=403,
             )
 
-    user = await get_user(request.state.user_id)
-    testset = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "name": csvdata.name,
-        "app": app,
-        "csvdata": csvdata.csvdata,
-        "user": user,
-    }
-
-    if isCloudEE():
-        testset["organization"] = app.organization
-        testset["workspace"] = app.workspace
-
     try:
-        testset_instance = TestSetDB(**testset)
-        await testset_instance.create()
-
+        testset_data = {
+            "name": csvdata.name,
+            "csvdata": csvdata.csvdata,
+        }
+        testset_instance = await db_manager.create_testset(
+            app=app, user_uid=request.state.user_id, testset_data=testset_data
+        )
         if testset_instance is not None:
             return TestSetSimpleResponse(
                 id=str(testset_instance.id),
-                name=testset_instance.name,
+                name=testset_instance.name,  # type: ignore
                 created_at=str(testset_instance.created_at),
             )
     except Exception as e:
@@ -296,11 +273,15 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if testset is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=test_set,
+            object=testset,
             permission=Permission.EDIT_TESTSET,
         )
         logger.debug(f"User has Permission to update Testset: {has_permission}")
@@ -312,25 +293,19 @@ async def update_testset(
                 status_code=403,
             )
 
-    testset_update = {
-        "name": csvdata.name,
-        "csvdata": csvdata.csvdata,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    if test_set is None:
-        raise HTTPException(status_code=404, detail="testset not found")
-
     try:
-        await test_set.update({"$set": testset_update})
-        if isinstance(test_set.id, ObjectId):
-            return {
-                "status": "success",
-                "message": "testset updated successfully",
-                "_id": testset_id,
-            }
-        else:
-            raise HTTPException(status_code=404, detail="testset not found")
+        testset_update = {
+            "name": csvdata.name,
+            "csvdata": csvdata.csvdata,
+        }
+        await db_manager.update_testset(
+            testset_id=str(testset.id), values_to_update=testset_update
+        )
+        return {
+            "status": "success",
+            "message": "testset updated successfully",
+            "_id": testset_id,
+        }
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=500, detail=str(e))
@@ -369,12 +344,12 @@ async def get_testsets(
     if app is None:
         raise HTTPException(status_code=404, detail="App not found")
 
-    testsets: List[TestSetDB] = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
+    testsets = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
-            id=str(testset.id),
+            _id=str(testset.id),  # type: ignore
             name=testset.name,
-            created_at=testset.created_at,
+            created_at=str(testset.created_at),
         )
         for testset in testsets
     ]
@@ -394,31 +369,35 @@ async def get_single_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-    if isCloudEE():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            object=test_set,
-            permission=Permission.VIEW_TESTSET,
-        )
-        logger.debug(f"User has Permission to view Testset: {has_permission}")
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+
+    try:
+        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=test_set,
+                permission=Permission.VIEW_TESTSET,
             )
+            logger.debug(f"User has Permission to view Testset: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
 
-    if test_set is None:
-        raise HTTPException(status_code=404, detail="testset not found")
-
-    return testset_db_to_pydantic(test_set)
+        if test_set is None:
+            raise HTTPException(status_code=404, detail="testset not found")
+        return testset_db_to_pydantic(test_set)
+    except Exception as exc:
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_testsets")
 async def delete_testsets(
-    delete_testsets: DeleteTestsets,
+    payload: DeleteTestsets,
     request: Request,
 ):
     """
@@ -430,29 +409,23 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    deleted_ids = []
-    for testset_id in delete_testsets.testset_ids:
-        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-        if test_set is None:
-            raise HTTPException(status_code=404, detail="testset not found")
 
-        if isCloudEE():
-            for testset_id in delete_testsets.testset_ids:
-                has_permission = await check_action_access(
-                    user_uid=request.state.user_id,
-                    object=test_set,
-                    permission=Permission.DELETE_TESTSET,
-                )
-                logger.debug(f"User has Permission to delete Testset: {has_permission}")
-                if not has_permission:
-                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                    logger.error(error_msg)
-                    return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=403,
-                    )
+    if isCloudEE():
+        # TODO: improve rbac logic for testset permission
+        # has_permission = await check_action_access(
+        #     user_uid=request.state.user_id,
+        #     object=test_set,
+        #     permission=Permission.DELETE_TESTSET,
+        # )
+        has_permission = False
+        logger.debug(f"User has Permission to delete Testset: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
-        await test_set.delete()
-        deleted_ids.append(testset_id)
-
-    return deleted_ids
+    await db_manager.remove_testsets(testset_ids=payload.testset_ids)
+    return payload.testset_ids

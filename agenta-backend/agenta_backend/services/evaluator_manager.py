@@ -20,15 +20,16 @@ from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfi
 from agenta_backend.resources.evaluators import evaluators
 
 
-def get_evaluators() -> Optional[List[Evaluator]]:
+def get_evaluators() -> List[Evaluator]:
     """
     Fetches a list of evaluators from a JSON file.
 
     Returns:
-        Optional[List[Evaluator]]: A list of evaluator objects or None if an error occurs.
+        List[Evaluator]: A list of evaluator objects.
     """
 
-    return get_all_evaluators()
+    evaluators_as_dict = get_all_evaluators()
+    return [Evaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
 
 
 async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
@@ -83,11 +84,11 @@ async def create_evaluator_config(
 
     evaluator_config = await db_manager.create_evaluator_config(
         app=app,
-        organization=app.organization if isCloudEE() else None,  # noqa,
-        workspace=app.workspace if isCloudEE() else None,  # noqa,
-        user=app.user,
+        user_id=str(app.user_id),
         name=name,
         evaluator_key=evaluator_key,
+        organization=app.organization if isCloudEE() else None,  # noqa,
+        workspace=app.workspace if isCloudEE() else None,  # noqa,
         settings_values=settings_values,
     )
     return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
@@ -141,14 +142,15 @@ async def create_ready_to_use_evaluators(app: AppDB):
     Returns:
     Nothing. The function works by side effect, modifying the database.
     """
+
     direct_use_evaluators = [
-        evaluator for evaluator in get_evaluators() if evaluator.get("direct_use")
+        evaluator for evaluator in get_evaluators() if evaluator.direct_use
     ]
 
     for evaluator in direct_use_evaluators:
         settings_values = {
             setting_name: setting.get("default")
-            for setting_name, setting in evaluator.get("settings_template", {}).items()
+            for setting_name, setting in evaluator.settings_template.items()
             if setting.get("ground_truth_key") is True and setting.get("default", "")
         }
 
@@ -157,13 +159,16 @@ async def create_ready_to_use_evaluators(app: AppDB):
                 default_value != ""
             ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
 
+        assert hasattr(evaluator, "name") and hasattr(
+            evaluator, "key"
+        ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             app=app,
+            user_id=str(app.user_id),
+            name=evaluator.name,
+            evaluator_key=evaluator.key,
             organization=app.organization if isCloudEE() else None,  # noqa,
             workspace=app.workspace if isCloudEE() else None,  # noqa,
-            user=app.user,
-            name=evaluator["name"],
-            evaluator_key=evaluator["key"],
             settings_values=settings_values,
         )
 

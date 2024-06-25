@@ -47,7 +47,7 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.url().should("include", "/playground")
     cy.url().then((url) => {
-        app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+        app_id = url.match(/\/apps\/([a-fA-F0-9-]+)\/playground/)[1]
 
         cy.wrap(app_id).as("app_id")
     })

@@ -10,6 +10,10 @@ from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloud, isOss
 
+from datetime import datetime, timezone
+
+from agenta_backend.services.helpers import convert_to_utc_datetime
+
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
@@ -37,6 +41,8 @@ async def update_and_sync_templates(cache: bool = True) -> None:
         if temp["name"] in list(templates_info.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
             temp_info = templates_info[temp["name"]]
+            last_pushed = convert_to_utc_datetime(temp.get("last_pushed"))
+
             template_id = await db_manager.add_template(
                 **{
                     "tag_id": int(temp["id"]),
@@ -50,11 +56,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
                         else temp["size"]
                     ),
                     "digest": temp["digest"],
-                    "last_pushed": (
-                        temp["images"][0]["last_pushed"]
-                        if not temp.get("last_pushed", None)
-                        else temp["last_pushed"]
-                    ),
+                    "last_pushed": last_pushed,
                 }
             )
             print(f"Template {template_id} added to the database.")

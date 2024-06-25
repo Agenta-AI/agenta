@@ -1,12 +1,13 @@
+import re
 import json
 import logging
-import re
+import traceback
 from typing import Any, Dict, List, Tuple
 
 import httpx
 from openai import OpenAI
 
-from agenta_backend.models.db_models import Error, Result
+from agenta_backend.models.shared_models import Error, Result
 from agenta_backend.services.security import sandbox
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,10 @@ def auto_ai_critique(
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Auto AI Critique", stacktrace=str(e)),
+            error=Error(
+                message="Error during Auto AI Critique",
+                stacktrace=traceback.format_exc(),
+            ),
         )
 
 

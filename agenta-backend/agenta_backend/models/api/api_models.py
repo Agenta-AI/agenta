@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from agenta_backend.models.db_models import ConfigDB
+from agenta_backend.models.shared_models import ConfigDB
 
 
 class PaginationParam(BaseModel):
@@ -93,7 +93,6 @@ class AppVariantResponse(BaseModel):
     variant_id: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]
-    previous_variant_name: Optional[str]
     user_id: str
     base_name: str
     base_id: str

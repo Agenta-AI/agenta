@@ -30,7 +30,7 @@ logger.setLevel(logging.INFO)
 
 async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Image:
     app_name = app_db.app_name
-    user_id = app_db.user.id
+    user_id = str(app_db.user_id)
 
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
     # Get event loop
@@ -104,6 +104,7 @@ def build_image_job(
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"
+
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
@@ -114,6 +115,7 @@ def build_image_job(
         )
         for line in build_log:
             logger.info(line)
+
         pydantic_image = Image(
             type="image",
             docker_id=image.id,

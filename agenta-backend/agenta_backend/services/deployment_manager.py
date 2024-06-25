@@ -146,5 +146,5 @@ async def validate_image(image: Image) -> bool:
     return True
 
 
-def get_deployment_uri(deployment: DeploymentDB) -> str:
-    return deployment.uri.replace("http://localhost", "http://host.docker.internal")
+def get_deployment_uri(uri: str) -> str:
+    return uri.replace("http://localhost", "http://host.docker.internal")
