@@ -303,6 +303,10 @@ async def convert_human_evaluations_associated_variants(
 ):
     """Convert variant and revision ObjectIds to UUIDs and structure them."""
     associated_variants = []
+    assert len(variants) == len(
+        variants_revisions
+    ), "variants and variants_revisions must have the same length"
+
     for variant_id, revision_id in zip(variants, variants_revisions):
         variant_uuid = await get_mapped_uuid("app_variants", variant_id)
         revision_uuid = await get_mapped_uuid("app_variant_revisions", revision_id)
