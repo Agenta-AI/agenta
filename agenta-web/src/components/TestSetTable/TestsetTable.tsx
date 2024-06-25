@@ -155,7 +155,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
-    const [isDuplicate, setIsDuplicate] = useState({bool: false, id: ""})
+    const [writeMode, setWriteMode] = useState(mode)
+    const [duplicateTestsetId, setDuplicateTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
@@ -203,7 +204,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 ADD_BUTTON_COL,
             ]
             setColumnDefs(newColDefs)
-            if (mode === "create") {
+            if (writeMode === "create") {
                 const initialRowData = Array(3).fill({})
                 const separateRowData = initialRowData.map(() => {
                     return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
@@ -214,7 +215,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (mode === "edit" && testset_id) {
+        if (writeMode === "edit" && testset_id) {
             setLoading(true)
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
@@ -225,7 +226,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     })),
                 )
             })
-        } else if (mode === "create" && appId) {
+        } else if (writeMode === "create" && appId) {
             setLoading(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
@@ -239,7 +240,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 applyColData([])
             })
         }
-    }, [mode, testset_id, appId])
+    }, [writeMode, testset_id, appId])
 
     const updateTable = (inputValues: string[]) => {
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
@@ -439,35 +440,34 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const onSaveData = async () => {
         try {
             setIsLoading(true)
-            const afterSave = (response: AxiosResponse, isNew?: boolean) => {
+            const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
                     })
                     setIsLoading(false)
-                    if (isNew) {
-                        // createNewTestset returns id prop
-                        // updateTestset returns _id prop
-                        setIsDuplicate({bool: true, id: response.data.id || response.data._id})
-                    }
+                    setWriteMode("edit")
                 }
             }
 
-            if (mode === "create") {
+            if (writeMode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                     setIsLoading(false)
                 } else {
-                    const response = isDuplicate.bool
-                        ? await updateTestset(isDuplicate.id, testsetName, rowData)
-                        : await createNewTestset(appId, testsetName, rowData)
-                    afterSave(response, true)
+                    const response = await createNewTestset(appId, testsetName, rowData)
+                    afterSave(response)
+                    setDuplicateTestsetId(response.data.id)
                 }
-            } else if (mode === "edit") {
+            } else if (writeMode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await updateTestset(testset_id as string, testsetName, rowData)
+                    const response = await updateTestset(
+                        (duplicateTestsetId || testset_id) as string,
+                        testsetName,
+                        rowData,
+                    )
                     afterSave(response)
                 }
             }
