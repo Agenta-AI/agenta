@@ -155,6 +155,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
+    const [isDuplicate, setIsDuplicate] = useState({bool: false, id: ""})
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
@@ -438,12 +439,17 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const onSaveData = async () => {
         try {
             setIsLoading(true)
-            const afterSave = (response: AxiosResponse) => {
+            const afterSave = (response: AxiosResponse, isNew?: boolean) => {
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
                     })
                     setIsLoading(false)
+                    if (isNew) {
+                        // createNewTestset returns id prop
+                        // updateTestset returns _id prop
+                        setIsDuplicate({bool: true, id: response.data.id || response.data._id})
+                    }
                 }
             }
 
@@ -452,8 +458,10 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     setIsModalOpen(true)
                     setIsLoading(false)
                 } else {
-                    const response = await createNewTestset(appId, testsetName, rowData)
-                    afterSave(response)
+                    const response = isDuplicate.bool
+                        ? await updateTestset(isDuplicate.id, testsetName, rowData)
+                        : await createNewTestset(appId, testsetName, rowData)
+                    afterSave(response, true)
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
