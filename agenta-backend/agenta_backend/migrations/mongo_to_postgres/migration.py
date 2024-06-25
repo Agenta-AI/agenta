@@ -356,7 +356,9 @@ async def transform_human_evaluation_scenario(scenario):
     evaluation_uuid = await get_mapped_uuid(
         "human_evaluations", scenario["evaluation"].id
     )
+    variant_uuid = str(await get_mapped_uuid("app_variants", scenario["vote"]))
     scenario_uuid = generate_uuid()
+
     await store_mapping("human_evaluations_scenarios", scenario["_id"], scenario_uuid)
     return {
         "id": scenario_uuid,
@@ -364,7 +366,7 @@ async def transform_human_evaluation_scenario(scenario):
         "evaluation_id": evaluation_uuid,
         "inputs": scenario["inputs"],
         "outputs": scenario["outputs"],
-        "vote": scenario.get("vote"),
+        "vote": variant_uuid,
         "score": scenario.get("score"),
         "correct_answer": scenario.get("correct_answer"),
         "created_at": get_datetime(scenario.get("created_at")),
