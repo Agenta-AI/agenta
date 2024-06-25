@@ -714,5 +714,8 @@ async def list_app_environment_revisions(
             app_environment, app_environment_revisions
         )
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

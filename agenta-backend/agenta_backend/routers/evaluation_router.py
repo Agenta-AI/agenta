@@ -1,4 +1,4 @@
-import secrets
+import random
 import logging
 from typing import Any, List
 
@@ -14,7 +14,6 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     NewEvaluation,
     DeleteEvaluation,
-    EvaluationWebhook,
 )
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
@@ -146,6 +145,12 @@ async def create_evaluation(
             status_code=400,
             detail="columns in the test set should match the names of the inputs in the variant",
         )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500 # type: ignore
+        raise HTTPException(status_code, detail=str(e))
 
 
 @router.get("/{evaluation_id}/status/", operation_id="fetch_evaluation_status")
@@ -390,10 +395,10 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            # TODO (abram): improve rbac logic for evaluation permission
+            evaluation_id = random.choice(payload.evaluations_ids)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                # object_id=evaluation_id,
+                object_id=evaluation_id,
                 object_type="evaluation",
                 permission=Permission.DELETE_EVALUATION,
             )
