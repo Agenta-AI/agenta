@@ -84,7 +84,7 @@ async def save_config(
 
         traceback.print_exc()
         logger.error(f"save_config exception ===> {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500 # type: ignore
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code, detail=str(e)) from e
 
 
@@ -116,7 +116,7 @@ async def get_config(
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app_id) # type: ignore
+                app_id=str(base_db.app_id)  # type: ignore
             )
             found_variant_revision = next(
                 (
@@ -138,14 +138,17 @@ async def get_config(
                 )
 
             variant_revision = found_variant_revision.revision
-            config = {"name": found_variant_revision.config_name, "parameters": found_variant_revision.config_parameters}
+            config = {
+                "name": found_variant_revision.config_name,
+                "parameters": found_variant_revision.config_parameters,
+            }
         elif config_name:
             variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = next(
                 (
                     variant_db
                     for variant_db in variants_db
-                    if variant_db.config_name == config_name # type: ignore
+                    if variant_db.config_name == config_name  # type: ignore
                 ),
                 None,
             )
@@ -155,20 +158,25 @@ async def get_config(
                     detail=f"Config name {config_name} not found for base {base_id}",
                 )
             variant_revision = found_variant.revision
-            config = {"name": found_variant.config_name, "parameters": found_variant.config_parameters}
+            config = {
+                "name": found_variant.config_name,
+                "parameters": found_variant.config_parameters,
+            }
 
-        assert "name" and "parameters" in config, "'name' and 'parameters' not found in configuration"
+        assert (
+            "name" and "parameters" in config
+        ), "'name' and 'parameters' not found in configuration"
         return GetConfigResponse(
-            config_name=config["name"], # type: ignore
-            current_version=variant_revision, # type: ignore
-            parameters=config["parameters"], # type: ignore
+            config_name=config["name"],  # type: ignore
+            current_version=variant_revision,  # type: ignore
+            parameters=config["parameters"],  # type: ignore
         )
     except HTTPException as e:
         logger.error(f"get_config http exception: {e.detail}")
         raise
     except Exception as e:
         logger.error(f"get_config exception: {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500 # type: ignore
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code, detail=str(e))
 
 
@@ -196,14 +204,14 @@ async def get_config_deployment_revision(request: Request, deployment_revision_i
             )
         return GetConfigResponse(
             **variant_revision.get_config(),
-            current_version=environment_revision.revision, # type: ignore
+            current_version=environment_revision.revision,  # type: ignore
         )
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         logger.error(f"get config deployment revision exception ===> {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500 # type: ignore
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code, detail=str(e))
 
 

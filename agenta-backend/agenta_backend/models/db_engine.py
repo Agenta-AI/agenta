@@ -130,10 +130,12 @@ class DBEngine:
         """
 
         try:
-            from beanie import init_beanie # type: ignore
-            from motor.motor_asyncio import AsyncIOMotorClient # type: ignore
+            from beanie import init_beanie  # type: ignore
+            from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
         except ImportError as exc:
-            raise ValueError(f"It looks like one of the following packages are not installed: beanie, motor. Exception: {str(exc)}")
+            raise ValueError(
+                f"It looks like one of the following packages are not installed: beanie, motor. Exception: {str(exc)}"
+            )
 
         db_name = f"agenta_{self.mode}"
         client = AsyncIOMotorClient(self.mongo_uri)

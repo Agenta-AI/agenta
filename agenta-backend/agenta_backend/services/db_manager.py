@@ -182,8 +182,8 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         base_query = select(AppDB).filter_by(id=uuid.UUID(app_id))
         if isCloudEE():
             base_query = base_query.options(
-                joinedload(AppDB.workspace).joinedload(WorkspaceDB.members), # type: ignore
-                joinedload(AppDB.organization)
+                joinedload(AppDB.workspace).joinedload(WorkspaceDB.members),  # type: ignore
+                joinedload(AppDB.organization),
             )
 
         result = await session.execute(base_query)
@@ -207,13 +207,12 @@ async def fetch_app_variant_by_id(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with db_engine.get_session() as session:
         base_query = select(AppVariantDB).options(
-            joinedload(AppVariantDB.base),
-            joinedload(AppVariantDB.app)
+            joinedload(AppVariantDB.base), joinedload(AppVariantDB.app)
         )
         if isCloudEE():
             query = base_query.options(
                 joinedload(AppVariantDB.user.of_type(UserDB)).load_only(UserDB.uid),  # type: ignore
-                 joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
+                joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
         else:
             query = base_query.options(
@@ -221,9 +220,7 @@ async def fetch_app_variant_by_id(
                 joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
 
-        result = await session.execute(
-            query.filter_by(id=uuid.UUID(app_variant_id))
-        )
+        result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
         app_variant = result.scalars().one_or_none()
         return app_variant
 
@@ -1344,10 +1341,12 @@ async def fetch_environment_revisions_for_environment(
     """
 
     async with db_engine.get_session() as session:
-        query = select(AppEnvironmentRevisionDB).filter_by(environment_id=environment.id)
+        query = select(AppEnvironmentRevisionDB).filter_by(
+            environment_id=environment.id
+        )
         if isCloudEE():
             query = query.options(
-                joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username) # type: ignore
+                joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username)  # type: ignore
             )
         result = await session.execute(query)
         environment_revisions = result.scalars().all()
@@ -1414,7 +1413,7 @@ async def update_app_environment_deployed_variant_revision(
             select(AppEnvironmentDB).filter_by(id=uuid.UUID(app_environment_id))
         )
         app_environment = app_environment_result.scalars().one_or_none()
-        app_environment.deployed_app_variant_revision_id = app_variant_revision.id # type: ignore
+        app_environment.deployed_app_variant_revision_id = app_variant_revision.id  # type: ignore
 
         await session.commit()
         await session.refresh(app_environment)
@@ -1569,8 +1568,9 @@ async def list_app_variant_revisions_by_variant(
         base_query = select(AppVariantRevisionsDB).filter_by(variant_id=app_variant.id)
         if isCloudEE():
             base_query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB))
-                .load_only(UserDB.username) # type: ignore
+                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
 
         result = await session.execute(base_query)
@@ -1589,16 +1589,20 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(AppVariantRevisionsDB).filter_by(variant_id=uuid.UUID(app_variant), revision=revision_number)
+        base_query = select(AppVariantRevisionsDB).filter_by(
+            variant_id=uuid.UUID(app_variant), revision=revision_number
+        )
         if isCloudEE():
             query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB))
-                .load_only(UserDB.username) # type: ignore
+                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by)
-                .load_only(UserDB.username)  # type: ignore
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
         result = await session.execute(query)
         app_variant_revisions = result.scalars().one_or_none()
@@ -1842,7 +1846,7 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
 
 
 async def get_app_variant_revision_by_id(
-    variant_revision_id: str
+    variant_revision_id: str,
 ) -> AppVariantRevisionsDB:
     """Get the app variant revision object from the database with the provided id.
 
@@ -2058,7 +2062,9 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(HumanEvaluationVariantDB).filter_by(human_evaluation_id=uuid.UUID(human_evaluation_id))
+        base_query = select(HumanEvaluationVariantDB).filter_by(
+            human_evaluation_id=uuid.UUID(human_evaluation_id)
+        )
         if isCloudEE():
             query = base_query.options(
                 joinedload(HumanEvaluationVariantDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
@@ -2066,10 +2072,12 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
             )
         else:
             query = base_query.options(
-                joinedload(HumanEvaluationVariantDB.variant)
-                .load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(HumanEvaluationVariantDB.variant_revision)
-                .load_only(AppVariantRevisionsDB.revision, AppVariantRevisionsDB.id),  # type: ignore
+                joinedload(HumanEvaluationVariantDB.variant).load_only(
+                    AppVariantDB.id, AppVariantDB.variant_name
+                ),  # type: ignore
+                joinedload(HumanEvaluationVariantDB.variant_revision).load_only(
+                    AppVariantRevisionsDB.revision, AppVariantRevisionsDB.id
+                ),  # type: ignore
             )
         result = await session.execute(query)
         evaluation_variants = result.scalars().all()
@@ -2874,11 +2882,16 @@ async def fetch_eval_aggregated_results(evaluation_id: str):
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(EvaluationAggregatedResultDB).filter_by(evaluation_id=uuid.UUID(evaluation_id))
+        base_query = select(EvaluationAggregatedResultDB).filter_by(
+            evaluation_id=uuid.UUID(evaluation_id)
+        )
         if isCloudEE():
             query = base_query.options(
-                joinedload(EvaluationAggregatedResultDB.evaluator_config.of_type(EvaluatorConfigDB))
-                .load_only(
+                joinedload(
+                    EvaluationAggregatedResultDB.evaluator_config.of_type(
+                        EvaluatorConfigDB
+                    )
+                ).load_only(
                     EvaluatorConfigDB.id,  # type: ignore
                     EvaluatorConfigDB.name,  # type: ignore
                     EvaluatorConfigDB.evaluator_key,  # type: ignore
@@ -2929,8 +2942,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluatorConfigDB)
-            .filter_by(id=uuid.UUID(evaluator_config_id))
+            select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
         evaluator_config = result.scalars().one_or_none()
         return evaluator_config
