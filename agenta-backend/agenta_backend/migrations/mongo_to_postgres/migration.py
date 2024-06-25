@@ -203,9 +203,14 @@ async def transform_app_environment(environment):
     variant_uuid = await get_mapped_uuid(
         "app_variants", environment["deployed_app_variant"]
     )
-    revision_uuid = await get_mapped_uuid(
-        "app_variant_revisions", environment["deployed_app_variant_revision"]
-    )
+
+    if environment["deployed_app_variant_revision"] is None:
+        revision_uuid = None
+    else:
+        revision_uuid = await get_mapped_uuid(
+            "app_variant_revisions", environment["deployed_app_variant_revision"].id
+        )
+
     deployment_uuid = await get_mapped_uuid("deployments", environment["deployment"])
     environment_uuid = generate_uuid()
     await store_mapping("environments", environment["_id"], environment_uuid)
