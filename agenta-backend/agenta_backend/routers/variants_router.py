@@ -424,6 +424,7 @@ async def get_variant_revisions(variant_id: str, request: Request):
 async def get_variant_revision(variant_id: str, revision_number: int, request: Request):
     logger.debug("getting variant revision: ", variant_id, revision_number)
     try:
+        assert variant_id != "undefined", "Variant id is required to retrieve variant revision"
         app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
@@ -446,7 +447,14 @@ async def get_variant_revision(variant_id: str, revision_number: int, request: R
         app_variant_revision = await db_manager.fetch_app_variant_revision(
             variant_id, revision_number
         )
+        if not app_variant_revision:
+            raise HTTPException(404, detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.")
+
         return await converters.app_variant_db_revision_to_output(app_variant_revision)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        status_code = e.status_code if hasattr(e, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(e))
