@@ -163,11 +163,11 @@ async def update_variant_image(
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=app_variant_db.organization if isCloudEE() else None,  # noqa
-        workspace=app_variant_db.workspace if isCloudEE() else None,  # noqa
+        organization=str(app_variant_db.organization_id) if isCloudEE() else None,  # noqa
+        workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,  # noqa
     )
     # Update base with new image
-    await db_manager.update_base(str(app_variant_db.base_id), image=db_image)
+    await db_manager.update_base(str(app_variant_db.base_id), image_id=db_image.id)
     # Update variant to remove configuration
     await db_manager.update_variant_parameters(
         str(app_variant_db.id), parameters={}, user_uid=user_uid
