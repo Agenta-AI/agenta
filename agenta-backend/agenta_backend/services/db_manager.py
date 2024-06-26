@@ -211,6 +211,7 @@ async def fetch_app_variant_by_id(
         )
         if isCloudEE():
             query = base_query.options(
+                joinedload(AppVariantDB.organization),
                 joinedload(AppVariantDB.user.of_type(UserDB)).load_only(UserDB.uid),  # type: ignore
                 joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
@@ -1257,14 +1258,8 @@ async def deploy_to_environment(
         if environment_db is None:
             raise ValueError(f"Environment {environment_name} not found")
 
-        # TODO: Modify below to add logic to disable redeployment of the same variant revision here and in front-end
-        # if environment_db.deployed_app_variant_ == app_variant_db.id:
-        #     raise ValueError(
-        #         f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
-        #     )
-
         # Update the environment with the new variant name
-        environment_db.revision += 1  # type: ignore
+        environment_db.revision = app_variant_revision_db.revision  # type: ignore
         environment_db.deployed_app_variant_id = app_variant_db.id
         environment_db.deployed_app_variant_revision_id = app_variant_revision_db.id
         environment_db.deployment_id = deployment.id
