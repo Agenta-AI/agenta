@@ -61,6 +61,13 @@ async def save_config(
                     parameters=payload.parameters,
                     user_uid=request.state.user_id,
                 )
+
+                logger.debug("Deploying to production environment")
+                await db_manager.deploy_to_environment(
+                    environment_name="production",
+                    variant_id=str(variant_to_overwrite.id),
+                    user_uid=request.state.user_id,
+                )
             else:
                 raise HTTPException(
                     status_code=400,
@@ -76,6 +83,7 @@ async def save_config(
                 parameters=payload.parameters,
                 user_uid=request.state.user_id,
             )
+
     except HTTPException as e:
         logger.error(f"save_config http exception ===> {e.detail}")
         raise
@@ -175,6 +183,9 @@ async def get_config(
         logger.error(f"get_config http exception: {e.detail}")
         raise
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.error(f"get_config exception: {e}")
         status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code, detail=str(e))
@@ -202,6 +213,7 @@ async def get_config_deployment_revision(request: Request, deployment_revision_i
                 404,
                 f"No configuration found for deployment revision {deployment_revision_id}",
             )
+
         return GetConfigResponse(
             **variant_revision.get_config(),
             current_version=environment_revision.revision,  # type: ignore
