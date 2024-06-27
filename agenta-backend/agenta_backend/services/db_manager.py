@@ -2827,8 +2827,8 @@ async def create_new_evaluation_scenario(
                 organization is not None and workspace is not None
             ), "organization and workspace must be provided together"
 
-            evaluation_scenario.organization_id = organization_id  # type: ignore
-            evaluation_scenario.workspace_id = workspace_id  # type: ignore
+            evaluation_scenario.organization_id = organization  # type: ignore
+            evaluation_scenario.workspace_id = workspace  # type: ignore
 
         session.add(evaluation_scenario)
         await session.commit()
