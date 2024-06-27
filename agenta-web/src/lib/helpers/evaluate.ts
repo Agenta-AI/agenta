@@ -8,7 +8,7 @@ import {
     EvaluationScenario,
 } from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
-import {fetchEvaluatonIdsByResource} from "@/services/evaluations"
+import {fetchEvaluatonIdsByResource} from "@/services/evaluations/api"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {capitalize, round} from "lodash"

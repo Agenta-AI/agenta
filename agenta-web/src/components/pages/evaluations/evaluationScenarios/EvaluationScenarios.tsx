@@ -5,7 +5,7 @@ import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
-} from "@/services/evaluations"
+} from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
@@ -304,7 +304,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`/apps/${appId}/evaluations`))
+                    .then(() => router.push(`/apps/${appId}/evaluations/results`))
                     .catch(console.error),
         })
     }
