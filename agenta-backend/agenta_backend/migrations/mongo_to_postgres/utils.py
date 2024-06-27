@@ -11,7 +11,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import uuid_utils.compat as uuid
 from sqlalchemy.future import select
-
+from sqlalchemy.exc import NoResultFound
 from agenta_backend.models.db_engine import db_engine
 
 from agenta_backend.models.db_models import IDsMappingDB
@@ -59,7 +59,7 @@ async def store_mapping(table_name, mongo_id, uuid):
         await session.commit()
 
 
-async def get_mapped_uuid(table_name, mongo_id):
+async def get_mapped_uuid(table_name, mongo_id, print_result=False):
     """Retrieve the mapped UUID for a given MongoDB ObjectId and table name."""
     async with db_engine.get_session() as session:
         stmt = select(IDsMappingDB.uuid).filter(
@@ -67,8 +67,11 @@ async def get_mapped_uuid(table_name, mongo_id):
             IDsMappingDB.objectid == str(mongo_id),
         )
         result = await session.execute(stmt)
-        row = result.first()
-        return row[0] if row else None
+        try:
+            row = result.one()
+        except NoResultFound:
+            return None
+        return row[0]
 
 
 def get_datetime(value):
