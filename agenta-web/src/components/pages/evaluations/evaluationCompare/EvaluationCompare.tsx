@@ -8,8 +8,8 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
-import {fetchAllComparisonResults} from "@/services/evaluations"
 import {ColDef, ValueGetterParams} from "ag-grid-community"
+import {fetchAllComparisonResults} from "@/services/evaluations/api"
 import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
@@ -575,7 +575,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         ref={gridRef as any}
                         rowData={rows}
                         columnDefs={colDefs}
-                        getRowId={(params) => params.data.id}
+                        getRowId={(params) => params.data.rowId}
                         headerHeight={64}
                     />
                 </div>
