@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from agenta_backend import celery_config
+from agenta_backend.models.db_engine import db_engine
 from agenta_backend.routers import (
     app_router,
     container_router,
