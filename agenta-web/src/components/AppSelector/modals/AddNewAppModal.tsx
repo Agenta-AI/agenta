@@ -3,10 +3,7 @@ import {AppstoreAddOutlined, CodeOutlined} from "@ant-design/icons"
 import {Col, Modal, Row, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
+import {StyleProps} from "@/lib/Types"
 
 const useStyles = createUseStyles({
     modal: {

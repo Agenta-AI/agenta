@@ -6,10 +6,7 @@ import React, {useEffect, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import YouTube, {YouTubeProps} from "react-youtube"
 import {isDemo} from "@/lib/helpers/utils"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
+import {StyleProps} from "@/lib/Types"
 
 const useStyles = createUseStyles({
     modal: ({themeMode}: StyleProps) => ({

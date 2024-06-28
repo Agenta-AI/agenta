@@ -28,11 +28,11 @@ import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
+import {StyleProps as MainStyleProps} from "@/lib/Types"
 
 const {Content, Footer} = Layout
 
-type StyleProps = {
-    themeMode: "dark" | "light"
+interface StyleProps extends MainStyleProps {
     footerHeight: number
 }
 

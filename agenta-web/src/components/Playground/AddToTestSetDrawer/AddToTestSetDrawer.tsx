@@ -1,6 +1,6 @@
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useAppTheme} from "../../Layout/ThemeContextProvider"
-import {ChatMessage, ChatRole, GenericObject, testset} from "@/lib/Types"
+import {ChatMessage, ChatRole, GenericObject, testset, StyleProps} from "@/lib/Types"
 import {removeKeys, renameVariables} from "@/lib/helpers/utils"
 import {
     createNewTestset,
@@ -28,10 +28,6 @@ import {createUseStyles} from "react-jss"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import _ from "lodash"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     footer: {

@@ -7,7 +7,7 @@ import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {Evaluation, GenericObject} from "@/lib/Types"
+import {Evaluation, GenericObject, StyleProps} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
@@ -39,10 +39,6 @@ interface EvaluationListTableDataType {
     createdAt: string
     revisions: string[]
     variant_revision_ids: string[]
-}
-
-type StyleProps = {
-    themeMode: "dark" | "light"
 }
 
 const useStyles = createUseStyles({
