@@ -23,8 +23,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from agenta_backend.models.db_models import Base
-from agenta_backend.models.db_engine import models  # noqa: F403
+from agenta_backend.models.db_models import Base  # noqa: F403
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
