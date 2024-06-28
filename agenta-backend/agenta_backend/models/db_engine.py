@@ -1,10 +1,11 @@
 import os
 import logging
 from asyncio import current_task
-from typing import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     create_async_engine,
     async_sessionmaker,
@@ -93,7 +94,7 @@ class DBEngine:
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = f"{os.environ.get('POSTGRES_URI')}"
-        self.engine = create_async_engine(url=self.db_url)
+        self.engine: Optional[AsyncEngine] = create_async_engine(url=self.db_url)
         self.async_session_maker = async_sessionmaker(
             bind=self.engine, class_=AsyncSession, expire_on_commit=False
         )

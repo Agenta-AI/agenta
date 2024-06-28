@@ -15,10 +15,9 @@ services:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
-            - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
@@ -31,6 +30,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
@@ -167,11 +167,12 @@ services:
 
     postgres:
         image: postgres:16.2
-        container_name: postgres
+        container_name: agenta-postgres-1
         restart: always
         environment:
             POSTGRES_USER: username
             POSTGRES_PASSWORD: password
+            POSTGRES_DB: agenta_oss
         ports:
             - "5432:5432"
         networks:

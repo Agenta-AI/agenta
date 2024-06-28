@@ -1,7 +1,7 @@
-import asyncio
 from contextlib import asynccontextmanager
 
 from agenta_backend import celery_config
+from agenta_backend.models.db_engine import db_engine
 from agenta_backend.routers import (
     app_router,
     container_router,
@@ -17,7 +17,6 @@ from agenta_backend.routers import (
     health_router,
 )
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
-from agenta_backend.models.db_engine import db_engine
 from agenta_backend.open_api import open_api_tags_metadata
 
 if isEE() or isCloudProd():
