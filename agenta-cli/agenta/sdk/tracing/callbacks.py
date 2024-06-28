@@ -55,7 +55,9 @@ def litellm_handler():
                     "message": kwargs.get(
                         "complete_streaming_response"
                     ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -69,7 +71,9 @@ def litellm_handler():
             self._trace.end_span(
                 outputs={
                     "message": response_obj.choices[0].message.content,
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -93,7 +97,9 @@ def litellm_handler():
             self._trace.end_span(
                 outputs={
                     "message": kwargs["exception"],  # the Exception raised
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -109,7 +115,9 @@ def litellm_handler():
                     "message": kwargs.get(
                         "complete_streaming_response"
                     ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -123,7 +131,9 @@ def litellm_handler():
             self._trace.end_span(
                 outputs={
                     "message": response_obj.choices[0].message.content,
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -147,7 +157,9 @@ def litellm_handler():
             self._trace.end_span(
                 outputs={
                     "message": kwargs["exception"],  # the Exception raised
-                    "usage": response_obj.usage.dict() if hasattr(response_obj, "usage") else None,  # litellm calculates usage
+                    "usage": response_obj.usage.dict()
+                    if hasattr(response_obj, "usage")
+                    else None,  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
