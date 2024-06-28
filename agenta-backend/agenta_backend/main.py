@@ -25,7 +25,6 @@ elif isCloudDev() or isOss():
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from celery import Celery
 
@@ -52,8 +51,10 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    await db_engine.init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
+    await db_engine.close()
 
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)

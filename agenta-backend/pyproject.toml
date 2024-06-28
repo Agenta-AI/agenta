@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.16.0"
+version = "0.17.4"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
@@ -9,7 +9,7 @@ packages = [{include = "agenta_backend"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 fastapi = "^0.109.1"
-pydantic = "^2.7.3"
+pydantic = "^2.7.4"
 docker = "7.1.0"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"
