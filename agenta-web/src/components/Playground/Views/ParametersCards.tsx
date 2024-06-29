@@ -88,32 +88,18 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     handleParamChange,
 }) => {
     const classes = useStyles()
+    const typesToCheck = ["number", "integer", "array", "grouped_choice", "boolean"]
     const handleCheckboxChange = (paramName: string, checked: boolean) => {
         handleParamChange(paramName, checked)
     }
+
     return (
         <>
-            {optParams?.some(
-                (param) =>
-                    !param.input &&
-                    (param.type === "number" ||
-                        param.type === "integer" ||
-                        param.type === "array" ||
-                        param.type === "grouped_choice" ||
-                        param.type === "boolean"),
-            ) && (
+            {optParams?.some(({input, type}) => !input && typesToCheck.includes(type)) && (
                 <Row gutter={0} className={classes.row1}>
                     <Card className={classes.card} title="Model Parameters">
                         {optParams
-                            ?.filter(
-                                (param) =>
-                                    !param.input &&
-                                    (param.type === "number" ||
-                                        param.type === "integer" ||
-                                        param.type === "array" ||
-                                        param.type === "grouped_choice" ||
-                                        param.type === "boolean"),
-                            )
+                            ?.filter((param) => !param.input && typesToCheck.includes(param.type))
                             .map((param, index) => (
                                 <Row key={index} className={classes.row2}>
                                     <Col span={6}>
