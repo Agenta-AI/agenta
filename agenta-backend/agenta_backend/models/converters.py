@@ -160,7 +160,7 @@ async def human_evaluation_db_to_pydantic(
         variant_revision = await db_manager.get_app_variant_revision_by_id(
             str(variant_revision_id)
         )
-        revision = variant_revision.revision
+        revision = variant_revision.revision if variant_revision else ""
         revisions.append(str(revision))
 
     return HumanEvaluation(
