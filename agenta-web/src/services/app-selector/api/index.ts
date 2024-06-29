@@ -90,7 +90,8 @@ export const createAndStartTemplate = async ({
 
         onStatusChange?.("starting_app", "", app?.data?.app_id)
         try {
-            await waitForAppToStart({appId: app?.data?.app_id, timeout})
+            const {promise} = await waitForAppToStart({appId: app?.data?.app_id, timeout})
+            await promise
         } catch (error: any) {
             if (error.message === "timeout") {
                 onStatusChange?.("timeout", "", app?.data?.app_id)
