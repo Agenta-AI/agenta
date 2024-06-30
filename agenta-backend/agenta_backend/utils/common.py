@@ -63,10 +63,6 @@ def isEE():
     return os.environ["FEATURE_FLAG"] == "ee"
 
 
-def isOssEE():
-    return os.environ["FEATURE_FLAG"] in ["oss", "ee"]
-
-
 def isCloudProd():
     return os.environ["FEATURE_FLAG"] == "cloud"
 
