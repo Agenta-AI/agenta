@@ -105,7 +105,7 @@ class AppVariantRevision(BaseModel):
     revision: int
     modified_by: str
     config: ConfigDB
-    created_at: datetime
+    created_at: str
 
 
 class AppVariantOutputExtended(BaseModel):
@@ -139,7 +139,7 @@ class EnvironmentRevision(BaseModel):
     modified_by: str
     deployed_app_variant_revision: Optional[str]
     deployment: Optional[str]
-    created_at: datetime
+    created_at: str
 
 
 class EnvironmentOutputExtended(EnvironmentOutput):

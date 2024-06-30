@@ -293,8 +293,8 @@ def app_variant_db_to_pydantic(
     )
 
     if isCloudEE():
-        app_variant.organization_id = str(app_variant_db.organization.id)
-        app_variant.workspace_id = str(app_variant_db.workspace.id)
+        app_variant.organization_id = str(app_variant_db.organization_id)
+        app_variant.workspace_id = str(app_variant_db.workspace_id)
 
     return app_variant
 
@@ -344,8 +344,11 @@ async def app_variant_db_revisions_to_output(
             AppVariantRevision(
                 revision=app_variant_revision_db.revision,
                 modified_by=app_variant_revision_db.modified_by.username,
-                config=app_variant_revision_db.config,
-                created_at=app_variant_revision_db.created_at,
+                config={
+                    "config_name": app_variant_revision_db.config_name,  # type: ignore
+                    "parameters": app_variant_revision_db.config_parameters,  # type: ignore
+                },
+                created_at=str(app_variant_revision_db.created_at),
             )
         )
     return app_variant_revisions
@@ -407,8 +410,8 @@ async def environment_db_and_revision_to_extended_output(
     app_environment_revisions_db: List[AppEnvironmentRevisionDB],
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
-        str(environment_db.deployed_app_variant)
-        if environment_db.deployed_app_variant
+        str(environment_db.deployed_app_variant_id)
+        if isinstance(environment_db.deployed_app_variant_id, uuid.UUID)
         else None
     )
     if deployed_app_variant_id:
@@ -427,19 +430,19 @@ async def environment_db_and_revision_to_extended_output(
                 revision=app_environment_revision.revision,
                 modified_by=app_environment_revision.modified_by.username,
                 deployed_app_variant_revision=str(
-                    app_environment_revision.deployed_app_variant_revision
+                    app_environment_revision.deployed_app_variant_revision_id
                 ),
-                deployment=str(app_environment_revision.deployment),
-                created_at=app_environment_revision.created_at,
+                deployment=str(app_environment_revision.deployment_id),
+                created_at=str(app_environment_revision.created_at),
             )
         )
     environment_output_extended = EnvironmentOutputExtended(
         name=environment_db.name,
-        app_id=str(environment_db.app.id),
+        app_id=str(environment_db.app_id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
         deployed_app_variant_revision_id=str(
-            environment_db.deployed_app_variant_revision.id
+            environment_db.deployed_app_variant_revision_id
         ),
         revision=environment_db.revision,
         revisions=app_environment_revisions,
@@ -447,9 +450,9 @@ async def environment_db_and_revision_to_extended_output(
 
     if isCloudEE():
         environment_output_extended.organization_id = str(
-            environment_db.organization.id
+            environment_db.organization_id
         )
-        environment_output_extended.workspace_id = str(environment_db.workspace.id)
+        environment_output_extended.workspace_id = str(environment_db.workspace_id)
     return environment_output_extended
 
 
@@ -469,8 +472,8 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     )
 
     if isCloudEE():
-        image.organization_id = str(image_db.organization.id)
-        image.workspace_id = str(image_db.workspace.id)
+        image.organization_id = str(image_db.organization_id)
+        image.workspace_id = str(image_db.workspace_id)
 
     return image
 
