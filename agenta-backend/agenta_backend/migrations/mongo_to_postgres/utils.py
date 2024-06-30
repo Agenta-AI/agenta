@@ -1,5 +1,6 @@
 import os
 import asyncio
+import asyncpg
 from datetime import datetime, timezone
 from tqdm import tqdm
 
@@ -13,6 +14,7 @@ import uuid_utils.compat as uuid
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from agenta_backend.models.db_engine import db_engine
+from sqlalchemy.exc import IntegrityError
 
 from agenta_backend.models.db_models import IDsMappingDB
 from agenta_backend.models.base import Base
@@ -59,7 +61,7 @@ async def store_mapping(table_name, mongo_id, uuid):
         await session.commit()
 
 
-async def get_mapped_uuid(table_name, mongo_id, print_result=False):
+async def get_mapped_uuid(table_name, mongo_id):
     """Retrieve the mapped UUID for a given MongoDB ObjectId and table name."""
     async with db_engine.get_session() as session:
         stmt = select(IDsMappingDB.uuid).filter(
@@ -86,8 +88,12 @@ def generate_uuid():
     return uuid.uuid7()
 
 
-def update_migration_report(collection_name, total_docs, migrated_docs):
-    migration_report[collection_name] = {"total": total_docs, "migrated": migrated_docs}
+def update_migration_report(collection_name, total_docs, migrated_docs, skipped_docs):
+    migration_report[collection_name] = {
+        "total": total_docs,
+        "migrated": migrated_docs,
+        "skipped": skipped_docs,
+    }
 
 
 def print_migration_report():
@@ -96,7 +102,7 @@ def print_migration_report():
     )
 
     # Headers
-    headers = ["Table", "Total in MongoDB", "Migrated to PostgreSQL"]
+    headers = ["Table", "Total in MongoDB", "Migrated to PostgreSQL", "Skipped"]
 
     if not migration_report:
         print("No data available in the migration report.")
@@ -114,17 +120,24 @@ def print_migration_report():
         len(headers[2]),
         max(len(str(counts["migrated"])) for counts in migration_report.values()),
     )
+    max_skipped_length = max(
+        len(headers[3]),
+        max(len(str(counts.get("skipped", 0))) for counts in migration_report.values()),
+    )
 
     # Set the header and divider with appropriate padding
-    table_header = f"| {headers[0].ljust(max_table_length)} | {headers[1].ljust(max_total_length)} | {headers[2].ljust(max_migrated_length)} |"
-    table_divider = f"|{'-' * (max_table_length + 2)}|{'-' * (max_total_length + 2)}|{'-' * (max_migrated_length + 2)}|"
+    table_header = f"| {headers[0].ljust(max_table_length)} | {headers[1].ljust(max_total_length)} | {headers[2].ljust(max_migrated_length)} | {headers[3].ljust(max_skipped_length)} |"
+    table_divider = f"|{'-' * (max_table_length + 2)}|{'-' * (max_total_length + 2)}|{'-' * (max_migrated_length + 2)}|{'-' * (max_skipped_length + 2)}|"
 
     print(table_header)
     print(table_divider)
 
     for table, counts in migration_report.items():
-        table_row = f"| {table.ljust(max_table_length)} | {str(counts['total']).ljust(max_total_length)} | {str(counts['migrated']).ljust(max_migrated_length)} |"
+        skipped = counts.get("skipped", 0)
+        table_row = f"| {table.ljust(max_table_length)} | {str(counts['total']).ljust(max_total_length)} | {str(counts['migrated']).ljust(max_migrated_length)} | {str(skipped).ljust(max_skipped_length)} |"
         print(table_row)
+
+    print(table_divider)
 
 
 async def migrate_collection(
@@ -134,6 +147,7 @@ async def migrate_collection(
     print(f"\n")
     total_docs = mongo_db[collection_name].count_documents({})
     migrated_docs = 0
+    skipped_docs = 0
 
     async with db_engine.get_session() as session:
         for skip in tqdm(
@@ -149,18 +163,28 @@ async def migrate_collection(
                 ),
             )
             for document in batch:
-                if association_model:
-                    (
-                        transformed_document,
-                        associated_entities,
-                    ) = await transformation_func(document)
-                    session.add(model_class(**transformed_document))
-                    for assoc_entity in associated_entities:
-                        session.add(association_model(**assoc_entity))
-                else:
-                    transformed_document = await transformation_func(document)
-                    session.add(model_class(**transformed_document))
-                await session.commit()
-                migrated_docs += 1
+                try:
+                    if association_model:
+                        (
+                            transformed_document,
+                            associated_entities,
+                        ) = await transformation_func(document)
+                        session.add(model_class(**transformed_document))
+                        for assoc_entity in associated_entities:
+                            session.add(association_model(**assoc_entity))
+                    else:
+                        transformed_document = await transformation_func(document)
+                        session.add(model_class(**transformed_document))
+                    await session.commit()
+                    migrated_docs += 1
+                except (asyncpg.exceptions.UniqueViolationError, IntegrityError) as e:
+                    await session.rollback()
+                    print(f"\nSkipping duplicate document in {collection_name}: {e}\n")
+                    skipped_docs += 1
+                    pass
+                except Exception as e:
+                    print(f"Error migrating document in {collection_name}: {e}")
+                    print(f"Failing migration for collection: {collection_name}")
+                    raise
 
-    update_migration_report(collection_name, total_docs, migrated_docs)
+    update_migration_report(collection_name, total_docs, migrated_docs, skipped_docs)
