@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 import uuid_utils.compat as uuid
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.migrations.mongo_to_postgres.db_engine import db_engine
 from sqlalchemy.exc import IntegrityError
 
 from agenta_backend.models.db_models import IDsMappingDB
