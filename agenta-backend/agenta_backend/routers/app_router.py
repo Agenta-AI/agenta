@@ -256,7 +256,7 @@ async def create_app(
 
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    workspace_id=workspace.id,
+                    workspace_id=str(workspace.id),
                     organization=organization,
                     permission=Permission.CREATE_APPLICATION,
                 )
@@ -276,7 +276,7 @@ async def create_app(
             payload.app_name,
             request.state.user_id,
             organization_id if isCloudEE() else None,
-            workspace.id if isCloudEE() else None,
+            str(workspace.id) if isCloudEE() else None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -600,13 +600,6 @@ async def create_app_and_variant_from_template(
             envvars = {} if payload.env_vars is None else payload.env_vars
         await app_manager.start_variant(app_variant_db, envvars)
 
-        logger.debug("Step 11: Deploying to production environment")
-        await db_manager.deploy_to_environment(
-            environment_name="production",
-            variant_id=str(app_variant_db.id),
-            user_uid=request.state.user_id,
-        )
-
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
 
@@ -714,5 +707,8 @@ async def list_app_environment_revisions(
             app_environment, app_environment_revisions
         )
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
