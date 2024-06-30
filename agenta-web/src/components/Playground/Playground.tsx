@@ -35,6 +35,8 @@ const Playground: React.FC = () => {
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
+    const [revisionNumber, setRevisionNumber] = useQueryParam("revision")
+    const variantId = variants.find((v) => v.variantName === activeKey)
     const tabID = useRef("")
 
     const addTab = async () => {
@@ -270,7 +272,7 @@ const Playground: React.FC = () => {
     }
 
     // Map the variants array to create the items array conforming to the Tab interface
-    const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
+    const tabItems: PlaygroundTabsItem[] = variants.map((variant) => ({
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
@@ -285,6 +287,9 @@ const Playground: React.FC = () => {
                 }
                 getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
                 tabID={tabID}
+                activeVariantKey={variantId?.variantId || ""}
+                revisionNumber={revisionNumber}
+                setRevisionNumber={setRevisionNumber}
             />
         ),
         closable: !variant.persistent,
