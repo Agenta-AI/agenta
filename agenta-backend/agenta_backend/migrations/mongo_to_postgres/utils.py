@@ -4,7 +4,6 @@ import asyncpg
 from datetime import datetime, timezone
 from tqdm import tqdm
 
-from pymongo import MongoClient
 from bson import ObjectId, DBRef
 from sqlalchemy import MetaData, Column, String, DateTime, text, create_engine
 from sqlalchemy.dialects.postgresql import UUID
@@ -18,15 +17,11 @@ from sqlalchemy.exc import IntegrityError
 
 from agenta_backend.models.db_models import IDsMappingDB
 from agenta_backend.models.base import Base
+from agenta_backend.migrations.mongo_to_postgres.mongo_db_engine import get_mongo_db
 
 BATCH_SIZE = 1000
 
-# MongoDB connection
-MONGO_URI = os.environ.get("MONGODB_URI")
-DATABASE_MODE = os.environ.get("DATABASE_MODE")
-mongo_client = MongoClient(MONGO_URI)
-mongo_db_name = f"agenta_{DATABASE_MODE}"
-mongo_db = mongo_client[mongo_db_name]
+mongo_db = get_mongo_db()
 
 migration_report = {}
 
