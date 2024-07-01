@@ -21,7 +21,6 @@ if isCloudEE():
         OrganizationDB,
         InvitationDB,
         UserOrganizationDB,
-        UserWorkspaceDB,
         WorkspaceMemberDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -81,7 +80,7 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, UserOrganizationDB, UserWorkspaceDB, WorkspaceMemberDB])  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, UserOrganizationDB, WorkspaceMemberDB])  # type: ignore
 
 
 # Configure and set logging level
