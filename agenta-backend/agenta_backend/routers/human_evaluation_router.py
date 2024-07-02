@@ -1,3 +1,4 @@
+import random
 from typing import List, Dict
 from fastapi import HTTPException, Body, Request, status, Response
 
@@ -79,6 +80,12 @@ async def create_evaluation(
             status_code=400,
             detail="columns in the test set should match the names of the inputs in the variant",
         )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code, detail=str(e))
 
 
 @router.get("/", response_model=List[HumanEvaluation])
@@ -473,24 +480,27 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            for evaluation_id in delete_evaluations.evaluations_ids:
-                has_permission = await check_action_access(
-                    user_uid=request.state.user_id,
-                    object_id=evaluation_id,
-                    object_type="evaluation",
-                    permission=Permission.DELETE_EVALUATION,
+            evaluation_id = random.choice(delete_evaluations.evaluations_ids)
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="human_evaluation",
+                permission=Permission.DELETE_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+                raise HTTPException(
+                    detail=error_msg,
+                    status_code=403,
                 )
-                if not has_permission:
-                    error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                    raise HTTPException(
-                        detail=error_msg,
-                        status_code=403,
-                    )
 
         await evaluation_service.delete_human_evaluations(
             delete_evaluations.evaluations_ids
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+        raise HTTPException(status_code=status_code, detail=str(e))

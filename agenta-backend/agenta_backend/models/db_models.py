@@ -175,7 +175,9 @@ class AppVariantDB(Base):
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     variant_name = Column(String)
     revision = Column(Integer)
-    image_id = Column(UUID(as_uuid=True), ForeignKey("docker_images.id"))
+    image_id = Column(
+        UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
+    )
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
@@ -232,6 +234,9 @@ class AppVariantRevisionsDB(Base):
 
     modified_by = relationship("UserDB")
     base = relationship("VariantBaseDB")
+
+    def get_config(self) -> dict:
+        return {"config_name": self.config_name, "parameters": self.config_parameters}
 
 
 class AppEnvironmentDB(Base):
@@ -628,6 +633,13 @@ class EvaluationScenarioDB(Base):
 class IDsMappingDB(Base):
     __tablename__ = "ids_mapping"
 
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
     table_name = Column(String, nullable=False)
-    objectid = Column(String, primary_key=True)
+    objectid = Column(String, nullable=False)
     uuid = Column(UUID(as_uuid=True), nullable=False)

@@ -15,7 +15,7 @@ services:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
             - DATABASE_MODE=v2
@@ -146,7 +146,7 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
@@ -172,12 +172,14 @@ services:
         environment:
             POSTGRES_USER: username
             POSTGRES_PASSWORD: password
+            POSTGRES_DB: agenta_oss
         ports:
             - "5432:5432"
         networks:
             - agenta-network
         volumes:
-          - postgresdb-data:/var/lib/postgresql/data/
+            - postgresdb-data:/var/lib/postgresql/data/
+            - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U postgres"]
             interval: 10s
@@ -194,12 +196,13 @@ services:
             PGADMIN_SERVER_PORT: 5432
             PGADMIN_SERVER_USER: "username"
             PGADMIN_SERVER_PASSWORD: "password"
+            PGADMIN_SERVER_DB: agenta_oss
         ports:
             - "5050:80"
         networks:
             - agenta-network
         volumes:
-          - pgadmin-data:/var/lib/pgadmin
+            - pgadmin-data:/var/lib/pgadmin
         depends_on:
             postgres:
                 condition: service_healthy

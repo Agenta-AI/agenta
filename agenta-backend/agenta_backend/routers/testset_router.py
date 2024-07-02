@@ -1,19 +1,18 @@
 import io
 import csv
-import uuid
 import json
+import random
 import logging
 import requests
 from typing import Optional, List
-from datetime import datetime, timezone
 
-from bson import ObjectId
 from pydantic import ValidationError
+
 from fastapi.responses import JSONResponse
-from agenta_backend.services import db_manager
-from agenta_backend.services.db_manager import get_user
-from agenta_backend.utils.common import APIRouter, isCloudEE
 from fastapi import HTTPException, UploadFile, File, Form, Request
+
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.converters import testset_db_to_pydantic
 
 
@@ -411,13 +410,13 @@ async def delete_testsets(
     """
 
     if isCloudEE():
-        # TODO: improve rbac logic for testset permission
-        # has_permission = await check_action_access(
-        #     user_uid=request.state.user_id,
-        #     object=test_set,
-        #     permission=Permission.DELETE_TESTSET,
-        # )
-        has_permission = False
+        testset_id = random.choice(payload.testset_ids)
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            object_id=testset_id,
+            object_type="testset",
+            permission=Permission.DELETE_TESTSET,
+        )
         logger.debug(f"User has Permission to delete Testset: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

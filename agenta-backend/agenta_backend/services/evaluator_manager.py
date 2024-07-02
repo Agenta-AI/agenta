@@ -17,7 +17,6 @@ else:
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
-from agenta_backend.resources.evaluators import evaluators
 
 
 def get_evaluators() -> List[Evaluator]:
@@ -87,8 +86,6 @@ async def create_evaluator_config(
         user_id=str(app.user_id),
         name=name,
         evaluator_key=evaluator_key,
-        organization=app.organization if isCloudEE() else None,  # noqa,
-        workspace=app.workspace if isCloudEE() else None,  # noqa,
         settings_values=settings_values,
     )
     return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
@@ -167,8 +164,6 @@ async def create_ready_to_use_evaluators(app: AppDB):
             user_id=str(app.user_id),
             name=evaluator.name,
             evaluator_key=evaluator.key,
-            organization=app.organization if isCloudEE() else None,  # noqa,
-            workspace=app.workspace if isCloudEE() else None,  # noqa,
             settings_values=settings_values,
         )
 
