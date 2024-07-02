@@ -62,13 +62,12 @@ export default function VariantEndpoint() {
     const loadEnvironments = async () => {
         const response: Environment[] = await fetchEnvironments(appId)
         setEnvironments(response)
-        const loadProductionEnv = response.find((env) => env.name === "production")
+        const loadProductionEnv = response.find(
+            (env) => env.name === "production" && env.deployed_app_variant_id,
+        )
         if (loadProductionEnv) {
             setSelectedEnvironment(loadProductionEnv)
             await loadURL(loadProductionEnv)
-        } else {
-            setSelectedEnvironment(response[0])
-            await loadURL(response[0])
         }
     }
     useEffect(() => {
@@ -162,7 +161,7 @@ export default function VariantEndpoint() {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
     if (!variant) {
-        return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
+        return <Empty className="my-[50px] mx-0" description={"No variants available"} />
     }
     if (isLoading) {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
