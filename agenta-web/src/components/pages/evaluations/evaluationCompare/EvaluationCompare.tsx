@@ -8,8 +8,8 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
+import {ColDef, ValueGetterParams} from "ag-grid-community"
 import {fetchAllComparisonResults} from "@/services/evaluations/api"
-import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
@@ -30,6 +30,8 @@ import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns
 import _ from "lodash"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
+import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -88,6 +90,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -184,38 +188,42 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     </AgCustomHeader>
                 ),
                 headerName: "Output",
-                minWidth: 280,
+                minWidth: 300,
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
                 hide: hiddenVariants.includes("Output"),
                 cellRenderer: (params: any) => {
+                    const result = params.data?.variants.find(
+                        (item: any) => item.evaluationId === variant.evaluationId,
+                    )?.output?.result
+
+                    if (result && result.error && result.type == "error") {
+                        setModalErrorMsg({
+                            message: result.error.message,
+                            stackTrace: result.error.stacktrace,
+                        })
+                        return (
+                            <EvaluationErrorText
+                                text="Failed to invoke LLM app"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
+                        )
+                    }
+
                     return (
                         <>
                             {selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
-                                          variantOutput={getTypedValue(
-                                              params.data?.variants.find(
-                                                  (item: any) =>
-                                                      item.evaluationId === variant.evaluationId,
-                                              )?.output?.result,
-                                          )}
+                                          variantOutput={getTypedValue(result)}
                                           expectedOutput={
                                               params.data[selectedCorrectAnswer[0]] || ""
                                           }
                                       />,
                                   )
-                                : LongTextCellRenderer(
-                                      params,
-                                      getTypedValue(
-                                          params.data?.variants.find(
-                                              (item: any) =>
-                                                  item.evaluationId === variant.evaluationId,
-                                          )?.output?.result,
-                                      ),
-                                  )}
+                                : LongTextCellRenderer(params, getTypedValue(result))}
                         </>
                     )
                 },
@@ -266,6 +274,29 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
                     hide: hiddenVariants.includes(config.name),
+                    cellRenderer: (params: ValueGetterParams<ComparisonResultRow, any>) => {
+                        const result = params.data?.variants
+                            .find((item) => item.evaluationId === variant.evaluationId)
+                            ?.evaluatorConfigs.find(
+                                (item) => item.evaluatorConfig.id === config.id,
+                            )?.result
+
+                        if (result?.error && result.type === "error") {
+                            setModalErrorMsg({
+                                message: result.error.message,
+                                stackTrace: result.error.stacktrace,
+                            })
+                        }
+
+                        return result?.type === "error" && result.error ? (
+                            <EvaluationErrorText
+                                text="Failure to compute evaluation"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
+                        ) : (
+                            <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                        )
+                    },
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -549,6 +580,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     />
                 </div>
             </Spin>
+
+            <EvaluationErrorModal
+                isErrorModalOpen={isErrorModalOpen}
+                setIsErrorModalOpen={setIsErrorModalOpen}
+                modalErrorMsg={modalErrorMsg}
+            />
         </div>
     )
 }
