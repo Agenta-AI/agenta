@@ -399,7 +399,8 @@ async def remove_app(app_id: str, request: Request):
     """
     try:
         app = await db_manager.fetch_app_by_id(app_id)
-
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -408,21 +409,23 @@ async def remove_app(app_id: str, request: Request):
             )
             logger.debug(f"User has Permission to delete app: {has_permission}")
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
+                raise HTTPException(
                     status_code=403,
+                    detail="You do not have access to perform this action. Please contact your organization admin.",
                 )
 
         await app_manager.remove_app(app)
+
+    except HTTPException as http_exc:
+        raise http_exc
+
     except DockerException as e:
-        detail = f"Docker error while trying to remove the app: {str(e)}"
-        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
-        raise HTTPException(status_code=500, detail=detail)
+        logger.exception("Docker error while trying to remove the app.")
+        raise HTTPException(status_code=500, detail=f"Docker error: {str(e)}")
+
     except Exception as e:
-        detail = f"Unexpected error while trying to remove the app: {str(e)}"
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=detail)
+        logger.exception("An unexpected error occurred.")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @router.post(
