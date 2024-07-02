@@ -188,6 +188,9 @@ async def update_evaluator_config(
         )
         return evaluators_configs
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Error updating evaluator configuration: {str(e)}"
         )

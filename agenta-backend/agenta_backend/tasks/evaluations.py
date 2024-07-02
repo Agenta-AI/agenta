@@ -1,5 +1,3 @@
-import re
-import os
 import asyncio
 import logging
 import traceback
@@ -8,7 +6,7 @@ from typing import Any, Dict, List
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.models.db_engine import db_engine
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
@@ -16,9 +14,6 @@ from agenta_backend.services import (
     aggregation_service,
 )
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-from agenta_backend.models.db_models import (
-    AppDB,
-)
 from agenta_backend.models.shared_models import (
     AggregatedResult,
     CorrectAnswer,
@@ -44,10 +39,6 @@ from agenta_backend.services.db_manager import (
 )
 from agenta_backend.services.evaluator_manager import get_evaluators
 
-if isCloudEE():
-    from agenta_backend.commons.models.db_models import AppDB_ as AppDB
-else:
-    from agenta_backend.models.db_models import AppDB
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -97,7 +88,7 @@ def evaluate(
 
     try:
         # 1. Fetch data from the database
-        loop.run_until_complete(DBEngine().init_db())
+        loop.run_until_complete(db_engine.init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
@@ -205,8 +196,8 @@ def evaluate(
                         is_pinned=False,
                         note="",
                         results=error_results,
-                        organization=app.organization if isCloudEE() else None,
-                        workspace=app.workspace if isCloudEE() else None,
+                        organization=str(app.organization_id) if isCloudEE() else None,
+                        workspace=str(app.workspace_id) if isCloudEE() else None,
                     )
                 )
                 continue
@@ -277,8 +268,8 @@ def evaluate(
                     is_pinned=False,
                     note="",
                     results=evaluators_results,
-                    organization=app.organization if isCloudEE() else None,
-                    workspace=app.workspace if isCloudEE() else None,
+                    organization=str(app.organization_id) if isCloudEE() else None,
+                    workspace=str(app.workspace_id) if isCloudEE() else None,
                 )
             )
 
