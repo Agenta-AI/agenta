@@ -166,7 +166,7 @@ async def get_image_by_id(image_id: str) -> ImageDB:
         result = await session.execute(
             select(ImageDB).filter_by(id=uuid.UUID(image_id))
         )
-        image = result.scalars().one_or_none()
+        image = result.scalars().first()
         return image
 
 
@@ -187,7 +187,7 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
             )
 
         result = await session.execute(base_query)
-        app = result.unique().scalars().one_or_none()
+        app = result.unique().scalars().first()
         return app
 
 
@@ -222,7 +222,7 @@ async def fetch_app_variant_by_id(
             )
 
         result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
-        app_variant = result.scalars().one_or_none()
+        app_variant = result.scalars().first()
         return app_variant
 
 
@@ -242,7 +242,7 @@ async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
         result = await session.execute(
             select(AppVariantDB).filter_by(base_id=uuid.UUID(base_id))
         )
-        app_variant = result.scalars().one_or_none()
+        app_variant = result.scalars().first()
         return app_variant
 
 
@@ -268,7 +268,7 @@ async def fetch_app_variant_by_base_id_and_config_name(
                 base_id=uuid.UUID(base_id), config_name=config_name
             )
         )
-        app_variant = result.scalars().one_or_none()
+        app_variant = result.scalars().first()
         return app_variant
 
 
@@ -294,7 +294,7 @@ async def fetch_app_variant_revision_by_variant(
                 variant_id=uuid.UUID(app_variant_id), revision=revision
             )
         )
-        app_variant_revision = result.scalars().one_or_none()
+        app_variant_revision = result.scalars().first()
         if app_variant_revision is None:
             raise Exception(
                 f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
@@ -320,7 +320,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
             )
             .filter_by(id=uuid.UUID(base_id))
         )
-        base = result.scalars().one_or_none()
+        base = result.scalars().first()
         return base
 
 
@@ -343,7 +343,7 @@ async def fetch_app_variant_by_name_and_appid(
                 variant_name=variant_name, app_id=uuid.UUID(app_id)
             )
         )
-        app_variant = result.scalars().one_or_none()
+        app_variant = result.scalars().first()
         return app_variant
 
 
@@ -684,7 +684,7 @@ async def get_deployment_by_id(
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
-        deployment = result.scalars().one_or_none()
+        deployment = result.scalars().first()
         return deployment
 
 
@@ -702,7 +702,7 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         result = await session.execute(
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
-        deployment = result.scalars().one_or_none()
+        deployment = result.scalars().first()
         logger.debug(f"deployment: {deployment}")
         return deployment
 
@@ -781,7 +781,7 @@ async def get_user(user_uid: str) -> UserDB:
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid=user_uid))
-        user = result.scalars().one_or_none()
+        user = result.scalars().first()
 
         if user is None and isCloudEE():
             raise Exception("Please login or signup")
@@ -814,7 +814,7 @@ async def get_user_with_id(user_id: str):
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
-        user = result.scalars().one_or_none()
+        user = result.scalars().first()
         if user is None:
             logger.error("Failed to get user with id")
             raise Exception("Error while getting user")
@@ -844,7 +844,7 @@ async def get_user_with_email(email: str):
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(UserDB).filter_by(email=email))
-        user = result.scalars().one_or_none()
+        user = result.scalars().first()
         return user
 
 
@@ -893,7 +893,7 @@ async def get_orga_image_instance_by_docker_id(
             )
 
         result = await session.execute(query)
-        image = result.scalars().one_or_none()
+        image = result.scalars().first()
         return image
 
 
@@ -931,7 +931,7 @@ async def get_orga_image_instance_by_uri(
             )
 
         result = await session.execute(query)
-        image = result.scalars().one_or_none()
+        image = result.scalars().first()
         return image
 
 
@@ -947,7 +947,7 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
-        app = result.scalars().one_or_none()
+        app = result.scalars().first()
         return app
 
 
@@ -1158,7 +1158,7 @@ async def remove_deployment(deployment_id: str):
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
-        deployment = result.scalars().one_or_none()
+        deployment = result.scalars().first()
         if not deployment:
             raise NoResultFound(f"Deployment with {deployment_id} not found")
 
@@ -1254,7 +1254,7 @@ async def deploy_to_environment(
                 app_id=app_variant_db.app_id, name=environment_name
             )
         )
-        environment_db = result.scalars().one_or_none()
+        environment_db = result.scalars().first()
         if environment_db is None:
             raise ValueError(f"Environment {environment_name} not found")
 
@@ -1298,7 +1298,7 @@ async def fetch_app_environment_by_name_and_appid(
                 joinedload(AppEnvironmentDB.deployed_app_variant.of_type(AppVariantDB)),  # type: ignore
             )
         result = await session.execute(query)
-        app_environment = result.scalars().one_or_none()
+        app_environment = result.scalars().first()
         return app_environment
 
 
@@ -1318,7 +1318,7 @@ async def fetch_app_variant_revision_by_id(
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(id=uuid.UUID(variant_revision_id))
         )
-        app_revision = result.scalars().one_or_none()
+        app_revision = result.scalars().first()
         return app_revision
 
 
@@ -1359,7 +1359,7 @@ async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevi
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(id=uuid.UUID(revision_id))
         )
-        environment_revision = result.scalars().one_or_none()
+        environment_revision = result.scalars().first()
         return environment_revision
 
 
@@ -1398,7 +1398,7 @@ async def update_app_environment_deployed_variant_revision(
                 id=uuid.UUID(deployed_variant_revision)
             )
         )
-        app_variant_revision = result.scalars().one_or_none()
+        app_variant_revision = result.scalars().first()
         if app_variant_revision is None:
             raise Exception(
                 f"App variant revision {deployed_variant_revision} not found"
@@ -1407,7 +1407,7 @@ async def update_app_environment_deployed_variant_revision(
         app_environment_result = await session.execute(
             select(AppEnvironmentDB).filter_by(id=uuid.UUID(app_environment_id))
         )
-        app_environment = app_environment_result.scalars().one_or_none()
+        app_environment = app_environment_result.scalars().first()
         app_environment.deployed_app_variant_revision_id = app_variant_revision.id  # type: ignore
 
         await session.commit()
@@ -1600,7 +1600,7 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
                 )  # type: ignore
             )
         result = await session.execute(query)
-        app_variant_revisions = result.scalars().one_or_none()
+        app_variant_revisions = result.scalars().first()
         return app_variant_revisions
 
 
@@ -1645,7 +1645,7 @@ async def remove_image(image: ImageDB):
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(ImageDB).filter_by(id=image.id))
-        image = result.scalars().one_or_none()
+        image = result.scalars().first()
 
         await session.delete(image)
         await session.commit()
@@ -1739,7 +1739,7 @@ async def remove_base_from_db(base_id: str):
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
-        base = result.scalars().one_or_none()
+        base = result.scalars().first()
         if not base:
             raise NoResultFound(f"Base with id {base_id} not found")
 
@@ -1764,7 +1764,7 @@ async def remove_app_by_id(app_id: str):
     assert app_id is not None, "app_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
-        app_db = result.scalars().one_or_none()
+        app_db = result.scalars().first()
         if not app_db:
             raise NoResultFound(f"App with id {app_id} not found")
 
@@ -1792,7 +1792,7 @@ async def update_variant_parameters(
         result = await session.execute(
             select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
         )
-        app_variant_db = result.scalars().one_or_none()
+        app_variant_db = result.scalars().first()
         if not app_variant_db:
             raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
@@ -1836,7 +1836,7 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
             .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
             .filter_by(id=uuid.UUID(variant_id))
         )
-        app_variant_db = result.scalars().one_or_none()
+        app_variant_db = result.scalars().first()
         return app_variant_db
 
 
@@ -1856,7 +1856,7 @@ async def get_app_variant_revision_by_id(
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(id=uuid.UUID(variant_revision_id))
         )
-        variant_revision_db = result.scalars().one_or_none()
+        variant_revision_db = result.scalars().first()
         return variant_revision_db
 
 
@@ -1878,7 +1878,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
 
     async with db_engine.get_session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
-        testset = result.scalars().one_or_none()
+        testset = result.scalars().first()
         return testset
 
 
@@ -1921,7 +1921,7 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         result = await session.execute(
             select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
         )
-        testset = result.scalars().one_or_none()
+        testset = result.scalars().first()
 
         # Validate keys in values_to_update and update attributes
         valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
@@ -1973,7 +1973,7 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
                 joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         result = await session.execute(query)
-        evaluation = result.scalars().one_or_none()
+        evaluation = result.scalars().first()
         return evaluation
 
 
@@ -2145,7 +2145,7 @@ async def fetch_human_evaluation_by_id(
                 joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         result = await session.execute(query)
-        evaluation = result.scalars().one_or_none()
+        evaluation = result.scalars().first()
         return evaluation
 
 
@@ -2164,7 +2164,7 @@ async def update_human_evaluation(evaluation_id: str, values_to_update: dict):
         result = await session.execute(
             select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         )
-        human_evaluation = result.scalars().one_or_none()
+        human_evaluation = result.scalars().first()
         if not human_evaluation:
             raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
 
@@ -2188,7 +2188,7 @@ async def delete_human_evaluation(evaluation_id: str):
         result = await session.execute(
             select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         )
-        evaluation = result.scalars().one_or_none()
+        evaluation = result.scalars().first()
         if not evaluation:
             raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
 
@@ -2250,7 +2250,7 @@ async def update_human_evaluation_scenario(
                 id=uuid.UUID(evaluation_scenario_id)
             )
         )
-        human_evaluation_scenario = result.scalars().one_or_none()
+        human_evaluation_scenario = result.scalars().first()
         if not human_evaluation_scenario:
             raise NoResultFound(
                 f"Human evaluation scenario with id {evaluation_scenario_id} not found"
@@ -2347,7 +2347,7 @@ async def fetch_evaluation_scenario_by_id(
         result = await session.execute(
             select(EvaluationScenarioDB).filter_by(id=uuid.UUID(evaluation_scenario_id))
         )
-        evaluation_scenario = result.scalars().one_or_none()
+        evaluation_scenario = result.scalars().first()
         return evaluation_scenario
 
 
@@ -2368,7 +2368,7 @@ async def fetch_human_evaluation_scenario_by_id(
                 id=uuid.UUID(evaluation_scenario_id)
             )
         )
-        evaluation_scenario = result.scalars().one_or_none()
+        evaluation_scenario = result.scalars().first()
         return evaluation_scenario
 
 
@@ -2389,7 +2389,7 @@ async def fetch_human_evaluation_scenario_by_evaluation_id(
                 evaluation_id=evaluation.id  # type: ignore
             )
         )
-        human_eval_scenario = result.scalars().one_or_none()
+        human_eval_scenario = result.scalars().first()
         return human_eval_scenario
 
 
@@ -2433,7 +2433,7 @@ async def add_template(**kwargs: dict) -> str:
         result = await session.execute(
             select(TemplateDB).filter_by(tag_id=kwargs["tag_id"])
         )
-        existing_template = result.scalars().one_or_none()
+        existing_template = result.scalars().first()
 
         if existing_template is None:
             db_template = TemplateDB(**kwargs)
@@ -2513,7 +2513,7 @@ async def get_template(template_id: str) -> TemplateDB:
         result = await session.execute(
             select(TemplateDB).filter_by(id=uuid.UUID(template_id))
         )
-        template_db = result.scalars().one_or_none()
+        template_db = result.scalars().first()
         return template_db
 
 
@@ -2570,7 +2570,7 @@ async def update_base(
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
-        base = result.scalars().one_or_none()
+        base = result.scalars().first()
         for key, value in kwargs.items():
             if hasattr(base, key):
                 setattr(base, key, value)
@@ -2607,7 +2607,7 @@ async def update_app_variant(
         result = await session.execute(
             select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
         )
-        app_variant = result.scalars().one_or_none()
+        app_variant = result.scalars().first()
         if not app_variant:
             raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
@@ -2657,7 +2657,7 @@ async def fetch_app_by_name_and_parameters(
             query = base_query.join(UserDB).filter(UserDB.uid == user_uid)
 
         result = await session.execute(query)
-        app_db = result.unique().scalars().one_or_none()
+        app_db = result.unique().scalars().first()
         return app_db
 
 
@@ -2939,7 +2939,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
-        evaluator_config = result.scalars().one_or_none()
+        evaluator_config = result.scalars().first()
         return evaluator_config
 
 
@@ -2988,7 +2988,7 @@ async def fetch_evaluator_config_by_appId(
                 app_id=uuid.UUID(app_id), evaluator_key=evaluator_name
             )
         )
-        evaluator_config = result.scalars().one_or_none()
+        evaluator_config = result.scalars().first()
         return evaluator_config
 
 
@@ -3039,7 +3039,7 @@ async def update_evaluator_config(
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
-        evaluator_config = result.scalars().one_or_none()
+        evaluator_config = result.scalars().first()
         if not evaluator_config:
             raise NoResultFound(
                 f"Evaluator config with id {evaluator_config_id} not found"
@@ -3064,7 +3064,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
-        evaluator_config = result.scalars().one_or_none()
+        evaluator_config = result.scalars().first()
         if evaluator_config is None:
             raise NoResultFound(
                 f"Evaluator config with id {evaluator_config_id} not found"
@@ -3094,7 +3094,7 @@ async def update_evaluation(
         result = await session.execute(
             select(EvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         )
-        evaluation = result.scalars().one_or_none()
+        evaluation = result.scalars().first()
         for key, value in updates.items():
             if hasattr(evaluation, key):
                 setattr(evaluation, key, value)
