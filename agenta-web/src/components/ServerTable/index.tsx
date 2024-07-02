@@ -163,6 +163,7 @@ const ServerTable = <T extends AnyObject>(
             >
                 <Table<T>
                     size="middle"
+                    data-cy="serverTable"
                     {...props}
                     dataSource={data}
                     columns={cols as TableColumnType<T>[]}
