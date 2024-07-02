@@ -88,39 +88,34 @@ const ChatInputs: React.FC<Props> = ({
         disableEditRole = true
     }
 
-    const handleRoleChange = (index: number, role: ChatRole) => {
-        const newMessages = [...messages]
-        newMessages[index].role = role
+    const updateMessages = (newMessages: ChatMessage[]) => {
         setMessages(newMessages)
         if (onChangeRef.current) {
             onChangeRef.current(cloneDeep(newMessages))
         }
+    }
+
+    const handleRoleChange = (index: number, role: ChatRole) => {
+        const newMessages = [...messages]
+        newMessages[index].role = role
+        updateMessages(newMessages)
     }
 
     const handleInputChange = (index: number, event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const {value} = event.target
         const newMessages = [...messages]
         newMessages[index].content = value
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     const handleDelete = (index: number) => {
         const newMessages = messages.filter((_, i) => i !== index)
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     const handleAdd = () => {
         const newMessages = messages.concat([getDefaultNewMessage()])
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     useEffect(() => {
