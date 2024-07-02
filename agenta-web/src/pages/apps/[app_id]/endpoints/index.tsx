@@ -216,6 +216,7 @@ export default function VariantEndpoint() {
                     className={classes.envButtons}
                 >
                     {environments
+                        .sort((a) => (a.name === "production" ? -1 : 1))
                         .map((env) => (
                             <Radio.Button
                                 disabled={!env.deployed_app_variant_id}
@@ -224,8 +225,7 @@ export default function VariantEndpoint() {
                             >
                                 {env.name}
                             </Radio.Button>
-                        ))
-                        .reverse()}
+                        ))}
                 </Radio.Group>
             </div>
 
