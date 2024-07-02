@@ -342,7 +342,7 @@ const App: React.FC<TestViewProps> = ({
 
     useEffect(() => {
         dynamicHook("usePromptRevision").then((module: any) => {
-            if (!revisionNumber || !module) return
+            if (!revisionNumber || !Boolean(module.default)) return
 
             const {fetchPromptRevision} = module.default({
                 setIsVariantLoading,
