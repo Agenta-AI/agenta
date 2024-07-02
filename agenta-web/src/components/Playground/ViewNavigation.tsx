@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-
 import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
@@ -30,6 +29,9 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
+    activeVariantKey: string
+    revisionNumber: string
+    setRevisionNumber: (val: string) => void
 }
 
 const useStyles = createUseStyles({
@@ -53,6 +55,9 @@ const ViewNavigation: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
+    activeVariantKey,
+    revisionNumber,
+    setRevisionNumber,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -70,6 +75,7 @@ const ViewNavigation: React.FC<Props> = ({
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        setIsLoading,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
@@ -267,6 +273,7 @@ const ViewNavigation: React.FC<Props> = ({
                         setIsDrawerOpen={setIsDrawerOpen}
                         isDrawerOpen={isDrawerOpen}
                         historyStatus={historyStatus}
+                        setRevisionNumber={setRevisionNumber}
                     />
                 </Col>
             </Row>
@@ -283,6 +290,9 @@ const ViewNavigation: React.FC<Props> = ({
                         onStateChange={onStateChange}
                         setPromptOptParams={setPromptOptParams}
                         promptOptParams={promptOptParams}
+                        activeVariantKey={activeVariantKey}
+                        revisionNumber={revisionNumber}
+                        setIsVariantLoading={setIsLoading}
                     />
                 </Col>
             </Row>

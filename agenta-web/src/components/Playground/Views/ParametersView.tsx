@@ -9,7 +9,6 @@ import {deleteSingleVariant} from "@/services/playground/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
-import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
 
 const PromptVersioningDrawer: any = dynamicComponent(
@@ -49,6 +48,7 @@ interface Props {
             error: boolean
         }>
     >
+    setRevisionNumber: (val: string) => void
 }
 
 const useStyles = createUseStyles({
@@ -91,13 +91,13 @@ const ParametersView: React.FC<Props> = ({
     setIsDrawerOpen,
     historyStatus,
     setHistoryStatus,
+    setRevisionNumber,
 }) => {
     const classes = useStyles()
     const posthog = usePostHogAg()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
-    const [revisionNum, setRevisionNum] = useQueryParam("revision")
     const [promptRevisions, setPromptRevisions] = useState<IPromptRevisions[]>([])
 
     const onChange = (param: Parameter, newValue: number | string) => {
@@ -290,7 +290,7 @@ const ParametersView: React.FC<Props> = ({
             />
             <PromptVersioningDrawer
                 setIsDrawerOpen={setIsDrawerOpen}
-                setRevisionNum={setRevisionNum}
+                setRevisionNumber={setRevisionNumber}
                 isDrawerOpen={isDrawerOpen}
                 historyStatus={historyStatus}
                 promptRevisions={filteredRevisions}
