@@ -122,4 +122,5 @@ async def fetch_results_for_single_model_test(evaluation_id: str):
                 continue  # Skip if the string is not a valid integer
 
         scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
+
     return scores_and_counts

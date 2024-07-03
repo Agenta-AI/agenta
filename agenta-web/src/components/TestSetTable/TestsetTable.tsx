@@ -155,6 +155,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
+    const [writeMode, setWriteMode] = useState(mode)
+    const [testsetId, setTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
@@ -202,7 +204,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 ADD_BUTTON_COL,
             ]
             setColumnDefs(newColDefs)
-            if (mode === "create") {
+            if (writeMode === "create") {
                 const initialRowData = Array(3).fill({})
                 const separateRowData = initialRowData.map(() => {
                     return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
@@ -213,7 +215,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (mode === "edit" && testset_id) {
+        if (writeMode === "edit" && testset_id) {
             setLoading(true)
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
@@ -224,7 +226,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     })),
                 )
             })
-        } else if (mode === "create" && appId) {
+        } else if (writeMode === "create" && appId) {
             setLoading(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
@@ -238,7 +240,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 applyColData([])
             })
         }
-    }, [mode, testset_id, appId])
+    }, [writeMode, testset_id, appId])
 
     const updateTable = (inputValues: string[]) => {
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
@@ -444,22 +446,28 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                         mssgModal("success", "Changes saved successfully!")
                     })
                     setIsLoading(false)
+                    setWriteMode("edit")
                 }
             }
 
-            if (mode === "create") {
+            if (writeMode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                     setIsLoading(false)
                 } else {
                     const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
+                    setTestsetId(response.data.id)
                 }
-            } else if (mode === "edit") {
+            } else if (writeMode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await updateTestset(testset_id as string, testsetName, rowData)
+                    const response = await updateTestset(
+                        (testsetId || testset_id) as string,
+                        testsetName,
+                        rowData,
+                    )
                     afterSave(response)
                 }
             }
