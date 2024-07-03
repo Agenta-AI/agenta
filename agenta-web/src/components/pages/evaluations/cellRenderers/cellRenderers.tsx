@@ -188,6 +188,7 @@ export const StatusRenderer = React.memo(
         )
         const {label, color} = statusMapper(token)[params.data?.status.value as EvaluationStatus]
         const errorMsg = params.data?.status.error?.message
+        const errorStacktrace = params.data?.status.error?.stacktrace
 
         return (
             <Typography.Text className={classes.statusCell}>
@@ -195,7 +196,7 @@ export const StatusRenderer = React.memo(
                 <span>{label}</span>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorMsg}>
+                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
                             <InfoCircleOutlined />
                         </Tooltip>
                     </span>
