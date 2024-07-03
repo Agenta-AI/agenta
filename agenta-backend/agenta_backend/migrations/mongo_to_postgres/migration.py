@@ -1,4 +1,4 @@
-import json
+from bson import ObjectId
 import os
 import asyncio
 from datetime import datetime, timezone
@@ -356,18 +356,36 @@ async def transform_human_evaluation_scenario(scenario):
     evaluation_uuid = await get_mapped_uuid(
         "human_evaluations", scenario["evaluation"].id
     )
-    variant_uuid = str(await get_mapped_uuid("app_variants", scenario["vote"]))
+
+    vote_value = scenario.get("vote")
+    if ObjectId.is_valid(vote_value):
+        vote_uuid = str(await get_mapped_uuid("app_variants", vote_value))
+    else:
+        vote_uuid = vote_value
+
     scenario_uuid = generate_uuid()
 
     await store_mapping("human_evaluations_scenarios", scenario["_id"], scenario_uuid)
+
+    outputs = []
+    for output in scenario["outputs"]:
+        variant_id = output["variant_id"]
+        variant_uuid = await get_mapped_uuid("app_variants", variant_id)
+        outputs.append(
+            {
+                "variant_id": str(variant_uuid),
+                "variant_output": output["variant_output"],
+            }
+        )
+
     return {
         "id": scenario_uuid,
         "user_id": user_uuid,
         "evaluation_id": evaluation_uuid,
         "inputs": scenario["inputs"],
-        "outputs": scenario["outputs"],
-        "vote": variant_uuid,
-        "score": scenario.get("score"),
+        "outputs": outputs,
+        "vote": vote_uuid,
+        "score": str(scenario.get("score")),
         "correct_answer": scenario.get("correct_answer"),
         "created_at": get_datetime(scenario.get("created_at")),
         "updated_at": get_datetime(scenario.get("updated_at")),
