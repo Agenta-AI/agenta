@@ -320,36 +320,56 @@ def evaluate(
         )
         self.update_state(state=states.FAILURE)
         return
-
-    aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(app, evaluators_aggregated_data)
-    )
-    loop.run_until_complete(
-        update_evaluation_with_aggregated_results(
-            new_evaluation_db.id, aggregated_results
+    
+    try:
+        aggregated_results = loop.run_until_complete(
+            aggregate_evaluator_results(app, evaluators_aggregated_data)
         )
-    )
 
-    failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
-    )
+        loop.run_until_complete(
+            update_evaluation_with_aggregated_results(
+                new_evaluation_db.id, aggregated_results
+            )
+        )
 
-    evaluation_status = Result(
-        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
-    )
+        failed_evaluation_scenarios = loop.run_until_complete(
+            check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
+        )
 
-    if failed_evaluation_scenarios:
         evaluation_status = Result(
-            type="status",
-            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
-            error=None,
+            type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
         )
 
-    loop.run_until_complete(
-        update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+        if failed_evaluation_scenarios:
+            evaluation_status = Result(
+                type="status",
+                value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+                error=None,
+            )
+
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+            )
         )
-    )
+
+    except Exception as e:
+        logger.error(f"An error occurred during evaluation aggregation: {e}")
+        traceback.print_exc()
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status",
+                        value="EVALUATION_AGGREGATION_FAILED",
+                        error=Error(message="Evaluation Aggregation Failed", stacktrace=str(e)),
+                    )
+                },
+            )
+        )
+        self.update_state(state=states.FAILURE)
+        return
 
 
 async def aggregate_evaluator_results(
