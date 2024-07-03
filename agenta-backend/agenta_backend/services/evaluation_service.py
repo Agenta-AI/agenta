@@ -545,7 +545,7 @@ async def create_new_evaluation(
         user=app.user,
         testset=testset,
         status=Result(
-            value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
+            value=EvaluationStatusEnum.EVALUATION_INITIALIZED, type="status", error=None
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
