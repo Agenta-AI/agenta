@@ -15,7 +15,7 @@ services:
         build: ./agenta-backend
         container_name: agenta-backend-test
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_test
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=${ENVIRONMENT}
             - BARE_DOMAIN_NAME=localhost
@@ -111,7 +111,7 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_test
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=${ENVIRONMENT}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
