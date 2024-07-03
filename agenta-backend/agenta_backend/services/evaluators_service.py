@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import traceback
 from typing import Any, Dict, List, Tuple
 
 import httpx
@@ -79,7 +80,7 @@ def auto_exact_match(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Exact Match evaluation", stacktrace=str(e)
+                message="Error during Auto Exact Match evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -103,7 +104,7 @@ def auto_regex_test(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Regex evaluation", stacktrace=str(e)
+                message="Error during Auto Regex evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -186,7 +187,7 @@ def auto_webhook_test(
             value=None,
             error=Error(
                 message="Error during Auto Webhook evaluation; An HTTP error occurred",
-                stacktrace=str(e),
+                stacktrace=str(traceback.format_exc()),
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
@@ -194,7 +195,7 @@ def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Webhook evaluation", stacktrace=str(e)
+                message="Error during Auto Webhook evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -224,7 +225,7 @@ def auto_custom_code_run(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Custom Code Evaluation", stacktrace=str(e)
+                message="Error during Auto Custom Code Evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -281,7 +282,7 @@ def auto_ai_critique(
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Auto AI Critique", stacktrace=str(e)),
+            error=Error(message="Error during Auto AI Critique", stacktrace=str(traceback.format_exc())),
         )
 
 
@@ -308,7 +309,7 @@ def auto_starts_with(
             type="error",
             value=None,
             error=Error(
-                message="Error during Starts With evaluation", stacktrace=str(e)
+                message="Error during Starts With evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -335,7 +336,7 @@ def auto_ends_with(
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Ends With evaluation", stacktrace=str(e)),
+            error=Error(message="Error during Ends With evaluation", stacktrace=str(traceback.format_exc())),
         )
 
 
@@ -361,7 +362,7 @@ def auto_contains(
         return Result(
             type="error",
             value=None,
-            error=Error(message="Error during Contains evaluation", stacktrace=str(e)),
+            error=Error(message="Error during Contains evaluation", stacktrace=str(traceback.format_exc())),
         )
 
 
@@ -391,7 +392,7 @@ def auto_contains_any(
             type="error",
             value=None,
             error=Error(
-                message="Error during Contains Any evaluation", stacktrace=str(e)
+                message="Error during Contains Any evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -422,7 +423,7 @@ def auto_contains_all(
             type="error",
             value=None,
             error=Error(
-                message="Error during Contains All evaluation", stacktrace=str(e)
+                message="Error during Contains All evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -452,7 +453,7 @@ def auto_contains_json(
             type="error",
             value=None,
             error=Error(
-                message="Error during Contains JSON evaluation", stacktrace=str(e)
+                message="Error during Contains JSON evaluation", stacktrace=str(traceback.format_exc())
             ),
         )
 
@@ -511,7 +512,7 @@ def auto_levenshtein_distance(
             value=None,
             error=Error(
                 message="Error during Levenshtein threshold evaluation",
-                stacktrace=str(e),
+                stacktrace=str(traceback.format_exc()),
             ),
         )
 
@@ -552,7 +553,7 @@ def auto_similarity_match(
             value=None,
             error=Error(
                 message="Error during Auto Similarity Match evaluation",
-                stacktrace=str(e),
+                stacktrace=str(traceback.format_exc()),
             ),
         )
 
