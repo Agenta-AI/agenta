@@ -313,7 +313,7 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
+                        error=Error(message="Evaluation Failed !!!", stacktrace=str(traceback.format_exc())),
                     )
                 },
             )
