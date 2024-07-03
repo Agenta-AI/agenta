@@ -16,10 +16,11 @@ def event_loop():
     res._close = res.close  # type: ignore
 
     # Initialize database and create tables
-    res.run_until_complete(DBEngine().init_db())
+    db_engine = DBEngine()
+    res.run_until_complete(db_engine.init_db())
 
     yield res
 
-    res.run_until_complete(DBEngine().close())  # close connections to database
-    res.run_until_complete(DBEngine().remove_db())  # drop database
+    res.run_until_complete(db_engine.remove_db())  # drop database
+    res.run_until_complete(db_engine.close())  # close connections to database
     res._close()  # close event loop # type: ignore
