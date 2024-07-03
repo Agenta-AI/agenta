@@ -21,6 +21,6 @@ def event_loop():
 
     yield res
 
-    res.run_until_complete(db_engine.close())  # close connections to database
     res.run_until_complete(db_engine.remove_db())  # drop database
+    res.run_until_complete(db_engine.close())  # close connections to database
     res._close()  # close event loop # type: ignore
