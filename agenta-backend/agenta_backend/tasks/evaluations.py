@@ -249,12 +249,14 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             all_correct_answers = [
-                CorrectAnswer(
-                    key=ground_truth_column_name,
-                    value=data_point[ground_truth_column_name],
+                (
+                    CorrectAnswer(
+                        key=ground_truth_column_name,
+                        value=data_point[ground_truth_column_name],
+                    )
+                    if ground_truth_column_name in data_point
+                    else CorrectAnswer(key=ground_truth_column_name, value="")
                 )
-                if ground_truth_column_name in data_point
-                else CorrectAnswer(key=ground_truth_column_name, value="")
                 for ground_truth_column_name in ground_truth_column_names
             ]
             # 4. We save the result of the eval scenario in the db
@@ -320,7 +322,7 @@ def evaluate(
         )
         self.update_state(state=states.FAILURE)
         return
-    
+
     try:
         aggregated_results = loop.run_until_complete(
             aggregate_evaluator_results(app, evaluators_aggregated_data)
@@ -333,7 +335,9 @@ def evaluate(
         )
 
         failed_evaluation_scenarios = loop.run_until_complete(
-            check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
+            check_if_evaluation_contains_failed_evaluation_scenarios(
+                new_evaluation_db.id
+            )
         )
 
         evaluation_status = Result(
@@ -349,7 +353,8 @@ def evaluate(
 
         loop.run_until_complete(
             update_evaluation(
-                evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+                evaluation_id=new_evaluation_db.id,
+                updates={"status": evaluation_status},
             )
         )
 
@@ -363,7 +368,9 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_AGGREGATION_FAILED",
-                        error=Error(message="Evaluation Aggregation Failed", stacktrace=str(e)),
+                        error=Error(
+                            message="Evaluation Aggregation Failed", stacktrace=str(e)
+                        ),
                     )
                 },
             )
