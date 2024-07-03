@@ -95,8 +95,15 @@ class DBEngine:
 
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
-        self.postgres_uri = os.environ.get("POSTGRES_URI", None)
+        self.postgres_uri = os.environ.get("POSTGRES_URI")
         self.mongo_uri = os.environ.get("MONGODB_URI")
+        self.engine = create_async_engine(url=self.postgres_uri)  # type: ignore
+        self.async_session_maker = async_sessionmaker(
+            bind=self.engine, class_=AsyncSession, expire_on_commit=False
+        )
+        self.async_session = async_scoped_session(
+            session_factory=self.async_session_maker, scopefunc=current_task
+        )
 
     async def initialize_async_postgres(self):
         """
@@ -105,14 +112,6 @@ class DBEngine:
 
         if not self.postgres_uri:
             raise ValueError("Postgres URI cannot be None.")
-
-        self.engine = create_async_engine(self.postgres_uri)
-        self.async_session_maker = async_sessionmaker(
-            bind=self.engine, class_=AsyncSession, expire_on_commit=False
-        )
-        self.async_session = async_scoped_session(
-            session_factory=self.async_session_maker, scopefunc=current_task
-        )
 
         async with self.engine.begin() as conn:
             # Drop and create tables if needed
@@ -183,10 +182,6 @@ class DBEngine:
             raise Exception("DBEngine is not initialized")
 
         await self.engine.dispose()
-
-        self.engine = None
-        self.async_session_maker = None
-        self.async_session = None
 
 
 db_engine = DBEngine()
