@@ -1,5 +1,6 @@
 import secrets
 import logging
+import traceback
 from typing import Any, List
 
 from fastapi.responses import JSONResponse
@@ -270,6 +271,7 @@ async def fetch_evaluation_scenarios(
         return eval_scenarios
 
     except Exception as exc:
+        logger.error(str(traceback.format_exc()))
         raise HTTPException(status_code=500, detail=str(exc))
 
 
