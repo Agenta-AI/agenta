@@ -179,7 +179,7 @@ export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) =
             color: token.colorWarning,
         },
         [EvaluationStatus.AGGREGATION_FAILED]: {
-            label: "Aggregation Failed",
+            label: "Result Aggregation Failed",
             color: token.colorError,
         },
     }
