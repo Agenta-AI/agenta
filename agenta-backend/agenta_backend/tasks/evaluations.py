@@ -249,12 +249,14 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             all_correct_answers = [
-                CorrectAnswer(
-                    key=ground_truth_column_name,
-                    value=data_point[ground_truth_column_name],
+                (
+                    CorrectAnswer(
+                        key=ground_truth_column_name,
+                        value=data_point[ground_truth_column_name],
+                    )
+                    if ground_truth_column_name in data_point
+                    else CorrectAnswer(key=ground_truth_column_name, value="")
                 )
-                if ground_truth_column_name in data_point
-                else CorrectAnswer(key=ground_truth_column_name, value="")
                 for ground_truth_column_name in ground_truth_column_names
             ]
             # 4. We save the result of the eval scenario in the db
@@ -313,7 +315,10 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
+                        error=Error(
+                            message="Evaluation Failed !!!",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
                     )
                 },
             )
