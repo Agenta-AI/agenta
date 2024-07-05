@@ -58,19 +58,20 @@ class instrument(BaseDecorator):
             try:
                 result = await func(*args, **kwargs)
                 self.tracing.update_span_status(span=span, value="OK")
-            except Exception as e:
-                result = str(e)
-                self.tracing.set_span_attribute(
-                    {"traceback_exception": traceback.format_exc()}
-                )
-                self.tracing.update_span_status(span=span, value="ERROR")
-            finally:
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
                     )
                 )
-            return result
+                return result
+
+            except Exception as e:
+                self.tracing.set_span_attribute(
+                    {"traceback_exception": traceback.format_exc()}
+                )
+                self.tracing.update_span_status(span=span, value="ERROR")
+                self.tracing.end_span(outputs={})
+                raise e
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -89,17 +90,19 @@ class instrument(BaseDecorator):
             try:
                 result = func(*args, **kwargs)
                 self.tracing.update_span_status(span=span, value="OK")
-            except Exception as e:
-                result = str(e)
-                self.tracing.set_span_attribute(
-                    {"traceback_exception": traceback.format_exc()}
-                )
-                self.tracing.update_span_status(span=span, value="ERROR")
-            finally:
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
                     )
                 )
+                return result
+
+            except Exception as e:
+                self.tracing.set_span_attribute(
+                    {"traceback_exception": traceback.format_exc()}
+                )
+                self.tracing.update_span_status(span=span, value="ERROR")
+                self.tracing.end_span(outputs={})
+                raise e
 
         return async_wrapper if is_coroutine_function else sync_wrapper
