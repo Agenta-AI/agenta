@@ -195,14 +195,14 @@ export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) =
         },
         [EvaluationStatus.AGGREGATION_FAILED]: {
             label: "Result Aggregation Failed",
-            color: token.colorError,
+            color: token.colorWarning,
         },
     }
 
     return (
         statusMap[status] || {
             label: "Unknown",
-            color: token.colorError,
+            color: "purple",
         }
     )
 }
