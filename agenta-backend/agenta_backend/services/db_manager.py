@@ -63,6 +63,7 @@ else:
     )
 from agenta_backend.models.db_models import (
     TemplateDB,
+    IDsMappingDB,
     AppVariantRevisionsDB,
     HumanEvaluationVariantDB,
     EvaluationScenarioResultDB,
@@ -3094,3 +3095,25 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
         if not count:
             return False
         return count > 0
+
+
+async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
+    """
+    Fetches a corresponding object uuid.
+
+    Args:
+        table_name (str):  The table name
+        object_id (str):   The object identifier
+
+    Returns:
+        The corresponding object uuid as string.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(IDsMappingDB)
+            .filter_by(table_name=table_name, objectid=object_id)
+            .options(load_only(IDsMappingDB.uuid))  # type: ignore
+        )
+        object_mapping = result.scalars().first()
+        return str(object_mapping.uuid)
