@@ -66,11 +66,15 @@ class instrument(BaseDecorator):
                 return result
 
             except Exception as e:
+                result = {
+                    "message": str(e),
+                    "stacktrace": traceback.format_exc(),
+                }
                 self.tracing.set_span_attribute(
                     {"traceback_exception": traceback.format_exc()}
                 )
                 self.tracing.update_span_status(span=span, value="ERROR")
-                self.tracing.end_span(outputs={})
+                self.tracing.end_span(outputs=result)
                 raise e
 
         @wraps(func)
@@ -98,11 +102,15 @@ class instrument(BaseDecorator):
                 return result
 
             except Exception as e:
+                result = {
+                    "message": str(e),
+                    "stacktrace": traceback.format_exc(),
+                }
                 self.tracing.set_span_attribute(
                     {"traceback_exception": traceback.format_exc()}
                 )
                 self.tracing.update_span_status(span=span, value="ERROR")
-                self.tracing.end_span(outputs={})
+                self.tracing.end_span(outputs=result)
                 raise e
 
         return async_wrapper if is_coroutine_function else sync_wrapper
