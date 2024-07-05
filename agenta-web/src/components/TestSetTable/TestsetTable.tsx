@@ -83,8 +83,11 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const [columnDefs, setColumnDefs] = useState<ColumnDefsType[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
-    const [selectedRow, setSelectedRow] = useState([])
+    const [writeMode, setWriteMode] = useState(mode)
+    const [testsetId, setTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
+
+    const [selectedRow, setSelectedRow] = useState([])
 
     const classes = useStylesTestset()
     const router = useRouter()
@@ -115,7 +118,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         async function applyColData(colData: {field: string}[] = []) {
             const newColDefs = createNewColDefs(colData)
             setColumnDefs(newColDefs)
-            if (mode === "create") {
+            if (writeMode === "create") {
                 const initialRowData = Array(3).fill({})
                 const separateRowData = initialRowData.map(() => {
                     return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
@@ -126,7 +129,8 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (mode === "edit" && testset_id) {
+        if (writeMode === "edit" && testset_id) {
+            setIsDataChanged(true)
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
@@ -136,7 +140,8 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                     })),
                 )
             })
-        } else if (mode === "create" && appId) {
+        } else if (writeMode === "create" && appId) {
+            setIsDataChanged(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
                 const variant = backendVariants[0]
@@ -149,7 +154,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 applyColData([])
             })
         }
-    }, [mode, testset_id, appId])
+    }, [writeMode, testset_id, appId])
 
     const handleExportClick = () => {
         const csvData = convertToCsv(
@@ -214,6 +219,46 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         setIsDataChanged(true)
     }
 
+    const onSaveData = async () => {
+        try {
+            setIsLoading(true)
+            const afterSave = (response: AxiosResponse) => {
+                if (response.status === 200) {
+                    setUnSavedChanges(false, () => {
+                        mssgModal("success", "Changes saved successfully!")
+                    })
+                    setIsLoading(false)
+                    setWriteMode("edit")
+                }
+            }
+
+            if (writeMode === "create") {
+                if (!testsetName) {
+                    setIsModalOpen(true)
+                    setIsLoading(false)
+                } else {
+                    const response = await createNewTestset(appId, testsetName, rowData)
+                    afterSave(response)
+                    setTestsetId(response.data.id)
+                }
+            } else if (writeMode === "edit") {
+                if (!testsetName) {
+                    setIsModalOpen(true)
+                } else {
+                    const response = await updateTestset(
+                        (testsetId || testset_id) as string,
+                        testsetName,
+                        rowData,
+                    )
+                    afterSave(response)
+                }
+            }
+        } catch (error) {
+            console.error("Error saving test set:", error)
+            setIsLoading(false)
+        }
+    }
+
     const onRowSelectedOrDeselected = () => {
         if (!gridRef?.current) return
         setSelectedRow(gridRef?.current?.getSelectedNodes())
@@ -249,34 +294,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         setIsDataChanged(true)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
-        }
-    }
-
-    const onSaveData = async () => {
-        try {
-            setIsLoading(true)
-            const afterSave = (response: AxiosResponse) => {
-                if (response.status === 200) {
-                    setUnSavedChanges(false, () => {
-                        mssgModal("success", "Changes saved successfully!")
-                    })
-                    setIsLoading(false)
-                }
-            }
-
-            if (!testsetName) {
-                setIsModalOpen(true)
-                setIsLoading(false)
-            } else if (mode === "create") {
-                const response = await createNewTestset(appId, testsetName, rowData)
-                afterSave(response)
-            } else if (mode === "edit") {
-                const response = await updateTestset(testset_id as string, testsetName, rowData)
-                afterSave(response)
-            }
-        } catch (error) {
-            console.error("Error saving test set:", error)
-            setIsLoading(false)
         }
     }
 
