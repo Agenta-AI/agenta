@@ -1596,28 +1596,6 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         return app_variant_revisions
 
 
-async def list_environments_by_variant(
-    session: AsyncSession,
-    app_variant: AppVariantDB,
-):
-    """
-    Returns a list of environments for a given app variant.
-
-    Args:
-        session (AsyncSession): the current ongoing session
-        app_variant (AppVariantDB): The app variant to retrieve environments for.
-
-    Returns:
-        List[AppEnvironmentDB]: A list of AppEnvironmentDB objects.
-    """
-
-    result = await session.execute(
-        select(AppEnvironmentDB).filter_by(app_id=app_variant.app.id)
-    )
-    environments_db = result.scalars().all()
-    return environments_db
-
-
 async def remove_image(image: ImageDB):
     """
     Removes an image from the database.
