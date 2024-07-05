@@ -40,7 +40,7 @@ def aggregate_ai_critique(results: List[Result]) -> Result:
         return Result(
             type="error",
             value=None,
-            error=Error(message="Failed", stacktrace=str(traceback.format_exc())),
+            error=Error(message=str(exc), stacktrace=str(traceback.format_exc())),
         )
 
 
@@ -78,7 +78,7 @@ def aggregate_float(results: List[Result]) -> Result:
         return Result(
             type="error",
             value=None,
-            error=Error(message="Failed", stacktrace=str(traceback.format_exc())),
+            error=Error(message=str(exc), stacktrace=str(traceback.format_exc())),
         )
 
 
