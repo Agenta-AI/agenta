@@ -3111,9 +3111,7 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(IDsMappingDB)
-            .filter_by(table_name=table_name, objectid=object_id)
-            .options(load_only(IDsMappingDB.uuid))  # type: ignore
+            select(IDsMappingDB).filter_by(table_name=table_name, objectid=object_id)
         )
         object_mapping = result.scalars().first()
         return str(object_mapping.uuid)
