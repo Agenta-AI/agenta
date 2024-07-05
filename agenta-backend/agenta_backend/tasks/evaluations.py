@@ -94,8 +94,21 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        # 1. Fetch data from the database
         loop.run_until_complete(DBEngine().init_db())
+
+        # 0. Update evaluation status to STARTED
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
+                    )
+                },
+            )
+        )
+
+        # 1. Fetch data from the database
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (

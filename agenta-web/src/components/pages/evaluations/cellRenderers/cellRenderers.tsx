@@ -21,6 +21,7 @@ import Link from "next/link"
 import React, {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getTypedValue} from "@/lib/helpers/evaluate"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -137,19 +138,33 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
 }
 
 export const ResultRenderer = React.memo(
-    (params: ICellRendererParams<_EvaluationScenario> & {config: EvaluatorConfig}) => {
+    (
+        params: ICellRendererParams<_EvaluationScenario> & {
+            config: EvaluatorConfig
+            setIsErrorModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+            setModalErrorMsg: React.Dispatch<
+                React.SetStateAction<{
+                    message: string
+                    stackTrace: string
+                }>
+            >
+        },
+    ) => {
+        const {setIsErrorModalOpen, setModalErrorMsg} = params
         const result = params.data?.results.find(
             (item) => item.evaluator_config === params.config.id,
         )?.result
-        let errorMsg = ""
-        if (result?.type === "error") {
-            errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
+        if (result?.type === "error" && result.error) {
+            setModalErrorMsg({message: result.error.message, stackTrace: result.error.stacktrace})
         }
 
-        return (
-            <Typography.Text type={errorMsg ? "danger" : undefined}>
-                {errorMsg || getTypedValue(result)}
-            </Typography.Text>
+        return result?.type === "error" && result.error ? (
+            <EvaluationErrorText
+                text="Failure to compute evaluation"
+                setIsErrorModalOpen={setIsErrorModalOpen}
+            />
+        ) : (
+            <Typography.Text>{getTypedValue(result)}</Typography.Text>
         )
     },
     (prev, next) => prev.value === next.value,
@@ -202,6 +217,7 @@ export const StatusRenderer = React.memo(
         )
         const {label, color} = statusMapper(token)(params.data?.status.value as EvaluationStatus)
         const errorMsg = params.data?.status.error?.message
+        const errorStacktrace = params.data?.status.error?.stacktrace
 
         return (
             <Typography.Text className={classes.statusCell}>
@@ -209,7 +225,7 @@ export const StatusRenderer = React.memo(
                 <span>{label}</span>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorMsg}>
+                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
                             <InfoCircleOutlined />
                         </Tooltip>
                     </span>
