@@ -2,22 +2,7 @@ import React from "react"
 import {createUseStyles} from "react-jss"
 import {renameVariables} from "@/lib/helpers/utils"
 import {Parameter, InputParameter} from "@/lib/Types"
-import {DownOutlined} from "@ant-design/icons"
-
-import {
-    Row,
-    Card,
-    Slider,
-    Select,
-    InputNumber,
-    Col,
-    Input,
-    Button,
-    Switch,
-    Dropdown,
-    Menu,
-    Space,
-} from "antd"
+import {Row, Card, Slider, Select, InputNumber, Col, Input, Button, Switch} from "antd"
 import {GroupedSelect} from "./GroupedSelect"
 
 const useStyles = createUseStyles({
@@ -88,18 +73,20 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     handleParamChange,
 }) => {
     const classes = useStyles()
-    const typesToCheck = ["number", "integer", "array", "grouped_choice", "boolean"]
+    const validParameterTypes = ["number", "integer", "array", "grouped_choice", "boolean"]
     const handleCheckboxChange = (paramName: string, checked: boolean) => {
         handleParamChange(paramName, checked)
     }
 
     return (
         <>
-            {optParams?.some(({input, type}) => !input && typesToCheck.includes(type)) && (
+            {optParams?.some(({input, type}) => !input && validParameterTypes.includes(type)) && (
                 <Row gutter={0} className={classes.row1}>
                     <Card className={classes.card} title="Model Parameters">
                         {optParams
-                            ?.filter((param) => !param.input && typesToCheck.includes(param.type))
+                            ?.filter(
+                                ({input, type}) => !input && validParameterTypes.includes(type),
+                            )
                             .map((param, index) => (
                                 <Row key={index} className={classes.row2}>
                                     <Col span={6}>
