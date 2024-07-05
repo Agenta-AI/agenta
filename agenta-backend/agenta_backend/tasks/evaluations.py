@@ -100,10 +100,13 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
-                {"status": Result(type="status", value="EVALUATION_STARTED")},
+                {
+                    "status": Result(
+                        type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
+                    )
+                },
             )
         )
-        self.update_state(state=states.STARTED)
 
         # 1. Fetch data from the database
         app = loop.run_until_complete(fetch_app_by_id(app_id))
@@ -362,8 +365,6 @@ def evaluate(
             evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
         )
     )
-
-    self.update_state(state=states.SUCCESS)
 
 
 async def aggregate_evaluator_results(
