@@ -13,15 +13,14 @@ import uuid_utils.compat as uuid
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from agenta_backend.migrations.mongo_to_postgres.db_engine import db_engine
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, MultipleResultsFound
 
 from agenta_backend.models.db_models import IDsMappingDB
 from agenta_backend.models.base import Base
-from agenta_backend.migrations.mongo_to_postgres.mongo_db_engine import get_mongo_db
+from agenta_backend.migrations.mongo_to_postgres.mongo_db_engine import mongo_db
 
 BATCH_SIZE = 1000
 
-mongo_db = get_mongo_db()
 
 migration_report = {}
 
@@ -66,6 +65,11 @@ async def get_mapped_uuid(table_name, mongo_id):
         result = await session.execute(stmt)
         try:
             row = result.one()
+        except MultipleResultsFound:
+            print(
+                f"Multiple mappings found for {table_name} and {mongo_id}. Skipping..."
+            )
+            return None
         except NoResultFound:
             return None
         return row[0]
