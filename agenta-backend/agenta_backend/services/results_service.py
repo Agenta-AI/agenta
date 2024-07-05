@@ -99,7 +99,8 @@ async def fetch_results_for_single_model_test(evaluation_id: str):
     scores_and_counts = {}
     for result in results:
         score = result.score
-        scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
+        if score:
+            scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
     return scores_and_counts
 
 

@@ -417,6 +417,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </div>
                 </div>
             ),
+            width: 300,
             dataIndex: "inputs",
             render: (_: any, record: SingleModelEvaluationRow, rowIndex: number) => {
                 return (

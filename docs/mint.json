@@ -343,7 +343,14 @@
         "guides/tutorials/deploy-mistral-model",
         "guides/extract_job_information"
       ]
+    },
+        {
+      "group": "Cookbooks",
+      "pages": [
+        "guides/evaluation_from_sdk"
+      ]
     }
+
   ],
   "api": {
     "baseUrl": "http://localhost/api"
