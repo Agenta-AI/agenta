@@ -1199,7 +1199,6 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
     app_variant_revisions = await list_app_variant_revisions_by_variant(app_variant_db)
 
     async with db_engine.get_session() as session:
-
         # Delete all the revisions associated with the variant
         for app_variant_revision in app_variant_revisions:
             await session.delete(app_variant_revision)
