@@ -1199,14 +1199,6 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
     app_variant_revisions = await list_app_variant_revisions_by_variant(app_variant_db)
 
     async with db_engine.get_session() as session:
-        logger.debug("list_environments_by_variant")
-        environments = await list_environments_by_variant(session, app_variant_db)
-
-        # Remove the variant from the associated environments
-        for environment in environments:
-            environment.deployed_app_variant = None
-            await session.commit()
-
         # Delete all the revisions associated with the variant
         for app_variant_revision in app_variant_revisions:
             await session.delete(app_variant_revision)
@@ -1602,28 +1594,6 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         result = await session.execute(query)
         app_variant_revisions = result.scalars().first()
         return app_variant_revisions
-
-
-async def list_environments_by_variant(
-    session: AsyncSession,
-    app_variant: AppVariantDB,
-):
-    """
-    Returns a list of environments for a given app variant.
-
-    Args:
-        session (AsyncSession): the current ongoing session
-        app_variant (AppVariantDB): The app variant to retrieve environments for.
-
-    Returns:
-        List[AppEnvironmentDB]: A list of AppEnvironmentDB objects.
-    """
-
-    result = await session.execute(
-        select(AppEnvironmentDB).filter_by(app_id=app_variant.app.id)
-    )
-    environments_db = result.scalars().all()
-    return environments_db
 
 
 async def remove_image(image: ImageDB):
