@@ -100,7 +100,7 @@ def evaluate(
                 {
                     "status": Result(
                         type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
-                    )
+                    ).model_dump()
                 },
             )
         )
@@ -307,9 +307,9 @@ def evaluate(
             update_evaluation(
                 evaluation_id,
                 {
-                    "average_latency": average_latency,
-                    "average_cost": average_cost,
-                    "total_cost": total_cost,
+                    "average_latency": average_latency.model_dump(),
+                    "average_cost": average_cost.model_dump(),
+                    "total_cost": total_cost.model_dump(),
                 },
             )
         )
@@ -328,7 +328,7 @@ def evaluate(
                             message="Evaluation Failed",
                             stacktrace=str(traceback.format_exc()),
                         ),
-                    )
+                    ).model_dump()
                 },
             )
         )
@@ -337,7 +337,7 @@ def evaluate(
 
     try:
         aggregated_results = loop.run_until_complete(
-            aggregate_evaluator_results(app, evaluators_aggregated_data)
+            aggregate_evaluator_results(evaluators_aggregated_data)
         )
 
         loop.run_until_complete(
@@ -366,7 +366,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id=str(new_evaluation_db.id),
-                updates={"status": evaluation_status},
+                updates={"status": evaluation_status.model_dump()},
             )
         )
 
@@ -393,7 +393,7 @@ def evaluate(
 
 
 async def aggregate_evaluator_results(
-    evaluators_aggregated_data: dict
+    evaluators_aggregated_data: dict,
 ) -> List[AggregatedResult]:
     """
     Aggregate the results of the evaluation evaluator.
