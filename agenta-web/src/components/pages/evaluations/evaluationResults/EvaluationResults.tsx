@@ -1,9 +1,9 @@
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ValueGetterParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, DropdownProps, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography, theme} from "antd"
 import {
     DeleteOutlined,
     DownloadOutlined,
@@ -274,6 +274,19 @@ const EvaluationResults: React.FC<Props> = () => {
                         ),
                         autoHeaderHeight: true,
                         ...getFilterParams("number"),
+                        cellRenderer: (params: ValueGetterParams<_Evaluation, any>) => {
+                            const result = params.data?.aggregated_results.find(
+                                (item) => item.evaluator_config.id === config.id,
+                            )?.result
+
+                            return result?.error ? (
+                                <Typography.Text type="danger" strong>
+                                    Error
+                                </Typography.Text>
+                            ) : (
+                                <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                            )
+                        },
                         valueGetter: (params) =>
                             getTypedValue(
                                 params.data?.aggregated_results.find(
@@ -295,10 +308,10 @@ const EvaluationResults: React.FC<Props> = () => {
                 pinned: "right",
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
                 cellRenderer: StatusRenderer,
                 valueGetter: (params) =>
-                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
             },
             {
                 flex: 1,
@@ -393,7 +406,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     "Avg. Latency": getTypedValue(item.average_latency),
                     "Total Cost": getTypedValue(item.average_cost),
                     Created: formatDate24(item.created_at),
-                    Status: statusMapper(token)[item.status.value as EvaluationStatus].label,
+                    Status: statusMapper(token)(item.status.value as EvaluationStatus).label,
                 })),
                 colDefs.map((col) => col.headerName!),
             )
@@ -487,6 +500,8 @@ const EvaluationResults: React.FC<Props> = () => {
                                         return
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value ||
+                                        EvaluationStatus.AGGREGATION_FAILED ===
                                             params.data?.status.value) &&
                                         router.push(
                                             `/apps/${appId}/evaluations/results/${params.data?.id}`,
