@@ -260,7 +260,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
         assert response_data["app_id"] == payload["app_id"]
         assert (
             response_data["status"]["value"]
-            == EvaluationStatusEnum.EVALUATION_STARTED.value
+            == EvaluationStatusEnum.EVALUATION_INITIALIZED.value
         )
         assert response_data is not None
 

@@ -83,9 +83,11 @@ class entrypoint(BaseDecorator):
                 {"config": config_params, "environment": "playground"}
             )
 
+            # Exceptions are all handled inside self.execute_function()
             llm_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
+
             return llm_result
 
         @functools.wraps(func)
