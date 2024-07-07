@@ -94,8 +94,21 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        # 1. Fetch data from the database
         loop.run_until_complete(DBEngine().init_db())
+
+        # 0. Update evaluation status to STARTED
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
+                    )
+                },
+            )
+        )
+
+        # 1. Fetch data from the database
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
@@ -249,12 +262,14 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             all_correct_answers = [
-                CorrectAnswer(
-                    key=ground_truth_column_name,
-                    value=data_point[ground_truth_column_name],
+                (
+                    CorrectAnswer(
+                        key=ground_truth_column_name,
+                        value=data_point[ground_truth_column_name],
+                    )
+                    if ground_truth_column_name in data_point
+                    else CorrectAnswer(key=ground_truth_column_name, value="")
                 )
-                if ground_truth_column_name in data_point
-                else CorrectAnswer(key=ground_truth_column_name, value="")
                 for ground_truth_column_name in ground_truth_column_names
             ]
             # 4. We save the result of the eval scenario in the db
@@ -313,7 +328,10 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
+                        error=Error(
+                            message="Evaluation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
                     )
                 },
             )
@@ -321,35 +339,61 @@ def evaluate(
         self.update_state(state=states.FAILURE)
         return
 
-    aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(app, evaluators_aggregated_data)
-    )
-    loop.run_until_complete(
-        update_evaluation_with_aggregated_results(
-            new_evaluation_db.id, aggregated_results
+    try:
+        aggregated_results = loop.run_until_complete(
+            aggregate_evaluator_results(app, evaluators_aggregated_data)
         )
-    )
 
-    failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
-    )
+        loop.run_until_complete(
+            update_evaluation_with_aggregated_results(
+                new_evaluation_db.id, aggregated_results
+            )
+        )
 
-    evaluation_status = Result(
-        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
-    )
+        failed_evaluation_scenarios = loop.run_until_complete(
+            check_if_evaluation_contains_failed_evaluation_scenarios(
+                new_evaluation_db.id
+            )
+        )
 
-    if failed_evaluation_scenarios:
         evaluation_status = Result(
-            type="status",
-            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
-            error=None,
+            type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
         )
 
-    loop.run_until_complete(
-        update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+        if failed_evaluation_scenarios:
+            evaluation_status = Result(
+                type="status",
+                value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+                error=None,
+            )
+
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id=new_evaluation_db.id,
+                updates={"status": evaluation_status},
+            )
         )
-    )
+
+    except Exception as e:
+        logger.error(f"An error occurred during evaluation aggregation: {e}")
+        traceback.print_exc()
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status",
+                        value="EVALUATION_AGGREGATION_FAILED",
+                        error=Error(
+                            message="Evaluation Aggregation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
+                    )
+                },
+            )
+        )
+        self.update_state(state=states.FAILURE)
+        return
 
 
 async def aggregate_evaluator_results(
