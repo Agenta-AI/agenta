@@ -160,7 +160,7 @@ async def human_evaluation_db_to_pydantic(
         variant_revision = await db_manager.get_app_variant_revision_by_id(
             str(variant_revision_id)
         )
-        revision = variant_revision.revision
+        revision = variant_revision.revision if variant_revision else ""
         revisions.append(str(revision))
 
     return HumanEvaluation(
@@ -254,10 +254,14 @@ def evaluation_scenario_db_to_pydantic(
             EvaluationScenarioOutput(**scenario_output.dict())
             for scenario_output in evaluation_scenario_db.outputs
         ],
-        correct_answers=[
-            CorrectAnswer(**correct_answer.dict())
-            for correct_answer in evaluation_scenario_db.correct_answers
-        ],
+        correct_answers=(
+            [
+                CorrectAnswer(**correct_answer.dict())
+                for correct_answer in evaluation_scenario_db.correct_answers
+            ]
+            if evaluation_scenario_db.correct_answers is not None
+            else None
+        ),
         is_pinned=evaluation_scenario_db.is_pinned or False,
         note=evaluation_scenario_db.note or "",
         results=evaluation_scenarios_results_to_pydantic(
