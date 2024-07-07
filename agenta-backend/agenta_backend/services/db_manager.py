@@ -788,11 +788,11 @@ async def get_user(user_uid: str) -> UserDB:
         # During migration, we changed this to use the actual user ID. Therefore, we have two checks:
         # 1. Check if user_uid is found in the UserDB.uid column.
         # 2. If not found, check if user_uid is found in the UserDB.id column.
-        result = await session.execute(
-            select(UserDB).where(
-                or_(UserDB.uid == user_uid, UserDB.id == uuid.UUID(user_uid))
-            )
-        )
+        conditions = [UserDB.uid == user_uid]
+        if isCloudEE():
+            conditions.append(UserDB.id == uuid.UUID(user_uid))
+
+        result = await session.execute(select(UserDB).where(or_(*conditions)))
         user = result.scalars().first()
 
         if user is None and isCloudEE():
