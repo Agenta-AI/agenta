@@ -15,10 +15,10 @@ import {
 } from "antd"
 import {
     updateEvaluationScenario,
-    callVariant,
     fetchEvaluationResults,
     updateEvaluation,
-} from "@/lib/services/api"
+} from "@/services/human-evaluations/api"
+import {callVariant} from "@/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -374,6 +374,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </div>
                 </div>
             ),
+            width: 300,
             dataIndex: "inputs",
             render: (_: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                 return (

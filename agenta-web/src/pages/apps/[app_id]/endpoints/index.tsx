@@ -10,7 +10,8 @@ import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Ty
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
+import {fetchVariants, fetchAppContainerURL} from "@/services/api"
+import {fetchEnvironments} from "@/services/deployment/api"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
@@ -50,7 +51,7 @@ export default function VariantEndpoint() {
     const [uri, setURI] = useState<string | null>(null)
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
-            const url = await getAppContainerURL(appId, environment.deployed_app_variant_id)
+            const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
             setURI(`${url}/generate_deployed`)
         }
     }

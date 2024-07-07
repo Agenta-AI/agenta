@@ -5,7 +5,7 @@ import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
-} from "@/services/evaluations"
+} from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
@@ -23,6 +23,8 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
+import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
@@ -80,6 +82,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
         scenarios[0]?.correct_answers || [],
         "key",
     )
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -143,12 +147,18 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     const correctAnswer = params?.data?.correct_answers?.find(
                         (item: any) => item.key === selectedCorrectAnswer[0],
                     )
-
                     const result = params.data?.outputs[index].result
-                    if (result && result.type == "error") {
-                        return LongTextCellRenderer(
-                            params,
-                            `${result?.error?.message}\n${result?.error?.stacktrace}`,
+
+                    if (result && result.error && result.type == "error") {
+                        setModalErrorMsg({
+                            message: result.error.message,
+                            stackTrace: result.error.stacktrace,
+                        })
+                        return (
+                            <EvaluationErrorText
+                                text="Failed to invoke LLM app"
+                                setIsErrorModalOpen={setIsErrorModalOpen}
+                            />
                         )
                     }
                     return selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
@@ -188,6 +198,8 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 cellRenderer: ResultRenderer,
                 cellRendererParams: {
                     config,
+                    setIsErrorModalOpen,
+                    setModalErrorMsg,
                 },
                 valueGetter: (params) => {
                     return params.data?.results[index].result.value
@@ -292,7 +304,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`/apps/${appId}/evaluations`))
+                    .then(() => router.push(`/apps/${appId}/evaluations/results`))
                     .catch(console.error),
         })
     }
@@ -390,6 +402,12 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     />
                 </div>
             </Spin>
+
+            <EvaluationErrorModal
+                isErrorModalOpen={isErrorModalOpen}
+                setIsErrorModalOpen={setIsErrorModalOpen}
+                modalErrorMsg={modalErrorMsg}
+            />
         </div>
     )
 }
