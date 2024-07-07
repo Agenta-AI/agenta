@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
@@ -39,6 +39,10 @@ from agenta_backend.services.db_manager import (
 )
 from agenta_backend.services.evaluator_manager import get_evaluators
 
+if isCloudEE():
+    from agenta_backend.commons.models.db_models import AppDB_ as AppDB
+else:
+    from agenta_backend.models.db_models import AppDB
 
 # Set logger
 logger = logging.getLogger(__name__)
@@ -87,8 +91,21 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
+        loop.run_until_complete(DBEngine().init_db())
+
+        # 0. Update evaluation status to STARTED
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
+                    )
+                },
+            )
+        )
+
         # 1. Fetch data from the database
-        loop.run_until_complete(db_engine.init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
@@ -105,6 +122,7 @@ def evaluate(
                 fetch_evaluator_config(evaluator_config_id)
             )
             evaluator_config_dbs.append(evaluator_config)
+
         deployment_db = loop.run_until_complete(
             get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
@@ -241,12 +259,14 @@ def evaluate(
                 evaluators_results.append(result_object)
 
             all_correct_answers = [
-                CorrectAnswer(
-                    key=ground_truth_column_name,
-                    value=data_point[ground_truth_column_name],
+                (
+                    CorrectAnswer(
+                        key=ground_truth_column_name,
+                        value=data_point[ground_truth_column_name],
+                    )
+                    if ground_truth_column_name in data_point
+                    else CorrectAnswer(key=ground_truth_column_name, value="")
                 )
-                if ground_truth_column_name in data_point
-                else CorrectAnswer(key=ground_truth_column_name, value="")
                 for ground_truth_column_name in ground_truth_column_names
             ]
 
@@ -287,9 +307,9 @@ def evaluate(
             update_evaluation(
                 evaluation_id,
                 {
-                    "average_latency": average_latency.dict(),
-                    "average_cost": average_cost.dict(),
-                    "total_cost": total_cost.dict(),
+                    "average_latency": average_latency,
+                    "average_cost": average_cost,
+                    "total_cost": total_cost,
                 },
             )
         )
@@ -304,50 +324,76 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
-                    ).dict()
+                        error=Error(
+                            message="Evaluation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
+                    )
                 },
             )
         )
         self.update_state(state=states.FAILURE)
         return
 
-    aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(evaluators_aggregated_data)
-    )
-    loop.run_until_complete(
-        update_evaluation_with_aggregated_results(
-            str(new_evaluation_db.id), aggregated_results
+    try:
+        aggregated_results = loop.run_until_complete(
+            aggregate_evaluator_results(app, evaluators_aggregated_data)
         )
-    )
 
-    failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(
-            str(new_evaluation_db.id)
+        loop.run_until_complete(
+            update_evaluation_with_aggregated_results(
+                str(new_evaluation_db.id), aggregated_results
+            )
         )
-    )
 
-    evaluation_status = Result(
-        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
-    )
+        failed_evaluation_scenarios = loop.run_until_complete(
+            check_if_evaluation_contains_failed_evaluation_scenarios(
+                str(new_evaluation_db.id)
+            )
+        )
 
-    if failed_evaluation_scenarios:
         evaluation_status = Result(
-            type="status",
-            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
-            error=None,
+            type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
         )
 
-    loop.run_until_complete(
-        update_evaluation(
-            evaluation_id=str(new_evaluation_db.id),
-            updates={"status": evaluation_status.dict()},
+        if failed_evaluation_scenarios:
+            evaluation_status = Result(
+                type="status",
+                value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+                error=None,
+            )
+
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id=str(new_evaluation_db.id),
+                updates={"status": evaluation_status},
+            )
         )
-    )
+
+    except Exception as e:
+        logger.error(f"An error occurred during evaluation aggregation: {e}")
+        traceback.print_exc()
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status",
+                        value="EVALUATION_AGGREGATION_FAILED",
+                        error=Error(
+                            message="Evaluation Aggregation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
+                    )
+                },
+            )
+        )
+        self.update_state(state=states.FAILURE)
+        return
 
 
 async def aggregate_evaluator_results(
-    evaluators_aggregated_data: dict,
+    evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
     """
     Aggregate the results of the evaluation evaluator.
