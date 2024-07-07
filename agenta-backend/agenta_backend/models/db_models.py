@@ -176,7 +176,9 @@ class AppVariantDB(Base):
     variant_name = Column(String)
     revision = Column(Integer)
     image_id = Column(
-        UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
+        UUID(as_uuid=True),
+        ForeignKey("docker_images.id", ondelete="SET NULL"),
+        nullable=True,
     )
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
