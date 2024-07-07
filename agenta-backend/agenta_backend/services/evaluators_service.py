@@ -1,6 +1,6 @@
+import re
 import json
 import logging
-import re
 import traceback
 from typing import Any, Dict
 
@@ -8,7 +8,7 @@ import httpx
 from openai import OpenAI
 
 from agenta_backend.services.security import sandbox
-from agenta_backend.models.db_models import Error, Result
+from agenta_backend.models.shared_models import Error, Result
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
