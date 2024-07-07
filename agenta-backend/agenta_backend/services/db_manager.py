@@ -12,7 +12,7 @@ from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db_engine import db_engine
 from agenta_backend.services.json_importer_helper import get_json
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -781,7 +781,18 @@ async def get_user(user_uid: str) -> UserDB:
     """
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(UserDB).filter_by(uid=user_uid))
+        # NOTE: Backward Compatibility
+        # ---------------------------
+        # Previously, the user_id field in the api_keys collection in MongoDB used the
+        # session_id from SuperTokens in Cloud and  "0" as the uid in OSS.
+        # During migration, we changed this to use the actual user ID. Therefore, we have two checks:
+        # 1. Check if user_uid is found in the UserDB.uid column.
+        # 2. If not found, check if user_uid is found in the UserDB.id column.
+        result = await session.execute(
+            select(UserDB).where(
+                or_(UserDB.uid == user_uid, UserDB.id == uuid.UUID(user_uid))
+            )
+        )
         user = result.scalars().first()
 
         if user is None and isCloudEE():
