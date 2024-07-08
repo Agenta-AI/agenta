@@ -37,19 +37,16 @@ const Playground: React.FC = () => {
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
+    const [revisionNumber, setRevisionNumber] = useQueryParam("revision")
     const activeVariant = variants.find((v) => v.variantName === activeKey)
-    const [revisionNumber, setRevisionNumber] = useQueryParam(
-        "revision",
-        activeVariant?.revision.toString(),
-    )
     const tabID = useRef("")
     const variantProps = useVariant(appId, activeVariant!)
     const {setIsLoading: setIsVariantLoading, setPromptOptParams} = variantProps
     const activeVariantKey = activeVariant?.variantId
 
-    // useEffect(() => {
-    //     if (activeVariant) setRevisionNumber(activeVariant.revision.toString())
-    // }, [activeVariant])
+    useEffect(() => {
+        if (activeVariant?.revision) setRevisionNumber(activeVariant.revision.toString())
+    }, [activeVariant])
 
     useEffect(() => {
         if (activeVariantKey) {
