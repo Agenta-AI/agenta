@@ -179,8 +179,9 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
     """
 
     assert app_id is not None, "app_id cannot be None"
+    app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
     async with db_engine.get_session() as session:
-        base_query = select(AppDB).filter_by(id=uuid.UUID(app_id))
+        base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
         if isCloudEE():
             base_query = base_query.options(
                 joinedload(AppDB.workspace).joinedload(WorkspaceDB.members),  # type: ignore
@@ -1118,11 +1119,12 @@ async def list_app_variants(app_id: str):
         List[AppVariant]: List of AppVariant objects
     """
 
+    app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .options(joinedload(AppVariantDB.app), joinedload(AppVariantDB.base))
-            .filter_by(app_id=uuid.UUID(app_id))
+            .filter_by(app_id=uuid.UUID(app_uuid))
         )
         app_variants = result.scalars().all()
         return app_variants
@@ -3106,6 +3108,43 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
         if not count:
             return False
         return count > 0
+
+
+async def get_object_uuid(object_id: str, table_name: str) -> str:
+    """
+    Checks if the given object_id is a valid MongoDB ObjectId and fetches the corresponding
+    UUID from the specified table. If the object_id is not a valid ObjectId, it is assumed
+    to be a PostgreSQL UUID and returned as is.
+
+    Args:
+        object_id (str): The ID of the object, which could be a MongoDB ObjectId or a PostgreSQL UUID.
+        table_name (str): The name of the table to fetch the UUID from.
+
+    Returns:
+        str: The corresponding object UUID.
+
+    Raises:
+        AssertionError: If the resulting object UUID is None.
+
+    """
+
+    from bson import ObjectId
+    from bson.errors import InvalidId
+
+    try:
+        # Ensure the object_id is a valid MongoDB ObjectId
+        if isinstance(ObjectId(object_id), ObjectId):
+            object_uuid_as_str = await fetch_corresponding_object_uuid(
+                table_name=table_name, object_id=object_id
+            )
+    except InvalidId:
+        # Use the object_id directly if it is not a valid MongoDB ObjectId
+        object_uuid_as_str = object_id
+
+    assert (
+        object_uuid_as_str is not None
+    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
+    return object_uuid_as_str
 
 
 async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
