@@ -1,9 +1,8 @@
-import React, {useEffect, useRef} from "react"
+import React, {Dispatch, SetStateAction, useEffect, useRef} from "react"
 import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
-import {useVariant} from "@/lib/hooks/useVariant"
-import {Environment, Variant} from "@/lib/Types"
+import {Environment, Parameter, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
@@ -29,9 +28,34 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
-    activeVariantKey: string
-    revisionNumber: string
     setRevisionNumber: (val: string) => void
+    variantProps: {
+        inputParams: Parameter[] | null
+        promptOptParams: Parameter[] | null
+        URIPath: string | null
+        refetch: () => Promise<void>
+        isError: boolean
+        error: Error | null
+        isParamSaveLoading: boolean
+        isChatVariant: boolean | null
+        isLoading: boolean
+        historyStatus: {
+            loading: boolean
+            error: boolean
+        }
+        setHistoryStatus: Dispatch<
+            SetStateAction<{
+                loading: boolean
+                error: boolean
+            }>
+        >
+        saveOptParams: (
+            updatedOptParams: Parameter[],
+            persist: boolean,
+            updateVariant: boolean,
+            onSuccess?: ((isNew: boolean) => void) | undefined,
+        ) => Promise<void>
+    }
 }
 
 const useStyles = createUseStyles({
@@ -55,9 +79,8 @@ const ViewNavigation: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
-    activeVariantKey,
-    revisionNumber,
     setRevisionNumber,
+    variantProps,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -73,11 +96,8 @@ const ViewNavigation: React.FC<Props> = ({
         isLoading,
         isChatVariant,
         historyStatus,
-        setPromptOptParams,
         setHistoryStatus,
-        setIsLoading,
-    } = useVariant(appId, variant)
-
+    } = variantProps
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
@@ -287,12 +307,6 @@ const ViewNavigation: React.FC<Props> = ({
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        onStateChange={onStateChange}
-                        setPromptOptParams={setPromptOptParams}
-                        promptOptParams={promptOptParams}
-                        activeVariantKey={activeVariantKey}
-                        revisionNumber={revisionNumber}
-                        setIsVariantLoading={setIsLoading}
                     />
                 </Col>
             </Row>
