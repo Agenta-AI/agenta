@@ -49,18 +49,20 @@ const Playground: React.FC = () => {
     }, [activeVariant])
 
     useEffect(() => {
-        dynamicHook("usePromptRevision").then((module: any) => {
-            if (!revisionNumber || !Boolean(module.default)) return
+        if (activeVariantKey) {
+            dynamicHook("usePromptRevision").then((module: any) => {
+                if (!revisionNumber || !Boolean(module.default)) return
 
-            const {fetchPromptRevision} = module.default({
-                setIsVariantLoading,
-                setPromptOptParams,
-                activeVariantKey,
-                revisionNumber,
+                const {fetchPromptRevision} = module.default({
+                    setIsVariantLoading,
+                    setPromptOptParams,
+                    activeVariantKey,
+                    revisionNumber,
+                })
+
+                fetchPromptRevision()
             })
-
-            fetchPromptRevision()
-        })
+        }
     }, [revisionNumber])
 
     const addTab = async () => {
