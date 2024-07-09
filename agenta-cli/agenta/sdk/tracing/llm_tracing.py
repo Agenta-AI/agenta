@@ -76,9 +76,9 @@ class Tracing(metaclass=SingletonMeta):
         self.active_trace_id: Optional[str] = None
         self.pending_spans: List[CreateSpan] = []
         self.tags: List[str] = []
-        self.trace_config_cache: Dict[str, Any] = (
-            {}
-        )  # used to save the trace configuration before starting the first span
+        self.trace_config_cache: Dict[
+            str, Any
+        ] = {}  # used to save the trace configuration before starting the first span
         self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
 
     @property
