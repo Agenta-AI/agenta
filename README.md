@@ -2,6 +2,7 @@
   <a href="https://docs.agenta.ai/self-host/migration/migration-to-postgres">
     Important: We are migrating from MongoDB to PostgreSQL in v0.19! Follow this guide to migrate your data.
   </a>
+  </div>
   </br>
   </br>
 
