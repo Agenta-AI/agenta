@@ -53,9 +53,11 @@ async def save_config(
                 variant_to_overwrite = variant_db
                 break
 
-        if variant_to_overwrite is not None:
-            if payload.overwrite or variant_to_overwrite.config_parameters == {}:
-                print(f"update_variant_parameters  ===> {payload.overwrite}")
+        if (
+            variant_to_overwrite is not None
+        ):
+            if variant_to_overwrite.config_parameters == {}: # type: ignore
+                logger.info(f"Updating variant {str(variant_to_overwrite.id)} parameters with {payload.parameters}")
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
@@ -73,10 +75,9 @@ async def save_config(
                     status_code=400,
                     detail="Config name already exists. Please use a different name or set overwrite to True.",
                 )
+
         else:
-            print(
-                f"add_variant_from_base_and_config overwrite ===> {payload.overwrite}"
-            )
+            logger.info("Adding variant from base and config")
             await db_manager.add_variant_from_base_and_config(
                 base_db=base_db,
                 new_config_name=payload.config_name,
