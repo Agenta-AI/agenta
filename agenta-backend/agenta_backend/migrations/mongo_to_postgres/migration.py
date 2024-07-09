@@ -34,7 +34,6 @@ from agenta_backend.models.db_models import (
 )
 
 from agenta_backend.migrations.mongo_to_postgres.utils import (
-    drop_all_tables,
     create_all_tables,
     print_migration_report,
     store_mapping,
