@@ -26,16 +26,6 @@ class AgentaSingleton:
             cls._instance = super(AgentaSingleton, cls).__new__(cls)
         return cls._instance
 
-    @property
-    def client(self):
-        """API Backend client.
-
-        Returns:
-            AgentaAPI: instance of agenta api backend
-        """
-
-        return AgentaApi(base_url=self.host + "/api", api_key=self.api_key)
-
     def init(
         self,
         app_id: Optional[str] = None,
