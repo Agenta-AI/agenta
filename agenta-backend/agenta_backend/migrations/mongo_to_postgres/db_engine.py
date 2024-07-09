@@ -19,9 +19,6 @@ if isCloudEE():
         APIKeyDB,
         WorkspaceDB,
         OrganizationDB,
-        InvitationDB,
-        UserOrganizationDB,
-        WorkspaceMemberDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
@@ -80,7 +77,7 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, UserOrganizationDB, WorkspaceMemberDB])  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB])  # type: ignore
 
 
 # Configure and set logging level
@@ -90,14 +87,13 @@ logger.setLevel(logging.INFO)
 
 class DBEngine:
     """
-    Database engine to initialize SQLAlchemy (and beanie)
+    Database engine to initialize SQLAlchemy and return the engine based on mode.
     """
 
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
-        self.postgres_uri = os.environ.get("POSTGRES_URI")
-        self.mongo_uri = os.environ.get("MONGODB_URI")
-        self.engine = create_async_engine(url=self.postgres_uri)  # type: ignore
+        self.db_url = f"{os.environ.get('POSTGRES_URI')}"
+        self.engine = create_async_engine(url=self.db_url)
         self.async_session_maker = async_sessionmaker(
             bind=self.engine, class_=AsyncSession, expire_on_commit=False
         )
@@ -105,57 +101,22 @@ class DBEngine:
             session_factory=self.async_session_maker, scopefunc=current_task
         )
 
-    async def initialize_async_postgres(self):
-        """
-        Initialize PostgreSQL database engine and sessions.
-        """
-
-        if not self.postgres_uri:
-            raise ValueError("Postgres URI cannot be None.")
-
-        async with self.engine.begin() as conn:
-            # Drop and create tables if needed
-            for model in models:
-                await conn.run_sync(model.metadata.create_all)
-        logger.info(f"Using PostgreSQL database...")
-
-    async def initialize_mongodb(self):
-        """
-        Initializes the mongodb async driver and beanie documents.
-
-        Raises:
-            ValueError: It looks like one of the following packages are not installed: beanie, motor. Exception: ImportError message
-        """
-
-        try:
-            from beanie import init_beanie  # type: ignore
-            from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore
-        except ImportError as exc:
-            raise ValueError(
-                f"It looks like one of the following packages are not installed: beanie, motor. Exception: {str(exc)}"
-            )
-
-        db_name = f"agenta_{self.mode}"
-        client = AsyncIOMotorClient(self.mongo_uri)
-        await init_beanie(database=client[db_name], document_models=[SpanDB])
-        logger.info(f"Using {db_name} mongo database...")
-
     async def init_db(self):
         """
         Initialize the database based on the mode and create all tables.
         """
-
-        if isCloudEE():
-            await self.initialize_mongodb()
-            await self.initialize_async_postgres()
-        else:
-            await self.initialize_async_postgres()
+        async with self.engine.begin() as conn:
+            # Drop all existing tables (if needed)
+            # await conn.run_sync(Base.metadata.drop_all)
+            # Create tables
+            for model in models:
+                await conn.run_sync(model.metadata.create_all)
+        logger.info(f"Using {self.mode} database...")
 
     async def remove_db(self) -> None:
         """
         Remove the database based on the mode.
         """
-
         async with self.engine.begin() as conn:
             for model in models:
                 await conn.run_sync(model.metadata.drop_all)
@@ -182,6 +143,10 @@ class DBEngine:
             raise Exception("DBEngine is not initialized")
 
         await self.engine.dispose()
+
+        self.engine = None
+        self.async_session_maker = None
+        self.async_session = None
 
 
 db_engine = DBEngine()
