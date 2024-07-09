@@ -85,7 +85,7 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: Optional[str]):
+    def __init__(self, base_id: str, host: str, api_key: Optional[str] = ""):
         self.base_id = base_id
         self.host = host
 
