@@ -14,7 +14,7 @@ from agenta_backend.utils.common import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
     from agenta_backend.commons.models.api.api_models import Image_ as Image
 else:
@@ -105,7 +105,7 @@ async def restart_docker_container(
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     app_variant_db = await db_manager.fetch_app_variant_by_id(payload.variant_id)
     try:
-        deployment = await db_manager.get_deployment_by_objectid(
+        deployment = await db_manager.get_deployment_by_id(
             app_variant_db.base.deployment
         )
         container_id = deployment.container_id
@@ -179,13 +179,13 @@ async def construct_app_container_url(
             raise HTTPException(status_code=403, detail=error_msg)
 
     try:
-        if getattr(object_db, "deployment", None):  # this is a base
-            deployment = await db_manager.get_deployment_by_objectid(
-                object_db.deployment
+        if getattr(object_db, "deployment_id", None):  # this is a base
+            deployment = await db_manager.get_deployment_by_id(
+                str(object_db.deployment_id)  # type: ignore
             )
-        elif getattr(object_db.base, "deployment", None):  # this is a variant
-            deployment = await db_manager.get_deployment_by_objectid(
-                object_db.base.deployment
+        elif getattr(object_db, "base_id", None):  # this is a variant
+            deployment = await db_manager.get_deployment_by_id(
+                str(object_db.base.deployment_id)  # type: ignore
             )
         else:
             raise HTTPException(
