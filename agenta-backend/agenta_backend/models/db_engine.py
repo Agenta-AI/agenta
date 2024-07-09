@@ -151,15 +151,6 @@ class DBEngine:
         else:
             await self.initialize_async_postgres()
 
-    async def remove_db(self) -> None:
-        """
-        Remove the database based on the mode.
-        """
-
-        async with self.engine.begin() as conn:
-            for model in models:
-                await conn.run_sync(model.metadata.drop_all)
-
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         session = self.async_session()
