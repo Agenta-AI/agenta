@@ -1,9 +1,15 @@
+  <div align="center" style="margin: 30px">
+  <a href="https://docs.agenta.ai/self-host/migration/migration-to-postgres">
+    Important: We are migrating from MongoDB to PostgreSQL in v0.19! Follow this guide to migrate your data.
+  </a>
+
 <div align="center" style="margin: 30px">
   <div>
     <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
       <img src="https://github.com/Agenta-AI/agenta/raw/main/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
     </a> 
   </div>
+
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -171,7 +177,9 @@ Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/gett
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-47-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
