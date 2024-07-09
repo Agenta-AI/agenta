@@ -105,9 +105,10 @@
     },
     {
       "group": "Self-host agenta",
+      
       "pages": [
-        "self-host/host-locally",
-        "self-host/migration",
+                "self-host/host-locally",
+
         {
           "group": "Deploy Remotely",
           "pages": [
@@ -116,7 +117,14 @@
             "self-host/host-on-gcp",
             "self-host/host-on-kubernetes"
           ]
-        }
+        },
+                {"group": "Migration",
+      "pages":[
+        "self-host/migration/migration-to-postgres",
+        "self-host/migration/migration-to-mongodb"
+
+      ]}
+
       ]
     },
     {
