@@ -95,7 +95,7 @@ class AgentaSingleton:
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: str = ""):
+    def __init__(self, base_id: str, host: str, api_key: Optional[str]):
         self.base_id = base_id
         self.host = host
 
@@ -103,7 +103,9 @@ class Config:
             self.persist = False
         else:
             self.persist = True
-            self.client = AgentaApi(base_url=self.host + "/api", api_key=api_key)
+            self.client = AgentaApi(
+                base_url=self.host + "/api", api_key=api_key if api_key else ""
+            )
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
