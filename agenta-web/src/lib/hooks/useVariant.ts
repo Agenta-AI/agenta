@@ -35,7 +35,7 @@ export function useVariant(appId: string, variant: Variant) {
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
-            setHistoryStatus({loading: false, error: true})
+            setHistoryStatus({loading: false, error: false})
         } catch (error: any) {
             if (error.message !== PERMISSION_ERR_MSG) {
                 console.log(error)
@@ -45,7 +45,6 @@ export function useVariant(appId: string, variant: Variant) {
             }
         } finally {
             setIsLoading(false)
-            setHistoryStatus({loading: false, error: false})
         }
     }
 
