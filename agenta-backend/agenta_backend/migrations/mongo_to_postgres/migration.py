@@ -501,7 +501,6 @@ async def transform_evaluation_scenario(scenario):
 
 async def main():
     try:
-        await drop_all_tables()
         await create_all_tables(tables=tables)
         await migrate_collection("users", UserDB, transform_user)
         await migrate_collection("docker_images", ImageDB, transform_image)
