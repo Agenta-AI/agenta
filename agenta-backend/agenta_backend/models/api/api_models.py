@@ -44,7 +44,6 @@ class SaveConfigPayload(BaseModel):
     base_id: str
     config_name: str
     parameters: Dict[str, Any]
-    overwrite: bool
 
 
 class VariantActionEnum(str, Enum):

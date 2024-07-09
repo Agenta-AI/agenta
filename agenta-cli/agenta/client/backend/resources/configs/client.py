@@ -79,7 +79,6 @@ class ConfigsClient:
         base_id: str,
         config_name: str,
         parameters: typing.Dict[str, typing.Any],
-        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -88,8 +87,6 @@ class ConfigsClient:
             - config_name: str.
 
             - parameters: typing.Dict[str, typing.Any].
-
-            - overwrite: bool.
         ---
         from agenta.client import AgentaApi
 
@@ -101,7 +98,6 @@ class ConfigsClient:
             base_id="base_id",
             config_name="config_name",
             parameters={},
-            overwrite=True,
         )
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -112,7 +108,6 @@ class ConfigsClient:
                     "base_id": base_id,
                     "config_name": config_name,
                     "parameters": parameters,
-                    "overwrite": overwrite,
                 }
             ),
             headers=self._client_wrapper.get_headers(),
@@ -255,7 +250,6 @@ class AsyncConfigsClient:
         base_id: str,
         config_name: str,
         parameters: typing.Dict[str, typing.Any],
-        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -264,8 +258,6 @@ class AsyncConfigsClient:
             - config_name: str.
 
             - parameters: typing.Dict[str, typing.Any].
-
-            - overwrite: bool.
         ---
         from agenta.client import AsyncAgentaApi
 
@@ -288,7 +280,6 @@ class AsyncConfigsClient:
                     "base_id": base_id,
                     "config_name": config_name,
                     "parameters": parameters,
-                    "overwrite": overwrite,
                 }
             ),
             headers=self._client_wrapper.get_headers(),

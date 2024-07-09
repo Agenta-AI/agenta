@@ -103,35 +103,34 @@ class Config:
             self.persist = False
         else:
             self.persist = True
-            self.client = AgentaApi(base_url=self.host + "/api", api_key=api_key)
+            self.client = AgentaApi(base_url=self.host + "/api", api_key="" if not api_key else api_key)
 
-    def register_default(self, overwrite=False, **kwargs):
+    def register_default(self, **kwargs):
         """alias for default"""
-        return self.default(overwrite=overwrite, **kwargs)
+        return self.default(**kwargs)
 
-    def default(self, overwrite=False, **kwargs):
+    def default(self, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
-            overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
         self.set(
             **kwargs
         )  # In case there is no connectivity, we still can use the default values
         try:
-            self.push(config_name="default", overwrite=overwrite, **kwargs)
+            self.push(config_name="default", **kwargs)
         except Exception as ex:
             logger.warning(
                 "Unable to push the default configuration to the server. %s", str(ex)
             )
 
-    def push(self, config_name: str, overwrite=True, **kwargs):
+    def push(self, config_name: str, **kwargs):
         """Pushes the parameters for the app variant to the server
         Args:
             config_name: Name of the configuration to push to
-            overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
+
         if not self.persist:
             return
         try:
@@ -139,7 +138,6 @@ class Config:
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
-                overwrite=overwrite,
             )
         except Exception as ex:
             logger.warning(
