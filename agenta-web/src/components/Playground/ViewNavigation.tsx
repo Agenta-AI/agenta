@@ -69,12 +69,14 @@ const ViewNavigation: React.FC<Props> = ({
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
-    const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
@@ -82,8 +84,6 @@ const ViewNavigation: React.FC<Props> = ({
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const stopperRef = useRef<Function | null>(null)
     const [isDelayed, setIsDelayed] = useState(false)
-    const [loading, setLoading] = useState(false)
-    const [isLogsLoading, setIsLogsLoading] = useState(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -111,6 +111,8 @@ const ViewNavigation: React.FC<Props> = ({
                         }
                     })
                     .catch(() => {
+                        getVariantLogs()
+
                         showNotification({
                             type: "error",
                             message: "Variant unreachable",
@@ -124,31 +126,10 @@ const ViewNavigation: React.FC<Props> = ({
             }
             startApp()
         }
-
-        if (isError) {
-            setLoading(false)
-            const getLogs = async () => {
-                try {
-                    setIsLogsLoading(true)
-                    const logs = await fetchVariantLogs(variant.variantId)
-                    setVariantErrorLogs(logs)
-                } catch (error) {
-                    console.error(error)
-                    showNotification({
-                        type: "error",
-                        message: "Variant logs unreachable",
-                        description: `Unable to fetch variant logs.`,
-                    })
-                } finally {
-                    setIsLogsLoading(false)
-                }
-            }
-            getLogs()
-        }
     }, [netWorkError, isError, variant.variantId])
 
     useEffect(() => {
-        if (retrying && variantErrorLogs) {
+        if (retrying) {
             const timeout = setTimeout(
                 () => {
                     setIsDelayed(true)
@@ -157,17 +138,20 @@ const ViewNavigation: React.FC<Props> = ({
             )
             return () => clearTimeout(timeout)
         }
-    }, [retrying, variantErrorLogs])
+    }, [retrying])
 
     const handleStopPolling = () => {
-        setLoading(true)
         if (stopperRef.current) {
             stopperRef.current()
+            getVariantLogs()
         }
     }
 
-    if (isLoading || isLogsLoading)
+    if (isLoading)
         return <ResultComponent status="info" title="Loading variants..." spinner={true} />
+
+    if (isLogsLoading)
+        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
@@ -180,7 +164,7 @@ const ViewNavigation: React.FC<Props> = ({
                         spinner={retrying}
                     />
                     {isDelayed && (
-                        <Button loading={loading} onClick={handleStopPolling} type="primary">
+                        <Button onClick={() => handleStopPolling()} type="primary">
                             Show Logs
                         </Button>
                     )}

@@ -2,7 +2,7 @@ import {useState, useEffect} from "react"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
-import {createNewVariant, updateVariantParams} from "@/services/playground/api"
+import {createNewVariant, fetchVariantLogs, updateVariantParams} from "@/services/playground/api"
 
 /**
  * Hook for using the variant.
@@ -21,6 +21,20 @@ export function useVariant(appId: string, variant: Variant) {
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
     const [isChatVariant, setIsChatVariant] = useState<boolean | null>(null)
+    const [isLogsLoading, setIsLogsLoading] = useState(false)
+    const [variantErrorLogs, setVariantErrorLogs] = useState("")
+
+    const getVariantLogs = async () => {
+        try {
+            setIsLogsLoading(true)
+            const logs = await fetchVariantLogs(variant.variantId)
+            setVariantErrorLogs(logs)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsLogsLoading(false)
+        }
+    }
 
     const fetchParameters = async () => {
         setIsLoading(true)
@@ -111,6 +125,9 @@ export function useVariant(appId: string, variant: Variant) {
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
     }
 }
 
