@@ -478,13 +478,6 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
         return
 
     try:
-        api_key = helper.get_global_config("api_key")
-    except Exception as e:
-        click.echo(click.style("Failed to retrieve the api key.", fg="red"))
-        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
-
-    try:
         variant_id = add_variant(
             app_folder=app_folder, file_name=file_name, host=host, overwrite=overwrite
         )
