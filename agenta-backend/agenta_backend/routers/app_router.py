@@ -533,9 +533,9 @@ async def create_app_and_variant_from_template(
             app=app,
             variant_name="app.default",
             docker_id_or_template_uri=(  # type: ignore
-                template_db.template_uri if isCloudEE() else template_db.digest
+                template_db.template_uri if isCloudProd() else template_db.digest
             ),
-            tags=f"{image_name}" if not isCloudEE() else None,  # type: ignore
+            tags=f"{image_name}" if not isCloudProd() else None,  # type: ignore
             base_name="app",
             config_name="default",
             is_template_image=True,
