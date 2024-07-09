@@ -1781,7 +1781,10 @@ async def update_variant_parameters(
             raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
         # Update associated ConfigDB parameters
-        app_variant_db.config_parameters.update(parameters)
+        if parameters == {}:
+            app_variant_db.config_parameters = {}
+        else:
+            app_variant_db.config_parameters.update(parameters)
 
         # ...and variant versioning
         app_variant_db.revision += 1  # type: ignore
