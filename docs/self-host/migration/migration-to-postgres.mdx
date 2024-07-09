@@ -1,17 +1,15 @@
 ---
 title: Migration to PostgreSQL
-description: 'This is a step-by-step instructions for migrating Agenta to the newly released PostgreSQL version.'
+description: "Guide for migrating data from MongoDB (`agenta <v0.18`) to PostgreSQL (`agenta >=v0.19`)."
 ---
 
-This guide provides step-by-step instructions for migrating your Agenta instance from MongoDB to the newly released PostgreSQL version.
+<Warning>
+  As of version `0.19.0`, Agenta is transitioning from MongoDB to PostgreSQL.
+  Users need to migrate their MongoDB databases to this latest version, as this
+  will be the only version receiving feature updates and patches.
+</Warning>
 
-> ⚠️ As of version 0.11.0, Agenta is transitioning from MongoDB to PostgreSQL. Users need to migrate their MongoDB databases to this latest version, as this will be the only version receiving feature updates and patches.
-
-**Table of content:**
- - [Prepare for Migration](#prepare-for-migration)
- - [Start the Migration](#start-the-migration)
- - [Post Migration](#post-migrataion)
-<br />
+This guide provides step-by-step instructions for migrating your agenta instance from MongoDB to PostgreSQL version.
 
 ### Prepare for Migration
 
@@ -21,21 +19,23 @@ While the migration will not modify any data in your MongoDB instance, it is hig
 
 ### Start the Migration
 
-1. Start the local instance of Agenta, and ensure that both MongoDB and Postgres instances are active. 
+1. Start the local instance of Agenta, and ensure that both MongoDB and Postgres instances are active.
 2. Use the following commands to initiate the migration:
+
 ```bash
-docker ps  
+docker ps
 ```
+
 The above command will list the running docker containers that you have. Copy the backend container id and execute bash.
 
 ```bash
-docker exec -it {backend-container-id} bash  
+docker exec -it {backend-container-id} bash
 ```
 
 Next, navigate to the `mongo_to_postgres` folder to execute the migration script.
 
 ```bash
-cd /app/agenta_backend/migrations/mongo_to_postgres  
+cd /app/agenta_backend/migrations/mongo_to_postgres
 python3 migration.py
 ```
 
