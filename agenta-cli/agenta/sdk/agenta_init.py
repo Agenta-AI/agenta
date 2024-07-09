@@ -103,7 +103,9 @@ class Config:
             self.persist = False
         else:
             self.persist = True
-            self.client = AgentaApi(base_url=self.host + "/api", api_key="" if not api_key else api_key)
+            self.client = AgentaApi(
+                base_url=self.host + "/api", api_key="" if not api_key else api_key
+            )
 
     def register_default(self, **kwargs):
         """alias for default"""
