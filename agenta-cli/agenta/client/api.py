@@ -1,12 +1,9 @@
-import os
-import toml
 import time
 import click
 from typing import Dict
-from pathlib import Path
-from agenta.client.backend import client
-from agenta.client.api_models import Image
 from requests.exceptions import RequestException
+
+from agenta.client.api_models import Image
 from agenta.client.backend.client import AgentaApi
 from agenta.client.exceptions import APIRequestError
 
