@@ -1,5 +1,3 @@
-import re
-import os
 import asyncio
 import logging
 import traceback
@@ -16,12 +14,11 @@ from agenta_backend.services import (
     aggregation_service,
 )
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-from agenta_backend.models.db_models import (
+from agenta_backend.models.shared_models import (
     AggregatedResult,
-    AppDB,
     CorrectAnswer,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
     EvaluationScenarioResult,
     InvokationResult,
     Error,
@@ -34,7 +31,7 @@ from agenta_backend.services.db_manager import (
     fetch_evaluation_by_id,
     fetch_evaluator_config,
     fetch_testset_by_id,
-    get_deployment_by_objectid,
+    get_deployment_by_id,
     update_evaluation,
     update_evaluation_with_aggregated_results,
     EvaluationScenarioResult,
@@ -54,9 +51,9 @@ logger.setLevel(logging.DEBUG)
 # Fetch all evaluators and precompute ground truth keys
 all_evaluators = get_evaluators()
 ground_truth_keys_dict = {
-    evaluator["key"]: [
+    evaluator.key: [
         key
-        for key, value in evaluator.get("settings_template", {}).items()
+        for key, value in evaluator.settings_template.items()
         if value.get("ground_truth_key") is True
     ]
     for evaluator in all_evaluators
@@ -103,7 +100,7 @@ def evaluate(
                 {
                     "status": Result(
                         type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
-                    )
+                    ).model_dump()
                 },
             )
         )
@@ -114,7 +111,7 @@ def evaluate(
         assert (
             app_variant_db is not None
         ), f"App variant with id {variant_id} not found!"
-        app_variant_parameters = app_variant_db.config.parameters
+        app_variant_parameters = app_variant_db.config_parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
             fetch_evaluation_by_id(evaluation_id)
@@ -125,10 +122,11 @@ def evaluate(
                 fetch_evaluator_config(evaluator_config_id)
             )
             evaluator_config_dbs.append(evaluator_config)
+
         deployment_db = loop.run_until_complete(
-            get_deployment_by_objectid(app_variant_db.base.deployment)
+            get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
-        uri = deployment_manager.get_deployment_uri(deployment_db)
+        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri)  # type: ignore
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
@@ -143,8 +141,8 @@ def evaluate(
         app_outputs: List[InvokationResult] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
-                testset_db.csvdata,
-                app_variant_parameters,
+                testset_db.csvdata,  # type: ignore
+                app_variant_parameters,  # type: ignore
                 rate_limit_config,
             )
         )
@@ -154,14 +152,14 @@ def evaluate(
             llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
         )
 
-        for data_point, app_output in zip(testset_db.csvdata, app_outputs):
+        for data_point, app_output in zip(testset_db.csvdata, app_outputs):  # type: ignore
             # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
 
             inputs = [
-                EvaluationScenarioInputDB(
+                EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
                     value=data_point[
@@ -181,7 +179,7 @@ def evaluate(
                 print("There is an error when invoking the llm app so we need to skip")
                 error_results = [
                     EvaluationScenarioResult(
-                        evaluator_config=evaluator_config_db.id,
+                        evaluator_config=str(evaluator_config_db.id),
                         result=Result(
                             type=app_output.result.type,
                             value=None,
@@ -196,18 +194,12 @@ def evaluate(
 
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
-                        user=app.user,
-                        organization=app.organization if isCloudEE() else None,
-                        workspace=app.workspace if isCloudEE() else None,
+                        user_id=str(app.user_id),
                         evaluation=new_evaluation_db,
                         variant_id=variant_id,
-                        evaluators_configs=new_evaluation_db.evaluators_configs,
                         inputs=inputs,
-                        is_pinned=False,
-                        note="",
-                        correct_answers=None,
                         outputs=[
-                            EvaluationScenarioOutputDB(
+                            EvaluationScenarioOutput(
                                 result=Result(
                                     type="error",
                                     value=None,
@@ -218,7 +210,12 @@ def evaluate(
                                 )
                             )
                         ],
+                        correct_answers=None,
+                        is_pinned=False,
+                        note="",
                         results=error_results,
+                        organization=str(app.organization_id) if isCloudEE() else None,
+                        workspace=str(app.workspace_id) if isCloudEE() else None,
                     )
                 )
                 continue
@@ -243,7 +240,7 @@ def evaluate(
                     output=app_output.result.value,
                     data_point=data_point,
                     settings_values=evaluator_config_db.settings_values,
-                    app_params=app_variant_parameters,
+                    app_params=app_variant_parameters,  # type: ignore
                     inputs=data_point,
                     lm_providers_keys=lm_providers_keys,
                 )
@@ -255,7 +252,7 @@ def evaluate(
                 evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
-                    evaluator_config=evaluator_config_db.id,
+                    evaluator_config=str(evaluator_config_db.id),
                     result=result,
                 )
                 logger.debug(f"Result: {result_object}")
@@ -272,28 +269,27 @@ def evaluate(
                 )
                 for ground_truth_column_name in ground_truth_column_names
             ]
-            # 4. We save the result of the eval scenario in the db
 
+            # 4. We save the result of the eval scenario in the db
             loop.run_until_complete(
                 create_new_evaluation_scenario(
-                    user=app.user,
+                    user_id=str(app.user_id),
                     evaluation=new_evaluation_db,
                     variant_id=variant_id,
-                    evaluators_configs=new_evaluation_db.evaluators_configs,
                     inputs=inputs,
-                    is_pinned=False,
-                    note="",
-                    correct_answers=all_correct_answers,
                     outputs=[
-                        EvaluationScenarioOutputDB(
+                        EvaluationScenarioOutput(
                             result=Result(type="text", value=app_output.result.value),
                             latency=app_output.latency,
                             cost=app_output.cost,
                         )
                     ],
+                    correct_answers=all_correct_answers,
+                    is_pinned=False,
+                    note="",
                     results=evaluators_results,
-                    organization=app.organization if isCloudEE() else None,
-                    workspace=app.workspace if isCloudEE() else None,
+                    organization=str(app.organization_id) if isCloudEE() else None,
+                    workspace=str(app.workspace_id) if isCloudEE() else None,
                 )
             )
 
@@ -311,9 +307,9 @@ def evaluate(
             update_evaluation(
                 evaluation_id,
                 {
-                    "average_latency": average_latency,
-                    "average_cost": average_cost,
-                    "total_cost": total_cost,
+                    "average_latency": average_latency.model_dump(),
+                    "average_cost": average_cost.model_dump(),
+                    "total_cost": total_cost.model_dump(),
                 },
             )
         )
@@ -332,7 +328,7 @@ def evaluate(
                             message="Evaluation Failed",
                             stacktrace=str(traceback.format_exc()),
                         ),
-                    )
+                    ).model_dump()
                 },
             )
         )
@@ -341,18 +337,18 @@ def evaluate(
 
     try:
         aggregated_results = loop.run_until_complete(
-            aggregate_evaluator_results(app, evaluators_aggregated_data)
+            aggregate_evaluator_results(evaluators_aggregated_data)
         )
 
         loop.run_until_complete(
             update_evaluation_with_aggregated_results(
-                new_evaluation_db.id, aggregated_results
+                str(new_evaluation_db.id), aggregated_results
             )
         )
 
         failed_evaluation_scenarios = loop.run_until_complete(
             check_if_evaluation_contains_failed_evaluation_scenarios(
-                new_evaluation_db.id
+                str(new_evaluation_db.id)
             )
         )
 
@@ -369,8 +365,8 @@ def evaluate(
 
         loop.run_until_complete(
             update_evaluation(
-                evaluation_id=new_evaluation_db.id,
-                updates={"status": evaluation_status},
+                evaluation_id=str(new_evaluation_db.id),
+                updates={"status": evaluation_status.model_dump()},
             )
         )
 
@@ -397,8 +393,18 @@ def evaluate(
 
 
 async def aggregate_evaluator_results(
-    app: AppDB, evaluators_aggregated_data: dict
+    evaluators_aggregated_data: dict,
 ) -> List[AggregatedResult]:
+    """
+    Aggregate the results of the evaluation evaluator.
+
+    Args:
+        evaluators_aggregated_data (dict):  The evaluators aggregated data
+
+    Returns:
+        the aggregated result of the evaluation evaluator
+    """
+
     aggregated_results = []
     for config_id, val in evaluators_aggregated_data.items():
         evaluator_key = val["evaluator_key"] or ""
@@ -437,7 +443,7 @@ async def aggregate_evaluator_results(
 
         evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
-            evaluator_config=evaluator_config.id,
+            evaluator_config=str(evaluator_config.id),  # type: ignore
             result=result,
         )
         aggregated_results.append(aggregated_result)
@@ -455,6 +461,7 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     Returns:
         list: A list of dictionaries representing the application inputs, where each dictionary contains the input name and type.
     """
+
     list_inputs = []
     for param in openapi_parameters:
         if param["type"] == "input":
