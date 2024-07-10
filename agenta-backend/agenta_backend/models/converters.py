@@ -167,12 +167,17 @@ async def human_evaluation_db_to_pydantic(
         variant_name = (
             evaluation_variant.variant.variant_name
             if isinstance(evaluation_variant.variant_id, uuid.UUID)
-            else str(evaluation_variant.variant.variant_id)
+            else str(evaluation_variant.variant_id)
         )
         variants_names.append(str(variant_name))
-        variants_ids.append(str(evaluation_variant.variant.id))
-        revisions.append(str(evaluation_variant.variant_revision.revision))
-        variants_revision_ids.append(str(evaluation_variant.variant_revision.id))
+        variants_ids.append(str(evaluation_variant.variant_id))
+        variant_revision = (
+            str(evaluation_variant.variant_revision.revision)
+            if isinstance(evaluation_variant.variant_revision_id, uuid.UUID)
+            else " None"
+        )
+        revisions.append(variant_revision)
+        variants_revision_ids.append(str(evaluation_variant.variant_revision_id))
 
     return HumanEvaluation(
         id=str(evaluation_db.id),
