@@ -128,6 +128,7 @@ export function useVariant(appId: string, variant: Variant) {
         getVariantLogs,
         isLogsLoading,
         variantErrorLogs,
+        setIsLogsLoading,
     }
 }
 

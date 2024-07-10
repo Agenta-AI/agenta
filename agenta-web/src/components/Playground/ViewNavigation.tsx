@@ -72,6 +72,7 @@ const ViewNavigation: React.FC<Props> = ({
         getVariantLogs,
         isLogsLoading,
         variantErrorLogs,
+        setIsLogsLoading,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
@@ -84,6 +85,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const stopperRef = useRef<Function | null>(null)
     const [isDelayed, setIsDelayed] = useState(false)
+    const hasError = netWorkError || (isDemo() ? netWorkError : isError)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -93,7 +95,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     useEffect(() => {
-        if (netWorkError) {
+        if (hasError) {
             retriedOnce.current = true
             setRetrying(true)
             const startApp = async () => {
@@ -141,6 +143,7 @@ const ViewNavigation: React.FC<Props> = ({
     }, [retrying])
 
     const handleStopPolling = () => {
+        setIsLogsLoading(true)
         if (stopperRef.current) {
             stopperRef.current()
             getVariantLogs()
@@ -149,9 +152,6 @@ const ViewNavigation: React.FC<Props> = ({
 
     if (isLoading)
         return <ResultComponent status="info" title="Loading variants..." spinner={true} />
-
-    if (isLogsLoading)
-        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
@@ -164,7 +164,11 @@ const ViewNavigation: React.FC<Props> = ({
                         spinner={retrying}
                     />
                     {isDelayed && (
-                        <Button onClick={() => handleStopPolling()} type="primary">
+                        <Button
+                            loading={isLogsLoading}
+                            onClick={() => handleStopPolling()}
+                            type="primary"
+                        >
                             Show Logs
                         </Button>
                     )}
