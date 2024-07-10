@@ -1,3 +1,4 @@
+import uuid
 import logging
 
 from typing import List, Optional, Union
@@ -163,8 +164,20 @@ async def construct_app_container_url(
 
     if base_id:
         object_db = await db_manager.fetch_base_by_id(base_id)
-    elif variant_id:
+    elif variant_id and variant_id != "None":
+        # NOTE: Backward Compatibility
+        # ---------------------------
+        # When a user creates a human evaluation with a variant and later deletes the variant,
+        # the human evaluation page becomes inaccessible due to the backend raising a
+        # "'NoneType' object has no attribute 'variant_id'" error. To suppress this error,
+        # we will return the string "None" as the ID of the variant.
+        # This change ensures that users can still view their evaluations; however,
+        # they will no longer be able to access a deployment URL for the deleted variant.
+        # Therefore, we ensure that variant_id is not "None".
         object_db = await db_manager.fetch_app_variant_by_id(variant_id)
+    else:
+        # NOTE: required for backward compatibility
+        object_db = None
 
     # Check app access
     if isCloudEE():
