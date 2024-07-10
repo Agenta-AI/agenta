@@ -106,20 +106,10 @@ class DBEngine:
         Initialize the database based on the mode and create all tables.
         """
         async with self.engine.begin() as conn:
-            # Drop all existing tables (if needed)
-            # await conn.run_sync(Base.metadata.drop_all)
             # Create tables
             for model in models:
                 await conn.run_sync(model.metadata.create_all)
         logger.info(f"Using {self.mode} database...")
-
-    async def remove_db(self) -> None:
-        """
-        Remove the database based on the mode.
-        """
-        async with self.engine.begin() as conn:
-            for model in models:
-                await conn.run_sync(model.metadata.drop_all)
 
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:

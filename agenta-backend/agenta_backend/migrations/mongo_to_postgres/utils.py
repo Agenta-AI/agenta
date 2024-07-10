@@ -25,16 +25,6 @@ BATCH_SIZE = 1000
 migration_report = {}
 
 
-async def drop_all_tables():
-    """Drop all tables in the database."""
-    async with db_engine.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.reflect)
-        # Drop all tables with CASCADE option
-        for table in reversed(Base.metadata.sorted_tables):
-            await conn.execute(text(f"DROP TABLE IF EXISTS {table.name} CASCADE"))
-    print("\n====================== All tables are dropped.\n")
-
-
 async def create_all_tables(tables):
     """Create all tables in the database."""
     async with db_engine.engine.begin() as conn:

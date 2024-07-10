@@ -34,7 +34,6 @@ from agenta_backend.models.db_models import (
 )
 
 from agenta_backend.migrations.mongo_to_postgres.utils import (
-    drop_all_tables,
     create_all_tables,
     print_migration_report,
     store_mapping,
@@ -501,7 +500,6 @@ async def transform_evaluation_scenario(scenario):
 
 async def main():
     try:
-        await drop_all_tables()
         await create_all_tables(tables=tables)
         await migrate_collection("users", UserDB, transform_user)
         await migrate_collection("docker_images", ImageDB, transform_image)
