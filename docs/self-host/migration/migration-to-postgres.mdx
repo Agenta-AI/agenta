@@ -19,7 +19,11 @@ While the migration will not modify any data in your MongoDB instance, it is hig
 
 ### Start the Migration
 
-1. Start the local instance of Agenta, and ensure that both MongoDB and Postgres instances are active.
+1. Start the local instance of Agenta using the dedicated migration Docker Compose file, and ensure that both the MongoDB and PostgreSQL instances are active.
+```
+cd agenta-backend/agenta_backend/migrations/mongo_to_postgres
+docker compose -f docker-compose.migration.yml up
+```
 2. Use the following commands to initiate the migration:
 
 ```bash
