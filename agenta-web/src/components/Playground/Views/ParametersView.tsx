@@ -11,6 +11,7 @@ import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 
 const PromptVersioningDrawer: any = dynamicComponent(
     `PromptVersioningDrawer/PromptVersioningDrawer`,
@@ -131,14 +132,24 @@ const ParametersView: React.FC<Props> = ({
         })
     }
 
-    const handleDelete = () => {
-        deleteVariant(() => {
-            if (variant.persistent) {
-                return deleteSingleVariant(variant.variantId).then(() => {
-                    onStateChange(false)
-                })
-            }
-        })
+    const handleDelete = async () => {
+        try {
+            if (
+                !(await checkIfResourceValidForDeletion({
+                    resourceType: "variant",
+                    resourceIds: variant.variantId,
+                }))
+            )
+                return
+
+            deleteVariant(() => {
+                if (variant.persistent) {
+                    return deleteSingleVariant(variant.variantId).then(() => {
+                        onStateChange(false)
+                    })
+                }
+            })
+        } catch {}
     }
 
     useEffect(() => {
