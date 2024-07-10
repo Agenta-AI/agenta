@@ -2742,12 +2742,12 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
             result_evaluations = await session.execute(
                 select(EvaluationDB)
                 .filter(EvaluationDB.testset_id.in_(ids))
-                .options(load_only(EvaluationDB.id)) # type: ignore
+                .options(load_only(EvaluationDB.id))  # type: ignore
             )
             result_human_evaluations = await session.execute(
                 select(HumanEvaluationDB)
                 .filter(HumanEvaluationDB.testset_id.in_(ids))
-                .options(load_only(HumanEvaluationDB.id)) # type: ignore
+                .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
             res_evaluations = result_evaluations.scalars().all()
             res_human_evaluations = result_human_evaluations.scalars().all()
