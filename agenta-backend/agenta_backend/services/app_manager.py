@@ -163,9 +163,9 @@ async def update_variant_image(
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=str(app_variant_db.organization_id)
-        if isCloudEE()
-        else None,  # noqa
+        organization=(
+            str(app_variant_db.organization_id) if isCloudEE() else None
+        ),  # noqa
         workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,  # noqa
     )
     # Update base with new image
