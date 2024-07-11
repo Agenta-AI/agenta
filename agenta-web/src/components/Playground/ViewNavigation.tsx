@@ -108,9 +108,7 @@ const ViewNavigation: React.FC<Props> = ({
 
                 promise
                     .then(() => {
-                        if (!isError) {
-                            refetch()
-                        }
+                        refetch()
                     })
                     .catch(() => {
                         getVariantLogs()
