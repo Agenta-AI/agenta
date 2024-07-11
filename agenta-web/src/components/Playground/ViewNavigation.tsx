@@ -73,6 +73,7 @@ const ViewNavigation: React.FC<Props> = ({
         isLogsLoading,
         variantErrorLogs,
         setIsLogsLoading,
+        onClickShowLogs,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
@@ -108,7 +109,9 @@ const ViewNavigation: React.FC<Props> = ({
 
                 promise
                     .then(() => {
-                        refetch()
+                        if (!onClickShowLogs.current) {
+                            refetch()
+                        }
                     })
                     .catch(() => {
                         getVariantLogs()
@@ -143,6 +146,7 @@ const ViewNavigation: React.FC<Props> = ({
     const handleStopPolling = () => {
         setIsLogsLoading(true)
         if (stopperRef.current) {
+            onClickShowLogs.current = true
             stopperRef.current()
             getVariantLogs()
         }
