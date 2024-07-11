@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
@@ -23,6 +23,7 @@ export function useVariant(appId: string, variant: Variant) {
     const [isChatVariant, setIsChatVariant] = useState<boolean | null>(null)
     const [isLogsLoading, setIsLogsLoading] = useState(false)
     const [variantErrorLogs, setVariantErrorLogs] = useState("")
+    const onClickShowLogs = useRef(false)
 
     const getVariantLogs = async () => {
         try {
@@ -129,6 +130,7 @@ export function useVariant(appId: string, variant: Variant) {
         isLogsLoading,
         variantErrorLogs,
         setIsLogsLoading,
+        onClickShowLogs,
     }
 }
 
