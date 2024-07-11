@@ -48,20 +48,6 @@ services:
             - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        command:
-            [
-                "uvicorn",
-                "agenta_backend.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--log-level",
-                "info",
-                "--root-path",
-                "/api",
-            ]
         depends_on:
             mongo:
                 condition: service_healthy

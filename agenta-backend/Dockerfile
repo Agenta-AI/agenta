@@ -13,7 +13,7 @@ RUN pip install --upgrade pip \
 
 # Copy only requirements and alembic configuration file
 # to cache them in docker layer
-COPY pyproject.toml poetry.lock* alembic.ini README.md /app/
+COPY pyproject.toml poetry.lock* alembic.ini start_backend.sh README.md /app/
 
 # Copy migrations folder
 COPY migrations/ /app/migrations/
@@ -29,3 +29,7 @@ RUN poetry config virtualenvs.create false \
 # remove dummy module
 RUN rm -r /app/agenta_backend
 EXPOSE 8000
+
+# Apply migrations and start the backend server
+RUN chmod +x /app/start_backend.sh
+ENTRYPOINT ["/app/start_backend.sh"]
