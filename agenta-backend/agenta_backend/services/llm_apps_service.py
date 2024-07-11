@@ -82,11 +82,13 @@ async def invoke_app(
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
     async with aiohttp.ClientSession() as client:
+        app_response = {}
+
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
             response = await client.post(url, json=payload, timeout=900)
-            response.raise_for_status()
             app_response = await response.json()
+            response.raise_for_status()
             return InvokationResult(
                 result=Result(
                     type="text",
@@ -98,8 +100,12 @@ async def invoke_app(
             )
 
         except aiohttp.ClientResponseError as e:
-            error_message = f"HTTP error {e.status}: {e.message}"
-            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            error_message = app_response.get("detail", {}).get(
+                "error", f"HTTP error {e.status}: {e.message}"
+            )
+            stacktrace = app_response.get("detail", {}).get(
+                "traceback", "".join(traceback.format_exception_only(type(e), e))
+            )
             logger.error(f"HTTP error occurred during request: {error_message}")
             common.capture_exception_in_sentry(e)
         except aiohttp.ServerTimeoutError as e:
@@ -184,6 +190,7 @@ async def run_with_retry(
         if retries == max_retry_count
         else f"Error processing {input_data} datapoint"
     )
+
     return InvokationResult(
         result=Result(
             type="error",
@@ -245,6 +252,7 @@ async def batch_invoke(
 
         # Gather results of all tasks
         results = await asyncio.gather(*tasks)
+
         for result in results:
             list_of_app_outputs.append(result)
             print(f"Adding outputs to batch {start_idx}")
@@ -257,6 +265,7 @@ async def batch_invoke(
 
     # Start the first batch
     await run_batch(0)
+
     return list_of_app_outputs
 
 
