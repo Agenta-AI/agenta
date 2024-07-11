@@ -43,18 +43,6 @@ services:
       - agenta-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command:
-      [
-        "uvicorn",
-        "agenta_backend.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-        "--root-path",
-        "/api"
-      ]
     env_file:
       - .env
     depends_on:
