@@ -137,7 +137,7 @@ const ParametersView: React.FC<Props> = ({
             if (
                 !(await checkIfResourceValidForDeletion({
                     resourceType: "variant",
-                    resourceIds: variant.variantId,
+                    resourceIds: [variant.variantId],
                 }))
             )
                 return
