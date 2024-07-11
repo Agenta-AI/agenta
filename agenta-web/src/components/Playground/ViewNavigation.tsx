@@ -153,6 +153,9 @@ const ViewNavigation: React.FC<Props> = ({
     if (isLoading)
         return <ResultComponent status="info" title="Loading variants..." spinner={true} />
 
+    if (isLogsLoading && isError)
+        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
             <>
