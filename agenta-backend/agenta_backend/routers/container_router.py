@@ -180,7 +180,7 @@ async def construct_app_container_url(
         object_db = None
 
     # Check app access
-    if isCloudEE():
+    if isCloudEE() and object_db is not None:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             object=object_db,
