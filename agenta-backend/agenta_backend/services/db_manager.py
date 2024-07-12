@@ -2120,7 +2120,11 @@ async def fetch_human_evaluation_by_id(
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
-        base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+        base_query = (
+            select(HumanEvaluationDB)
+            .filter_by(id=uuid.UUID(evaluation_id))
+            .filter(HumanEvaluationScenarioDB.testset_id.isnot(None))
+        )
         if isCloudEE():
             query = base_query.options(
                 joinedload(HumanEvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
