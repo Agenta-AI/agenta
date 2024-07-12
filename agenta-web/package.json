@@ -6,7 +6,7 @@
         "node": ">=18"
     },
     "scripts": {
-        "dev": "next dev",
+        "dev": "next dev --turbo",
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
