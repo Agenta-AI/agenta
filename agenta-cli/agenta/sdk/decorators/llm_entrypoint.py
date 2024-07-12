@@ -72,6 +72,8 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        print("@entrypoint()")
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
@@ -79,7 +81,7 @@ class entrypoint(BaseDecorator):
             agenta.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.set_attributes(
                 {"config": config_params, "environment": "playground"}
             )
 
@@ -104,7 +106,7 @@ class entrypoint(BaseDecorator):
                 agenta.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.set_attributes(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
@@ -410,7 +412,7 @@ class entrypoint(BaseDecorator):
         agenta.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        agenta.tracing.set_span_attribute(
+        agenta.tracing.set_attributes(
             {"config": agenta.config.all(), "environment": "bash"}
         )
 

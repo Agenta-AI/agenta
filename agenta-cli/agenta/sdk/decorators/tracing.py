@@ -38,6 +38,8 @@ class instrument(BaseDecorator):
         self.spankind = spankind
         self.tracing = ag.tracing
 
+        print("@instrument()")
+
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = inspect.iscoroutinefunction(func)
 
@@ -57,7 +59,7 @@ class instrument(BaseDecorator):
 
             try:
                 result = await func(*args, **kwargs)
-                self.tracing.update_span_status(span=span, value="OK")
+                self.tracing.set_status(status="OK")
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
@@ -70,10 +72,10 @@ class instrument(BaseDecorator):
                     "message": str(e),
                     "stacktrace": traceback.format_exc(),
                 }
-                self.tracing.set_span_attribute(
+                self.tracing.set_attributes(
                     {"traceback_exception": traceback.format_exc()}
                 )
-                self.tracing.update_span_status(span=span, value="ERROR")
+                self.tracing.set_status(status="ERROR")
                 self.tracing.end_span(outputs=result)
                 raise e
 
@@ -93,7 +95,7 @@ class instrument(BaseDecorator):
 
             try:
                 result = func(*args, **kwargs)
-                self.tracing.update_span_status(span=span, value="OK")
+                self.tracing.set_status(status="OK")
                 self.tracing.end_span(
                     outputs=(
                         {"message": result} if not isinstance(result, dict) else result
@@ -106,10 +108,10 @@ class instrument(BaseDecorator):
                     "message": str(e),
                     "stacktrace": traceback.format_exc(),
                 }
-                self.tracing.set_span_attribute(
+                self.tracing.set_attributes(
                     {"traceback_exception": traceback.format_exc()}
                 )
-                self.tracing.update_span_status(span=span, value="ERROR")
+                self.tracing.set_status(status="ERROR")
                 self.tracing.end_span(outputs=result)
                 raise e
 
