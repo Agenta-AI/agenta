@@ -52,14 +52,14 @@ services:
         restart: always
 
     migrate:
-        build: ./agenta-backend
+        container_name: agenta-migrate-test
+        image: ghcr.io/agenta-ai/agenta-backend
         command: ["alembic", "upgrade", "head"]
         environment:
             - FEATURE_FLAG=oss
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
           postgres:
             condition: service_healthy
