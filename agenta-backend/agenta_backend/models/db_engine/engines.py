@@ -22,7 +22,7 @@ class CloudEEDBEngine(DBEngine):
     """
     Database engine to initialize Beanie ODM.
     """
-    
+
     async def initialize_mongodb(self):
         """
         Initializes the mongodb async driver and beanie documents.
@@ -31,7 +31,7 @@ class CloudEEDBEngine(DBEngine):
             ValueError: It looks like one of the following packages are not installed: beanie, motor. Exception: ImportError message
         """
 
-        from agenta_backend.commons.observability.models.db import SpanDB # type: ignore
+        from agenta_backend.commons.observability.models.db import SpanDB  # type: ignore
 
         try:
             from beanie import init_beanie  # type: ignore
@@ -45,7 +45,6 @@ class CloudEEDBEngine(DBEngine):
         client = AsyncIOMotorClient(self.mongo_uri)
         await init_beanie(database=client[db_name], document_models=[SpanDB])
         logger.info(f"Using {db_name} mongo database...")
-
 
     async def init_db(self):
         """
