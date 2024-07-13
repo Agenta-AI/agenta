@@ -18,7 +18,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
-import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
+import {LlmProvider, getAllDecryptedProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
@@ -195,7 +195,7 @@ const AppSelector: React.FC = () => {
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
-        const apiKeys = getAllProviderLlmKeys()
+        const apiKeys = getAllDecryptedProviderLlmKeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,
