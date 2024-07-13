@@ -1,5 +1,5 @@
 import _ from "lodash"
-import {camelToSnake} from "./utils"
+import {encryptText, decryptText} from "./utils"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -48,10 +48,11 @@ export const getApikeys = () => {
 }
 
 export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
-    // TODO: add encryption here
     const keys = getAllProviderLlmKeys()
     const item = keys.find((item: LlmProvider) => item.title === providerName)
-    if (item) item.key = keyValue
+    const encryptedKeyValue = encryptText(keyValue)
+
+    if (item) item.key = encryptedKeyValue
     localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
 }
 
@@ -73,6 +74,15 @@ export const getAllProviderLlmKeys = () => {
         console.log(error)
     }
     return providers
+}
+export const getAllDecryptedProviderLlmKeys = () => {
+    const providers = getAllProviderLlmKeys()
+    return providers.map((provider) => {
+        if (provider.key) {
+            provider.key = decryptText(provider.key)
+        }
+        return provider
+    })
 }
 
 export const removeSingleLlmProviderKey = (providerName: string) => {
