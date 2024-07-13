@@ -1,4 +1,4 @@
-"""initial migrations
+"""initial migrations for returning users (using agenta>=0.19)
 
 Revision ID: b80c708c21bb
 Revises: 
