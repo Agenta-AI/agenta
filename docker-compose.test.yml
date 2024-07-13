@@ -31,6 +31,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
         command: "uvicorn agenta_backend.main:app --host 0.0.0.0 --port 8000 --reload --log-level info --root-path /api"
@@ -55,11 +56,13 @@ services:
     migrate:
         build: ./agenta-backend
         command: ["alembic", "upgrade", "head"]
+        container_name: agenta-migrate-test
         environment:
             - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
           postgres:
