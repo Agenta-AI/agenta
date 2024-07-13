@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from agenta_backend.models.db_engine.config import POSTGRES_URI, MONGODB_URI, DATABASE_MODE
+from agenta_backend.models.db_engine.config import (
+    POSTGRES_URI,
+    MONGODB_URI,
+    DATABASE_MODE,
+)
 
 
 class DBEngine:
@@ -47,7 +51,7 @@ class DBEngine:
 
         Yields:
             AsyncSession: SQLAlchemy async session for database operations.
-        
+
         Raises:
             Exception: Any exception that occurs within the context will be
             re-raised after the session rollback.
