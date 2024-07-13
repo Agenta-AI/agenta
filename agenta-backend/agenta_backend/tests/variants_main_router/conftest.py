@@ -3,7 +3,7 @@ import pytest
 import logging
 from datetime import datetime, timezone
 
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.models.db_engine.shared import db_engine
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     AppDB,
