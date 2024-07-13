@@ -7,7 +7,8 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import {notification} from "antd"
 import Router from "next/router"
-import {getAllProviderLlmKeys, getApikeys} from "./llmProviders"
+import {getAllDecryptedProviderLlmKeys, getApikeys} from "./llmProviders"
+import CryptoJS from "crypto-js"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
@@ -46,7 +47,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
 }
 
 export const apiKeyObject = () => {
-    const apiKeys = getAllProviderLlmKeys()
+    const apiKeys = getAllDecryptedProviderLlmKeys()
 
     if (!apiKeys) return {}
 
@@ -326,4 +327,26 @@ export const getInitials = (str: string, limit = 2) => {
     }
 
     return initialText
+}
+
+const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_LLM_ENCRYPTION_KEY as string
+export const encryptText = (data: string) => {
+    try {
+        const encryptedKey = CryptoJS.AES.encrypt(data, ENCRYPTION_KEY).toString()
+        return encryptedKey
+    } catch (error) {
+        return data
+    }
+}
+
+export const decryptText = (encryptedKey: string) => {
+    try {
+        if (!encryptedKey) return ""
+
+        const bytes = CryptoJS.AES.decrypt(encryptedKey, ENCRYPTION_KEY)
+        const originalKey = bytes.toString(CryptoJS.enc.Utf8)
+        return originalKey
+    } catch (error) {
+        return encryptedKey
+    }
 }
