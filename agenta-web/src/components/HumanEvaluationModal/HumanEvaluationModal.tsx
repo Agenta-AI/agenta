@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react"
-import {GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
+import {GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
 import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
@@ -15,10 +15,6 @@ import {createUseStyles} from "react-jss"
 import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLoadTestsetsList} from "@/services/testsets/api"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {

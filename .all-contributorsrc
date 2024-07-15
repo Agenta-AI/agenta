@@ -437,6 +437,16 @@
         "bug",
         "code"
       ]
+    },
+    {
+      "login": "jp-agenta",
+      "name": "jp-agenta",
+      "avatar_url": "https://avatars.githubusercontent.com/u/174311389?v=4",
+      "profile": "https://github.com/jp-agenta",
+      "contributions": [
+        "code",
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,

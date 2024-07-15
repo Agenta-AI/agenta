@@ -308,10 +308,10 @@ const EvaluationResults: React.FC<Props> = () => {
                 pinned: "right",
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
                 cellRenderer: StatusRenderer,
                 valueGetter: (params) =>
-                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
             },
             {
                 flex: 1,
@@ -406,7 +406,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     "Avg. Latency": getTypedValue(item.average_latency),
                     "Total Cost": getTypedValue(item.average_cost),
                     Created: formatDate24(item.created_at),
-                    Status: statusMapper(token)[item.status.value as EvaluationStatus].label,
+                    Status: statusMapper(token)(item.status.value as EvaluationStatus).label,
                 })),
                 colDefs.map((col) => col.headerName!),
             )
@@ -500,6 +500,8 @@ const EvaluationResults: React.FC<Props> = () => {
                                         return
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value ||
+                                        EvaluationStatus.AGGREGATION_FAILED ===
                                             params.data?.status.value) &&
                                         router.push(
                                             `/apps/${appId}/evaluations/results/${params.data?.id}`,
