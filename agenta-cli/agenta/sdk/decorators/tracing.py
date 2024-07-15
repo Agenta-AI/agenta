@@ -44,8 +44,6 @@ class instrument(BaseDecorator):
         self.spankind = spankind
         self.tracing = ag.tracing
 
-        print("@instrument()")
-
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = inspect.iscoroutinefunction(func)
 

@@ -79,8 +79,6 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
-        print("@entrypoint()")
-
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
