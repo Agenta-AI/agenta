@@ -1,12 +1,18 @@
+import uuid
 import logging
 from typing import Dict, List
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
+from sqlalchemy.orm import Session
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.db_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -41,7 +47,7 @@ else:
         HumanEvaluationScenarioDB,
     )
 
-from agenta_backend.models.db_models import (
+from agenta_backend.models.shared_models import (
     HumanEvaluationScenarioInput,
     HumanEvaluationScenarioOutput,
     Result,
@@ -59,22 +65,6 @@ class UpdateEvaluationScenarioError(Exception):
     """Custom exception for update evaluation scenario errors."""
 
     pass
-
-
-async def _fetch_human_evaluation(evaluation_id: str) -> HumanEvaluationDB:
-    # Fetch the evaluation by ID
-    evaluation = await db_manager.fetch_human_evaluation_by_id(
-        evaluation_id=evaluation_id
-    )
-
-    # Check if the evaluation exists
-    if evaluation is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Evaluation with id {evaluation_id} not found",
-        )
-
-    return evaluation
 
 
 async def prepare_csvdata_and_create_evaluation_scenario(
@@ -106,7 +96,9 @@ async def prepare_csvdata_and_create_evaluation_scenario(
                 for name in payload_inputs
             ]
         except KeyError:
-            await new_evaluation.delete()
+            await db_manager.delete_human_evaluation(
+                evaluation_id=str(new_evaluation.id)
+            )
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
             Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
@@ -116,7 +108,8 @@ async def prepare_csvdata_and_create_evaluation_scenario(
                 status_code=400,
                 detail=msg,
             )
-        # Create evaluation scenarios
+
+        # Prepare scenario inputs
         list_of_scenario_input = []
         for scenario_input in inputs:
             eval_scenario_input_instance = HumanEvaluationScenarioInput(
@@ -125,68 +118,17 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             )
             list_of_scenario_input.append(eval_scenario_input_instance)
 
-        evaluation_scenario_payload = {
-            **{
-                "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc),
-            },
+        evaluation_scenario_extend_payload = {
             **_extend_with_evaluation(evaluation_type),
             **_extend_with_correct_answer(evaluation_type, datum),
         }
-
-        eval_scenario_instance = HumanEvaluationScenarioDB(
-            **evaluation_scenario_payload,
-            user=user,
-            evaluation=new_evaluation,
+        await db_manager.create_human_evaluation_scenario(
             inputs=list_of_scenario_input,
-            outputs=[],
+            user_id=str(user.id),
+            app=app,
+            evaluation_id=str(new_evaluation.id),
+            evaluation_extend=evaluation_scenario_extend_payload,
         )
-
-        if isCloudEE():
-            eval_scenario_instance.organization = app.organization
-            eval_scenario_instance.workspace = app.workspace
-
-        await eval_scenario_instance.create()
-
-
-async def create_evaluation_scenario(
-    evaluation_id: str, payload: EvaluationScenario
-) -> None:
-    """
-    Create a new evaluation scenario.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation.
-        payload (EvaluationScenario): Evaluation scenario data.
-
-    Raises:
-        HTTPException: If evaluation not found or access denied.
-    """
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-
-    scenario_inputs = [
-        EvaluationScenarioInput(
-            input_name=input_item.input_name,
-            input_value=input_item.input_value,
-        )
-        for input_item in payload.inputs
-    ]
-
-    new_eval_scenario = EvaluationScenarioDB(
-        user=evaluation.user,
-        organization=evaluation.organization,
-        workspace=evaluation.workspace,
-        evaluation=evaluation,
-        inputs=scenario_inputs,
-        outputs=[],
-        is_pinned=False,
-        note="",
-        **_extend_with_evaluation(evaluation.evaluation_type),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-
-    await new_eval_scenario.create()
 
 
 async def update_human_evaluation_service(
@@ -198,51 +140,34 @@ async def update_human_evaluation_service(
     Args:
         evaluation (EvaluationDB): The evaluation instance.
         update_payload (EvaluationUpdate): The payload for the update.
-
-    Raises:
-        HTTPException: If the evaluation is not found or access is denied.
     """
 
-    # Prepare updates
-    updates = {}
-    if update_payload.status is not None:
-        updates["status"] = update_payload.status
-
     # Update the evaluation
-    await evaluation.update({"$set": updates})
+    await db_manager.update_human_evaluation(
+        evaluation_id=str(evaluation.id), values_to_update=update_payload.dict()
+    )
 
 
-async def fetch_evaluation_scenarios_for_evaluation(
-    evaluation_id: str = None, evaluation: EvaluationDB = None
-) -> List[EvaluationScenario]:
+async def fetch_evaluation_scenarios_for_evaluation(evaluation_id: str):
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
-        evaluation (EvaluationDB): The evaluation instance.
-
-    Raises:
-        HTTPException: If the evaluation is not found or access is denied.
 
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    assert (
-        evaluation_id or evaluation
-    ), "Please provide either evaluation_id or evaluation"
 
-    if not evaluation:
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-
-    scenarios = await EvaluationScenarioDB.find(
-        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id)
-    ).to_list()
-    eval_scenarios = [
-        converters.evaluation_scenario_db_to_pydantic(scenario, str(evaluation.id))
-        for scenario in scenarios
+    evaluation_scenarios = await db_manager.fetch_evaluation_scenarios(
+        evaluation_id=evaluation_id
+    )
+    return [
+        await converters.evaluation_scenario_db_to_pydantic(
+            evaluation_scenario_db=evaluation_scenario, evaluation_id=evaluation_id
+        )
+        for evaluation_scenario in evaluation_scenarios
     ]
-    return eval_scenarios
 
 
 async def fetch_human_evaluation_scenarios_for_evaluation(
@@ -260,14 +185,15 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation.id == ObjectId(human_evaluation.id),
-    ).to_list()
+    human_evaluation_scenarios = await db_manager.fetch_human_evaluation_scenarios(
+        evaluation_id=str(human_evaluation.id)
+    )
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(
-            scenario, str(human_evaluation.id)
+            evaluation_scenario_db=human_evaluation_scenario,
+            evaluation_id=str(human_evaluation.id),
         )
-        for scenario in scenarios
+        for human_evaluation_scenario in human_evaluation_scenarios
     ]
     return eval_scenarios
 
@@ -289,50 +215,48 @@ async def update_human_evaluation_scenario(
         HTTPException: If evaluation scenario not found or access denied.
     """
 
-    updated_data = evaluation_scenario_data.dict()
-    updated_data["updated_at"] = datetime.now(timezone.utc)
-    new_eval_set = {}
+    values_to_update = {}
+    payload = evaluation_scenario_data.dict(exclude_unset=True)
 
-    if updated_data["score"] is not None and evaluation_type in [
-        EvaluationType.single_model_test,
-    ]:
-        new_eval_set["score"] = updated_data["score"]
-    elif (
-        updated_data["vote"] is not None
-        and evaluation_type == EvaluationType.human_a_b_testing
-    ):
-        new_eval_set["vote"] = updated_data["vote"]
+    if "score" in payload and evaluation_type == EvaluationType.single_model_test:
+        values_to_update["score"] = str(payload["score"])
 
-    if updated_data["outputs"] is not None:
+    if "vote" in payload and evaluation_type == EvaluationType.human_a_b_testing:
+        values_to_update["vote"] = payload["vote"]
+
+    if "outputs" in payload:
         new_outputs = [
             HumanEvaluationScenarioOutput(
                 variant_id=output["variant_id"],
                 variant_output=output["variant_output"],
             ).dict()
-            for output in updated_data["outputs"]
+            for output in payload["outputs"]
         ]
-        new_eval_set["outputs"] = new_outputs
+        values_to_update["outputs"] = new_outputs
 
-    if updated_data["inputs"] is not None:
+    if "inputs" in payload:
         new_inputs = [
             HumanEvaluationScenarioInput(
                 input_name=input_item["input_name"],
                 input_value=input_item["input_value"],
             ).dict()
-            for input_item in updated_data["inputs"]
+            for input_item in payload["inputs"]
         ]
-        new_eval_set["inputs"] = new_inputs
+        values_to_update["inputs"] = new_inputs
 
-    if updated_data["is_pinned"] is not None:
-        new_eval_set["is_pinned"] = updated_data["is_pinned"]
+    if "is_pinned" in payload:
+        values_to_update["is_pinned"] = payload["is_pinned"]
 
-    if updated_data["note"] is not None:
-        new_eval_set["note"] = updated_data["note"]
+    if "note" in payload:
+        values_to_update["note"] = payload["note"]
 
-    if updated_data["correct_answer"] is not None:
-        new_eval_set["correct_answer"] = updated_data["correct_answer"]
+    if "correct_answer" in payload:
+        values_to_update["correct_answer"] = payload["correct_answer"]
 
-    await evaluation_scenario_db.update({"$set": new_eval_set})
+    await db_manager.update_human_evaluation_scenario(
+        evaluation_scenario_id=str(evaluation_scenario_db.id),
+        values_to_update=values_to_update,
+    )
 
 
 def _extend_with_evaluation(evaluation_type: EvaluationType):
@@ -365,9 +289,7 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await EvaluationDB.find(
-        EvaluationDB.app.id == app.id, fetch_links=True
-    ).to_list()
+    evaluations_db = await db_manager.list_evaluations(app_id=str(app.id))
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -386,9 +308,8 @@ async def fetch_list_human_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    evaluations_db = await HumanEvaluationDB.find(
-        HumanEvaluationDB.app.id == ObjectId(app_id), fetch_links=True
-    ).to_list()
+
+    evaluations_db = await db_manager.list_human_evaluations(app_id=app_id)
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -405,6 +326,7 @@ async def fetch_human_evaluation(human_evaluation_db) -> HumanEvaluation:
     Returns:
         Evaluation: The fetched evaluation.
     """
+
     return await converters.human_evaluation_db_to_pydantic(human_evaluation_db)
 
 
@@ -416,11 +338,11 @@ async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
         evaluation_ids (List[str]): A list of evaluation IDs.
 
     Raises:
-        HTTPException: If evaluation not found or access denied.
+        NoResultFound: If evaluation not found or access denied.
     """
+
     for evaluation_id in evaluation_ids:
-        evaluation = await _fetch_human_evaluation(evaluation_id=evaluation_id)
-        await evaluation.delete()
+        await db_manager.delete_human_evaluation(evaluation_id=evaluation_id)
 
 
 async def delete_evaluations(evaluation_ids: List[str]) -> None:
@@ -433,9 +355,8 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     Raises:
         HTTPException: If evaluation not found or access denied.
     """
-    for evaluation_id in evaluation_ids:
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-        await evaluation.delete()
+
+    await db_manager.delete_evaluations(evaluation_ids=evaluation_ids)
 
 
 async def create_new_human_evaluation(
@@ -451,11 +372,8 @@ async def create_new_human_evaluation(
     Returns:
         HumanEvaluationDB
     """
+
     user = await db_manager.get_user(user_uid)
-
-    current_time = datetime.now(timezone.utc)
-
-    # Fetch app
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     if app is None:
         raise HTTPException(
@@ -463,54 +381,28 @@ async def create_new_human_evaluation(
             detail=f"App with id {payload.app_id} does not exist",
         )
 
-    variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
-    variant_dbs = [
-        await db_manager.fetch_app_variant_by_id(variant_id)
-        for variant_id in payload.variant_ids
-    ]
-
-    testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
-    # Initialize and save evaluation instance to database
-    variants_revisions = [
-        await db_manager.fetch_app_variant_revision_by_variant(
-            str(variant_db.id), int(variant_db.revision)
-        )
-        for variant_db in variant_dbs
-    ]
-    eval_instance = HumanEvaluationDB(
+    human_evaluation = await db_manager.create_human_evaluation(
         app=app,
-        user=user,
+        user_id=str(user.id),
         status=payload.status,
         evaluation_type=payload.evaluation_type,
-        variants=variants,
-        variants_revisions=[
-            ObjectId(str(variant_revision.id))
-            for variant_revision in variants_revisions
-        ],
-        testset=testset,
-        created_at=current_time,
-        updated_at=current_time,
+        testset_id=payload.testset_id,
+        variants_ids=payload.variant_ids,
     )
-
-    if isCloudEE():
-        eval_instance.organization = app.organization
-        eval_instance.workspace = app.workspace
-
-    newEvaluation = await eval_instance.create()
-    if newEvaluation is None:
+    if human_evaluation is None:
         raise HTTPException(
             status_code=500, detail="Failed to create evaluation_scenario"
         )
 
     await prepare_csvdata_and_create_evaluation_scenario(
-        testset.csvdata,
+        human_evaluation.testset.csvdata,
         payload.inputs,
         payload.evaluation_type,
-        newEvaluation,
+        human_evaluation,
         user,
         app,
     )
-    return newEvaluation
+    return human_evaluation
 
 
 async def create_new_evaluation(
@@ -533,25 +425,23 @@ async def create_new_evaluation(
     """
 
     app = await db_manager.fetch_app_by_id(app_id=app_id)
-
-    testset = await db_manager.fetch_testset_by_id(testset_id)
-    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id=variant_id)
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
-        variant_id, variant_db.revision
+        app_variant_id=variant_id, revision=variant_db.revision  # type: ignore
     )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
-        user=app.user,
+        user_id=str(app.user_id),
         testset=testset,
         status=Result(
-            value=EvaluationStatusEnum.EVALUATION_STARTED, type="status", error=None
+            value=EvaluationStatusEnum.EVALUATION_INITIALIZED, type="status", error=None
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
-        evaluators_configs=evaluator_config_ids,
-        organization=app.organization if isCloudEE() else None,
-        workspace=app.workspace if isCloudEE() else None,
+        organization=str(app.organization_id) if isCloudEE() else None,
+        workspace=str(app.workspace_id) if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
@@ -652,24 +542,3 @@ def remove_duplicates(csvdata):
             unique_entries.append(entry)
 
     return unique_entries
-
-
-async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
-    ids = list(map(lambda x: ObjectId(x), resource_ids))
-    if resource_type == "variant":
-        res = await EvaluationDB.find(In(EvaluationDB.variant, ids)).to_list()
-    elif resource_type == "testset":
-        res = await EvaluationDB.find(In(EvaluationDB.testset.id, ids)).to_list()
-    elif resource_type == "evaluator_config":
-        res = await EvaluationDB.find(
-            In(
-                EvaluationDB.evaluators_configs,
-                ids,
-            )
-        ).to_list()
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"resource_type {resource_type} is not supported",
-        )
-    return res
