@@ -10,10 +10,6 @@ type SecondaryBtnProps = {
     onClick: () => void
 }
 
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
-
 const SecondaryButton: React.FC<SecondaryBtnProps> = ({children, ...props}) => {
     const {appTheme} = useAppTheme()
 
