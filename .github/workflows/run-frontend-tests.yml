@@ -46,6 +46,12 @@ jobs:
           curl http://localhost/api/organizations/own/
           curl http://localhost/api/containers/templates/
 
+      - name: Apply Schema Migration
+        run: |
+            docker exec -it agenta-backend-test bash
+            alembic upgrade head
+            exit
+
       - name: Set Node.js 18
         uses: actions/setup-node@v4
         with:
