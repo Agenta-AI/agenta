@@ -15,7 +15,7 @@ from agenta_backend.models.api.evaluation_model import (
 )
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
 router = APIRouter()
@@ -184,10 +184,13 @@ async def update_evaluator_config(
                 )
 
         evaluators_configs = await evaluator_manager.update_evaluator_config(
-            evaluator_config_id=evaluator_config_id, updates=payload
+            evaluator_config_id=evaluator_config_id, updates=payload.dict()
         )
         return evaluators_configs
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Error updating evaluator configuration: {str(e)}"
         )
@@ -222,6 +225,9 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
         success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Error deleting evaluator configuration: {str(e)}"
         )
