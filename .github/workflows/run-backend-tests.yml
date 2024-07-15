@@ -41,10 +41,7 @@ jobs:
           sleep 10 && curl -i http://localhost/api/openapi.json
 
       - name: Apply Schema Migration
-        run: |
-            docker exec -it agenta-backend-test bash
-            alembic upgrade head
-            exit
+        run:  docker exec agenta-backend-test alembic upgrade head
 
       - name: Run tests
         run: sleep 10 && docker exec agenta-backend-test pytest
