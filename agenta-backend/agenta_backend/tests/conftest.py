@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 
-from agenta_backend.models.db_engine.engines import test_db_engine as db_engine
+from agenta_backend.tests.engine import test_db_engine as db_engine
 
 
 @pytest.fixture(scope="session", autouse=True)
