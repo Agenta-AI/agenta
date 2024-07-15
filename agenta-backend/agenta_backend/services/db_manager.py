@@ -1973,7 +1973,11 @@ async def list_human_evaluations(app_id: str):
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(HumanEvaluationDB).filter_by(app_id=uuid.UUID(app_id))
+        base_query = (
+            select(HumanEvaluationDB)
+            .filter_by(app_id=uuid.UUID(app_id))
+            .filter(HumanEvaluationDB.testset_id.isnot(None))
+        )
         if isCloudEE():
             query = base_query.options(
                 joinedload(HumanEvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
@@ -2737,24 +2741,50 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
 
     async with db_engine.get_session() as session:
         if resource_type == "variant":
-            query = select(EvaluationDB).filter(EvaluationDB.variant_id.in_(ids))
-        elif resource_type == "testset":
-            query = select(EvaluationDB).filter(EvaluationDB.testset_id.in_(ids))
-        elif resource_type == "evaluator_config":
+            result_evaluations = await session.execute(
+                select(EvaluationDB)
+                .filter(EvaluationDB.variant_id.in_(ids))
+                .options(load_only(EvaluationDB.id))  # type: ignore
+            )
+            result_human_evaluations = await session.execute(
+                select(HumanEvaluationDB)
+                .join(HumanEvaluationVariantDB)
+                .filter(HumanEvaluationVariantDB.variant_id.in_(ids))
+                .options(load_only(HumanEvaluationDB.id))  # type: ignore
+            )
+            res_evaluations = result_evaluations.scalars().all()
+            res_human_evaluations = result_human_evaluations.scalars().all()
+            return res_evaluations + res_human_evaluations
+
+        if resource_type == "testset":
+            result_evaluations = await session.execute(
+                select(EvaluationDB)
+                .filter(EvaluationDB.testset_id.in_(ids))
+                .options(load_only(EvaluationDB.id))  # type: ignore
+            )
+            result_human_evaluations = await session.execute(
+                select(HumanEvaluationDB)
+                .filter(HumanEvaluationDB.testset_id.in_(ids))
+                .options(load_only(HumanEvaluationDB.id))  # type: ignore
+            )
+            res_evaluations = result_evaluations.scalars().all()
+            res_human_evaluations = result_human_evaluations.scalars().all()
+            return res_evaluations + res_human_evaluations
+
+        if resource_type == "evaluator_config":
             query = (
                 select(EvaluationDB)
                 .join(EvaluationDB.evaluator_configs)
                 .filter(EvaluationEvaluatorConfigDB.evaluator_config_id.in_(ids))
             )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"resource_type {resource_type} is not supported",
-            )
+            result = await session.execute(query)
+            res = result.scalars().all()
+            return res
 
-        result = await session.execute(query)
-        res = result.scalars().all()
-        return res
+        raise HTTPException(
+            status_code=400,
+            detail=f"resource_type {resource_type} is not supported",
+        )
 
 
 async def delete_evaluations(evaluation_ids: List[str]) -> None:
