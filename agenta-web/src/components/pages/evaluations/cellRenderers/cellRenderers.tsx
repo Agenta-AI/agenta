@@ -171,28 +171,42 @@ export const ResultRenderer = React.memo(
 )
 
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
-export const statusMapper = (token: GlobalToken) => ({
-    [EvaluationStatus.INITIALIZED]: {
-        label: "Queued",
-        color: token.colorTextSecondary,
-    },
-    [EvaluationStatus.STARTED]: {
-        label: "Running",
-        color: token.colorWarning,
-    },
-    [EvaluationStatus.FINISHED]: {
-        label: "Completed",
-        color: token.colorSuccess,
-    },
-    [EvaluationStatus.ERROR]: {
-        label: "Failed",
-        color: token.colorError,
-    },
-    [EvaluationStatus.FINISHED_WITH_ERRORS]: {
-        label: "Completed with Errors",
-        color: token.colorWarning,
-    },
-})
+export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) => {
+    const statusMap = {
+        [EvaluationStatus.INITIALIZED]: {
+            label: "Queued",
+            color: token.colorTextSecondary,
+        },
+        [EvaluationStatus.STARTED]: {
+            label: "Running",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.FINISHED]: {
+            label: "Completed",
+            color: token.colorSuccess,
+        },
+        [EvaluationStatus.ERROR]: {
+            label: "Failed",
+            color: token.colorError,
+        },
+        [EvaluationStatus.FINISHED_WITH_ERRORS]: {
+            label: "Completed with Errors",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.AGGREGATION_FAILED]: {
+            label: "Result Aggregation Failed",
+            color: token.colorWarning,
+        },
+    }
+
+    return (
+        statusMap[status] || {
+            label: "Unknown",
+            color: "purple",
+        }
+    )
+}
+
 export const StatusRenderer = React.memo(
     (params: ICellRendererParams<_Evaluation>) => {
         const classes = useStyles()
@@ -201,8 +215,9 @@ export const StatusRenderer = React.memo(
             params.data?.duration || 0,
             runningStatuses.includes(params.value),
         )
-        const {label, color} = statusMapper(token)[params.data?.status.value as EvaluationStatus]
+        const {label, color} = statusMapper(token)(params.data?.status.value as EvaluationStatus)
         const errorMsg = params.data?.status.error?.message
+        const errorStacktrace = params.data?.status.error?.stacktrace
 
         return (
             <Typography.Text className={classes.statusCell}>
@@ -210,7 +225,7 @@ export const StatusRenderer = React.memo(
                 <span>{label}</span>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorMsg}>
+                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
                             <InfoCircleOutlined />
                         </Tooltip>
                     </span>
