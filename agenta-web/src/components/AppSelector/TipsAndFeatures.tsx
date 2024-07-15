@@ -3,14 +3,11 @@ import {BulbFilled} from "@ant-design/icons"
 import {Space} from "antd"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {MDXProvider} from "@mdx-js/react"
+import {StyleProps} from "@/lib/Types"
 
 import slide1 from "../../welcome-highlights/tip1.mdx"
 import slide2 from "../../welcome-highlights/tip2.mdx"
 import {createUseStyles} from "react-jss"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
