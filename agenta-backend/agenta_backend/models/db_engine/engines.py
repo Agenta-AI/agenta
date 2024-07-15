@@ -1,21 +1,6 @@
 from agenta_backend.models.db_engine.config import logger
 from agenta_backend.models.db_engine.shared import DBEngine
-from agenta_backend.models.db_engine.models import isCloudEE, models
-
-
-class TestDBEngine(DBEngine):
-    """
-    Database engine to remove database tables in test db.
-    """
-
-    async def remove_db(self):
-        """
-        Remove the database tables.
-        """
-
-        async with self.engine.begin() as conn:
-            for model in models:
-                await conn.run_sync(model.metadata.drop_all)
+from agenta_backend.models.db_engine.models import isCloudEE
 
 
 class CloudEEDBEngine(DBEngine):
@@ -55,5 +40,4 @@ class CloudEEDBEngine(DBEngine):
             await self.initialize_mongodb()
 
 
-test_db_engine = TestDBEngine()
 cloud_ee_db_engine = CloudEEDBEngine()
