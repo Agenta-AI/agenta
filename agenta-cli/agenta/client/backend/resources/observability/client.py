@@ -769,16 +769,6 @@ class AsyncObservabilityClient:
             ],
         )
         """
-        # print("trace", trace)
-        # print("spans", spans)
-        # print(
-        #    "url",
-        #    urllib.parse.urljoin(
-        #        f"{self._client_wrapper.get_base_url()}/", "observability/trace/"
-        #    ),
-        # )
-        # print("body", jsonable_encoder({"trace": trace, "spans": spans}))
-        # print(self._client_wrapper.get_headers())
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
