@@ -29,9 +29,6 @@ jobs:
       - name: Start Docker Compose
         run: OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }} ENVIRONMENT=github docker-compose -f "docker-compose.test.yml" up -d --build
 
-      - name: Restart Backend Service To Fetch Template Images
-        run: docker container restart agenta-backend-test
-
       - name: Check Templates Exists
         run: |
           sleep 10 && curl -i http://localhost/api/containers/templates/
@@ -42,6 +39,9 @@ jobs:
 
       - name: Apply Schema Migration
         run:  docker exec agenta-backend-test alembic upgrade head
+
+      - name: Restart Backend Service To Fetch Template Images
+        run: docker container restart agenta-backend-test
 
       - name: Run tests
         run: sleep 10 && docker exec agenta-backend-test pytest
