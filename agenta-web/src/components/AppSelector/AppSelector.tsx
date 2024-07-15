@@ -2,7 +2,7 @@ import {useState, useEffect, useMemo} from "react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject} from "@/lib/Types"
+import {Template, GenericObject, StyleProps} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
@@ -21,10 +21,6 @@ import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({

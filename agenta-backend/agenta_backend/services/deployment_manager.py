@@ -35,6 +35,7 @@ async def start_service(
     else:
         uri_path = f"{app_variant_db.user.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
         container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.user.id}"
+
     logger.debug("Starting service with the following parameters:")
     logger.debug(f"image_name: {app_variant_db.image.tags}")
     logger.debug(f"uri_path: {uri_path}")
@@ -57,14 +58,14 @@ async def start_service(
     )
 
     deployment = await db_manager.create_deployment(
-        app=app_variant_db.app,
-        user=app_variant_db.user,
+        app_id=str(app_variant_db.app.id),
+        user_id=str(app_variant_db.user.id),
         container_name=container_name,
         container_id=container_id,
         uri=uri,
         status="running",
-        organization=app_variant_db.organization if isCloudEE() else None,
-        workspace=app_variant_db.workspace if isCloudEE() else None,
+        organization=str(app_variant_db.organization_id) if isCloudEE() else None,
+        workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,
     )
     return deployment
 
@@ -146,5 +147,5 @@ async def validate_image(image: Image) -> bool:
     return True
 
 
-def get_deployment_uri(deployment: DeploymentDB) -> str:
-    return deployment.uri.replace("http://localhost", "http://host.docker.internal")
+def get_deployment_uri(uri: str) -> str:
+    return uri.replace("http://localhost", "http://host.docker.internal")
