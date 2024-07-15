@@ -20,36 +20,10 @@ from bson.objectid import ObjectId
 
 VARIANT_TRACKING_FEATURE_FLAG = False
 
-from functools import wraps
-
-DEBUG = False
-SHIFT = 7
-logging.setLevel("INFO")
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
-def debug(shift=1, req=False, res=False):
-    def log_decorator(f):
-        @wraps(f)
-        def log_wrapper(*args, **kwargs):
-            if DEBUG:
-                print(
-                    ">" * shift + " " * (SHIFT - shift),
-                    f.__name__ + " ()",
-                    args if req else "",
-                    kwargs if req else "",
-                )
-            result = f(*args, **kwargs)
-            if DEBUG:
-                print(
-                    "<" * shift + " " * (SHIFT - shift),
-                    f.__name__ + " <-",
-                    result if res else "",
-                )
-            return result
-
-        return log_wrapper
-
-    return log_decorator
+logging.setLevel("DEBUG")
 
 
 class SingletonMeta(type):
@@ -90,7 +64,6 @@ class Tracing(metaclass=SingletonMeta):
         max_workers (int): The maximum number of workers to run tracing
     """
 
-    @debug()
     def __init__(
         self,
         host: str,
@@ -104,6 +77,7 @@ class Tracing(metaclass=SingletonMeta):
         self.tasks_manager = TaskQueue(
             max_workers if max_workers else 4, logger=logging
         )
+        self.baggage = None
 
     @property
     def client(self) -> AsyncObservabilityClient:
@@ -118,6 +92,23 @@ class Tracing(metaclass=SingletonMeta):
         ).observability
 
     ### --- API --- ###
+
+    @debug()
+    def get_context(self):
+        tracing = tracing_context.get()
+
+        return tracing
+
+    @debug()
+    def update_baggage(
+        self,
+        attributes: Dict[str, Any] = {},
+    ):
+        if self.baggage is None:
+            self.baggage = {}
+
+        for key, value in attributes.items():
+            self.baggage[key] = value
 
     @debug()
     def open_trace(
@@ -135,14 +126,14 @@ class Tracing(metaclass=SingletonMeta):
         if span is not None:
             ### --- TO BE CLEANED --- >>>
             span.environment = (
-                tracing.span_config.get("environment")
-                if tracing.span_config is not None
+                self.baggage.get("environment")
+                if self.baggage is not None
                 else os.environ.get("environment", "unset")
             )
 
             span.config = (
-                tracing.span_config.get("config")
-                if not config and tracing.span_config is not None
+                self.baggage.get("config")
+                if not config and self.baggage is not None
                 else None
             )
             if VARIANT_TRACKING_FEATURE_FLAG:
@@ -191,10 +182,8 @@ class Tracing(metaclass=SingletonMeta):
         self._clear_closed_spans()
         self._clear_tracked_spans()
         self._clear_active_span()
-        self._clear_span_config()
 
         self._clear_trace_tags()
-        self._clear_trace()
 
         logging.info(f"Closed  trace {trace_id}")
 
@@ -248,7 +237,7 @@ class Tracing(metaclass=SingletonMeta):
 
         return span
 
-    @debug()
+    @debug(req=True)
     def set_attributes(
         self,
         attributes: Dict[str, Any] = {},
@@ -263,13 +252,15 @@ class Tracing(metaclass=SingletonMeta):
         tracing = tracing_context.get()
 
         if tracing.active_span is None:
-            # This is the case where entrypoint wants to save the trace information
-            # but the parent span has not been initialized yet
-            for key, value in attributes.items():
-                tracing.span_config[key] = value
-        else:
-            for key, value in attributes.items():
-                tracing.active_span.attributes[key] = value  # type: ignore
+            logging.error(f"Cannot set attributes ({set(attributes)}), no active span")
+            return
+
+        logging.info(
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} attributes={attributes}"
+        )
+
+        for key, value in attributes.items():
+            tracing.active_span.attributes[key] = value  # type: ignore
 
     @debug()
     def set_status(self, status: str) -> None:
@@ -350,7 +341,6 @@ class Tracing(metaclass=SingletonMeta):
 
     ### --- Legacy API --- ###
 
-    @debug(shift=2)
     def start_trace(
         self,
         span: CreateSpan,
@@ -359,11 +349,9 @@ class Tracing(metaclass=SingletonMeta):
     ) -> None:  # Legacy
         self.open_trace(span, config, **kwargs)
 
-    @debug(shift=2)
     def end_trace(self, parent_span: CreateSpan) -> None:  # Legacy
         self.close_trace()
 
-    @debug(shift=2)
     def start_span(
         self,
         name: str,
@@ -374,24 +362,20 @@ class Tracing(metaclass=SingletonMeta):
     ) -> CreateSpan:  # Legacy
         return self.open_span(name, spankind, input, config, **kwargs)
 
-    @debug(shift=2)
     def update_span_status(self, _: CreateSpan, status: str) -> None:  # Legacy
         self.update_span_status(status)
 
-    @debug(shift=2)
     def set_span_attribute(
         self,
         attributes: Dict[str, Any] = {},
     ) -> None:  # Legacy
         self.set_attributes(attributes)
 
-    @debug(shift=2)
     def end_span(self, outputs: Dict[str, Any]) -> None:  # Legacy
         self.close_span(outputs)
 
     ### --- Helper Functions --- ###
 
-    @debug(shift=3)
     def _create_trace_id(self) -> str:
         """Creates a 32HEXDIGL / ObjectId ID for the trace object.
 
@@ -402,25 +386,11 @@ class Tracing(metaclass=SingletonMeta):
         # return uuid4().hex
         return str(ObjectId())
 
-    @debug(shift=3)
-    def _clear_trace(self) -> None:
-        tracing = tracing_context.get()
-
-        trace_id = tracing.trace_id
-
-        tracing.trace_id = None
-
-        logging.debug(f"Cleared trace {trace_id}")
-
-    @debug(shift=3)
     def _clear_trace_tags(self) -> None:
         tracing = tracing_context.get()
 
         tracing.trace_tags.clear()
 
-        logging.debug(f"Cleared trace tags ({tracing.trace_tags})")
-
-    @debug(shift=3)
     def _create_span_id(self) -> str:
         """Creates a  16HEXDIGL / ObjectId ID for the span object.
 
@@ -431,15 +401,19 @@ class Tracing(metaclass=SingletonMeta):
         # return uuid4().hex[:16]
         return str(ObjectId())
 
-    @debug(shift=3)
     def _process_closed_spans(self) -> None:
         tracing = tracing_context.get()
 
         logging.info(f"Sending spans {tracing.trace_id} #={len(tracing.closed_spans)} ")
 
+        # async def mock_create_traces(trace, spans):
+        #    print("trace-id", trace)
+        #    print("spans", spans)
+
         self.tasks_manager.add_task(
             tracing.trace_id,
             "trace",
+            # mock_create_traces(
             self.client.create_traces(
                 trace=tracing.trace_id, spans=tracing.closed_spans  # type: ignore
             ),
@@ -448,23 +422,16 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Sent    spans {tracing.trace_id} #={len(tracing.closed_spans)}")
 
-    @debug(shift=3)
     def _clear_closed_spans(self) -> None:
         tracing = tracing_context.get()
 
         tracing.closed_spans.clear()
 
-        logging.debug(f"Cleared closed spans ({tracing.closed_spans})")
-
-    @debug(shift=3)
     def _clear_tracked_spans(self) -> None:
         tracing = tracing_context.get()
 
         tracing.tracked_spans.clear()
 
-        logging.debug(f"Cleared tracked spans ({tracing.tracked_spans})")
-
-    @debug(shift=3)
     def _clear_active_span(self) -> None:
         tracing = tracing_context.get()
 
@@ -474,15 +441,6 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.debug(f"Cleared active span {span_id}")
 
-    @debug(shift=3)
-    def _clear_span_config(self) -> None:
-        tracing = tracing_context.get()
-
-        tracing.span_config.clear()
-
-        logging.debug(f"Cleared span config ({tracing.span_config})")
-
-    @debug(shift=3)
     def _update_span_cost(self, span: CreateSpan, cost: Optional[float]) -> None:
         if span is not None and cost is not None and isinstance(cost, float):
             if span.cost is None:
@@ -490,7 +448,6 @@ class Tracing(metaclass=SingletonMeta):
             else:
                 span.cost += cost
 
-    @debug(shift=3)
     def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]) -> None:
         if isinstance(tokens, LlmTokens):
             tokens = tokens.dict()
