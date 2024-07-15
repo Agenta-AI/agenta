@@ -193,7 +193,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         debounce((data: Partial<EvaluationScenario>, scenarioId) => {
             updateEvaluationScenarioData(scenarioId, data)
         }, 800),
-        [evaluationScenarios],
+        [rows],
     )
 
     useEffect(() => {
@@ -278,7 +278,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             .then(() => {
                 Object.keys(data).forEach((key) => {
                     setRowValue(
-                        evaluationScenarios.findIndex((item) => item.id === id),
+                        rows.findIndex((item) => item.id === id),
                         key,
                         data[key as keyof EvaluationScenario],
                     )
