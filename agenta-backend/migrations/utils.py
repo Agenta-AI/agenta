@@ -1,10 +1,19 @@
+import os
 import logging
 
-from sqlalchemy import inspect
+import click
+from alembic.config import Config
+from sqlalchemy import inspect, text
+from alembic.script import ScriptDirectory
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 
 # Initializer logger
 logger = logging.getLogger("alembic.env")
+
+# Initialize alembic config
+alembic_cfg = Config("alembic.ini")
+script = ScriptDirectory.from_config(alembic_cfg)
 
 
 def is_initial_setup(engine) -> bool:
@@ -14,10 +23,10 @@ def is_initial_setup(engine) -> bool:
     This function inspects the current state of the database and determines if it needs initial setup by checking for the presence of a predefined set of required tables.
 
     Args:
-        engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine used to connect to the database.
+            engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine used to connect to the database.
 
     Returns:
-        bool: True if the database is in its initial state (i.e., not all required tables exist), False otherwise.
+            bool: True if the database is in its initial state (i.e., not all required tables exist), False otherwise.
     """
 
     inspector = inspect(engine)
@@ -41,3 +50,52 @@ def is_initial_setup(engine) -> bool:
     logger.info(f"All tables exist: {all_tables_exist}")
 
     return not all_tables_exist
+
+
+async def get_applied_migrations(engine: AsyncEngine):
+    """
+    Checks the alembic_version table to get all the migrations that has been applied.
+
+    Args:
+            engine (Engine): The engine that connects to an sqlalchemy pool
+
+    Returns:
+            a list of strings
+    """
+
+    async with engine.connect() as connection:
+        result = await connection.execute(text("SELECT version_num FROM alembic_version"))  # type: ignore
+        applied_migrations = [row[0] for row in result.fetchall()]
+        return applied_migrations
+
+
+async def get_pending_migrations():
+    """
+    Gets the migrations that have not been applied.
+
+    Returns:
+            the number of pending migrations
+    """
+
+    engine = create_async_engine(url=os.environ["POSTGRES_URI"])
+    applied_migrations = await get_applied_migrations(engine=engine)
+    migration_files = [script.revision for script in script.walk_revisions()]
+    pending_migrations = [m for m in migration_files if m not in applied_migrations]
+    return pending_migrations
+
+
+async def check_for_new_migrations():
+    """
+    Checks for new migrations and notify the user.
+    """
+
+    pending_migrations = await get_pending_migrations()
+    if len(pending_migrations) >= 1:
+        click.echo(
+            click.style(
+                f"\nWe have detected that there are pending database migrations {pending_migrations} that need to be applied to keep your system up to date. \nTo ensure your application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
+                fg="yellow",
+            ),
+            color=True,
+        )
+    return
