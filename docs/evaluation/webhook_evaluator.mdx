@@ -5,7 +5,7 @@ description: 'Webhook API: inputs and outputs'
 
 Sometimes, custom evaluators on Agenta may not be sufficient for your specific use case, or you may wish to host your own evaluators. In such cases, you can create a webhook evaluator to suit your specific needs. Webhook evaluators only need to comply with a predefined API.
 
-For the moment, there are limitation on the security measures related to webhook evaluators. There is no authentication and no authorization, and the endpoint must be publicly available. 
+<Info>For the moment, there are limitation on the security measures related to webhook evaluators. There is no authentication and no authorization, and the endpoint must be publicly available. </Info>
 
 
 ## Accessing the Evaluator Page
@@ -40,7 +40,7 @@ The webhook request body has the following signature:
 The output parameters are as follows:
 1. <b>score: </b> A float value corresponding to the score of the evaluation. The score should be between 0 and 1, with 0 meaning the evaluation failed, with its lowest score, and 1 meaning the evaluation succeeded, with its highest score.
 
-The webhook response body has the folowwing signature:
+The webhook response body has the following signature:
 ```json
 {
     "score": <Float>
