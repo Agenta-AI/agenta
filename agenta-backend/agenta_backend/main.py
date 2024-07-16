@@ -15,10 +15,13 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from migrations.utils import check_for_new_migrations
 from agenta_backend.open_api import open_api_tags_metadata
 from agenta_backend.models.db_engine.engines import cloud_ee_db_engine as db_engine
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
+from agenta_backend.migrations.alembic_migrations.utils import (
+    check_for_new_migrations,
+    check_if_templates_table_exist,
+)
 
 if isEE() or isCloudProd():
     from agenta_backend.commons.services import templates_manager
@@ -53,10 +56,13 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    await db_engine.init_db()  # this is related to cloud (doesn't require new migrations check)
     await check_for_new_migrations()
-    await db_engine.init_db()
-    await templates_manager.update_and_sync_templates(cache=cache)
+    if await check_if_templates_table_exist():
+        await templates_manager.update_and_sync_templates(cache=cache)
+
     yield
+
     await db_engine.close_db()
 
 
