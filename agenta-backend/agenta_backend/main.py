@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 
 from agenta_backend import celery_config
@@ -16,9 +15,10 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
-from agenta_backend.models.db_engine import db_engine
+from migrations.utils import check_for_new_migrations
 from agenta_backend.open_api import open_api_tags_metadata
+from agenta_backend.models.db_engine.engines import cloud_ee_db_engine as db_engine
+from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
 
 if isEE() or isCloudProd():
     from agenta_backend.commons.services import templates_manager
@@ -53,10 +53,11 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    await check_for_new_migrations()
     await db_engine.init_db()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
-    await db_engine.close()
+    await db_engine.close_db()
 
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)

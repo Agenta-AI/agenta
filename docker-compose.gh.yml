@@ -29,20 +29,6 @@ services:
             - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
-        command:
-            [
-                "uvicorn",
-                "agenta_backend.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--log-level",
-                "info",
-                "--root-path",
-                "/api",
-            ]
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         labels:
@@ -57,6 +43,7 @@ services:
             - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
+        command: "uvicorn agenta_backend.main:app --host 0.0.0.0 --port 8000 --reload --log-level info --root-path /api"
         depends_on:
             postgres:
                 condition: service_healthy
