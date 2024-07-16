@@ -221,7 +221,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                 )
 
         results = await converters.aggregated_result_of_evaluation_to_pydantic(
-            str(evaluation.id)
+            evaluation.aggregated_results  # type: ignore
         )
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
