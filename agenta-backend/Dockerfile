@@ -21,7 +21,7 @@ RUN touch /app/agenta_backend/__init__.py
 
 # Copy migrations folder
 RUN mkdir -p /app/agenta_backend/migrations/postgres
-COPY agenta_backend/ /app/agenta_backend/migrations/postgres
+COPY agenta_backend/migrations/postgres /app/agenta_backend/migrations/postgres
 
 # Project initialization:
 RUN poetry config virtualenvs.create false \
