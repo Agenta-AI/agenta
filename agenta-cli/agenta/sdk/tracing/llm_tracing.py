@@ -196,7 +196,6 @@ class Tracing(metaclass=SingletonMeta):
         config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> CreateSpan:
-
         tracing = tracing_context.get()
 
         span_id = self._create_span_id()
