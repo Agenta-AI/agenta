@@ -11,44 +11,44 @@ services:
             - agenta-network
         restart: always
 
-  backend:
-    build: ./agenta-backend
-    environment:
-      - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
-      - REDIS_URL=redis://redis:6379/0
-      - ALLOW_ORIGINS=${ALLOW_ORIGINS}
-      - ENVIRONMENT=production
-      - FEATURE_FLAG=oss
-      - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
-      - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
-      - REGISTRY_REPO_NAME=agentaai
-      - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
-    volumes:
-      - ./agenta-backend/agenta_backend:/app/agenta_backend
-      - ./agenta-backend/migrations:/app/migrations
-      - ./agenta-backend/tests:/app/tests
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./agenta-backend/db:/db
-    labels:
-      - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-      - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-      - "traefik.http.routers.backend.middlewares=backend-strip"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      - "traefik.http.routers.backend.service=backend"
-    networks:
-      - agenta-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    env_file:
-      - .env
-    depends_on:
-        postgres:
-            condition: service_healthy
-    restart: always
+    backend:
+        build: ./agenta-backend
+        environment:
+          - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+          - REDIS_URL=redis://redis:6379/0
+          - ALLOW_ORIGINS=${ALLOW_ORIGINS}
+          - ENVIRONMENT=production
+          - FEATURE_FLAG=oss
+          - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+          - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+          - CELERY_RESULT_BACKEND=redis://redis:6379/0
+          - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
+          - REGISTRY_REPO_NAME=agentaai
+          - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
+        volumes:
+          - ./agenta-backend/agenta_backend:/app/agenta_backend
+          - ./agenta-backend/migrations:/app/migrations
+          - ./agenta-backend/tests:/app/tests
+          - /var/run/docker.sock:/var/run/docker.sock
+          - ./agenta-backend/db:/db
+        labels:
+          - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
+          - "traefik.http.routers.backend.entrypoints=web"
+          - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+          - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+          - "traefik.http.routers.backend.middlewares=backend-strip"
+          - "traefik.http.services.backend.loadbalancer.server.port=8000"
+          - "traefik.http.routers.backend.service=backend"
+        networks:
+          - agenta-network
+        extra_hosts:
+          - "host.docker.internal:host-gateway"
+        env_file:
+          - .env
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: always
 
     agenta-web:
         build:
