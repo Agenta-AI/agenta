@@ -18,7 +18,7 @@ from agenta_backend.routers import (
 from agenta_backend.open_api import open_api_tags_metadata
 from agenta_backend.models.db_engine.engines import cloud_ee_db_engine as db_engine
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
-from agenta_backend.migrations.alembic_migrations.utils import (
+from agenta_backend.migrations.postgres.utils import (
     check_for_new_migrations,
     check_if_templates_table_exist,
 )
