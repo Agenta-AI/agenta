@@ -15,12 +15,12 @@ RUN pip install --upgrade pip \
 # to cache them in docker layer
 COPY pyproject.toml poetry.lock* alembic.ini README.md /app/
 
-# Copy migrations folder
-COPY migrations/ /app/agenta_backend/migrations/alembic_migrations
-
 # This is a hack to create a dummy module so that poetry install doesn't fail 
 RUN mkdir -p /app/agenta_backend
 RUN touch /app/agenta_backend/__init__.py
+
+# Copy migrations folder
+COPY migrations/ /app/agenta_backend/migrations/postgres
 
 # Project initialization:
 RUN poetry config virtualenvs.create false \
