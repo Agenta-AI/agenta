@@ -13,7 +13,8 @@ from alembic import context
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from migrations.utils import is_initial_setup
+from agenta_backend.migrations.alembic_migrations.utils import is_initial_setup
+
 
 # revision identifiers, used by Alembic.
 revision: str = "b80c708c21bb"
