@@ -20,6 +20,7 @@ RUN mkdir -p /app/agenta_backend
 RUN touch /app/agenta_backend/__init__.py
 
 # Copy migrations folder
+RUN mkdir -p /app/agenta_backend/migrations/postgres
 COPY migrations/ /app/agenta_backend/migrations/postgres
 
 # Project initialization:
