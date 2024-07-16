@@ -56,7 +56,6 @@ class instrument(BaseDecorator):
             input_dict.update(kwargs)
 
             async def wrapped_func(*args, **kwargs):
-
                 # logging.debug(" ".join([">..", str(tracing_context.get())]))
 
                 token = None
@@ -124,7 +123,6 @@ class instrument(BaseDecorator):
             input_dict.update(kwargs)
 
             def wrapped_func(*args, **kwargs):
-
                 # logging.debug(" ".join([">..", str(tracing_context.get())]))
 
                 token = None
