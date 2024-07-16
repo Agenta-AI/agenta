@@ -1,13 +1,9 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Evaluation, Variant} from "@/lib/Types"
+import {Evaluation, Variant, StyleProps} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     root: ({themeMode}: StyleProps) => ({
