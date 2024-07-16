@@ -175,21 +175,22 @@ def auto_webhook_test(
                     ),
                 )
             return Result(type="number", value=score)
-    except ValueError as e:
-        return Result(
-            type="error",
-            value=None,
-            error=Error(
-                message=str(e),
-            ),
-        )
     except httpx.HTTPError as e:
         return Result(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Webhook evaluation; An HTTP error occurred",
-                stacktrace=str(traceback.format_exc()),
+                message=f"[webhook evaluation] HTTP - {repr(e)}",
+                stacktrace=traceback.format_exc(),
+            ),
+        )
+    except json.JSONDecodeError as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=f"[webhook evaluation] JSON - {repr(e)}",
+                stacktrace=traceback.format_exc(),
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
@@ -197,8 +198,8 @@ def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Webhook evaluation",
-                stacktrace=str(traceback.format_exc()),
+                message=f"[webhook evaluation] Exception - {repr(e)} ",
+                stacktrace=traceback.format_exc(),
             ),
         )
 
