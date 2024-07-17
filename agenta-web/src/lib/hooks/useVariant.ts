@@ -16,7 +16,7 @@ export function useVariant(appId: string, variant: Variant) {
     const [promptOptParams, setPromptOptParams] = useState<Parameter[] | null>(null)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
-    const [isLoading, setIsLoading] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
     const [isError, setIsError] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
