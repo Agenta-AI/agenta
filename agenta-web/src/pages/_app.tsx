@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 import type {AppProps} from "next/app"
 import {useRouter} from "next/router"
+import Head from "next/head"
 
 import posthog from "posthog-js"
 import {PostHogProvider} from "posthog-js/react"
@@ -39,16 +40,22 @@ export default function App({Component, pageProps}: AppProps) {
         }
     }, [])
     return (
-        <PostHogProvider client={posthog}>
-            <ThemeContextProvider>
-                <ProfileContextProvider>
-                    <AppContextProvider>
-                        <Layout>
-                            <Component {...pageProps} />
-                        </Layout>
-                    </AppContextProvider>
-                </ProfileContextProvider>
-            </ThemeContextProvider>
-        </PostHogProvider>
+        <>
+            <Head>
+                <title>Agenta: The LLMOps platform.</title>
+                <link rel="shortcut icon" href="/assets/favicon.ico" />
+            </Head>
+            <PostHogProvider client={posthog}>
+                <ThemeContextProvider>
+                    <ProfileContextProvider>
+                        <AppContextProvider>
+                            <Layout>
+                                <Component {...pageProps} />
+                            </Layout>
+                        </AppContextProvider>
+                    </ProfileContextProvider>
+                </ThemeContextProvider>
+            </PostHogProvider>
+        </>
     )
 }

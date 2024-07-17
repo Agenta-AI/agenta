@@ -1,8 +1,8 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
-import {createNewVariant, updateVariantParams} from "@/services/playground/api"
+import {createNewVariant, fetchVariantLogs, updateVariantParams} from "@/services/playground/api"
 
 /**
  * Hook for using the variant.
@@ -21,6 +21,21 @@ export function useVariant(appId: string, variant: Variant) {
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
     const [isChatVariant, setIsChatVariant] = useState<boolean | null>(null)
+    const [isLogsLoading, setIsLogsLoading] = useState(false)
+    const [variantErrorLogs, setVariantErrorLogs] = useState("")
+    const onClickShowLogs = useRef(false)
+
+    const getVariantLogs = async () => {
+        try {
+            setIsLogsLoading(true)
+            const logs = await fetchVariantLogs(variant.variantId)
+            setVariantErrorLogs(logs)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsLogsLoading(false)
+        }
+    }
 
     const fetchParameters = async () => {
         setIsLoading(true)
@@ -35,7 +50,7 @@ export function useVariant(appId: string, variant: Variant) {
             setInputParams(inputs)
             setURIPath(URIPath)
             setIsChatVariant(isChatVariant)
-            setHistoryStatus({loading: false, error: true})
+            setHistoryStatus({loading: false, error: false})
         } catch (error: any) {
             if (error.message !== PERMISSION_ERR_MSG) {
                 console.log(error)
@@ -45,7 +60,6 @@ export function useVariant(appId: string, variant: Variant) {
             }
         } finally {
             setIsLoading(false)
-            setHistoryStatus({loading: false, error: false})
         }
     }
 
@@ -113,6 +127,11 @@ export function useVariant(appId: string, variant: Variant) {
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
+        setIsLogsLoading,
+        onClickShowLogs,
     }
 }
 
