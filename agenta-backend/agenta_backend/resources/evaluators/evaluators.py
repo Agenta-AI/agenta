@@ -92,6 +92,36 @@ evaluators = [
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
     },
     {
+        "name": "JSON Diff Match",
+        "key": "auto_json_diff",
+        "direct_use": False,
+        "description": "JSON Diff evaluator compares two JSON objects to identify differences. It highlights discrepancies, additions, deletions, and modifications between the objects, providing a clear report of how they differ.",
+        "settings_template": {
+            "compare_schema_only": {
+                "label": "Compare Schema Only",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will compare the keys and the values type. Otherwise, we will compare the keys, the values and the values type."
+            },
+            "predict_keys": {
+                "label": "Include prediction keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will check the reference (ground truth) keys. Othwerise, we will check both the reference (ground truth) and prediction (app output) keys."
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        }
+    },
+    {
         "name": "AI Critique",
         "key": "auto_ai_critique",
         "direct_use": False,
