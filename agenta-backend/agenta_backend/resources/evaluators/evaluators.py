@@ -157,7 +157,7 @@ evaluators = [
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
-        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response, in JSON format, indicating the correctness of the answer, along with a 200 HTTP status. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
     },
     {
         "name": "Starts With",
