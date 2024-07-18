@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef, useMemo} from "react"
+import React, {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
@@ -44,10 +44,7 @@ const Playground: React.FC = () => {
             previousRevision: string
         }
     }>("savedRevisions", {})
-    const activeVariant = useMemo(
-        () => variants.find((v) => v.variantName === activeKey),
-        [activeKey],
-    )
+    const activeVariant = variants.find((v) => v.variantName === activeKey)
     const tabID = useRef("")
     const variantProps = useVariant(appId, activeVariant!)
     const {setIsLoading: setIsVariantLoading, setPromptOptParams} = variantProps
@@ -63,7 +60,7 @@ const Playground: React.FC = () => {
                 setRevisionNumber(activeVariant.revision.toString())
             }
         }
-    }, [activeVariant])
+    }, [activeKey])
 
     useEffect(() => {
         if (activeVariant) {
