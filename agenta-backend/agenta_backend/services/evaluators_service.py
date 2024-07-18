@@ -588,7 +588,7 @@ def auto_json_diff(
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
-            ground_truth=json.loads(correct_answer),
+            ground_truth=correct_answer,
             app_output=json.loads(output),
             settings_values=settings_values,
         )
