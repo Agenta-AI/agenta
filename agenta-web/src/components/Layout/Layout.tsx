@@ -2,7 +2,6 @@ import React, {useEffect, useMemo, useState} from "react"
 import {
     Breadcrumb,
     Button,
-    ConfigProvider,
     Dropdown,
     Layout,
     Modal,
@@ -280,7 +279,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             target="_blank"
                                             className={classes.joinBtn}
                                         >
-                                            <img src="/assets/slack.png" alt="Slack Image" />
+                                            <Image src="/assets/slack.png" alt="Slack Image" width={15} height={15} />
                                             <span>Join us</span>
                                         </Button>
                                         <Button

@@ -1,9 +1,9 @@
-import {Tag} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
+import {CheckCircleFilled} from "@ant-design/icons"
 import {StyleProps} from "@/lib/Types"
+import Image from "next/image"
 
 const useStyles = createUseStyles({
     head: {
@@ -95,6 +95,7 @@ const useStyles = createUseStyles({
     },
     img: ({themeMode}: StyleProps) => ({
         width: "100%",
+        height: "auto",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
     steps: ({themeMode}: StyleProps) => ({
@@ -135,7 +136,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <section className={classes.head}>
                     <div className={classes.heading}>
                         <h1>Welcome to Agenta</h1>
-                        <img src="/assets/wave.png" />
+                        <Image src="/assets/wave.png" alt="wave" width={44} height={44} />
                     </div>
                     <h2>The developer-first open source LLMOps platform.</h2>
                 </section>
@@ -149,10 +150,13 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             <h1>Quickstart From a Template</h1>
                         </div>
 
-                        <img
+                        <Image
                             src="/assets/simple-img.png"
                             alt="Simple start Image"
                             className={classes.img}
+                            sizes="100vw"
+                            width={500}
+                            height={300}
                         />
 
                         <ul className={classes.steps}>
@@ -179,10 +183,13 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <h1>Build Complex LLM apps</h1>
                             </div>
 
-                            <img
+                            <Image
                                 src="/assets/complex-img.png"
                                 alt="Complex build Image"
                                 className={classes.img}
+                                sizes="100vw"
+                                width={500}
+                                height={300}
                             />
                         </div>
 

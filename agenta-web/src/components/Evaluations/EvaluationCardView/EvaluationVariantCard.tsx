@@ -54,7 +54,6 @@ const useStyles = createUseStyles({
 type Props = {
     variant: Variant
     outputText?: string
-    outputImg?: string
     index?: number
     showVariantName?: boolean
     evaluation: Evaluation
@@ -63,7 +62,6 @@ type Props = {
 const EvaluationVariantCard: React.FC<Props> = ({
     variant,
     outputText,
-    outputImg,
     index = 0,
     showVariantName = true,
     evaluation,
@@ -92,7 +90,6 @@ const EvaluationVariantCard: React.FC<Props> = ({
                     </Typography.Text>{" "}
                 </>
             )}
-            {outputImg && <img alt="output" src={outputImg} />}
             <Typography.Text className={classes.output} type={outputText ? undefined : "secondary"}>
                 {outputText || <em>Click the "Run" icon to get variant output</em>}
             </Typography.Text>
