@@ -102,14 +102,21 @@ evaluators = [
                 "type": "boolean",
                 "default": False,
                 "advanced": True,
-                "description": "If set to True, we will compare the keys and the values type. Otherwise, we will compare the keys, the values and the values type."
+                "description": "If set to True, we will compare the keys and the values type. Otherwise, we will compare the keys, the values and the values type.",
             },
             "predict_keys": {
                 "label": "Include prediction keys",
                 "type": "boolean",
                 "default": False,
                 "advanced": True,
-                "description": "If set to True, we will check the reference (ground truth) keys. Othwerise, we will check both the reference (ground truth) and prediction (app output) keys."
+                "description": "If set to True, we will check the reference (ground truth) keys. Othwerise, we will check both the reference (ground truth) and prediction (app output) keys.",
+            },
+            "case_insensitive_keys": {
+                "label": "Enable Case-sensitive keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will treat keys as case-insensitive, meaning 'key', 'Key', and 'KEY' would all be considered equivalent. Otherwise, we will not.",
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
@@ -119,7 +126,7 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
-        }
+        },
     },
     {
         "name": "AI Critique",
