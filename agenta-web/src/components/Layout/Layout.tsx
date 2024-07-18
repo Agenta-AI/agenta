@@ -1,14 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {
-    Breadcrumb,
-    Button,
-    Dropdown,
-    Layout,
-    Modal,
-    Space,
-    Tooltip,
-    theme,
-} from "antd"
+import {Breadcrumb, Button, Dropdown, Layout, Modal, Space, Tooltip, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -279,7 +270,12 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             target="_blank"
                                             className={classes.joinBtn}
                                         >
-                                            <Image src="/assets/slack.png" alt="Slack Image" width={15} height={15} />
+                                            <Image
+                                                src="/assets/slack.png"
+                                                alt="Slack Image"
+                                                width={15}
+                                                height={15}
+                                            />
                                             <span>Join us</span>
                                         </Button>
                                         <Button
