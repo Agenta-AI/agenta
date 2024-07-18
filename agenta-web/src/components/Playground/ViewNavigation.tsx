@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
+import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-
 import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
@@ -70,17 +69,24 @@ const ViewNavigation: React.FC<Props> = ({
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
+        setIsLogsLoading,
+        onClickShowLogs,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
-    const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+    const stopperRef = useRef<Function | null>(null)
+    const [isDelayed, setIsDelayed] = useState(false)
+    const hasError = netWorkError || (isDemo() ? netWorkError : isError)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -90,41 +96,89 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     useEffect(() => {
-        if (netWorkError) {
+        if (hasError) {
             retriedOnce.current = true
             setRetrying(true)
-            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
-                .then(() => {
-                    refetch()
+            const startApp = async () => {
+                const {stopper, promise} = await waitForAppToStart({
+                    appId,
+                    variant,
+                    timeout: isDemo() ? 40000 : 10000,
                 })
-                .catch(() => {
-                    showNotification({
-                        type: "error",
-                        message: "Variant unreachable",
-                        description: `Unable to connect to the variant.`,
-                    })
-                })
-                .finally(() => {
-                    setRetrying(false)
-                })
-        }
+                stopperRef.current = stopper
 
-        if (isError) {
-            const getLogs = async () => {
-                const logs = await fetchVariantLogs(variant.variantId)
-                setVariantErrorLogs(logs)
+                promise
+                    .then(() => {
+                        if (!onClickShowLogs.current) {
+                            refetch()
+                        }
+                    })
+                    .catch(() => {
+                        getVariantLogs()
+
+                        showNotification({
+                            type: "error",
+                            message: "Variant unreachable",
+                            description: `Unable to connect to the variant.`,
+                        })
+                    })
+                    .finally(() => {
+                        setRetrying(false)
+                        setIsDelayed(false)
+                    })
             }
-            getLogs()
+            startApp()
         }
     }, [netWorkError, isError, variant.variantId])
 
+    useEffect(() => {
+        if (retrying) {
+            const timeout = setTimeout(
+                () => {
+                    setIsDelayed(true)
+                },
+                isDemo() ? 15000 : 5000,
+            )
+            return () => clearTimeout(timeout)
+        }
+    }, [retrying])
+
+    const handleStopPolling = () => {
+        setIsLogsLoading(true)
+        if (stopperRef.current) {
+            onClickShowLogs.current = true
+            stopperRef.current()
+            getVariantLogs()
+        }
+    }
+
+    if (isLoading)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
+
+    if (isLogsLoading && isError)
+        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <ResultComponent
-                status={"info"}
-                title="Waiting for the variant to start"
-                spinner={retrying}
-            />
+            <>
+                <div className="grid place-items-center">
+                    <ResultComponent
+                        status={"info"}
+                        title="Waiting for the variant to start"
+                        subtitle={isDelayed ? "This is taking longer than expected" : ""}
+                        spinner={retrying}
+                    />
+                    {isDelayed && (
+                        <Button
+                            loading={isLogsLoading}
+                            onClick={() => handleStopPolling()}
+                            type="primary"
+                        >
+                            Show Logs
+                        </Button>
+                    )}
+                </div>
+            </>
         )
     }
 
@@ -245,7 +299,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     return (
-        <Spin spinning={isLoading}>
+        <>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -286,7 +340,7 @@ const ViewNavigation: React.FC<Props> = ({
                     />
                 </Col>
             </Row>
-        </Spin>
+        </>
     )
 }
 

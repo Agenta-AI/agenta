@@ -3,10 +3,7 @@ import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
+import {StyleProps} from "@/lib/Types"
 
 const useStyles = createUseStyles({
     head: {

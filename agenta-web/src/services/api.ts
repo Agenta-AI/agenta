@@ -205,7 +205,10 @@ export const waitForAppToStart = async ({
     variant?: Variant
     timeout?: number
     interval?: number
-}) => {
+}): Promise<{
+    stopper: () => void
+    promise: Promise<void>
+}> => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
         const {stopper, promise} = shortPoll(
@@ -218,6 +221,9 @@ export const waitForAppToStart = async ({
                 ).then(() => stopper()),
             {delayMs: interval, timeoutMs: timeout},
         )
-        await promise
+
+        return {stopper, promise}
+    } else {
+        return {stopper: () => {}, promise: Promise.reject(new Error("Variant not found"))}
     }
 }
