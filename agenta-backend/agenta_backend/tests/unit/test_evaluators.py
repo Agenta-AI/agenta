@@ -179,37 +179,56 @@ def test_auto_contains_json(output, expected):
     "ground_truth, app_output, settings_values, expected_score",
     [
         (
-            {"user": {"name": "John", "details": {"age": 30, "location": "New York"}}},
-            {"user": {"name": "John", "details": {"age": 30, "location": "New York"}}},
+            {
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
+                }
+            },
+            '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}',
             {
                 "predict_keys": True,
                 "compare_schema_only": False,
                 "case_insensitive_keys": False,
+                "correct_answer_key": "correct_answer",
             },
             1.0,
         ),
         (
-            {"user": {"name": "John", "details": {"age": 30, "location": "New York"}}},
             {
-                "user": {
-                    "name": "John",
-                    "details": {"age": "30", "location": "New York"},
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
                 }
             },
+            '{"user": {"name": "John", "details": {"age": "30", "location": "New York"}}}',
             {
                 "predict_keys": True,
                 "compare_schema_only": True,
                 "case_insensitive_keys": False,
+                "correct_answer_key": "correct_answer",
             },
             0.6666666666666666,
         ),
         (
-            {"user": {"name": "John", "details": {"age": 30, "location": "New York"}}},
-            {"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}},
+            {
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
+                }
+            },
+            '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}',
             {
                 "predict_keys": True,
                 "compare_schema_only": False,
                 "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
             },
             0.5,
         ),
