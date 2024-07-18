@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from "react"
+import React, {useState, useEffect, useRef, useMemo} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
@@ -39,15 +39,43 @@ const Playground: React.FC = () => {
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
     const [tabIndex, setTabIndex] = useLocalStorage(`tabIndex_${appId}`, [] as string[])
     const [revisionNumber, setRevisionNumber] = useQueryParam("revision")
-    const activeVariant = variants.find((v) => v.variantName === activeKey)
+    const [savedRevisions, setSavedRevisions] = useLocalStorage<{
+        [key: string]: {
+            previousRevision: string
+        }
+    }>("savedRevisions", {})
+    const activeVariant = useMemo(
+        () => variants.find((v) => v.variantName === activeKey),
+        [activeKey],
+    )
     const tabID = useRef("")
     const variantProps = useVariant(appId, activeVariant!)
     const {setIsLoading: setIsVariantLoading, setPromptOptParams} = variantProps
     const activeVariantKey = activeVariant?.variantId
 
     useEffect(() => {
-        if (activeVariant?.revision) setRevisionNumber(activeVariant.revision.toString())
+        if (activeVariant) {
+            const savedRevision = savedRevisions[activeVariant.variantId]?.previousRevision
+
+            if (savedRevision) {
+                setRevisionNumber(savedRevision)
+            } else {
+                setRevisionNumber(activeVariant.revision.toString())
+            }
+        }
     }, [activeVariant])
+
+    useEffect(() => {
+        if (activeVariant) {
+            setSavedRevisions((prevSavedRevisions) => ({
+                ...prevSavedRevisions,
+                [activeVariant.variantId]: {
+                    ...(prevSavedRevisions[activeVariant.variantId] || {}),
+                    previousRevision: revisionNumber,
+                },
+            }))
+        }
+    }, [revisionNumber])
 
     useEffect(() => {
         if (activeVariantKey) {
