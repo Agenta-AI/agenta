@@ -54,7 +54,7 @@ const Playground: React.FC = () => {
     const activeVariantKey = activeVariant?.variantId
 
     useEffect(() => {
-        if (activeVariant) {
+        if (activeVariant?.revision) {
             const savedRevision = savedRevisions[activeVariant.variantId]?.previousRevision
 
             if (savedRevision) {
