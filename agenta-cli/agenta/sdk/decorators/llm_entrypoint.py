@@ -65,14 +65,25 @@ class PathValidator(BaseModel):
 
 
 class route(BaseDecorator):
+    # TODO:
+    # - Explain with @route(), for backward compatibility due to @entrypoint limitations.
     def __init__(self, path):
+
+        if path != "" and path[0] != "/":
+            path = "/" + path
+
+        while path != "" and path[-1] == "/":
+            path = path[:-1]
+
         PathValidator(url=f"http://localhost:8000{path}")
 
         self.route_path = path
 
     def __call__(self, f):
 
-        return entrypoint(f, route_path=self.route_path)
+        self.e = entrypoint(f, route_path=self.route_path)
+
+        return f
 
 
 class entrypoint(BaseDecorator):
@@ -89,7 +100,9 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __init__(self, func: Callable[..., Any], route_path="/"):
+    routes = list()
+
+    def __init__(self, func: Callable[..., Any], route_path=""):
         endpoint_name = "generate"
         playground_path = "/playground"
         run_path = "/run"
@@ -97,6 +110,7 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        ### --- Playground / Drafts  --- #
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
@@ -116,6 +130,39 @@ class entrypoint(BaseDecorator):
 
             return entrypoint_result
 
+        self.update_function_signature(
+            wrapper, func_signature, config_params, ingestible_files
+        )
+
+        # TODO:
+        # - The whole ag.Config is now required for individual stages.
+        #   Once ag.Config goes from Singleton to Instance, and
+        #   depending on how ag.Config is implemented,
+        #   we need to filter the part of ag.Config that matters to each route.
+
+        if route_path == "":
+            route = f"/{endpoint_name}"
+            app.post(route, response_model=FuncResponse)(wrapper)
+            entrypoint.routes.append(
+                {
+                    "func": func.__name__,
+                    "endpoint": endpoint_name,
+                    "params": {**config_params, **func_signature.parameters},
+                }
+            )
+
+        route = f"{playground_path}{run_path}{route_path}"
+        app.post(route, response_model=FuncResponse)(wrapper)
+        entrypoint.routes.append(
+            {
+                "func": func.__name__,
+                "endpoint": route[1:].replace("/", "_"),
+                "params": {**config_params, **func_signature.parameters},
+            }
+        )
+        ### ---------------------------- #
+
+        ### --- Deployed / Published --- #
         @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -141,37 +188,6 @@ class entrypoint(BaseDecorator):
 
             return entrypoint_result
 
-        self.update_function_signature(
-            wrapper, func_signature, config_params, ingestible_files
-        )
-
-        # TODO:
-        # - The whole ag.Config is now required for individual stages.
-        #   Once ag.Config goes from Singleton to Instance, and
-        #   depending on how ag.Config is implemented,
-        #   we need to filter the part of ag.Config that matters to each route.
-
-        if route_path == "/":
-            route = f"/{endpoint_name}"
-            app.post(route, response_model=FuncResponse)(wrapper)
-
-            self.override_schema(
-                openapi_schema=app.openapi(),
-                func_name=func.__name__,
-                endpoint=route[1:].replace("/", "_"),
-                params={**config_params, **func_signature.parameters},
-            )
-
-        route = f"{playground_path}{run_path}{route_path}"
-        app.post(route, response_model=FuncResponse)(wrapper)
-
-        self.override_schema(
-            openapi_schema=app.openapi(),
-            func_name=func.__name__,
-            endpoint=route[1:].replace("/", "_"),
-            params={**config_params, **func_signature.parameters},
-        )
-
         self.update_deployed_function_signature(
             wrapper_deployed,
             func_signature,
@@ -184,8 +200,20 @@ class entrypoint(BaseDecorator):
 
         route_deployed = f"{run_path}{route_path}"
         app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
+        ### ---------------------------- #
 
-        if self.is_main_script(func):
+        app.openapi_schema = None
+        openapi_schema = app.openapi()
+
+        for route in entrypoint.routes:
+            self.override_schema(
+                openapi_schema=openapi_schema,
+                func=route["func"],
+                endpoint=route["endpoint"],
+                params=route["params"],
+            )
+
+        if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
@@ -484,7 +512,7 @@ class entrypoint(BaseDecorator):
         )
 
     def override_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
+        self, openapi_schema: dict, func: str, endpoint: str, params: dict
     ):
         """
         Overrides the default openai schema generated by fastapi with additional information about:
@@ -499,7 +527,7 @@ class entrypoint(BaseDecorator):
 
         Args:
             openapi_schema (dict): The openapi schema generated by fastapi
-            func_name (str): The name of the function to override
+            func (str): The name of the function to override
             endpoint (str): The name of the endpoint to override
             params (dict(param_name, param_val)): The dictionary of the parameters for the function
         """
@@ -532,7 +560,7 @@ class entrypoint(BaseDecorator):
                     return value
 
         schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_{endpoint}_post"
+            f"Body_{func}_{endpoint}_post"
         ]["properties"]
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):
