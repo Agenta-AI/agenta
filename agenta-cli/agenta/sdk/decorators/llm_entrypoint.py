@@ -58,7 +58,7 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-class route:
+class route(BaseDecorator):
     def __init__(self, path):
         PathValidator(url=f"http://localhost:8000{path}")
 
@@ -103,11 +103,11 @@ class entrypoint(BaseDecorator):
             )
 
             # Exceptions are all handled inside self.execute_function()
-            llm_result = await self.execute_function(
+            entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
 
-            return llm_result
+            return entrypoint_result
 
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -127,10 +127,10 @@ class entrypoint(BaseDecorator):
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
-            llm_result = await self.execute_function(
+            entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
-            return llm_result
+            return entrypoint_result
 
         self.update_function_signature(
             wrapper, func_signature, config_params, ingestible_files
@@ -140,8 +140,22 @@ class entrypoint(BaseDecorator):
             route = f"/{endpoint_name}"
             app.post(route, response_model=FuncResponse)(wrapper)
 
+            self.override_schema(
+                openapi_schema=app.openapi(),
+                func_name=func.__name__,
+                endpoint=route[1:].replace("/", "_"),
+                params={**config_params, **func_signature.parameters},
+            )
+
         route = f"{playground_path}{run_path}{route_path}"
         app.post(route, response_model=FuncResponse)(wrapper)
+
+        self.override_schema(
+            openapi_schema=app.openapi(),
+            func_name=func.__name__,
+            endpoint=route[1:].replace("/", "_"),
+            params={**config_params, **func_signature.parameters},
+        )
 
         self.update_deployed_function_signature(
             wrapper_deployed,
@@ -155,13 +169,6 @@ class entrypoint(BaseDecorator):
 
         route_deployed = f"{run_path}{route_path}"
         app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
-
-        self.override_schema(
-            openapi_schema=app.openapi(),
-            func_name=func.__name__,
-            endpoint=endpoint_name,
-            params={**config_params, **func_signature.parameters},
-        )
 
         if self.is_main_script(func):
             self.handle_terminal_run(
@@ -219,37 +226,42 @@ class entrypoint(BaseDecorator):
             it awaits their execution.
             """
             is_coroutine_function = inspect.iscoroutinefunction(func)
+
             start_time = time.perf_counter()
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
                 result = func(*args, **func_params["params"])
-
             end_time = time.perf_counter()
-            latency = end_time - start_time
+
+            latency = round(end_time - start_time, 4)
 
             if isinstance(result, Context):
                 save_context(result)
+
+            message = ""
+            cost = None
+            usage = None
+
             if isinstance(result, Dict):
-                return FuncResponse(**result, latency=round(latency, 4))
+                message = result["message"]
+                cost = result["cost"]
+                usage = result["usage"]
+
             if isinstance(result, str):
-                return FuncResponse(
-                    message=result, usage=None, cost=None, latency=round(latency, 4)
-                )
+                message = result
+
             if isinstance(result, int) or isinstance(result, float):
-                return FuncResponse(
-                    message=str(result),
-                    usage=None,
-                    cost=None,
-                    latency=round(latency, 4),
-                )
+                message = str(result)
+
             if result is None:
-                return FuncResponse(
-                    message="Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
-                    usage=None,
-                    cost=None,
-                    latency=round(latency, 4),
+                message = (
+                    "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
+
+            return FuncResponse(
+                message=message, usage=usage, cost=cost, latency=latency
+            )
         except Exception as e:
             self.handle_exception(e)
         return FuncResponse(message="Unexpected error occurred when calling the @entrypoint decorated function", latency=0)  # type: ignore
