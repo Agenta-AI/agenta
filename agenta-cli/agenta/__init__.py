@@ -14,6 +14,7 @@ from .sdk.types import (
     BinaryParam,
 )
 
+from .sdk.tracing.logger import llm_logger as logging
 from .sdk.tracing.llm_tracing import Tracing
 from .sdk.decorators.tracing import instrument
 from .sdk.decorators.llm_entrypoint import entrypoint, app

@@ -79,6 +79,10 @@ def isOss():
     return os.environ["FEATURE_FLAG"] == "oss"
 
 
+def isLocal():
+    return os.environ["FEATURE_FLAG"] in ["oss", "cloud-dev"]
+
+
 def capture_exception_in_sentry(e: Exception):
     if isCloudProd():
         capture_exception(e)

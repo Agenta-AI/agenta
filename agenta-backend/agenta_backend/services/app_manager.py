@@ -27,6 +27,7 @@ from agenta_backend.utils.common import (
     isCloudProd,
     isCloudDev,
     isCloudEE,
+    isLocal,
 )
 
 if isCloudProd():
@@ -100,6 +101,14 @@ async def start_variant(
                 "AGENTA_HOST": domain_name,
             }
         )
+
+        if isLocal():
+            env_vars.update(
+                {
+                    "AGENTA_LOCAL": True,
+                }
+            )
+
         if isCloudEE():
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid),
@@ -163,9 +172,9 @@ async def update_variant_image(
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=str(app_variant_db.organization_id)
-        if isCloudEE()
-        else None,  # noqa
+        organization=(
+            str(app_variant_db.organization_id) if isCloudEE() else None
+        ),  # noqa
         workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,  # noqa
     )
     # Update base with new image
