@@ -86,6 +86,7 @@ class instrument(BaseDecorator):
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
+                        self.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))
@@ -107,6 +108,7 @@ class instrument(BaseDecorator):
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
+                        self.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))
@@ -131,7 +133,7 @@ class instrument(BaseDecorator):
 
                 # logging.debug(" ".join([">>.", str(tracing_context.get())]))
 
-                span = self.tracing.start_span(
+                self.tracing.start_span(
                     name=func.__name__,
                     input=input_dict,
                     spankind=self.spankind,
@@ -153,6 +155,7 @@ class instrument(BaseDecorator):
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
+                        self.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))
@@ -175,6 +178,7 @@ class instrument(BaseDecorator):
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
+                        self.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))

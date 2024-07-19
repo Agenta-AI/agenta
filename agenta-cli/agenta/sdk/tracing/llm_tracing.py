@@ -326,10 +326,7 @@ class Tracing(metaclass=SingletonMeta):
 
         active_span_parent_id = tracing.active_span.parent_span_id
 
-        if active_span_parent_id is None:
-            self.end_trace(parent_span=tracing.active_span)
-
-        else:
+        if active_span_parent_id is not None:
             parent_span = tracing.tracked_spans[active_span_parent_id]
             self._update_span_cost(parent_span, tracing.active_span.cost)
             self._update_span_tokens(parent_span, tracing.active_span.tokens)
@@ -337,6 +334,9 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- <<<
 
         logging.info(f"Closed  span  {span_id} {spankind}")
+
+    def flush_spans(self) -> None:
+        self.close_trace()
 
     ### --- Legacy API --- ###
 
