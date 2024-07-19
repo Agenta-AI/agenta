@@ -565,7 +565,7 @@ def compare_jsons(
 
         key_score = 0.0
         if ground_truth_value and llm_app_output_value:
-            key_score += diff(
+            key_score = diff(
                 {key: ground_truth_value},
                 {key: llm_app_output_value},
                 compare_schema_only,
