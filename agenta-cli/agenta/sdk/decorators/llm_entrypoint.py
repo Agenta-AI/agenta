@@ -35,6 +35,8 @@ from agenta.sdk.types import (
     BinaryParam,
 )
 
+from pydantic import BaseModel, HttpUrl
+
 app = FastAPI()
 
 origins = [
@@ -52,6 +54,21 @@ app.add_middleware(
 app.include_router(router, prefix="")
 
 
+class PathValidator(BaseModel):
+    url: HttpUrl
+
+
+class route:
+    def __init__(self, path):
+        PathValidator(url=f"http://localhost:8000{path}")
+
+        self.route_path = path
+
+    def __call__(self, f):
+
+        return entrypoint(f, route_path=self.route_path)
+
+
 class entrypoint(BaseDecorator):
     """Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
@@ -66,8 +83,10 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __init__(self, func: Callable[..., Any]):
+    def __init__(self, func: Callable[..., Any], route_path="/"):
         endpoint_name = "generate"
+        playground_path = "/playground"
+        run_path = "/run"
         func_signature = inspect.signature(func)
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
@@ -116,7 +135,12 @@ class entrypoint(BaseDecorator):
         self.update_function_signature(
             wrapper, func_signature, config_params, ingestible_files
         )
-        route = f"/{endpoint_name}"
+
+        if route_path == "/":
+            route = f"/{endpoint_name}"
+            app.post(route, response_model=FuncResponse)(wrapper)
+
+        route = f"{playground_path}{run_path}{route_path}"
         app.post(route, response_model=FuncResponse)(wrapper)
 
         self.update_deployed_function_signature(
@@ -124,8 +148,14 @@ class entrypoint(BaseDecorator):
             func_signature,
             ingestible_files,
         )
-        route_deployed = f"/{endpoint_name}_deployed"
+
+        if route_path == "/":
+            route_deployed = f"/{endpoint_name}_deployed"
+            app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
+
+        route_deployed = f"{run_path}{route_path}"
         app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
+
         self.override_schema(
             openapi_schema=app.openapi(),
             func_name=func.__name__,
