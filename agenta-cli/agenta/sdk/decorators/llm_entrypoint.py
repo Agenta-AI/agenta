@@ -18,6 +18,7 @@ from fastapi import Body, FastAPI, UploadFile, HTTPException
 import agenta
 from agenta.sdk.context import save_context
 from agenta.sdk.router import router as router
+from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.sdk.decorators.base import BaseDecorator
 from agenta.sdk.types import (
@@ -52,6 +53,11 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="")
+
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
+
+
+logging.setLevel("DEBUG")
 
 
 class PathValidator(BaseModel):
@@ -91,6 +97,7 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
@@ -98,7 +105,7 @@ class entrypoint(BaseDecorator):
             agenta.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
 
@@ -109,6 +116,7 @@ class entrypoint(BaseDecorator):
 
             return entrypoint_result
 
+        @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
@@ -123,13 +131,14 @@ class entrypoint(BaseDecorator):
                 agenta.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
             entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
+
             return entrypoint_result
 
         self.update_function_signature(
@@ -234,6 +243,7 @@ class entrypoint(BaseDecorator):
             is_coroutine_function = inspect.iscoroutinefunction(func)
 
             start_time = time.perf_counter()
+
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
@@ -458,7 +468,7 @@ class entrypoint(BaseDecorator):
         agenta.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        agenta.tracing.set_span_attribute(
+        agenta.tracing.update_baggage(
             {"config": agenta.config.all(), "environment": "bash"}
         )
 
