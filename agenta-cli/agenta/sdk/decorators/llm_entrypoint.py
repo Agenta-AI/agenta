@@ -136,6 +136,12 @@ class entrypoint(BaseDecorator):
             wrapper, func_signature, config_params, ingestible_files
         )
 
+        # TODO:
+        # - The whole ag.Config is now required for individual stages.
+        #   Once ag.Config goes from Singleton to Instance, and
+        #   depending on how ag.Config is implemented,
+        #   we need to filter the part of ag.Config that matters to each route.
+
         if route_path == "/":
             route = f"/{endpoint_name}"
             app.post(route, response_model=FuncResponse)(wrapper)
