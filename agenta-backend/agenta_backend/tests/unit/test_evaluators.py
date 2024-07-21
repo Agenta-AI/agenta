@@ -8,6 +8,7 @@ from agenta_backend.services.evaluators_service import (
     auto_contains_any,
     auto_contains_all,
     auto_contains_json,
+    auto_json_diff,
 )
 
 
@@ -172,6 +173,70 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
 def test_auto_contains_json(output, expected):
     result = auto_contains_json({}, output, {}, {}, {}, {})
     assert result.value == expected
+
+
+@pytest.mark.parametrize(
+    "ground_truth, app_output, settings_values, expected_score",
+    [
+        (
+            {
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
+                }
+            },
+            '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}',
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": False,
+                "correct_answer_key": "correct_answer",
+            },
+            1.0,
+        ),
+        (
+            {
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
+                }
+            },
+            '{"user": {"name": "John", "details": {"age": "30", "location": "New York"}}}',
+            {
+                "predict_keys": True,
+                "compare_schema_only": True,
+                "case_insensitive_keys": False,
+                "correct_answer_key": "correct_answer",
+            },
+            0.6666666666666666,
+        ),
+        (
+            {
+                "correct_answer": {
+                    "user": {
+                        "name": "John",
+                        "details": {"age": 30, "location": "New York"},
+                    }
+                }
+            },
+            '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}',
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
+            },
+            0.5,
+        ),
+    ],
+)
+def test_auto_json_diff(ground_truth, app_output, settings_values, expected_score):
+    result = auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
+    assert result.value == expected_score
 
 
 @pytest.mark.parametrize(

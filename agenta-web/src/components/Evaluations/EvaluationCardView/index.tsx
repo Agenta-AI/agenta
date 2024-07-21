@@ -4,8 +4,6 @@ import {
     LeftOutlined,
     LoadingOutlined,
     PlayCircleOutlined,
-    PushpinFilled,
-    PushpinOutlined,
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
@@ -18,7 +16,6 @@ import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestin
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import {safeParse} from "@/lib/helpers/utils"
 import {debounce} from "lodash"
 import {EvaluationType} from "@/lib/enums"
 import ParamsForm from "@/components/Playground/ParamsForm/ParamsForm"
