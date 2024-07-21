@@ -126,7 +126,7 @@ def evaluate(
         deployment_db = loop.run_until_complete(
             get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
-        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri)  # type: ignore
+        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri, app_container_id=deployment_db.container_id)  # type: ignore
 
         # 2. Initialize vars
         evaluators_aggregated_data = {

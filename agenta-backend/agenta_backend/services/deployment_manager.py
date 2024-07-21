@@ -1,6 +1,6 @@
-import logging
 import os
-from typing import Dict
+import logging
+from typing import Dict, Optional
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.api_models import Image
@@ -147,5 +147,34 @@ async def validate_image(image: Image) -> bool:
     return True
 
 
-def get_deployment_uri(uri: str) -> str:
+def get_deployment_uri(uri: str, app_container_id: str) -> str:
+    """
+    Replaces localhost with the appropriate hostname in the given URI.
+
+    Args:
+        uri (str): The URI to be processed.
+        app_container_id (str): The ID of the app container
+
+    Returns:
+        str: The processed URI.
+    """
+
+    if (
+        os.environ.get("USE_LLM_APP_CONTAINER_ID", False)
+        and app_container_id is not None
+    ):
+        # NOTE: For whoever reads this code block
+        # -----------------------------------------
+        # This block of code is used when running evaluations using the GitHub Compose (docker-compose.gh.yml).
+        # 1. host.docker.internal does not work on all platforms (Windows, Linux, and Mac).
+        #    The issue is that trying to reach the LLM app container from the host.docker.internal does not work from within the Celery worker container.
+        #    This is strange as it works using the dev and prod compose files. :/
+        # 2. I am attaching the following resources for when someone (or I, @abram) will invest more time to figure out a much better solution.
+        #    Resources:
+        #    - https://forums.docker.com/t/how-to-reach-localhost-on-host-from-docker-container/113321/4
+        #    - https://stackoverflow.com/questions/70725881/what-is-the-equivalent-of-add-host-host-docker-internalhost-gateway-in-a-comp
+        # 3. The return code in this block will enable the LLM app container to be reachable from within the Celery worker container when using the GitHub Compose file.
+
+        return f"http://{app_container_id[:12]}"
+
     return uri.replace("http://localhost", "http://host.docker.internal")
