@@ -111,6 +111,7 @@ services:
             - REDIS_URL=redis://redis:6379/0
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - USE_LLM_APP_CONTAINER_ID=true
             - FEATURE_FLAG=oss
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
