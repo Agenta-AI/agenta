@@ -8,7 +8,6 @@ from typing import Any, Dict, Union
 import httpx
 import numpy as np
 from openai import OpenAI, AsyncOpenAI
-from scipy.spatial.distance import cosine
 from numpy._core._multiarray_umath import array
 
 from agenta_backend.services.security import sandbox
@@ -728,7 +727,7 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
         return np.array(response.data[0].embedding)
 
     def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
-        return 1 - cosine(output_vector, correct_answer_vector)
+        return np.dot(output_vector, correct_answer_vector)
 
     output_vector = await encode(output)
     correct_answer_vector = await encode(correct_answer)
