@@ -42,7 +42,6 @@ sqlalchemy-json = "^0.7.0"
 tqdm = "^4.66.4"
 langchain-community = "^0.2.9"
 numpy = "1.26.3"
-scipy = "1.13.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
