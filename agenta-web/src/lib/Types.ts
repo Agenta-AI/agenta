@@ -489,3 +489,7 @@ export type PaginationQuery = {
     page: number
     pageSize: number
 }
+
+export type StyleProps = {
+    themeMode: "dark" | "light"
+}

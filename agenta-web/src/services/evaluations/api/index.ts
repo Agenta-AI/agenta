@@ -41,6 +41,7 @@ const evaluatorIconsMap = {
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
+    auto_json_diff: bracketCurlyImg,
     auto_contains_json: bracketCurlyImg,
 }
 
