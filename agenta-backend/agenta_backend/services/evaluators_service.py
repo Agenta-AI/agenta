@@ -732,7 +732,8 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
 
     output_vector = await encode(output)
     correct_answer_vector = await encode(correct_answer)
-    return cosine_similarity(output_vector, correct_answer_vector)
+    similarity_score = cosine_similarity(output_vector, correct_answer_vector)
+    return similarity_score
 
 
 def auto_semantic_similarity(
@@ -744,9 +745,11 @@ def auto_semantic_similarity(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
+        loop = asyncio.get_event_loop()
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
         correct_answer = get_correct_answer(data_point, settings_values)
-        score = asyncio.run(
+
+        score = loop.run_until_complete(
             semantic_similarity(
                 output=output, correct_answer=correct_answer, api_key=openai_api_key
             )
