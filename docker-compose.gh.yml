@@ -17,7 +17,6 @@ services:
         environment:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
-            - ENVIRONMENT=production
             - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
