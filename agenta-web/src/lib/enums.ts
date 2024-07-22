@@ -18,4 +18,5 @@ export enum EvaluationType {
     single_model_test = "single_model_test",
     field_match_test = "field_match_test",
     auto_json_diff = "auto_json_diff",
+    auto_semantic_similarity = "auto_semantic_similarity",
 }
