@@ -329,14 +329,17 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Closed  span  {span_id} {spankind}")
 
-    def dump_spans(self, root_tree=None, root_key='', to_dict=True):
+    def dump_spans(self, root_tree=None):
         spans = dict()
         count = dict()
 
         try:
             tracing = tracing_context.get()
 
+            root = False 
+
             if root_tree is None:
+                root = True
                 root_tree = tracing.tree
 
                 spans["trace_id"] = tracing.trace_id
@@ -349,16 +352,24 @@ class Tracing(metaclass=SingletonMeta):
                 id, children = root_tree.popitem(last=False)
 
                 key = tracing.spans[id].name
-                # key = tracing.spans[id].attributes["block"]
+                #key = tracing.spans[id].attributes["block"] if "block" in tracing.spans[id].attributes else tracing.spans[id].name
 
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
                     "end_time": tracing.spans[id].end_time.isoformat(),
-                    "config": tracing.spans[id].config, # Where do we get the prompt ?
                     "inputs": tracing.spans[id].inputs,
                     "outputs": tracing.spans[id].outputs,
-                    "attributes": {k.replace("user.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("user.")},
+                    "locals": {k.replace("user.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("user.")},
                 }
+
+                if root is True:
+                    spans.update(**{
+                        "cost": tracing.spans[id].cost,
+                        "tokens": tracing.spans[id].tokens,
+                        "latency" : (tracing.spans[id].end_time-tracing.spans[id].start_time).total_seconds()
+                    })
+
+                span.update(**self.dump_spans(children))
                 
                 if count[key] > 1:
                     if key not in spans:
@@ -367,8 +378,6 @@ class Tracing(metaclass=SingletonMeta):
                     spans[key].append(span)
                 else:
                     spans[key] = span
-                
-                spans.update(**self.dump_spans(children, root_key=key, to_dict=False))
 
         except Exception as e:
             logging.error(e)

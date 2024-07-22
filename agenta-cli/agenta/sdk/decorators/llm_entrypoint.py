@@ -278,14 +278,10 @@ class entrypoint(BaseDecorator):
 
             is_coroutine_function = inspect.iscoroutinefunction(func)
 
-            start_time = time.perf_counter()
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
                 result = func(*args, **func_params["params"])
-            end_time = time.perf_counter()
-
-            latency = round(end_time - start_time, 4)
 
             if token is not None:
                 # check that it doesn't affect the tracing.tree
