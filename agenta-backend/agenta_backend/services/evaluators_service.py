@@ -1,11 +1,15 @@
 import re
 import json
 import logging
+import asyncio
 import traceback
 from typing import Any, Dict, Union
 
 import httpx
-from openai import OpenAI
+import numpy as np
+from openai import OpenAI, AsyncOpenAI
+from scipy.spatial.distance import cosine
+from numpy._core._multiarray_umath import array
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
@@ -704,6 +708,61 @@ def auto_similarity_match(
         )
 
 
+async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
+    """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
+
+    Args:
+        output (str): the output text
+        correct_answer (str): the correct answer text
+
+    Returns:
+        float: the semantic similarity score
+    """
+
+    openai = AsyncOpenAI(api_key=api_key)
+
+    async def encode(text: str):
+        response = await openai.embeddings.create(
+            model="text-embedding-3-small", input=text
+        )
+        return np.array(response.data[0].embedding)
+
+    def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
+        return 1 - cosine(output_vector, correct_answer_vector)
+
+    output_vector = await encode(output)
+    correct_answer_vector = await encode(correct_answer)
+    return cosine_similarity(output_vector, correct_answer_vector)
+
+
+def auto_semantic_similarity(
+    inputs: Dict[str, Any],
+    output: str,
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+        correct_answer = get_correct_answer(data_point, settings_values)
+        score = asyncio.run(
+            semantic_similarity(
+                output=output, correct_answer=correct_answer, api_key=openai_api_key
+            )
+        )
+        return Result(type="number", value=score)
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Semantic Similarity",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
 EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
@@ -718,6 +777,7 @@ EVALUATOR_FUNCTIONS = {
     "auto_contains_all": auto_contains_all,
     "auto_contains_json": auto_contains_json,
     "auto_json_diff": auto_json_diff,
+    "auto_semantic_similarity": auto_semantic_similarity,
     "auto_levenshtein_distance": auto_levenshtein_distance,
     "auto_similarity_match": auto_similarity_match,
 }
