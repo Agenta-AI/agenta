@@ -38,11 +38,11 @@ class instrument(BaseDecorator):
     """
 
     def __init__(
-        self, config: Optional[dict] = None, spankind: str = "workflow"
+        self, config: Optional[dict] = None, spankind: str = "workflow", block : Optional[str] = None
     ) -> None:
         self.config = config
         self.spankind = spankind
-        self.tracing = ag.tracing
+        self.block = block if block is not None else spankind
 
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = inspect.iscoroutinefunction(func)
@@ -50,70 +50,61 @@ class instrument(BaseDecorator):
         @debug()
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            result = None
             func_args = inspect.getfullargspec(func).args
             input_dict = {name: value for name, value in zip(func_args, args)}
             input_dict.update(kwargs)
 
             async def wrapped_func(*args, **kwargs):
-                # logging.debug(" ".join([">..", str(tracing_context.get())]))
-
                 token = None
+
                 if tracing_context.get() is None:
                     token = tracing_context.set(TracingContext())
 
-                # logging.debug(" ".join([">>.", str(tracing_context.get())]))
-
-                self.tracing.start_span(
+                ag.tracing.start_span(
                     name=func.__name__,
                     input=input_dict,
                     spankind=self.spankind,
                     config=self.config,
-                )
+                ) # missing attributes on creation
+                ag.tracing.set_attributes({"block": self.block})
+
+                result = None
+                error = None
 
                 try:
                     result = await func(*args, **kwargs)
-
-                    self.tracing.set_status(status="OK")
-                    self.tracing.end_span(
-                        outputs=(
-                            {"message": result}
-                            if not isinstance(result, dict)
-                            else result
-                        )
-                    )
-
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
-
-                    if token is not None:
-                        self.tracing.flush_spans()
-                        tracing_context.reset(token)
-
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
-
-                    return result
-
                 except Exception as e:
+                    logging.error(e)
+
                     result = {
                         "message": str(e),
                         "stacktrace": traceback.format_exc(),
                     }
+                    error = e
 
-                    self.tracing.set_attributes(
+                if error:
+                    # This will evolve as be work towards OTel compliance
+                    ag.tracing.set_attributes(
                         {"traceback_exception": traceback.format_exc()}
                     )
-                    self.tracing.set_status(status="ERROR")
-                    self.tracing.end_span(outputs=result)
+                    ag.tracing.set_status(status="ERROR")
 
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
+                # This will evolve as we work on the CreateSpan schema
+                ag.tracing.end_span(outputs=(
+                    { "message": result }
+                    if not isinstance(result, dict)
+                    else result
+                ))
 
-                    if token is not None:
-                        self.tracing.flush_spans()
-                        tracing_context.reset(token)
+                if token is not None:
+                    # This only runs when using @instrument without @entrypoint/@route
+                    ag.tracing.flush_spans()
+                    tracing_context.reset(token)
 
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
-
-                    raise e
+                if error:
+                    raise error
+                
+                return result
 
             return await wrapped_func(*args, **kwargs)
 
@@ -133,7 +124,7 @@ class instrument(BaseDecorator):
 
                 # logging.debug(" ".join([">>.", str(tracing_context.get())]))
 
-                self.tracing.start_span(
+                ag.tracing.start_span(
                     name=func.__name__,
                     input=input_dict,
                     spankind=self.spankind,
@@ -143,8 +134,8 @@ class instrument(BaseDecorator):
                 try:
                     result = func(*args, **kwargs)
 
-                    self.tracing.set_status(status="OK")
-                    self.tracing.end_span(
+                    ag.tracing.set_status(status="OK")
+                    ag.tracing.end_span(
                         outputs=(
                             {"message": result}
                             if not isinstance(result, dict)
@@ -155,7 +146,7 @@ class instrument(BaseDecorator):
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
-                        self.tracing.flush_spans()
+                        ag.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))
@@ -168,17 +159,17 @@ class instrument(BaseDecorator):
                         "stacktrace": traceback.format_exc(),
                     }
 
-                    self.tracing.set_attributes(
+                    ag.tracing.set_attributes(
                         {"traceback_exception": traceback.format_exc()}
                     )
 
-                    self.tracing.set_status(status="ERROR")
-                    self.tracing.end_span(outputs=result)
+                    ag.tracing.set_status(status="ERROR")
+                    ag.tracing.end_span(outputs=result)
 
                     # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
 
                     if token is not None:
-                        self.tracing.flush_spans()
+                        ag.tracing.flush_spans()
                         tracing_context.reset(token)
 
                     # logging.debug(" ".join(["<..", str(tracing_context.get())]))

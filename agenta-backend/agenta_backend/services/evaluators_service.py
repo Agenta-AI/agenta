@@ -586,6 +586,23 @@ def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
+        # WHERE DO WE GET THE 'trace' FROM, IN HERE ?
+        # => comes from 'outputs'
+        # output: Union[str, Dict[str, Any]]
+
+        #question_key = get_user_key_from_settings(settings_values, "question_key")
+        #answer_key = get_user_key_from_settings(settings_values, "answer_key")
+        #contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+
+        #question_value = get_field_value_from_trace(trace, question_key)
+        #answer_value = get_field_value_from_trace(trace, answer_key)
+        #contexts_value = get_field_value_from_trace(trace, contexts_key)
+
+        # HOW DO WE PASS 'question'/'answer'/'contexts'/... TO THE EVALUATOR ?
+        # => goes into 'inputs'
+
+        # def faithfulness (question, answer, contexts) -> score
+        
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
             ground_truth=correct_answer,
