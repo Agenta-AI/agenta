@@ -594,7 +594,7 @@ async def create_app_and_variant_from_template(
 
             envvars = {**(payload.env_vars or {})}
             for key in supported_llm_prodviders_keys:
-                if os.environ.get(key):
+                if not envvars.get(key):
                     envvars[key] = os.environ[key]
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
