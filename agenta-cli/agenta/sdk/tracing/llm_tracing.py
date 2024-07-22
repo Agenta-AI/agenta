@@ -1,6 +1,7 @@
 import os
 from uuid import uuid4
 
+import traceback
 from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -177,11 +178,7 @@ class Tracing(metaclass=SingletonMeta):
         if not self.api_key:
             logging.error("No API key")
         else:
-            self._process_closed_spans()
-
-        self._clear_closed_spans()
-        self._clear_tracked_spans()
-        self._clear_active_span()
+            self._process_spans()
 
         self._clear_trace_tags()
 
@@ -224,12 +221,11 @@ class Tracing(metaclass=SingletonMeta):
         )
 
         if tracing.trace_id is None:
-            self.start_trace(span, config)
+            self.open_trace(span, config)
         else:
             span.parent_span_id = tracing.active_span.id  # type: ignore
 
-        tracing.tracked_spans[span.id] = span
-        tracing.active_span = span
+        tracing.push(span)
         ### --- TO BE CLEANED --- <<<
 
         logging.info(f"Opened  span  {span_id} {spankind.upper()}")
@@ -313,7 +309,7 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- >>>
         tracing.active_span.end_time = datetime.now(timezone.utc)
 
-        tracing.active_span.outputs = [outputs.get("message", "")]
+        tracing.active_span.outputs = outputs
 
         if tracing.active_span.spankind.upper() in [
             "LLM",
@@ -322,18 +318,63 @@ class Tracing(metaclass=SingletonMeta):
             self._update_span_cost(tracing.active_span, outputs.get("cost", None))
             self._update_span_tokens(tracing.active_span, outputs.get("usage", None))
 
-        tracing.closed_spans.append(tracing.active_span)
-
         active_span_parent_id = tracing.active_span.parent_span_id
 
         if active_span_parent_id is not None:
-            parent_span = tracing.tracked_spans[active_span_parent_id]
+            parent_span = tracing.spans[active_span_parent_id]
             self._update_span_cost(parent_span, tracing.active_span.cost)
             self._update_span_tokens(parent_span, tracing.active_span.tokens)
             tracing.active_span = parent_span
         ### --- TO BE CLEANED --- <<<
 
         logging.info(f"Closed  span  {span_id} {spankind}")
+
+    def dump_spans(self, root_tree=None, root_key='', to_dict=True):
+        spans = dict()
+        count = dict()
+
+        try:
+            tracing = tracing_context.get()
+
+            if root_tree is None:
+                root_tree = tracing.tree
+
+                spans["trace_id"] = tracing.trace_id
+
+            for idx in root_tree.keys():
+                key = tracing.spans[idx].name
+                count[key] = count.get(key, 0) + 1
+
+            while len(root_tree.keys()):
+                id, children = root_tree.popitem(last=False)
+
+                key = tracing.spans[id].name
+                # key = tracing.spans[id].attributes["block"]
+
+                span = {
+                    "start_time": tracing.spans[id].start_time.isoformat(),
+                    "end_time": tracing.spans[id].end_time.isoformat(),
+                    "config": tracing.spans[id].config, # Where do we get the prompt ?
+                    "inputs": tracing.spans[id].inputs,
+                    "outputs": tracing.spans[id].outputs,
+                    "attributes": {k.replace("user.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("user.")},
+                }
+                
+                if count[key] > 1:
+                    if key not in spans:
+                        spans[key] = list()
+
+                    spans[key].append(span)
+                else:
+                    spans[key] = span
+                
+                spans.update(**self.dump_spans(children, root_key=key, to_dict=False))
+
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+
+        return spans
 
     def flush_spans(self) -> None:
         self.close_trace()
@@ -400,45 +441,24 @@ class Tracing(metaclass=SingletonMeta):
         # return uuid4().hex[:16]
         return str(ObjectId())
 
-    def _process_closed_spans(self) -> None:
+    def _process_spans(self) -> None:
         tracing = tracing_context.get()
+        
+        spans = list(tracing.spans.values())
 
-        logging.info(f"Sending spans {tracing.trace_id} #={len(tracing.closed_spans)} ")
-
-        # async def mock_create_traces(trace, spans):
-        #    print("trace-id", trace)
-        #    print("spans", spans)
+        logging.info(f"Sending trace {tracing.trace_id} spans={len(spans)} ")
 
         self.tasks_manager.add_task(
             tracing.trace_id,
-            "trace",
+            "send-trace",
             # mock_create_traces(
             self.client.create_traces(
-                trace=tracing.trace_id, spans=tracing.closed_spans  # type: ignore
+                trace=tracing.trace_id, spans=spans  # type: ignore
             ),
             self.client,
         )
 
-        logging.info(f"Sent    spans {tracing.trace_id} #={len(tracing.closed_spans)}")
-
-    def _clear_closed_spans(self) -> None:
-        tracing = tracing_context.get()
-
-        tracing.closed_spans.clear()
-
-    def _clear_tracked_spans(self) -> None:
-        tracing = tracing_context.get()
-
-        tracing.tracked_spans.clear()
-
-    def _clear_active_span(self) -> None:
-        tracing = tracing_context.get()
-
-        span_id = tracing.active_span.id
-
-        tracing.active_span = None
-
-        logging.debug(f"Cleared active span {span_id}")
+        logging.info(f"Sent    trace {tracing.trace_id}")
 
     def _update_span_cost(self, span: CreateSpan, cost: Optional[float]) -> None:
         if span is not None and cost is not None and isinstance(cost, float):

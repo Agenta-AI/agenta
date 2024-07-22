@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import json
 import inspect
 import argparse
 import asyncio
@@ -15,11 +16,11 @@ from typing import Any, Callable, Dict, Optional, Tuple, List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
-import agenta
+import agenta as ag
 from agenta.sdk.context import save_context
 from agenta.sdk.router import router as router
 from agenta.sdk.tracing.logger import llm_logger as logging
-from agenta.sdk.tracing.llm_tracing import Tracing
+from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.decorators.base import BaseDecorator
 from agenta.sdk.types import (
     Context,
@@ -32,7 +33,7 @@ from agenta.sdk.types import (
     TextParam,
     MessagesInput,
     FileInputURL,
-    FuncResponse,
+    BaseResponse,
     BinaryParam,
 )
 
@@ -107,7 +108,7 @@ class entrypoint(BaseDecorator):
         playground_path = "/playground"
         run_path = "/run"
         func_signature = inspect.signature(func)
-        config_params = agenta.config.all()
+        config_params = ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
         ### --- Playground / Drafts  --- #
@@ -116,10 +117,10 @@ class entrypoint(BaseDecorator):
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
-            agenta.config.set(**api_config_params)
+            ag.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.update_baggage(
+            ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
 
@@ -142,7 +143,7 @@ class entrypoint(BaseDecorator):
 
         if route_path == "":
             route = f"/{endpoint_name}"
-            app.post(route, response_model=FuncResponse)(wrapper)
+            app.post(route, response_model=BaseResponse)(wrapper)
             entrypoint.routes.append(
                 {
                     "func": func.__name__,
@@ -152,7 +153,7 @@ class entrypoint(BaseDecorator):
             )
 
         route = f"{playground_path}{run_path}{route_path}"
-        app.post(route, response_model=FuncResponse)(wrapper)
+        app.post(route, response_model=BaseResponse)(wrapper)
         entrypoint.routes.append(
             {
                 "func": func.__name__,
@@ -171,14 +172,14 @@ class entrypoint(BaseDecorator):
             }
 
             if "environment" in kwargs and kwargs["environment"] is not None:
-                agenta.config.pull(environment_name=kwargs["environment"])
+                ag.config.pull(environment_name=kwargs["environment"])
             elif "config" in kwargs and kwargs["config"] is not None:
-                agenta.config.pull(config_name=kwargs["config"])
+                ag.config.pull(config_name=kwargs["config"])
             else:
-                agenta.config.pull(config_name="default")
+                ag.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.update_baggage(
+            ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
@@ -196,10 +197,10 @@ class entrypoint(BaseDecorator):
 
         if route_path == "/":
             route_deployed = f"/{endpoint_name}_deployed"
-            app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
+            app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
         route_deployed = f"{run_path}{route_path}"
-        app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
+        app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
         ### ---------------------------- #
 
         app.openapi_schema = None
@@ -268,10 +269,16 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            data = None
+            trace = None
+
+            token = None
+            if tracing_context.get() is None:
+                token = tracing_context.set(TracingContext())
+
             is_coroutine_function = inspect.iscoroutinefunction(func)
 
             start_time = time.perf_counter()
-
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
@@ -280,44 +287,213 @@ class entrypoint(BaseDecorator):
 
             latency = round(end_time - start_time, 4)
 
+            if token is not None:
+                # check that it doesn't affect the tracing.tree
+                trace = ag.tracing.dump_spans()
+
+                tracing = tracing_context.get()
+                from copy import deepcopy
+
+                print("---")
+                [print(key, "\n", trace[key]) for key in trace]
+                print("---")
+
+                print(tracing)
+                #trace = deepcopy(tracing.tree)
+                #ag.tracing.flush_spans()
+
+                '''
+                > class CreateSpan(pydantic.BaseModel):
+                    x id: str
+                    x app_id: typing.Optional[str]
+                    x variant_id: typing.Optional[str]
+                    x variant_name: typing.Optional[str]
+                    - inputs: typing.Optional[typing.Dict[str, typing.Any]]
+                    - outputs: typing.Optional[typing.List[str]]
+                    - config: typing.Optional[typing.Dict[str, typing.Any]]
+                    x environment: typing.Optional[str]
+                    x tags: typing.Optional[typing.List[str]]
+                    x token_consumption: typing.Optional[int]
+                    . name: str
+                    x parent_span_id: typing.Optional[str]
+                    . attributes: typing.Optional[typing.Dict[str, typing.Any]]
+                    x spankind: str
+                    x status: str
+                    x user: typing.Optional[str]
+                    - start_time: dt.datetime
+                    - end_time: typing.Optional[dt.datetime]
+                    - tokens: typing.Optional[LlmTokens]
+                    - cost: typing.Optional[float]
+
+                > class entrypoint():
+                    - latency
+
+                < Evaluation (aggregation/statistics)
+                    - cost
+                    - latency
+
+                < Playground (display)
+                    - cost
+                    - tokens
+                    - latency
+                    - each start/end
+
+                < Evaluators (execution)
+                    - identifier (name/block)
+                    - config
+                    - inputs
+                    - outputs
+                '''
+
+
+                # Pros
+                # - easy data fetch since user key is a direct trace dict key
+                # Cons
+                # - we're loosing ordering information (for display purposes mostly)
+                #   solution : turn this into a flat list ?
+                # - harder to extend to more information in trace dict
+
+                {
+                    "rag.inputs.topic": None,
+                    "rag.inputs.genre": None,
+                    "rag.inputs.count": None,
+                    "rag.config.prompt": None,
+                    "rag.outputs.report": None,
+                    "rag.retriever.inputs.topic": None,
+                    "rag.retriever.inputs.genre": None,
+                    "rag.retriever.inputs.count": None,
+                    "rag.retriever.config.prompt": None,
+                    "rag.retriever.outputs.movies": None,
+                    "rag.generator.inputs.movies": None,
+                    "rag.generator.outputs.report": None,
+                    "rag.summarizer[0].inputs.report": None,
+                    "rag.summarizer[0].outputs.report": None,
+                    "rag.summarizer[1].inputs.report": None,
+                    "rag.summarizer[1].outputs.report": None,
+                }
+
+                # Pros
+                # - we have access to ordering
+                # - easy to extend to more information in trace dict
+                # Cons
+                # - harder to fetch since user key must be used to traverse the trace dict
+                #   solution : get_field_from_key(trace_dict, user_key) ?
+                # - the user could fetch unwanted trace dict keys
+                #   solution : we hide/filter forbidden keys upon traversal 
+
+                {
+                    "trace_id": None,
+                    "cost": None,
+                    "tokens": None,
+                    "latency": None,
+                    "rag" :{
+                        "start_time" : None,
+                        "end_time" : None,
+                        "config": {
+                            "prompt" : None
+                        },
+                        "inputs": {
+                            "topic": None,
+                            "genre": None,
+                            "count": None,
+                        },
+                        "outputs": {
+                            "report": None
+                        },
+                        "retriever": {
+                            "start_time" : None,
+                            "end_time" : None,
+                            "inputs": {
+                                "topic": None,
+                                "genre": None,
+                                "count": None,
+                            },
+                            "config": {
+                                "prompt" : None
+                            },
+                            "outputs": {
+                                "movies": None
+                            }
+                        },
+                        "generator": {
+                            "start_time" : None,
+                            "end_time" : None,
+                            "inputs": {
+                                "movies": None,
+                            },
+                            "outputs": {
+                                "report": None
+                            }
+                        },
+                        "summarizer": [
+                            {
+                                "start_time" : None,
+                                "end_time" : None,
+                                "inputs": {
+                                    "report": None,
+                                },
+                                "outputs": {
+                                    "report": None
+                                }
+                            },
+                            {
+                                "start_time" : None,
+                                "end_time" : None,
+                                "inputs": {
+                                    "report": None,
+                                },
+                                "outputs": {
+                                    "report": None
+                                }
+                            },
+                        ]
+                    }
+
+                }
+
+                tracing_context.reset(token)
+
             if isinstance(result, Context):
                 save_context(result)
 
-            message = ""
-            cost = None
-            usage = None
-
             if isinstance(result, Dict):
-                message = result["message"]
-                cost = result["cost"]
-                usage = result["usage"]
+                if "message" in result:
+                    data = { "message": result["message"] }
+                elif "data" in result:
+                    data = result["data"]
+            elif isinstance(result, str):
+                data = { "message": result }
+            elif isinstance(result, int) or isinstance(result, float):
+                data = { "message": str(result) }
 
-            if isinstance(result, str):
-                message = result
-
-            if isinstance(result, int) or isinstance(result, float):
-                message = str(result)
-
-            if result is None:
-                message = (
+            if data is None:
+                warning = (
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
 
-            return FuncResponse(
-                message=message, usage=usage, cost=cost, latency=latency
-            )
+                data = { "message": warning }
+
+            return BaseResponse(data=data, trace=trace)
+        
         except Exception as e:
             self.handle_exception(e)
-        return FuncResponse(message="Unexpected error occurred when calling the @entrypoint decorated function", latency=0)  # type: ignore
 
     def handle_exception(self, e: Exception):
-        """Handle exceptions."""
+        try:
+            status_code = e.status_code if hasattr(e, "status_code") else 500
+            message = str(e)
+            stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+        
+        except:
+            status_code = 500
+            message = "Unexpected error occurred when calling @entrypoint or @route.",
+            stacktrace = traceback.format_exc()
 
-        status_code: int = e.status_code if hasattr(e, "status_code") else 500
-        traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+        detail = { "message": message, "stacktrace": stacktrace }
+        
         raise HTTPException(
             status_code=status_code,
-            detail={"error": str(e), "traceback": "".join(traceback_str)},
+            detail=detail,
         )
 
     def update_wrapper_signature(
@@ -493,23 +669,28 @@ class entrypoint(BaseDecorator):
                 file_path=args_func_params[name],
             )
 
-        agenta.config.set(**args_config_params)
+        ag.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        agenta.tracing.update_baggage(
-            {"config": agenta.config.all(), "environment": "bash"}
+        ag.tracing.update_baggage(
+            {"config": ag.config.all(), "environment": "bash"}
         )
 
         loop = asyncio.get_event_loop()
+
         result = loop.run_until_complete(
             self.execute_function(
                 func,
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
-        print(
-            f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
-        )
+        
+        print(f"\n========== Result ==========\n")
+
+        print("--- data")
+        print(json.dumps(result.data, indent=2))
+        print("--- trace")
+        print(json.dumps(result.trace, indent=2))
 
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict

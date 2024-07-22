@@ -105,8 +105,7 @@ class TaskQueue(object):
                 future = self._thread_pool.submit(asyncio.run, task.run())
                 future.result()
             except Exception as exc:
-                self._logger.error(f"Error running task: {str(exc)}")
-                self._logger.error(f"Recording {task.coroutine_type} status to ERROR.")
+                self._logger.error(f"Task '{task.coroutine_type}' failed with error: {str(exc)}")
                 break
             finally:
                 self.tasks.task_done()
