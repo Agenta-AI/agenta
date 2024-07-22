@@ -91,6 +91,8 @@ const AppCard: React.FC<{
         } catch (error) {
             console.error(error)
         } finally {
+            // remove variant tabs position index from LS
+            localStorage.removeItem(`tabIndex_${app.app_id}`)
             setVisibleDelete(false)
             setConfirmLoading(false)
         }
