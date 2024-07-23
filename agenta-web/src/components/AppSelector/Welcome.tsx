@@ -157,6 +157,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             sizes="100vw"
                             width={500}
                             height={300}
+                            priority
                         />
 
                         <ul className={classes.steps}>
@@ -190,6 +191,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 sizes="100vw"
                                 width={500}
                                 height={300}
+                                priority
                             />
                         </div>
 
