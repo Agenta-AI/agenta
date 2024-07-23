@@ -81,7 +81,7 @@ def start_container(
         }
 
         # Merge the default labels with environment-specific labels
-        if os.environ["ENVIRONMENT"] == "production":
+        if os.environ.get("ENVIRONMENT") == "production":
             # Production specific labels
             production_labels = {
                 f"traefik.http.routers.{container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{uri_path}`)",
