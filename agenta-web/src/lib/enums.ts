@@ -19,4 +19,6 @@ export enum EvaluationType {
     field_match_test = "field_match_test",
     rag_faithfulness = "rag_faithfulness",
     rag_context_relevancy = "rag_context_relevancy",
+    auto_json_diff = "auto_json_diff",
+    auto_semantic_similarity = "auto_semantic_similarity",
 }
