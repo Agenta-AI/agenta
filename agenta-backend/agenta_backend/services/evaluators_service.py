@@ -42,7 +42,7 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def get_trace_value_from_key(trace: Dict[str, Any], key: str) -> Dict[str, Any]:
+def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any]:
     """
     Retrieve the value of the key from the trace data.
 
@@ -100,19 +100,11 @@ def get_user_key_from_settings(settings_values: Dict[str, Any], user_key: str) -
         user_key (str): The key to access from the settings values.
 
     Returns:
-        Any: The value of the specified key from the settings values.
-
-    Raises:
-        ValueError: If the key is not found or its value is empty.
+        str | None: The value of the specified key from the settings values, or None if a KeyError is encountered.
     """
 
-    user_key_value = settings_values.get(user_key, {}).get("default")
-    if not user_key_value:
-        raise ValueError(
-            f"{user_key} field not found or its value is empty in the settings_values dict."
-        )
-
-    return user_key_value
+    user_key = settings_values.get(user_key, {}).get("default", None)
+    return user_key
 
 
 def auto_exact_match(
@@ -571,9 +563,14 @@ def rag_faithfulness(
             )
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(trace, question_key)
-        answer_value = get_field_value_from_trace(trace, answer_key)
-        contexts_value = get_field_value_from_trace(trace, contexts_key)
+        question_value = get_field_value_from_trace(output, question_key)
+        answer_value = get_field_value_from_trace(output, answer_key)
+        contexts_value = get_field_value_from_trace(output, contexts_key)
+
+        if None in [question_value, answer_value, contexts_value]:
+            raise ValueError(
+                "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
+            )
 
         # Initialize RAG evaluator to calculate faithfulness score
         loop = asyncio.get_event_loop()
@@ -615,14 +612,18 @@ def rag_context_relevancy(
             )
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(trace, question_key)
-        answer_value = get_field_value_from_trace(trace, answer_key)
-        contexts_value = get_field_value_from_trace(trace, contexts_key)
+        question_value = get_field_value_from_trace(output, question_key)
+        answer_value = get_field_value_from_trace(output, answer_key)
+        contexts_value = get_field_value_from_trace(output, contexts_key)
+
+        if None in [question_value, answer_value, contexts_value]:
+            raise ValueError(
+                "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
+            )
 
         # Initialize RAG evaluator to calculate context relevancy score
         loop = asyncio.get_event_loop()
         context_rel = ContextRelevancy()
-        correct_answer = get_correct_answer(data_point, settings_values)
         eval_score = loop.run_until_complete(
             context_rel._run_eval_async(
                 output=answer_value, input=question_value, context=contexts_value
