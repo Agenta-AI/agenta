@@ -2,6 +2,7 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Evaluation, Variant, StyleProps} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
+import Image from "next/image"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
 
@@ -54,6 +55,7 @@ const useStyles = createUseStyles({
 type Props = {
     variant: Variant
     outputText?: string
+    outputImg?: string
     index?: number
     showVariantName?: boolean
     evaluation: Evaluation
@@ -62,6 +64,7 @@ type Props = {
 const EvaluationVariantCard: React.FC<Props> = ({
     variant,
     outputText,
+    outputImg,
     index = 0,
     showVariantName = true,
     evaluation,
@@ -90,6 +93,7 @@ const EvaluationVariantCard: React.FC<Props> = ({
                     </Typography.Text>{" "}
                 </>
             )}
+            {outputImg && <Image alt="output" src={outputImg} width={300} height={300} />}
             <Typography.Text className={classes.output} type={outputText ? undefined : "secondary"}>
                 {outputText || <em>Click the "Run" icon to get variant output</em>}
             </Typography.Text>

@@ -24,6 +24,9 @@ const nextConfig = {
         "@ant-design/icons-svg",
     ],
     swcMinify: true,
+    images: {
+        remotePatterns: [{hostname: "fps.cdnpk.net"}],
+    },
 
     async redirects() {
         return [
