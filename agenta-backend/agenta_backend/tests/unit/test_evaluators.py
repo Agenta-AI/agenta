@@ -1,3 +1,4 @@
+import os
 import pytest
 
 from agenta_backend.services.evaluators_service import (
@@ -9,6 +10,7 @@ from agenta_backend.services.evaluators_service import (
     auto_contains_all,
     auto_contains_json,
     auto_json_diff,
+    auto_semantic_similarity,
 )
 
 
@@ -237,6 +239,49 @@ def test_auto_contains_json(output, expected):
 def test_auto_json_diff(ground_truth, app_output, settings_values, expected_score):
     result = auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
     assert result.value == expected_score
+
+
+@pytest.mark.parametrize(
+    "ground_truth, app_output, settings_values, expected_score",
+    [
+        (
+            {"correct_answer": "The capital of Kiribati is Tarawa."},
+            "The capital of Kiribati is South Tarawa.",
+            {
+                "correct_answer_key": "correct_answer",
+            },
+            0.929,
+        ),
+        (
+            {"correct_answer": "The capital of Tuvalu is Funafuti."},
+            "The capital of Tuvalu is Funafuti.",
+            {
+                "correct_answer_key": "correct_answer",
+            },
+            1,
+        ),
+        (
+            {"correct_answer": "The capital of Kyrgyzstan is Bishkek."},
+            "Yaren District.",
+            {
+                "correct_answer_key": "correct_answer",
+            },
+            0.205,
+        ),
+    ],
+)
+def test_auto_semantic_similarity_match(
+    ground_truth, app_output, settings_values, expected_score
+):
+    result = auto_semantic_similarity(
+        {},
+        app_output,
+        ground_truth,
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+    )
+    assert round(result.value, 3) == expected_score
 
 
 @pytest.mark.parametrize(

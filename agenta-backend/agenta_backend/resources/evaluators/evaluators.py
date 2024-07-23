@@ -48,6 +48,22 @@ evaluators = [
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
     },
     {
+        "name": "Semantic Similarity Match",
+        "key": "auto_semantic_similarity",
+        "direct_use": False,
+        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+    },
+    {
         "name": "Regex Test",
         "key": "auto_regex_test",
         "direct_use": False,
