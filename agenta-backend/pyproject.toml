@@ -40,6 +40,7 @@ psycopg2-binary = "^2.9.9"
 uuid-utils = "^0.7.0"
 sqlalchemy-json = "^0.7.0"
 tqdm = "^4.66.4"
+autoevals = "^0.0.80"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
