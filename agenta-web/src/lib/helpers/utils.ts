@@ -335,6 +335,7 @@ export const encryptText = (data: string) => {
         const encryptedKey = CryptoJS.AES.encrypt(data, ENCRYPTION_KEY).toString()
         return encryptedKey
     } catch (error) {
+        console.error(error)
         return data
     }
 }
@@ -347,6 +348,7 @@ export const decryptText = (encryptedKey: string) => {
         const originalKey = bytes.toString(CryptoJS.enc.Utf8)
         return originalKey
     } catch (error) {
+        console.error(error)
         return encryptedKey
     }
 }

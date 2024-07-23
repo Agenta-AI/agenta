@@ -75,14 +75,15 @@ export const getAllProviderLlmKeys = () => {
     }
     return providers
 }
+
 export const getAllDecryptedProviderLlmKeys = () => {
     const providers = getAllProviderLlmKeys()
-    return providers.map((provider) => {
-        if (provider.key) {
-            provider.key = decryptText(provider.key)
-        }
-        return provider
-    })
+    const decryptedKeys = providers.reduce((acc, curr) => {
+        acc.push({...curr, key: decryptText(curr.key) || curr.key})
+        return acc
+    }, [] as LlmProvider[])
+
+    return decryptedKeys
 }
 
 export const removeSingleLlmProviderKey = (providerName: string) => {
