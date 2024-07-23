@@ -1,9 +1,12 @@
 import os
+from uuid import uuid4
+
 from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
-from agenta.sdk.tracing.logger import llm_logger
+from agenta.sdk.tracing.tracing_context import tracing_context
+from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncAgentaApi
 from agenta.client.backend.client import AsyncObservabilityClient
@@ -15,8 +18,12 @@ from agenta.client.backend.types.create_span import (
 
 from bson.objectid import ObjectId
 
-
 VARIANT_TRACKING_FEATURE_FLAG = False
+
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
+
+
+logging.setLevel("DEBUG")
 
 
 class SingletonMeta(type):
@@ -54,7 +61,6 @@ class Tracing(metaclass=SingletonMeta):
         host (str): The URL of the backend host
         api_key (str): The API Key of the backend host
         tasks_manager (TaskQueue): The tasks manager dedicated to handling asynchronous tasks
-        llm_logger (Logger): The logger associated with the LLM tracing
         max_workers (int): The maximum number of workers to run tracing
     """
 
@@ -67,19 +73,11 @@ class Tracing(metaclass=SingletonMeta):
     ):
         self.host = host + "/api"
         self.api_key = api_key if api_key is not None else ""
-        self.llm_logger = llm_logger
         self.app_id = app_id
         self.tasks_manager = TaskQueue(
-            max_workers if max_workers else 4, logger=llm_logger
+            max_workers if max_workers else 4, logger=logging
         )
-        self.active_span: Optional[CreateSpan] = None
-        self.active_trace_id: Optional[str] = None
-        self.pending_spans: List[CreateSpan] = []
-        self.tags: List[str] = []
-        self.trace_config_cache: Dict[
-            str, Any
-        ] = {}  # used to save the trace configuration before starting the first span
-        self.span_dict: Dict[str, CreateSpan] = {}  # type: ignore
+        self.baggage = None
 
     @property
     def client(self) -> AsyncObservabilityClient:
@@ -93,30 +91,104 @@ class Tracing(metaclass=SingletonMeta):
             base_url=self.host, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
 
-    def set_span_attribute(
+    ### --- API --- ###
+
+    @debug()
+    def get_context(self):
+        tracing = tracing_context.get()
+
+        return tracing
+
+    @debug()
+    def update_baggage(
         self,
         attributes: Dict[str, Any] = {},
     ):
+        if self.baggage is None:
+            self.baggage = {}
+
+        for key, value in attributes.items():
+            self.baggage[key] = value
+
+    @debug()
+    def open_trace(
+        self,
+        span: Optional[CreateSpan],
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
+        tracing = tracing_context.get()
+
+        tracing.trace_id = self._create_trace_id()
+
+        logging.info(f"Opening trace {tracing.trace_id}")
+
+        if span is not None:
+            ### --- TO BE CLEANED --- >>>
+            span.environment = (
+                self.baggage.get("environment")
+                if self.baggage is not None
+                else os.environ.get("environment", "unset")
+            )
+
+            span.config = (
+                self.baggage.get("config")
+                if not config and self.baggage is not None
+                else None
+            )
+            if VARIANT_TRACKING_FEATURE_FLAG:
+                # TODO: we should get the variant_id and variant_name (and environment) from the config object
+                span.variant_id = config.variant_id  # type: ignore
+                span.variant_name = (config.variant_name,)  # type: ignore
+            ### --- TO BE CLEANED --- <<<
+
+        logging.info(f"Opened  trace {tracing.trace_id}")
+
+    @debug()
+    def set_trace_tags(self, tags: List[str]) -> None:
+        tracing = tracing_context.get()
+
+        tracing.trace_tags.extend(tags)
+
+    @debug()
+    def close_trace(self) -> None:
         """
-        Set attributes for the active span.
+        Ends the active trace and sends the recorded spans for processing.
 
         Args:
-            attributes (Dict[str, Any], optional): A dictionary of attributes to set. Defaults to {}.
+            parent_span (CreateSpan): The parent span of the trace.
+
+        Raises:
+            RuntimeError: If there is no active trace to end.
+
+        Returns:
+            None
         """
+        tracing = tracing_context.get()
 
-        if (
-            self.active_span is None
-        ):  # This is the case where entrypoint wants to save the trace information but the parent span has not been initialized yet
-            for key, value in attributes.items():
-                self.trace_config_cache[key] = value
+        logging.info(f"Closing trace {tracing.trace_id}")
+
+        trace_id = tracing.trace_id
+
+        if tracing.trace_id is None:
+            logging.error("Cannot close trace, no trace to close")
+            return
+
+        if not self.api_key:
+            logging.error("No API key")
         else:
-            for key, value in attributes.items():
-                self.active_span.attributes[key] = value  # type: ignore
+            self._process_closed_spans()
 
-    def set_trace_tags(self, tags: List[str]):
-        self.tags.extend(tags)
+        self._clear_closed_spans()
+        self._clear_tracked_spans()
+        self._clear_active_span()
 
-    def start_span(
+        self._clear_trace_tags()
+
+        logging.info(f"Closed  trace {trace_id}")
+
+    @debug()
+    def open_span(
         self,
         name: str,
         spankind: str,
@@ -124,10 +196,13 @@ class Tracing(metaclass=SingletonMeta):
         config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> CreateSpan:
+        tracing = tracing_context.get()
+
         span_id = self._create_span_id()
-        self.llm_logger.info(
-            f"Recording {'parent' if spankind == 'workflow' else spankind} span..."
-        )
+
+        logging.info(f"Opening span  {span_id} {spankind.upper()}")
+
+        ### --- TO BE CLEANED --- >>>
         span = CreateSpan(
             id=span_id,
             inputs=input,
@@ -148,54 +223,66 @@ class Tracing(metaclass=SingletonMeta):
             parent_span_id=None,
         )
 
-        if self.active_trace_id is None:  # This is a parent span
-            self.active_trace_id = self._create_trace_id()
-            span.environment = (
-                self.trace_config_cache.get("environment")
-                if self.trace_config_cache is not None
-                else os.environ.get("environment", "unset")
-            )
-            span.config = (
-                self.trace_config_cache.get("config")
-                if not config and self.trace_config_cache is not None
-                else None
-            )
-            if VARIANT_TRACKING_FEATURE_FLAG:
-                # TODO: we should get the variant_id and variant_name (and environment) from the config object
-                span.variant_id = config.variant_id  # type: ignore
-                span.variant_name = (config.variant_name,)  # type: ignore
-
+        if tracing.trace_id is None:
+            self.start_trace(span, config)
         else:
-            span.parent_span_id = self.active_span.id  # type: ignore
+            span.parent_span_id = tracing.active_span.id  # type: ignore
 
-        self.span_dict[span.id] = span
-        self.active_span = span
+        tracing.tracked_spans[span.id] = span
+        tracing.active_span = span
+        ### --- TO BE CLEANED --- <<<
 
-        self.llm_logger.info(f"Recorded span and setting parent_span_id: {span.id}")
+        logging.info(f"Opened  span  {span_id} {spankind.upper()}")
+
         return span
 
-    def update_span_status(self, span: CreateSpan, value: str):
-        span.status = value
+    @debug(req=True)
+    def set_attributes(
+        self,
+        attributes: Dict[str, Any] = {},
+    ) -> None:
+        """
+        Set attributes for the active span.
 
-    def _update_span_cost(self, span: CreateSpan, cost: Optional[float]):
-        if cost is not None and isinstance(cost, float):
-            if span.cost is None:
-                span.cost = cost
-            else:
-                span.cost += cost
+        Args:
+            attributes (Dict[str, Any], optional): A dictionary of attributes to set. Defaults to {}.
+        """
 
-    def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]):
-        if isinstance(tokens, LlmTokens):
-            tokens = tokens.dict()
-        if tokens is not None and isinstance(tokens, dict):
-            if span.tokens is None:
-                span.tokens = LlmTokens(**tokens)
-            else:
-                span.tokens.prompt_tokens += tokens["prompt_tokens"]
-                span.tokens.completion_tokens += tokens["completion_tokens"]
-                span.tokens.total_tokens += tokens["total_tokens"]
+        tracing = tracing_context.get()
 
-    def end_span(self, outputs: Dict[str, Any]):
+        if tracing.active_span is None:
+            logging.error(f"Cannot set attributes ({set(attributes)}), no active span")
+            return
+
+        logging.info(
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} attributes={attributes}"
+        )
+
+        for key, value in attributes.items():
+            tracing.active_span.attributes[key] = value  # type: ignore
+
+    @debug()
+    def set_status(self, status: str) -> None:
+        """
+        Set status for the active span.
+
+        Args:
+            status: Enum ( UNSET, OK, ERROR )
+        """
+        tracing = tracing_context.get()
+
+        if tracing.active_span is None:
+            logging.error(f"Cannot set status ({status}), no active span")
+            return
+
+        logging.info(
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} status={status}"
+        )
+
+        tracing.active_span.status = status
+
+    @debug()
+    def close_span(self, outputs: Dict[str, Any]) -> None:
         """
         Ends the active span, if it is a parent span, ends the trace too.
 
@@ -213,123 +300,160 @@ class Tracing(metaclass=SingletonMeta):
             None
         """
 
-        if self.active_span is None:
-            raise ValueError("There is no active span to end.")
+        tracing = tracing_context.get()
 
-        self.active_span.end_time = datetime.now(timezone.utc)
-        self.active_span.outputs = [outputs.get("message", "")]
-        if self.active_span.spankind in [
+        if tracing.active_span is None:
+            logging.error("Cannot close span, no active span")
+
+        span_id = tracing.active_span.id
+        spankind = tracing.active_span.spankind
+
+        logging.info(f"Closing span  {span_id} {spankind}")
+
+        ### --- TO BE CLEANED --- >>>
+        tracing.active_span.end_time = datetime.now(timezone.utc)
+
+        tracing.active_span.outputs = [outputs.get("message", "")]
+
+        if tracing.active_span.spankind.upper() in [
             "LLM",
             "RETRIEVER",
         ]:  # TODO: Remove this whole part. Setting the cost should be done through set_span_attribute
-            self._update_span_cost(self.active_span, outputs.get("cost", None))
-            self._update_span_tokens(self.active_span, outputs.get("usage", None))
+            self._update_span_cost(tracing.active_span, outputs.get("cost", None))
+            self._update_span_tokens(tracing.active_span, outputs.get("usage", None))
 
-        # Push span to list of recorded spans
-        self.pending_spans.append(self.active_span)
+        tracing.closed_spans.append(tracing.active_span)
 
-        active_span_parent_id = self.active_span.parent_span_id
-        if (
-            self.active_span.status == SpanStatusCode.ERROR.value
-            and active_span_parent_id is not None
-        ):
-            self.record_exception_and_end_trace(span_parent_id=active_span_parent_id)
+        active_span_parent_id = tracing.active_span.parent_span_id
 
         if active_span_parent_id is None:
-            self.end_trace(parent_span=self.active_span)
+            self.end_trace(parent_span=tracing.active_span)
 
         else:
-            parent_span = self.span_dict[active_span_parent_id]
-            self._update_span_cost(parent_span, self.active_span.cost)
-            self._update_span_tokens(parent_span, self.active_span.tokens)
-            self.active_span = parent_span
+            parent_span = tracing.tracked_spans[active_span_parent_id]
+            self._update_span_cost(parent_span, tracing.active_span.cost)
+            self._update_span_tokens(parent_span, tracing.active_span.tokens)
+            tracing.active_span = parent_span
+        ### --- TO BE CLEANED --- <<<
 
-    def record_exception_and_end_trace(self, span_parent_id: str):
-        """
-        Record an exception and end the trace.
+        logging.info(f"Closed  span  {span_id} {spankind}")
 
-        Args:
-            span_parent_id (str): The ID of the parent span.
+    ### --- Legacy API --- ###
 
-        Returns:
-            None
-        """
+    def start_trace(
+        self,
+        span: CreateSpan,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:  # Legacy
+        self.open_trace(span, config, **kwargs)
 
-        parent_span = self.span_dict.get(span_parent_id)
-        if parent_span is not None:
-            # Update parent span of active span
-            parent_span.outputs = self.active_span.outputs  # type: ignore
-            parent_span.status = "ERROR"
-            parent_span.end_time = datetime.now(timezone.utc)
+    def end_trace(self, parent_span: CreateSpan) -> None:  # Legacy
+        self.close_trace()
 
-            # Push parent span to list of recorded spans and end trace
-            self.pending_spans.append(parent_span)
-            self.end_trace(parent_span=parent_span)
+    def start_span(
+        self,
+        name: str,
+        spankind: str,
+        input: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> CreateSpan:  # Legacy
+        return self.open_span(name, spankind, input, config, **kwargs)
 
-        # TODO: improve exception logic here.
+    def update_span_status(self, _: CreateSpan, status: str) -> None:  # Legacy
+        self.update_span_status(status)
 
-    def end_trace(self, parent_span: CreateSpan):
-        """
-        Ends the active trace and sends the recorded spans for processing.
+    def set_span_attribute(
+        self,
+        attributes: Dict[str, Any] = {},
+    ) -> None:  # Legacy
+        self.set_attributes(attributes)
 
-        Args:
-            parent_span (CreateSpan): The parent span of the trace.
+    def end_span(self, outputs: Dict[str, Any]) -> None:  # Legacy
+        self.close_span(outputs)
 
-        Raises:
-            RuntimeError: If there is no active trace to end.
-
-        Returns:
-            None
-        """
-
-        if self.api_key == "":
-            return
-
-        if not self.active_trace_id:
-            raise RuntimeError("No active trace to end.")
-
-        self.llm_logger.info("Preparing to send recorded spans for processing.")
-        self.llm_logger.info(f"Recorded spans => {len(self.pending_spans)}")
-        self.tasks_manager.add_task(
-            self.active_trace_id,
-            "trace",
-            self.client.create_traces(
-                trace=self.active_trace_id, spans=self.pending_spans  # type: ignore
-            ),
-            self.client,
-        )
-        self.llm_logger.info(
-            f"Tracing for {parent_span.id} recorded successfully and sent for processing."
-        )
-        self._clear_pending_spans()
-        self.active_trace_id = None
-        self.active_span = None
-        self.trace_config_cache.clear()
+    ### --- Helper Functions --- ###
 
     def _create_trace_id(self) -> str:
-        """Creates a unique mongo id for the trace object.
+        """Creates a 32HEXDIGL / ObjectId ID for the trace object.
 
         Returns:
             str: stringify oid of the trace
         """
 
+        # return uuid4().hex
         return str(ObjectId())
 
+    def _clear_trace_tags(self) -> None:
+        tracing = tracing_context.get()
+
+        tracing.trace_tags.clear()
+
     def _create_span_id(self) -> str:
-        """Creates a unique mongo id for the span object.
+        """Creates a  16HEXDIGL / ObjectId ID for the span object.
 
         Returns:
             str: stringify oid of the span
         """
 
+        # return uuid4().hex[:16]
         return str(ObjectId())
 
-    def _clear_pending_spans(self) -> None:
-        """
-        Clear the list of recorded spans to prepare for next batch processing.
-        """
+    def _process_closed_spans(self) -> None:
+        tracing = tracing_context.get()
 
-        self.pending_spans = []
-        self.llm_logger.info(
-            f"Cleared all recorded spans from batch: {self.pending_spans}"
+        logging.info(f"Sending spans {tracing.trace_id} #={len(tracing.closed_spans)} ")
+
+        # async def mock_create_traces(trace, spans):
+        #    print("trace-id", trace)
+        #    print("spans", spans)
+
+        self.tasks_manager.add_task(
+            tracing.trace_id,
+            "trace",
+            # mock_create_traces(
+            self.client.create_traces(
+                trace=tracing.trace_id, spans=tracing.closed_spans  # type: ignore
+            ),
+            self.client,
         )
+
+        logging.info(f"Sent    spans {tracing.trace_id} #={len(tracing.closed_spans)}")
+
+    def _clear_closed_spans(self) -> None:
+        tracing = tracing_context.get()
+
+        tracing.closed_spans.clear()
+
+    def _clear_tracked_spans(self) -> None:
+        tracing = tracing_context.get()
+
+        tracing.tracked_spans.clear()
+
+    def _clear_active_span(self) -> None:
+        tracing = tracing_context.get()
+
+        span_id = tracing.active_span.id
+
+        tracing.active_span = None
+
+        logging.debug(f"Cleared active span {span_id}")
+
+    def _update_span_cost(self, span: CreateSpan, cost: Optional[float]) -> None:
+        if span is not None and cost is not None and isinstance(cost, float):
+            if span.cost is None:
+                span.cost = cost
+            else:
+                span.cost += cost
+
+    def _update_span_tokens(self, span: CreateSpan, tokens: Optional[dict]) -> None:
+        if isinstance(tokens, LlmTokens):
+            tokens = tokens.dict()
+        if span is not None and tokens is not None and isinstance(tokens, dict):
+            if span.tokens is None:
+                span.tokens = LlmTokens(**tokens)
+            else:
+                span.tokens.prompt_tokens += tokens["prompt_tokens"]
+                span.tokens.completion_tokens += tokens["completion_tokens"]
+                span.tokens.total_tokens += tokens["total_tokens"]
