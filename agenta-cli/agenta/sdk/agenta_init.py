@@ -239,6 +239,7 @@ def init(
     singleton = AgentaSingleton()
 
     singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
+
     tracing = Tracing(
         host=singleton.host,  # type: ignore
         app_id=singleton.app_id,  # type: ignore
