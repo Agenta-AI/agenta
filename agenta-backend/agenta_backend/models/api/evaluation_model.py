@@ -10,16 +10,16 @@ class Evaluator(BaseModel):
     key: str
     direct_use: bool
     settings_template: dict
-    description: Optional[str]
+    description: Optional[str] = None
 
 
 class EvaluatorConfig(BaseModel):
     id: str
     name: str
     evaluator_key: str
-    settings_values: Optional[Dict[str, Any]]
-    created_at: datetime
-    updated_at: datetime
+    settings_values: Optional[Dict[str, Any]] = None
+    created_at: str
+    updated_at: str
 
 
 class EvaluationType(str, Enum):
@@ -33,6 +33,7 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
     EVALUATION_FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS"
     EVALUATION_FAILED = "EVALUATION_FAILED"
+    EVALUATION_AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED"
 
 
 class EvaluationScenarioStatusEnum(str, Enum):
@@ -67,13 +68,13 @@ class Evaluation(BaseModel):
     variant_names: List[str]
     variant_revision_ids: List[str]
     revisions: List[str]
-    testset_id: Optional[str]
-    testset_name: Optional[str]
+    testset_id: Optional[str] = None
+    testset_name: Optional[str] = None
     status: Result
     aggregated_results: List[AggregatedResult]
-    average_cost: Optional[Result]
-    total_cost: Optional[Result]
-    average_latency: Optional[Result]
+    average_cost: Optional[Result] = None
+    total_cost: Optional[Result] = None
+    average_latency: Optional[Result] = None
     created_at: datetime
     updated_at: datetime
 
@@ -87,7 +88,7 @@ class SimpleEvaluationOutput(BaseModel):
 
 
 class HumanEvaluationUpdate(BaseModel):
-    status: Optional[EvaluationStatusEnum]
+    status: Optional[EvaluationStatusEnum] = None
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -103,8 +104,8 @@ class EvaluationScenarioInput(BaseModel):
 
 class EvaluationScenarioOutput(BaseModel):
     result: Result
-    cost: Optional[float]
-    latency: Optional[float]
+    cost: Optional[float] = None
+    latency: Optional[float] = None
 
 
 class HumanEvaluationScenarioInput(BaseModel):
@@ -130,55 +131,58 @@ class HumanEvaluation(BaseModel):
     testset_id: str
     testset_name: str
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
 
 
 class HumanEvaluationScenario(BaseModel):
-    id: Optional[str]
+    id: Optional[str] = None
     evaluation_id: str
     inputs: List[HumanEvaluationScenarioInput]
     outputs: List[HumanEvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
-    evaluation: Optional[str]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
+    vote: Optional[str] = None
+    score: Optional[Union[str, int]] = None
+    correct_answer: Optional[str] = None
+    is_pinned: Optional[bool] = None
+    note: Optional[str] = None
 
 
 class HumanEvaluationScenarioUpdate(BaseModel):
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
+    vote: Optional[str] = None
+    score: Optional[Union[str, int]] = None
     # will be used when running custom code evaluation
-    correct_answer: Optional[str]
-    outputs: Optional[List[HumanEvaluationScenarioOutput]]
-    inputs: Optional[List[HumanEvaluationScenarioInput]]
-    is_pinned: Optional[bool]
-    note: Optional[str]
+    correct_answer: Optional[str] = None
+    outputs: Optional[List[HumanEvaluationScenarioOutput]] = None
+    inputs: Optional[List[HumanEvaluationScenarioInput]] = None
+    is_pinned: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class CorrectAnswer(BaseModel):
+    key: str
+    value: str
 
 
 class EvaluationScenario(BaseModel):
-    id: Optional[str]
+    id: Optional[str] = None
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
-    evaluation: Optional[str]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
+    correct_answers: Optional[List[CorrectAnswer]] = None
+    is_pinned: Optional[bool] = None
+    note: Optional[str] = None
     results: List[EvaluationScenarioResult]
 
 
 class EvaluationScenarioUpdate(BaseModel):
-    vote: Optional[str]
-    score: Optional[Any]
+    vote: Optional[str] = None
+    score: Optional[Any] = None
     # will be used when running custom code evaluation
-    correct_answer: Optional[str]
-    outputs: Optional[List[EvaluationScenarioOutput]]
-    inputs: Optional[List[EvaluationScenarioInput]]
-    is_pinned: Optional[bool]
-    note: Optional[str]
+    correct_answer: Optional[str] = None
+    outputs: Optional[List[EvaluationScenarioOutput]] = None
+    inputs: Optional[List[EvaluationScenarioInput]] = None
+    is_pinned: Optional[bool] = None
+    note: Optional[str] = None
 
 
 class EvaluationScenarioScoreUpdate(BaseModel):
@@ -247,6 +251,7 @@ class LMProvidersEnum(str, Enum):
     alephalpha = "ALEPHALPHA_API_KEY"
     openrouter = "OPENROUTER_API_KEY"
     groq = "GROQ_API_KEY"
+    gemini = "GEMINI_API_KEY"
 
 
 class NewEvaluation(BaseModel):
@@ -255,8 +260,8 @@ class NewEvaluation(BaseModel):
     evaluators_configs: List[str]
     testset_id: str
     rate_limit: LLMRunRateLimit
-    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]]
-    correct_answer_column: Optional[str]
+    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]] = None
+    correct_answer_column: Optional[str] = None
 
 
 class NewEvaluatorConfig(BaseModel):
@@ -267,6 +272,6 @@ class NewEvaluatorConfig(BaseModel):
 
 
 class UpdateEvaluatorConfig(BaseModel):
-    name: Optional[str]
-    evaluator_key: Optional[str]
+    name: Optional[str] = None
+    evaluator_key: Optional[str] = None
     settings_values: Optional[dict]

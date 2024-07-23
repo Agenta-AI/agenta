@@ -1,4 +1,4 @@
-import {ChatMessage, ChatRole} from "@/lib/Types"
+import {ChatMessage, ChatRole, JSSTheme} from "@/lib/Types"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
 import {cloneDeep} from "lodash"
@@ -7,8 +7,9 @@ import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 import {v4 as uuidv4} from "uuid"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import CopyButton from "../CopyButton/CopyButton"
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {
         display: "flex",
         flexDirection: "column",
@@ -32,7 +33,16 @@ const useStyles = createUseStyles({
             maxWidth: 800,
         },
     },
-})
+    copyButton: {
+        position: "absolute",
+        right: 4,
+        border: 0,
+        height: 30,
+        opacity: 0.5,
+        bottom: 1,
+        color: theme.colorPrimary,
+    },
+}))
 
 export const getDefaultNewMessage = () => ({
     id: uuidv4(),
@@ -50,6 +60,7 @@ interface Props {
     disableEditRole?: boolean
     disableEditContent?: boolean
     readonly?: boolean
+    isLoading?: boolean
 }
 
 const ChatInputs: React.FC<Props> = ({
@@ -62,6 +73,7 @@ const ChatInputs: React.FC<Props> = ({
     disableEditRole,
     disableEditContent,
     readonly,
+    isLoading,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
@@ -76,39 +88,34 @@ const ChatInputs: React.FC<Props> = ({
         disableEditRole = true
     }
 
-    const handleRoleChange = (index: number, role: ChatRole) => {
-        const newMessages = [...messages]
-        newMessages[index].role = role
+    const updateMessages = (newMessages: ChatMessage[]) => {
         setMessages(newMessages)
         if (onChangeRef.current) {
             onChangeRef.current(cloneDeep(newMessages))
         }
+    }
+
+    const handleRoleChange = (index: number, role: ChatRole) => {
+        const newMessages = [...messages]
+        newMessages[index].role = role
+        updateMessages(newMessages)
     }
 
     const handleInputChange = (index: number, event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const {value} = event.target
         const newMessages = [...messages]
         newMessages[index].content = value
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     const handleDelete = (index: number) => {
         const newMessages = messages.filter((_, i) => i !== index)
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     const handleAdd = () => {
         const newMessages = messages.concat([getDefaultNewMessage()])
-        setMessages(newMessages)
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(newMessages))
-        }
+        updateMessages(newMessages)
     }
 
     useEffect(() => {
@@ -126,6 +133,8 @@ const ChatInputs: React.FC<Props> = ({
         if (Array.isArray(value)) setMessages(cloneDeep(value))
     }, [JSON.stringify(value)])
 
+    const lastAssistantMsg = messages.filter((msg) => msg.role === ChatRole.Assistant)
+
     return (
         <div className={classes.root}>
             {messages.map((msg, ix) => (
@@ -140,26 +149,44 @@ const ChatInputs: React.FC<Props> = ({
                         value={msg.role}
                         onChange={(newRole) => handleRoleChange(ix, newRole)}
                     />
-                    <Input.TextArea
-                        style={{
-                            maxWidth: "none",
-                            background: msg.content.startsWith("❌")
-                                ? appTheme === "dark"
-                                    ? "#490b0b"
-                                    : "#fff1f0"
-                                : "",
-                            color: msg.content.startsWith("❌")
-                                ? appTheme === "dark"
-                                    ? "#ffffffd9"
-                                    : "#000000e0"
-                                : "",
-                        }}
-                        disabled={disableEditContent}
-                        autoSize={{maxRows}}
-                        value={msg.content}
-                        onChange={(e) => handleInputChange(ix, e)}
-                        readOnly={readonly}
-                    />
+                    <div className="relative w-[100%]">
+                        <Input.TextArea
+                            style={{
+                                maxWidth: "none",
+                                background: msg.content.startsWith("❌")
+                                    ? appTheme === "dark"
+                                        ? "#490b0b"
+                                        : "#fff1f0"
+                                    : "",
+                                color: msg.content.startsWith("❌")
+                                    ? appTheme === "dark"
+                                        ? "#ffffffd9"
+                                        : "#000000e0"
+                                    : "",
+                            }}
+                            disabled={disableEditContent}
+                            autoSize={{maxRows}}
+                            value={msg.content}
+                            onChange={(e) => handleInputChange(ix, e)}
+                            readOnly={readonly}
+                        />
+                        {lastAssistantMsg[lastAssistantMsg.length - 1]?.id === msg.id && (
+                            <CopyButton
+                                buttonText={null}
+                                text={
+                                    !!lastAssistantMsg.length
+                                        ? lastAssistantMsg[lastAssistantMsg.length - 1].content
+                                        : ""
+                                }
+                                disabled={
+                                    isLoading ||
+                                    !lastAssistantMsg[lastAssistantMsg.length - 1]?.content
+                                }
+                                icon={true}
+                                className={classes.copyButton}
+                            />
+                        )}
+                    </div>
                     {messages.length > 1 && !disableRemove && (
                         <Tooltip title="Remove">
                             <Button

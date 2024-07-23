@@ -264,6 +264,7 @@ export interface LlmProvidersKeys {
     TOGETHERAI_API_KEY: string
     MISTRAL_API_KEY: string
     GROQ_API_KEY: string
+    GEMINI_API_KEY: string
 }
 
 export interface AppTemplate {
@@ -338,6 +339,7 @@ export interface EvaluationSettingsTemplate {
     min?: number
     max?: number
     required?: boolean
+    advanced?: boolean
 }
 
 export interface Evaluator {
@@ -375,11 +377,17 @@ export enum EvaluationStatus {
     FINISHED = "EVALUATION_FINISHED",
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
+    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
 }
 
 export enum EvaluationStatusType {
     STATUS = "status",
     ERROR = "error",
+}
+
+export interface CorrectAnswer {
+    key: string
+    value: string
 }
 
 export interface _Evaluation {
@@ -420,7 +428,7 @@ export interface _EvaluationScenario {
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
     outputs: {result: TypedValue; cost?: number; latency?: number}[]
-    correct_answer?: string
+    correct_answers?: CorrectAnswer[]
     is_pinned?: boolean
     note?: string
     results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
@@ -451,7 +459,6 @@ export interface AnnotationScenario {
 
 export type ComparisonResultRow = {
     inputs: {name: string; value: string}[]
-    correctAnswer: string
     variants: {
         variantId: string
         variantName: string
@@ -463,7 +470,7 @@ export type ComparisonResultRow = {
         }[]
     }[]
     id: string
-}
+} & {[key: string]: any}
 
 export type RequestMetadata = {
     cost: number
@@ -481,4 +488,8 @@ export type WithPagination<T> = {
 export type PaginationQuery = {
     page: number
     pageSize: number
+}
+
+export type StyleProps = {
+    themeMode: "dark" | "light"
 }

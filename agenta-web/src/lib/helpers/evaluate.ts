@@ -8,7 +8,7 @@ import {
     EvaluationScenario,
 } from "../Types"
 import {convertToCsv, downloadCsv} from "./fileManipulations"
-import {fetchEvaluatonIdsByResource} from "@/services/evaluations"
+import {fetchEvaluatonIdsByResource} from "@/services/evaluations/api"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {capitalize, round} from "lodash"
@@ -333,8 +333,22 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
         const num = parseFloat(val || "0")
         return isNaN(num) ? 0 : num
     }
-    if (type === "date") return dayjs(valueA).diff(dayjs(valueB))
-    if (type === "text") return valueA.localeCompare(valueB)
-    if (type === "number") return getNumber(valueA) - getNumber(valueB)
-    return 0
+
+    valueA = String(valueA)
+    valueB = String(valueB)
+
+    switch (type) {
+        case "date":
+            return dayjs(valueA).diff(dayjs(valueB))
+        case "text":
+            return valueA.localeCompare(valueB)
+        case "number":
+            return getNumber(valueA) - getNumber(valueB)
+        default:
+            return 0
+    }
+}
+
+export const removeCorrectAnswerPrefix = (str: string) => {
+    return str.replace(/^correctAnswer_/, "")
 }

@@ -8,7 +8,7 @@ from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import DeployToEnvironmentPayload
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
 
 router = APIRouter()

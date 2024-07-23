@@ -28,12 +28,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRadius: 6,
     },
     paramValueContainer: {
-        border: `1px solid ${theme.colorBorder}`,
-        width: "100%",
-        borderRadius: theme.borderRadius,
-        padding: theme.paddingSM,
-        maxHeight: 300,
-        overflowY: "scroll",
+        "&:disabled": {
+            color: "inherit",
+            backgroundColor: "inherit",
+            cursor: "text",
+        },
     },
 }))
 
@@ -48,6 +47,7 @@ interface Props {
     form?: FormInstance<GenericObject>
     imageSize?: "small" | "large"
     isPlaygroundComponent?: boolean
+    isLoading?: boolean
 }
 
 const ParamsForm: React.FC<Props> = ({
@@ -59,6 +59,7 @@ const ParamsForm: React.FC<Props> = ({
     form,
     imageSize = "small",
     isPlaygroundComponent = false,
+    isLoading,
 }) => {
     const classes = useStyles()
     const imgHeight = imageSize === "small" ? 90 : 120
@@ -70,6 +71,7 @@ const ParamsForm: React.FC<Props> = ({
             value={useChatDefaultValue ? undefined : chat}
             defaultValue={useChatDefaultValue ? chat : undefined}
             onChange={(val) => onParamChange?.("chat", val)}
+            isLoading={isLoading}
         />
     ) : (
         <Form form={form} className={classes.form} onFinish={onFinish}>
@@ -106,20 +108,19 @@ const ParamsForm: React.FC<Props> = ({
                                             alt={param.name}
                                         />
                                     )}
-                                {isPlaygroundComponent ? (
-                                    <Input.TextArea
-                                        data-cy={`testview-input-parameters-${index}`}
-                                        key={index}
-                                        value={param.value}
-                                        placeholder={`${renameVariables(param.name)} (${type})`}
-                                        onChange={(e) =>
-                                            onParamChange?.(param.name, e.target.value)
-                                        }
-                                        autoSize={{minRows: 2, maxRows: 8}}
-                                    />
-                                ) : (
-                                    <div className={classes.paramValueContainer}>{param.value}</div>
-                                )}
+
+                                <Input.TextArea
+                                    data-cy={`testview-input-parameters-${index}`}
+                                    key={index}
+                                    className={
+                                        !isPlaygroundComponent ? classes.paramValueContainer : ""
+                                    }
+                                    value={param.value}
+                                    placeholder={`${renameVariables(param.name)} (${type})`}
+                                    onChange={(e) => onParamChange?.(param.name, e.target.value)}
+                                    disabled={!isPlaygroundComponent}
+                                    autoSize={{minRows: 2, maxRows: 8}}
+                                />
                             </div>
                         </Form.Item>
                     )
