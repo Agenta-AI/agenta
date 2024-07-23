@@ -32,7 +32,6 @@ watchdog = {extras = ["watchmedo"], version = "^3.0.0"}
 beanie = "^1.25.0"
 newrelic = "^9.8.0"
 aioboto3 = "^12.4.0"
-ragas = ">=0.1.8"
 openai = "^1.30.4"
 sqlalchemy = "^2.0.30"
 asyncpg = "^0.29.0"
@@ -40,7 +39,6 @@ psycopg2-binary = "^2.9.9"
 uuid-utils = "^0.7.0"
 sqlalchemy-json = "^0.7.0"
 tqdm = "^4.66.4"
-langchain-community = "^0.2.9"
 numpy = "1.26.3"
 
 [tool.poetry.group.dev.dependencies]
