@@ -49,12 +49,12 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
     """
     Retrieve the value of the key from the trace data.
 
-    Parameters:
-    trace (Dict[str, Any]): The nested dictionary to retrieve the value from.
-    key (str): The dot-separated key to access the value.
+    Args:
+        trace (Dict[str, Any]): The nested dictionary to retrieve the value from.
+        key (str): The dot-separated key to access the value.
 
     Returns:
-    Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
+        Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
 
     EXCLUDED_KEYS = [
