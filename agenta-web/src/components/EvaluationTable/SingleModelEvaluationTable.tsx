@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useMemo} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {
@@ -15,7 +15,8 @@ import {
     Typography,
     message,
 } from "antd"
-import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
+import {callVariant} from "@/services/api"
+import {updateEvaluationScenario, updateEvaluation} from "@/services/human-evaluations/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -192,7 +193,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         debounce((data: Partial<EvaluationScenario>, scenarioId) => {
             updateEvaluationScenarioData(scenarioId, data)
         }, 800),
-        [evaluationScenarios],
+        [rows],
     )
 
     useEffect(() => {
@@ -277,7 +278,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             .then(() => {
                 Object.keys(data).forEach((key) => {
                     setRowValue(
-                        evaluationScenarios.findIndex((item) => item.id === id),
+                        rows.findIndex((item) => item.id === id),
                         key,
                         data[key as keyof EvaluationScenario],
                     )
@@ -416,6 +417,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </div>
                 </div>
             ),
+            width: 300,
             dataIndex: "inputs",
             render: (_: any, record: SingleModelEvaluationRow, rowIndex: number) => {
                 return (

@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from "react"
-import {GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
-import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
+import {GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
+import {fetchVariants} from "@/services/api"
+import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
 import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
@@ -11,13 +12,9 @@ import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import {getApikeys} from "@/lib/helpers/llmProviders"
 import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
+import {useLoadTestsetsList} from "@/services/testsets/api"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {

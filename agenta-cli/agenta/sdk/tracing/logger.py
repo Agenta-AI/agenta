@@ -2,7 +2,7 @@ import logging
 
 
 class LLMLogger:
-    def __init__(self, name="LLMLogger", level=logging.INFO):
+    def __init__(self, name="LLMLogger", level=logging.DEBUG):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
 
