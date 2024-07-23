@@ -1,6 +1,6 @@
-import logging
 import os
-from typing import Dict
+import logging
+from typing import Dict, Optional
 
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.api_models import Image
@@ -148,4 +148,14 @@ async def validate_image(image: Image) -> bool:
 
 
 def get_deployment_uri(uri: str) -> str:
+    """
+    Replaces localhost with the appropriate hostname in the given URI.
+
+    Args:
+        uri (str): The URI to be processed.
+
+    Returns:
+        str: The processed URI.
+    """
+
     return uri.replace("http://localhost", "http://host.docker.internal")
