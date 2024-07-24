@@ -139,7 +139,7 @@ def add_variant(
 
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg="red"))
-        return None
+        raise
     try:
         if overwrite:
             click.echo(
@@ -166,7 +166,7 @@ def add_variant(
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
         else:
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
-        return None
+        raise
 
     agenta_dir = Path.home() / ".agenta"
     global_toml_file = toml.load(agenta_dir / "config.toml")
