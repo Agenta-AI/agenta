@@ -1,11 +1,14 @@
 import re
 import json
 import logging
+import asyncio
 import traceback
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import httpx
-from openai import OpenAI
+import numpy as np
+from openai import OpenAI, AsyncOpenAI
+from numpy._core._multiarray_umath import array
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
@@ -175,21 +178,22 @@ def auto_webhook_test(
                     ),
                 )
             return Result(type="number", value=score)
-    except ValueError as e:
-        return Result(
-            type="error",
-            value=None,
-            error=Error(
-                message=str(e),
-            ),
-        )
     except httpx.HTTPError as e:
         return Result(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Webhook evaluation; An HTTP error occurred",
-                stacktrace=str(traceback.format_exc()),
+                message=f"[webhook evaluation] HTTP - {repr(e)}",
+                stacktrace=traceback.format_exc(),
+            ),
+        )
+    except json.JSONDecodeError as e:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message=f"[webhook evaluation] JSON - {repr(e)}",
+                stacktrace=traceback.format_exc(),
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
@@ -197,8 +201,8 @@ def auto_webhook_test(
             type="error",
             value=None,
             error=Error(
-                message="Error during Auto Webhook evaluation",
-                stacktrace=str(traceback.format_exc()),
+                message=f"[webhook evaluation] Exception - {repr(e)} ",
+                stacktrace=traceback.format_exc(),
             ),
         )
 
@@ -475,6 +479,134 @@ def auto_contains_json(
         )
 
 
+def flatten_json(json_obj: Union[list, dict]) -> Dict[str, Any]:
+    """
+    This function takes a (nested) JSON object and flattens it into a single-level dictionary where each key represents the path to the value in the original JSON structure. This is done recursively, ensuring that the full hierarchical context is preserved in the keys.
+
+    Args:
+        json_obj (Union[list, dict]): The (nested) JSON object to flatten. It can be either a dictionary or a list.
+
+    Returns:
+        Dict[str, Any]: The flattened JSON object as a dictionary, with keys representing the paths to the values in the original structure.
+    """
+
+    output = {}
+
+    def flatten(obj: Union[list, dict], path: str = "") -> None:
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                new_key = f"{path}.{key}" if path else key
+                if isinstance(value, (dict, list)):
+                    flatten(value, new_key)
+                else:
+                    output[new_key] = value
+
+        elif isinstance(obj, list):
+            for index, value in enumerate(obj):
+                new_key = f"{path}.{index}" if path else str(index)
+                if isinstance(value, (dict, list)):
+                    flatten(value, new_key)
+                else:
+                    output[new_key] = value
+
+    flatten(json_obj)
+    return output
+
+
+def compare_jsons(
+    ground_truth: Union[list, dict],
+    app_output: Union[list, dict],
+    settings_values: dict,
+):
+    """
+    This function takes two JSON objects (ground truth and application output), flattens them using the `flatten_json` function, and then compares the fields.
+
+    Args:
+        ground_truth (list | dict): The ground truth
+        app_output (list | dict): The application output
+        settings_values: dict: The advanced configuration of the evaluator
+
+    Returns:
+        the average score between both JSON objects
+    """
+
+    def normalize_keys(d: Dict[str, Any], case_insensitive: bool) -> Dict[str, Any]:
+        if not case_insensitive:
+            return d
+        return {k.lower(): v for k, v in d.items()}
+
+    def diff(ground_truth: Any, app_output: Any, compare_schema_only: bool) -> float:
+        gt_key, gt_value = next(iter(ground_truth.items()))
+        ao_key, ao_value = next(iter(app_output.items()))
+
+        if compare_schema_only:
+            return (
+                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0
+            )
+        return 1.0 if (gt_key == ao_key and gt_value == ao_value) else 0.0
+
+    flattened_ground_truth = flatten_json(ground_truth)
+    flattened_app_output = flatten_json(app_output)
+
+    keys = flattened_ground_truth.keys()
+    if settings_values.get("predict_keys", False):
+        keys = set(keys).union(flattened_app_output.keys())
+
+    cumulated_score = 0.0
+    no_of_keys = len(keys)
+
+    compare_schema_only = settings_values.get("compare_schema_only", False)
+    case_insensitive_keys = settings_values.get("case_insensitive_keys", False)
+    flattened_ground_truth = normalize_keys(
+        flattened_ground_truth, case_insensitive_keys
+    )
+    flattened_app_output = normalize_keys(flattened_app_output, case_insensitive_keys)
+
+    for key in keys:
+        ground_truth_value = flattened_ground_truth.get(key, None)
+        llm_app_output_value = flattened_app_output.get(key, None)
+
+        key_score = 0.0
+        if ground_truth_value and llm_app_output_value:
+            key_score = diff(
+                {key: ground_truth_value},
+                {key: llm_app_output_value},
+                compare_schema_only,
+            )
+
+        cumulated_score += key_score
+
+    average_score = cumulated_score / no_of_keys
+    return average_score
+
+
+def auto_json_diff(
+    inputs: Dict[str, Any],  # pylint: disable=unused-argument
+    output: Any,
+    data_point: Dict[str, Any],  # pylint: disable=unused-argument
+    app_params: Dict[str, Any],  # pylint: disable=unused-argument
+    settings_values: Dict[str, Any],  # pylint: disable=unused-argument
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    try:
+        correct_answer = get_correct_answer(data_point, settings_values)
+        average_score = compare_jsons(
+            ground_truth=correct_answer,
+            app_output=json.loads(output),
+            settings_values=settings_values,
+        )
+        return Result(type="number", value=average_score)
+    except (ValueError, json.JSONDecodeError, Exception):
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during JSON diff evaluation",
+                stacktrace=traceback.format_exc(),
+            ),
+        )
+
+
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)  # pylint: disable=arguments-out-of-order
@@ -575,6 +707,64 @@ def auto_similarity_match(
         )
 
 
+async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
+    """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
+
+    Args:
+        output (str): the output text
+        correct_answer (str): the correct answer text
+
+    Returns:
+        float: the semantic similarity score
+    """
+
+    openai = AsyncOpenAI(api_key=api_key)
+
+    async def encode(text: str):
+        response = await openai.embeddings.create(
+            model="text-embedding-3-small", input=text
+        )
+        return np.array(response.data[0].embedding)
+
+    def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
+        return np.dot(output_vector, correct_answer_vector)
+
+    output_vector = await encode(output)
+    correct_answer_vector = await encode(correct_answer)
+    similarity_score = cosine_similarity(output_vector, correct_answer_vector)
+    return similarity_score
+
+
+def auto_semantic_similarity(
+    inputs: Dict[str, Any],
+    output: str,
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        loop = asyncio.get_event_loop()
+        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+        correct_answer = get_correct_answer(data_point, settings_values)
+
+        score = loop.run_until_complete(
+            semantic_similarity(
+                output=output, correct_answer=correct_answer, api_key=openai_api_key
+            )
+        )
+        return Result(type="number", value=score)
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Semantic Similarity",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
 EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
@@ -588,6 +778,8 @@ EVALUATOR_FUNCTIONS = {
     "auto_contains_any": auto_contains_any,
     "auto_contains_all": auto_contains_all,
     "auto_contains_json": auto_contains_json,
+    "auto_json_diff": auto_json_diff,
+    "auto_semantic_similarity": auto_semantic_similarity,
     "auto_levenshtein_distance": auto_levenshtein_distance,
     "auto_similarity_match": auto_similarity_match,
 }
