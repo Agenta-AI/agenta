@@ -314,13 +314,14 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
 
     assert base_id is not None, "no base_id provided"
+    base_uuid = await get_object_uuid(object_id=base_id, table_name="bases")
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(VariantBaseDB)
             .options(
                 joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
             )
-            .filter_by(id=uuid.UUID(base_id))
+            .filter_by(id=uuid.UUID(base_uuid))
         )
         base = result.scalars().first()
         return base

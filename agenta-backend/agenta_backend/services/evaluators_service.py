@@ -1,11 +1,16 @@
 import re
 import json
+import asyncio
 import logging
+import asyncio
 import traceback
 from typing import Any, Dict, Union
 
 import httpx
-from openai import OpenAI
+import numpy as np
+from openai import OpenAI, AsyncOpenAI
+from numpy._core._multiarray_umath import array
+from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
@@ -38,6 +43,71 @@ def get_correct_answer(
             f"Correct answer column '{correct_answer_key}' not found in the test set."
         )
     return data_point[correct_answer_key]
+
+
+def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """
+    Retrieve the value of the key from the trace data.
+
+    Args:
+        trace (Dict[str, Any]): The nested dictionary to retrieve the value from.
+        key (str): The dot-separated key to access the value.
+
+    Returns:
+        Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
+    """
+
+    EXCLUDED_KEYS = [
+        "start_time",
+        "end_time",
+        "trace_id",
+        "span_id",
+        "cost",
+        "usage",
+        "latency",
+    ]
+    tree = trace
+    fields = key.split(".")
+
+    try:
+        for field in fields:
+            key = field
+            idx = None
+
+            if "[" in field and "]" in field:
+                key = field.split("[")[0]
+                idx = int(field.split("[")[1].split("]")[0])
+
+            if key in EXCLUDED_KEYS:
+                return None
+
+            try:
+                tree = tree[key]
+                if idx is not None:
+                    tree = tree[idx]
+            except:
+                return None
+
+        return tree
+    except Exception as e:
+        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
+        return None
+
+
+def get_user_key_from_settings(settings_values: Dict[str, Any], user_key: str) -> Any:
+    """
+    Retrieve the value of a specified key from the settings values.
+
+    Args:
+        settings_values (Dict[str, Any]): The settings values containing the key.
+        user_key (str): The key to access from the settings values.
+
+    Returns:
+        str | None: The value of the specified key from the settings values, or None if a KeyError is encountered.
+    """
+
+    user_key = settings_values.get(user_key, {}).get("default", None)
+    return user_key
 
 
 def auto_exact_match(
@@ -621,6 +691,104 @@ def auto_json_diff(
         )
 
 
+def rag_faithfulness(
+    inputs: Dict[str, Any],  # pylint: disable=unused-argument
+    output: Dict[str, Any],
+    data_point: Dict[str, Any],  # pylint: disable=unused-argument
+    app_params: Dict[str, Any],  # pylint: disable=unused-argument
+    settings_values: Dict[str, Any],  # pylint: disable=unused-argument
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    try:
+        # Get required keys for rag evaluator
+        question_key = get_user_key_from_settings(settings_values, "question_key")
+        answer_key = get_user_key_from_settings(settings_values, "answer_key")
+        contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+
+        if None in [question_key, answer_key, contexts_key]:
+            raise ValueError(
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
+            )
+
+        # Get value of required keys for rag evaluator
+        question_value = get_field_value_from_trace(output, question_key)
+        answer_value = get_field_value_from_trace(output, answer_key)
+        contexts_value = get_field_value_from_trace(output, contexts_key)
+
+        if None in [question_value, answer_value, contexts_value]:
+            raise ValueError(
+                "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
+            )
+
+        # Initialize RAG evaluator to calculate faithfulness score
+        loop = asyncio.get_event_loop()
+        faithfulness = Faithfulness()
+        eval_score = loop.run_until_complete(
+            faithfulness._run_eval_async(
+                output=answer_value, input=question_value, context=contexts_value
+            )
+        )
+        return Result(type="number", value=eval_score.score)
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during RAG Faithfulness evaluation",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
+def rag_context_relevancy(
+    inputs: Dict[str, Any],  # pylint: disable=unused-argument
+    output: Dict[str, Any],
+    data_point: Dict[str, Any],  # pylint: disable=unused-argument
+    app_params: Dict[str, Any],  # pylint: disable=unused-argument
+    settings_values: Dict[str, Any],  # pylint: disable=unused-argument
+    lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
+) -> Result:
+    try:
+        # Get required keys for rag evaluator
+        question_key = get_user_key_from_settings(settings_values, "question_key")
+        answer_key = get_user_key_from_settings(settings_values, "answer_key")
+        contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+
+        if None in [question_key, answer_key, contexts_key]:
+            raise ValueError(
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
+            )
+
+        # Get value of required keys for rag evaluator
+        question_value = get_field_value_from_trace(output, question_key)
+        answer_value = get_field_value_from_trace(output, answer_key)
+        contexts_value = get_field_value_from_trace(output, contexts_key)
+
+        if None in [question_value, answer_value, contexts_value]:
+            raise ValueError(
+                "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
+            )
+
+        # Initialize RAG evaluator to calculate context relevancy score
+        loop = asyncio.get_event_loop()
+        context_rel = ContextRelevancy()
+        eval_score = loop.run_until_complete(
+            context_rel._run_eval_async(
+                output=answer_value, input=question_value, context=contexts_value
+            )
+        )
+        return Result(type="number", value=eval_score.score)
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during RAG Context Relevancy evaluation",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)  # pylint: disable=arguments-out-of-order
@@ -721,6 +889,64 @@ def auto_similarity_match(
         )
 
 
+async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
+    """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
+
+    Args:
+        output (str): the output text
+        correct_answer (str): the correct answer text
+
+    Returns:
+        float: the semantic similarity score
+    """
+
+    openai = AsyncOpenAI(api_key=api_key)
+
+    async def encode(text: str):
+        response = await openai.embeddings.create(
+            model="text-embedding-3-small", input=text
+        )
+        return np.array(response.data[0].embedding)
+
+    def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
+        return np.dot(output_vector, correct_answer_vector)
+
+    output_vector = await encode(output)
+    correct_answer_vector = await encode(correct_answer)
+    similarity_score = cosine_similarity(output_vector, correct_answer_vector)
+    return similarity_score
+
+
+def auto_semantic_similarity(
+    inputs: Dict[str, Any],
+    output: str,
+    data_point: Dict[str, Any],
+    app_params: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    lm_providers_keys: Dict[str, Any],
+) -> Result:
+    try:
+        loop = asyncio.get_event_loop()
+        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+        correct_answer = get_correct_answer(data_point, settings_values)
+
+        score = loop.run_until_complete(
+            semantic_similarity(
+                output=output, correct_answer=correct_answer, api_key=openai_api_key
+            )
+        )
+        return Result(type="number", value=score)
+    except Exception:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Error during Auto Semantic Similarity",
+                stacktrace=str(traceback.format_exc()),
+            ),
+        )
+
+
 EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
@@ -735,15 +961,18 @@ EVALUATOR_FUNCTIONS = {
     "auto_contains_all": auto_contains_all,
     "auto_contains_json": auto_contains_json,
     "auto_json_diff": auto_json_diff,
+    "auto_semantic_similarity": auto_semantic_similarity,
     "auto_levenshtein_distance": auto_levenshtein_distance,
     "auto_similarity_match": auto_similarity_match,
+    "rag_faithfulness": rag_faithfulness,
+    "rag_context_relevancy": rag_context_relevancy,
 }
 
 
 def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
