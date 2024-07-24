@@ -1,0 +1,97 @@
+{
+    "data": {
+        "message": "aloha"
+    },
+    "trace": {
+        "trace_id": "669e4d55e51a875e6b94c492",
+        "cost": 0.0000515,
+        "usage": {
+            "completion_tokens": 7,
+            "prompt_tokens": 28,
+            "total_tokens": 35
+        },
+        "latency": 1.2054,
+        "spans": {
+            "rag": {
+                "start_time": "2024-07-22T12:15:17.335835+00:01",
+                "end_time": "2024-07-22T12:15:17.336452+00:00",
+                "inputs": {"topic": "sci-fi", "genre": "fiction", "count": 5},
+                "locals": {},
+                "outputs": {"report": ""},
+                "spans": {
+                    "retriever": {
+                        "start_time": "2024-07-22T12:15:17.336041+00:02",
+                        "end_time": "2024-07-22T12:15:17.336147+00:00",
+                        "inputs": {"topic": "enchantment", "genre": "fiction", "count": 5},
+                        "locals": {"prompt": "sci-fi, fiction, 3"},
+                        "outputs": {
+                            "movies": ["ex machina", "i am mother", "mother/android"],
+                            "prompt": "List 3 movies about sci-fi in the genre of fiction."
+                        },
+                        "spans": {
+                            "retriever_child": {
+                                "start_time": "2024-07-22T12:15:17.336041+00:03",
+                                "end_time": "2024-07-22T12:15:17.336147+00:00",
+                                "inputs": {"topic": "enchantment", "genre": "fiction", "count": 5},
+                                "locals": {"prompt": "sci-fi, fiction, 3"},
+                                "outputs": {
+                                    "movies": ["ex machina", "i am mother", "mother/android"],
+                                    "prompt": "List 3 movies about sci-fi in the genre of fiction."
+                                }
+                            }
+                        }
+                    },
+                    "generator": {
+                        "start_time": "2024-07-22T12:15:17.336192+00:04",
+                        "end_time": "2024-07-22T12:15:17.336239+00:00",
+                        "inputs": {"movies": ["ex machina", "i am mother", "mother/android"]},
+                        "locals": {},
+                        "outputs": {
+                            "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
+                        }
+                    },
+                    "summarizer": [
+                        {
+                            "start_time": "2024-07-22T12:15:17.336281+00:05",
+                            "end_time": "2024-07-22T12:15:17.336325+00:00",
+                            "inputs": {
+                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
+                            },
+                            "locals": {},
+                            "outputs": {
+                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
+                            },
+                            "spans": {
+                                "summarizer_child": {
+                                    "start_time": "2024-07-22T12:15:17.336041+00:06",
+                                    "end_time": "2024-07-22T12:15:17.336147+00:00",
+                                    "inputs": {
+                                        "topic": "enchantment",
+                                        "genre": "fiction",
+                                        "count": 5
+                                    },
+                                    "locals": {"prompt": "sci-fi, fiction, 3"},
+                                    "outputs": {
+                                        "movies": ["ex machina", "i am mother", "mother/android"],
+                                        "prompt": "List 3 movies about sci-fi in the genre of fiction."
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "start_time": "2024-07-22T12:15:17.336355+00:07",
+                            "end_time": "2024-07-22T12:15:17.336429+00:00",
+                            "inputs": {
+                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
+                            },
+                            "locals": {},
+                            "outputs": {
+                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
