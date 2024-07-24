@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.19.6a0"
+version = "0.19.6"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -33,8 +33,8 @@ pymongo = "^4.6.3"
 cachetools = "^5.3.3"
 
 [tool.poetry.dev-dependencies]
-pytest = "^8.2"
-setuptools = "^70.3.0"
+pytest = "^8.3"
+setuptools = "^71.1.0"
 
 [build-system]
 requires = ["poetry-core"]

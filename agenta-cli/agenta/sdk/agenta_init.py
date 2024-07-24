@@ -240,11 +240,6 @@ def init(
 
     singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
 
-    if os.environ.get("AGENTA_LOCAL", False):
-        singleton.host = singleton.host.replace(
-            "http://localhost", "http://host.docker.internal"
-        )
-
     tracing = Tracing(
         host=singleton.host,  # type: ignore
         app_id=singleton.app_id,  # type: ignore

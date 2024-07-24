@@ -42,8 +42,11 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_regex_test]: "Regex Test",
     [EvaluationType.field_match_test]: "JSON Field Match",
     [EvaluationType.auto_json_diff]: "JSON Diff Match",
+    [EvaluationType.auto_semantic_similarity]: "Semantic Similarity Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
+    [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
+    [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
 }
 
 export const apiKeyObject = () => {
