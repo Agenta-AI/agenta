@@ -461,28 +461,28 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
             error_msg += "or\n"
             error_msg += ">>> agenta variant serve <filename>.py"
             click.echo(click.style(f"{error_msg}", fg="red"))
-            sys.exit(0)
+            sys.exit(1)
 
     try:
         config_check(app_folder)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         host = get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         api_key = helper.get_global_config("api_key")
     except Exception as e:
         click.echo(click.style("Failed to retrieve the api key.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         variant_id = add_variant(
@@ -491,7 +491,7 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     if variant_id:
         try:
@@ -503,9 +503,11 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
                 "- Second, try restarting the containers (if using Docker Compose)."
             )
             click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(1)
         except Exception as e:
             click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+            sys.exit(1)
 
 
 @variant.command(name="list")
