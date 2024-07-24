@@ -285,167 +285,7 @@ class entrypoint(BaseDecorator):
 
             if token is not None:
                 # check that it doesn't affect the tracing.tree
-                trace = ag.tracing.dump_spans()
-
-                tracing = tracing_context.get()
-                from copy import deepcopy
-
-                print("---")
-                [print(key, "\n", trace[key]) for key in trace]
-                print("---")
-
-                print(tracing)
-                #trace = deepcopy(tracing.tree)
-                #ag.tracing.flush_spans()
-
-                '''
-                > class CreateSpan(pydantic.BaseModel):
-                    x id: str
-                    x app_id: typing.Optional[str]
-                    x variant_id: typing.Optional[str]
-                    x variant_name: typing.Optional[str]
-                    - inputs: typing.Optional[typing.Dict[str, typing.Any]]
-                    - outputs: typing.Optional[typing.List[str]]
-                    - config: typing.Optional[typing.Dict[str, typing.Any]]
-                    x environment: typing.Optional[str]
-                    x tags: typing.Optional[typing.List[str]]
-                    x token_consumption: typing.Optional[int]
-                    . name: str
-                    x parent_span_id: typing.Optional[str]
-                    . attributes: typing.Optional[typing.Dict[str, typing.Any]]
-                    x spankind: str
-                    x status: str
-                    x user: typing.Optional[str]
-                    - start_time: dt.datetime
-                    - end_time: typing.Optional[dt.datetime]
-                    - tokens: typing.Optional[LlmTokens]
-                    - cost: typing.Optional[float]
-
-                > class entrypoint():
-                    - latency
-
-                < Evaluation (aggregation/statistics)
-                    - cost
-                    - latency
-
-                < Playground (display)
-                    - cost
-                    - tokens
-                    - latency
-                    - each start/end
-
-                < Evaluators (execution)
-                    - identifier (name/block)
-                    - config
-                    - inputs
-                    - outputs
-                '''
-
-
-                # Pros
-                # - easy data fetch since user key is a direct trace dict key
-                # Cons
-                # - we're loosing ordering information (for display purposes mostly)
-                #   solution : turn this into a flat list ?
-                # - harder to extend to more information in trace dict
-
-                {
-                    "rag.inputs.topic": None,
-                    "rag.inputs.genre": None,
-                    "rag.inputs.count": None,
-                    "rag.config.prompt": None,
-                    "rag.outputs.report": None,
-                    "rag.retriever.inputs.topic": None,
-                    "rag.retriever.inputs.genre": None,
-                    "rag.retriever.inputs.count": None,
-                    "rag.retriever.config.prompt": None,
-                    "rag.retriever.outputs.movies": None,
-                    "rag.generator.inputs.movies": None,
-                    "rag.generator.outputs.report": None,
-                    "rag.summarizer[0].inputs.report": None,
-                    "rag.summarizer[0].outputs.report": None,
-                    "rag.summarizer[1].inputs.report": None,
-                    "rag.summarizer[1].outputs.report": None,
-                }
-
-                # Pros
-                # - we have access to ordering
-                # - easy to extend to more information in trace dict
-                # Cons
-                # - harder to fetch since user key must be used to traverse the trace dict
-                #   solution : get_field_from_key(trace_dict, user_key) ?
-                # - the user could fetch unwanted trace dict keys
-                #   solution : we hide/filter forbidden keys upon traversal 
-
-                {
-                    "trace_id": None,
-                    "cost": None,
-                    "tokens": None,
-                    "latency": None,
-                    "rag" :{
-                        "start_time" : None,
-                        "end_time" : None,
-                        "config": {
-                            "prompt" : None
-                        },
-                        "inputs": {
-                            "topic": None,
-                            "genre": None,
-                            "count": None,
-                        },
-                        "outputs": {
-                            "report": None
-                        },
-                        "retriever": {
-                            "start_time" : None,
-                            "end_time" : None,
-                            "inputs": {
-                                "topic": None,
-                                "genre": None,
-                                "count": None,
-                            },
-                            "config": {
-                                "prompt" : None
-                            },
-                            "outputs": {
-                                "movies": None
-                            }
-                        },
-                        "generator": {
-                            "start_time" : None,
-                            "end_time" : None,
-                            "inputs": {
-                                "movies": None,
-                            },
-                            "outputs": {
-                                "report": None
-                            }
-                        },
-                        "summarizer": [
-                            {
-                                "start_time" : None,
-                                "end_time" : None,
-                                "inputs": {
-                                    "report": None,
-                                },
-                                "outputs": {
-                                    "report": None
-                                }
-                            },
-                            {
-                                "start_time" : None,
-                                "end_time" : None,
-                                "inputs": {
-                                    "report": None,
-                                },
-                                "outputs": {
-                                    "report": None
-                                }
-                            },
-                        ]
-                    }
-
-                }
+                trace = ag.tracing.dump_trace()
 
                 tracing_context.reset(token)
 
@@ -455,8 +295,8 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Dict):
                 if "message" in result:
                     data = { "message": result["message"] }
-                elif "data" in result:
-                    data = result["data"]
+                else:
+                    data = result
             elif isinstance(result, str):
                 data = { "message": result }
             elif isinstance(result, int) or isinstance(result, float):
@@ -468,6 +308,78 @@ class entrypoint(BaseDecorator):
                 )
 
                 data = { "message": warning }
+
+            mock = True
+            
+            if mock is True:
+                MOCK_BASE_RESPONSE = {
+                    "data": {
+                        "message": "aloha",
+                    },
+                    "trace": { # optional
+                        "trace_id": "669e4d55e51a875e6b94c492",
+                        "cost": 0.0023, # optional
+                        "tokens": 135, # optional
+                        "latency": 0.000617, # optional
+                        "spans": { # optional (because trace)
+                            "rag" :{
+                                "start_time": "2024-07-22T12:15:17.335835+00:00",
+                                "end_time": "2024-07-22T12:15:17.336452+00:00",
+                                "inputs": {"topic": "sci-fi", "genre": "fiction", "count": 3},
+                                "locals": {},
+                                "outputs": {"report": ""},
+                                "spans": { # optional (because span)
+                                    "retriever": {
+                                        "start_time": "2024-07-22T12:15:17.336041+00:00",
+                                        "end_time": "2024-07-22T12:15:17.336147+00:00",
+                                        "inputs": {"topic": "sci-fi", "genre": "fiction", "count": 3},
+                                        "locals": {"prompt": "List 3 movies about sci-fi in the genre of fiction."},
+                                        "outputs": {
+                                            "movies": ["The Matrix", "Inception", "Blade Runner"],
+                                        }
+                                    },
+                                    "generator": {
+                                        "start_time": "2024-07-22T12:15:17.336192+00:00",
+                                        "end_time": "2024-07-22T12:15:17.336239+00:00",
+                                        "inputs": {"movies": ["The Matrix", "Inception", "Blade Runner"]},
+                                        "locals": {},
+                                        "outputs": {
+                                            "report": "These three films explore the complex relationship between humans and artificial intelligence. The Matrix is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction. Inception is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction."
+                                        }
+                                    },
+                                    "summarizer": [
+                                        {
+                                            "start_time": "2024-07-22T12:15:17.336281+00:00",
+                                            "end_time": "2024-07-22T12:15:17.336325+00:00",
+                                            "inputs": {
+                                                "report": "These three films explore the complex relationship between humans and artificial intelligence. The Matrix is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction. Inception is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction."
+                                            },
+                                            "locals": {},
+                                            "outputs": {
+                                                "report": "These three films explore the complex relationship between humans and artificial intelligence. The Matrix is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction. Inception is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction."
+                                            }
+                                        },
+                                        {
+                                            "start_time": "2024-07-22T12:15:17.336355+00:00",
+                                            "end_time": "2024-07-22T12:15:17.336429+00:00",
+                                            "inputs": {
+                                                "report": "These three films explore the complex relationship between humans and artificial intelligence. The Matrix is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction. Inception is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction."
+                                            },
+                                            "locals": {},
+                                            "outputs": {
+                                                "report": "These three films explore the complex relationship between humans and artificial intelligence. The Matrix is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction. Inception is a sci-fi movie in the genre of fiction. Blade Runner is a sci-fi movie in the genre of fiction."
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+
+                data = MOCK_BASE_RESPONSE["data"]
+                trace = MOCK_BASE_RESPONSE["trace"]
+
 
             return BaseResponse(data=data, trace=trace)
         
