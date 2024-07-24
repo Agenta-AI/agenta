@@ -7,6 +7,7 @@ from agenta.client.backend.types.create_span import CreateSpan
 
 CURRENT_TRACING_CONTEXT_KEY = "current_tracing_context"
 
+
 class TracingContext:
     def __init__(self):
         ### --- TRACE --- ###
@@ -23,11 +24,11 @@ class TracingContext:
 
     def __str__(self) -> str:
         return self.__repr__()
-    
+
     def push(self, span) -> None:
         self.active_span = span
         self.spans[span.id] = span
-        
+
         if span.parent_span_id is None:
             ### --- ROOT  SPAN  --- ###
             self.tree[span.id] = OrderedDict()

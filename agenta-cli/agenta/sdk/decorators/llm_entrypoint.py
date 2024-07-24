@@ -69,7 +69,6 @@ class route(BaseDecorator):
     # TODO:
     # - Explain with @route(), for backward compatibility due to @entrypoint limitations.
     def __init__(self, path):
-
         if path != "" and path[0] != "/":
             path = "/" + path
 
@@ -81,7 +80,6 @@ class route(BaseDecorator):
         self.route_path = path
 
     def __call__(self, f):
-
         self.e = entrypoint(f, route_path=self.route_path)
 
         return f
@@ -294,23 +292,23 @@ class entrypoint(BaseDecorator):
 
             if isinstance(result, Dict):
                 if "message" in result:
-                    data = { "message": result["message"] }
+                    data = {"message": result["message"]}
                 else:
                     data = result
             elif isinstance(result, str):
-                data = { "message": result }
+                data = {"message": result}
             elif isinstance(result, int) or isinstance(result, float):
-                data = { "message": str(result) }
+                data = {"message": str(result)}
 
             if data is None:
                 warning = (
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
 
-                data = { "message": warning }
+                data = {"message": warning}
 
             return BaseResponse(data=data, trace=trace)
-        
+
         except Exception as e:
             self.handle_exception(e)
 
@@ -319,14 +317,14 @@ class entrypoint(BaseDecorator):
             status_code = e.status_code if hasattr(e, "status_code") else 500
             message = str(e)
             stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
-        
+
         except:
             status_code = 500
-            message = "Unexpected error occurred when calling @entrypoint or @route.",
+            message = ("Unexpected error occurred when calling @entrypoint or @route.",)
             stacktrace = traceback.format_exc()
 
-        detail = { "message": message, "stacktrace": stacktrace }
-        
+        detail = {"message": message, "stacktrace": stacktrace}
+
         raise HTTPException(
             status_code=status_code,
             detail=detail,
@@ -508,9 +506,7 @@ class entrypoint(BaseDecorator):
         ag.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage(
-            {"config": ag.config.all(), "environment": "bash"}
-        )
+        ag.tracing.update_baggage({"config": ag.config.all(), "environment": "bash"})
 
         loop = asyncio.get_event_loop()
 
@@ -520,7 +516,7 @@ class entrypoint(BaseDecorator):
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
-        
+
         print(f"\n========== Result ==========\n")
 
         print("--- data")
