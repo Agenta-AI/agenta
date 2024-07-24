@@ -330,7 +330,7 @@ class Tracing(metaclass=SingletonMeta):
         logging.info(f"Closed  span  {span_id} {spankind}")
 
     def store_locals(self, locals: Dict[str, Any] = {}):
-        attributes = {f"locals.{k}":v for k,v in attributes.items()}
+        attributes = {f"locals.{k}":v for k,v in locals.items()}
 
         self.set_attributes(attributes=attributes)
 
