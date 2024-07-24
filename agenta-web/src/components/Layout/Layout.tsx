@@ -1,15 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {
-    Breadcrumb,
-    Button,
-    ConfigProvider,
-    Dropdown,
-    Layout,
-    Modal,
-    Space,
-    Tooltip,
-    theme,
-} from "antd"
+import {Breadcrumb, Button, Dropdown, Layout, Modal, Space, Tooltip, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -28,11 +18,11 @@ import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
+import {StyleProps as MainStyleProps} from "@/lib/Types"
 
 const {Content, Footer} = Layout
 
-type StyleProps = {
-    themeMode: "dark" | "light"
+interface StyleProps extends MainStyleProps {
     footerHeight: number
 }
 
@@ -280,7 +270,12 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             target="_blank"
                                             className={classes.joinBtn}
                                         >
-                                            <img src="/assets/slack.png" alt="Slack Image" />
+                                            <Image
+                                                src="/assets/slack.png"
+                                                alt="Slack Image"
+                                                width={15}
+                                                height={15}
+                                            />
                                             <span>Join us</span>
                                         </Button>
                                         <Button

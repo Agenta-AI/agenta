@@ -141,7 +141,7 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
             <div className={classes.ExternalHelp}>
                 <span>Learn</span>
                 <Link
-                    href="https://docs.agenta.ai/basic_guides/automatic_evaluation#configuring-evaluators"
+                    href="https://docs.agenta.ai/evaluation/webhook_evaluator"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={classes.ExternalHelpLink}

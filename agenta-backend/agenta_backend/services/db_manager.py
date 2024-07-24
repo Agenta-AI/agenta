@@ -314,13 +314,14 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
 
     assert base_id is not None, "no base_id provided"
+    base_uuid = await get_object_uuid(object_id=base_id, table_name="bases")
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(VariantBaseDB)
             .options(
                 joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
             )
-            .filter_by(id=uuid.UUID(base_id))
+            .filter_by(id=uuid.UUID(base_uuid))
         )
         base = result.scalars().first()
         return base
@@ -1973,7 +1974,11 @@ async def list_human_evaluations(app_id: str):
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(HumanEvaluationDB).filter_by(app_id=uuid.UUID(app_id))
+        base_query = (
+            select(HumanEvaluationDB)
+            .filter_by(app_id=uuid.UUID(app_id))
+            .filter(HumanEvaluationDB.testset_id.isnot(None))
+        )
         if isCloudEE():
             query = base_query.options(
                 joinedload(HumanEvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
@@ -2417,9 +2422,11 @@ async def add_template(**kwargs: dict) -> str:
     """
 
     async with db_engine.get_session() as session:
-        result = await session.execute(
-            select(TemplateDB).filter_by(tag_id=kwargs["tag_id"])
-        )
+        conditions = [
+            TemplateDB.tag_id == kwargs["tag_id"],
+            TemplateDB.name == kwargs["name"],
+        ]
+        result = await session.execute(select(TemplateDB).where(or_(*conditions)))
         existing_template = result.scalars().first()
 
         if existing_template is None:
