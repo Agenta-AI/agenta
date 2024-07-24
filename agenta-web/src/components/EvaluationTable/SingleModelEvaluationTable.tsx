@@ -33,6 +33,7 @@ import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVot
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 
 const {Title} = Typography
 
@@ -328,8 +329,10 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
-                    if (typeof result !== "string") {
+                    if (isFuncResponse(result)) {
                         result = result.message
+                    } else if (isBaseResponse(result)) {
+                        result = result.data.message
                     }
 
                     setRowValue(rowIndex, variant.variantId, result)
