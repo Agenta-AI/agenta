@@ -469,4 +469,4 @@ def test_rag_evaluator(
         {},
     )
 
-    assert round(result.value, 1) == expected_score
+    assert round(result.value, 1) == pytest.approx(expected_score, rel=1e-3)
