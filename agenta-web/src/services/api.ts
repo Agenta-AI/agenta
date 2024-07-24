@@ -4,7 +4,15 @@ import {
     openAISchemaToParameters,
 } from "@/lib/helpers/openapi_parser"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "@/lib/helpers/utils"
-import {Variant, Parameter, ChatMessage, KeyValuePair} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    ChatMessage,
+    KeyValuePair,
+    FuncResponse,
+    BaseResponse,
+} from "@/lib/Types"
+import baseResponse from "./baseResponseMock.json"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -66,7 +74,7 @@ export async function callVariant(
     chatMessages?: ChatMessage[],
     signal?: AbortSignal,
     ignoreAxiosError?: boolean,
-) {
+): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
@@ -98,6 +106,12 @@ export async function callVariant(
             ? chatMessages.filter((item) => item.content).map((item) => removeKeys(item, ["id"]))
             : secondaryInputParams,
     }
+
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve(baseResponse)
+        }, 1000)
+    })
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
 
