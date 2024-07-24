@@ -329,47 +329,65 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Closed  span  {span_id} {spankind}")
 
-    def dump_spans(self, root_tree=None):
-        spans = dict()
-        count = dict()
+    def store_locals(self, locals: Dict[str, Any] = {}):
+        attributes = {f"locals.{k}":v for k,v in attributes.items()}
 
+        self.set_attributes(attributes=attributes)
+
+    def dump_trace(self):
         try:
+            trace = dict()
+
             tracing = tracing_context.get()
 
-            root = False 
+            trace["trace_id"] = tracing.trace_id
 
-            if root_tree is None:
-                root = True
-                root_tree = tracing.tree
+            for span in tracing.spans.values():
+                if span.parent_span_id is None:
+                    trace["cost"] = span.cost
+                    trace["tokens"] = span.tokens
+                    trace["latency"] = (span.end_time-span.start_time).total_seconds()
 
-                spans["trace_id"] = tracing.trace_id
+            spans = self.dump_spans(tracing.tree)
 
-            for idx in root_tree.keys():
+            if spans is not None:
+                trace["spans"] = spans
+
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+
+        return trace
+
+    def dump_spans(self, tree):
+        try:
+            spans = dict()
+            count = dict()
+
+            tracing = tracing_context.get()
+
+            for idx in tree.keys():
                 key = tracing.spans[idx].name
                 count[key] = count.get(key, 0) + 1
 
-            while len(root_tree.keys()):
-                id, children = root_tree.popitem(last=False)
+            while len(tree.keys()):
+                id, children = tree.popitem(last=False)
 
                 key = tracing.spans[id].name
-                #key = tracing.spans[id].attributes["block"] if "block" in tracing.spans[id].attributes else tracing.spans[id].name
+                #key = tracing.spans[id].attributes["block"] if ("block" in tracing.spans[id].attributes) else tracing.spans[id].name
 
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
                     "end_time": tracing.spans[id].end_time.isoformat(),
                     "inputs": tracing.spans[id].inputs,
+                    "locals": {k.replace("locals.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("locals.")},
                     "outputs": tracing.spans[id].outputs,
-                    "locals": {k.replace("user.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("user.")},
                 }
 
-                if root is True:
-                    spans.update(**{
-                        "cost": tracing.spans[id].cost,
-                        "tokens": tracing.spans[id].tokens,
-                        "latency" : (tracing.spans[id].end_time-tracing.spans[id].start_time).total_seconds()
-                    })
+                children_spans = self.dump_spans(children)
 
-                span.update(**self.dump_spans(children))
+                if children_spans:
+                    span.update({"spans": children_spans})
                 
                 if count[key] > 1:
                     if key not in spans:

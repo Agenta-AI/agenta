@@ -19,7 +19,7 @@ class TracingContext:
         self.tree = OrderedDict()
 
     def __repr__(self) -> str:
-        return f"TracingContext(trace='{self.trace_id}', spans={[f"{span.id} {span.spankind}" for span in self.spans.values()]}, tree={self.tree})"
+        return f"TracingContext(trace='{self.trace_id}', spans={[f'{span.id} {span.spankind}' for span in self.spans.values()]}, tree={self.tree})"
 
     def __str__(self) -> str:
         return self.__repr__()
