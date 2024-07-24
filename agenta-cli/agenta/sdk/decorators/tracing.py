@@ -38,7 +38,10 @@ class instrument(BaseDecorator):
     """
 
     def __init__(
-        self, config: Optional[dict] = None, spankind: str = "workflow", block : Optional[str] = None
+        self,
+        config: Optional[dict] = None,
+        spankind: str = "workflow",
+        block: Optional[str] = None,
     ) -> None:
         self.config = config
         self.spankind = spankind
@@ -65,7 +68,7 @@ class instrument(BaseDecorator):
                     input=input_dict,
                     spankind=self.spankind,
                     config=self.config,
-                ) # missing attributes on creation
+                )  # missing attributes on creation
                 ag.tracing.set_attributes({"block": self.block})
 
                 result = None
@@ -90,11 +93,11 @@ class instrument(BaseDecorator):
                     ag.tracing.set_status(status="ERROR")
 
                 # This will evolve as we work on the CreateSpan schema
-                ag.tracing.end_span(outputs=(
-                    { "message": result }
-                    if not isinstance(result, dict)
-                    else result
-                ))
+                ag.tracing.end_span(
+                    outputs=(
+                        {"message": result} if not isinstance(result, dict) else result
+                    )
+                )
 
                 if token is not None:
                     # This only runs when using @instrument without @entrypoint/@route
@@ -103,7 +106,7 @@ class instrument(BaseDecorator):
 
                 if error:
                     raise error
-                
+
                 return result
 
             return await wrapped_func(*args, **kwargs)

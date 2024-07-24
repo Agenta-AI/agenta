@@ -94,10 +94,10 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
                 return None
 
         return tree
-    
+
     except Exception as e:
         logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
-        
+
         return None
 
 
@@ -674,19 +674,19 @@ def auto_json_diff(
         # => comes from 'outputs'
         # output: Union[str, Dict[str, Any]]
 
-        #question_key = get_user_key_from_settings(settings_values, "question_key")
-        #answer_key = get_user_key_from_settings(settings_values, "answer_key")
-        #contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+        # question_key = get_user_key_from_settings(settings_values, "question_key")
+        # answer_key = get_user_key_from_settings(settings_values, "answer_key")
+        # contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
 
-        #question_value = get_field_value_from_trace(trace, question_key)
-        #answer_value = get_field_value_from_trace(trace, answer_key)
-        #contexts_value = get_field_value_from_trace(trace, contexts_key)
+        # question_value = get_field_value_from_trace(trace, question_key)
+        # answer_value = get_field_value_from_trace(trace, answer_key)
+        # contexts_value = get_field_value_from_trace(trace, contexts_key)
 
         # HOW DO WE PASS 'question'/'answer'/'contexts'/... TO THE EVALUATOR ?
         # => goes into 'inputs'
 
         # def faithfulness (question, answer, contexts) -> score
-        
+
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
             ground_truth=correct_answer,
@@ -746,7 +746,7 @@ def rag_faithfulness(
         )
 
         return Result(type="number", value=eval_score.score)
-    
+
     except Exception:
         return Result(
             type="error",
@@ -798,7 +798,7 @@ def rag_context_relevancy(
             )
         )
         return Result(type="number", value=eval_score.score)
-    
+
     except Exception:
         return Result(
             type="error",
