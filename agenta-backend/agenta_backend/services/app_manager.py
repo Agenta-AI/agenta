@@ -23,7 +23,6 @@ from agenta_backend.services import (
 
 from agenta_backend.utils.common import (
     isEE,
-    isOssEE,
     isCloudProd,
     isCloudDev,
     isCloudEE,
@@ -151,8 +150,7 @@ async def update_variant_image(
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
 
-    if isOssEE():
-        await deployment_manager.remove_image(base.image)
+    await deployment_manager.remove_image(base.image)
 
     await db_manager.remove_image(base.image)
 
