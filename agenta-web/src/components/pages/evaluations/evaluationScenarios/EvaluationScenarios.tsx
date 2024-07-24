@@ -165,15 +165,17 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
-                                  variantOutput={result?.value}
+                                  variantOutput={
+                                      result?.value?.data ? result.value.data : result?.value
+                                  }
                                   expectedOutput={correctAnswer?.value || ""}
                               />,
                           )
                         : LongTextCellRenderer(params)
                 },
-                valueGetter: (params) => {
-                    const result = params.data?.outputs[index].result
-                    return result?.value
+                valueGetter: (params: any) => {
+                    const result = params.data?.outputs[index].result.value
+                    return result?.data ? result?.data : result
                 },
             })
         })
