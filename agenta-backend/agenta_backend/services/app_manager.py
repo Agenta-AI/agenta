@@ -150,17 +150,6 @@ async def update_variant_image(
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
 
-    if base.image.deletable:
-        try:
-            if isCloudEE():
-                await deployment_manager.remove_repository(base.image.tags)  # type: ignore
-            else:
-                await deployment_manager.remove_image(base.image)
-        except RuntimeError as e:
-            logger.error(f"Failed to remove image {image} {e}")
-        finally:
-            await db_manager.remove_image(base.image)
-
     # Create a new image instance
     db_image = await db_manager.create_image(
         image_type="image",
