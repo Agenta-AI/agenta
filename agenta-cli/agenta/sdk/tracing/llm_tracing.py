@@ -355,7 +355,7 @@ class Tracing(metaclass=SingletonMeta):
             for span in tracing.spans.values():
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
-                    trace["tokens"] = span.tokens
+                    trace["usage"] = span.tokens
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
             spans = self.dump_spans(copy.deepcopy(tracing.tree))
