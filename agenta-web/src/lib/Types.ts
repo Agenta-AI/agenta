@@ -502,9 +502,7 @@ export type FuncResponse = {
 }
 
 export type BaseResponse = {
-    data: {
-        message: string
-    }
+    data: Record<string, any>
     trace?: {
         trace_id: string
         cost?: number
