@@ -620,7 +620,10 @@ const App: React.FC<TestViewProps> = ({
                 })
             } else if (isBaseResponse(res)) {
                 const {data, trace} = res
-                setResultForIndex(data.message, index)
+                setResultForIndex(
+                    data.message ? (data.message as string) : JSON.stringify(data),
+                    index,
+                )
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {
