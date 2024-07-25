@@ -79,6 +79,7 @@ const ParamsForm: React.FC<Props> = ({
             {(_, formInstance) => {
                 return inputParams.map((param, index) => {
                     const type = param.type === "file_url" ? "url" : param.type
+
                     return (
                         <Form.Item
                             key={param.name}
@@ -88,10 +89,10 @@ const ParamsForm: React.FC<Props> = ({
                                     required: param.required,
                                     message: "This field is required",
                                 },
-                                {
-                                    type: type as any,
-                                    message: `Must be a valid ${type}`,
-                                },
+                                //{
+                                //    type: type as any,
+                                //    message: `Must be a valid ${type}`,
+                                //},
                             ]}
                             initialValue={param.value}
                         >
@@ -108,6 +109,7 @@ const ParamsForm: React.FC<Props> = ({
                                             alt={param.name}
                                         />
                                     )}
+
 
                                 <Input.TextArea
                                     data-cy={`testview-input-parameters-${index}`}
