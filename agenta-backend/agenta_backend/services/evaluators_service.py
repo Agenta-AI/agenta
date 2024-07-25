@@ -695,6 +695,9 @@ def rag_faithfulness(
         contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
 
         if None in [question_key, answer_key, contexts_key]:
+            logging.error(
+                f"Missing evaluator settings ? {[question_key, answer_key, contexts_key]}"
+            )
             raise ValueError(
                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
             )
@@ -705,6 +708,9 @@ def rag_faithfulness(
         contexts_value = get_field_value_from_trace(output["trace"], contexts_key)
 
         if None in [question_value, answer_value, contexts_value]:
+            logging.error(
+                f"Missing trace field ? {[question_value, answer_value, contexts_value]}"
+            )
             raise ValueError(
                 "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
             )
@@ -748,6 +754,10 @@ def rag_context_relevancy(
         contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
 
         if None in [question_key, answer_key, contexts_key]:
+            logging.error(
+                f"Missing evaluator settings ? {[question_key, answer_key, contexts_key]}"
+            )
+
             raise ValueError(
                 "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
             )
@@ -758,6 +768,9 @@ def rag_context_relevancy(
         contexts_value = get_field_value_from_trace(output["trace"], contexts_key)
 
         if None in [question_value, answer_value, contexts_value]:
+            logging.error(
+                f"Missing trace field ? {[question_value, answer_value, contexts_value]}"
+            )
             raise ValueError(
                 "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
             )
