@@ -97,7 +97,6 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
 
     except Exception as e:
         logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
-
         return None
 
 
@@ -110,17 +109,10 @@ def get_user_key_from_settings(settings_values: Dict[str, Any], target_key: str)
         target_key (str): The key to access from the settings values.
 
     Returns:
-        str | None: The value of the specified key from the settings values, or None if a KeyError is encountered.
+        str | None: The value of the specified key from the settings values, or None if the key does not exist.
     """
 
-    user_key = None
-
-    try:
-        user_key = settings_values.get(target_key, None)
-
-    except Exception as e:
-        logging.error(e)
-
+    user_key = settings_values.get(target_key, None)
     return user_key
 
 
