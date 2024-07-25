@@ -69,7 +69,6 @@ class instrument(BaseDecorator):
                     spankind=self.spankind,
                     config=self.config,
                 )  # missing attributes on creation
-                ag.tracing.set_attributes({"block": self.block})
 
                 result = None
                 error = None
