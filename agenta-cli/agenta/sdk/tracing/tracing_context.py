@@ -17,6 +17,7 @@ class TracingContext:
         self.active_span: Optional[CreateSpan] = None
         self.spans: Dict[str, CreateSpan] = {}
         self.tree = OrderedDict()
+        self.index = {}
 
     def __repr__(self) -> str:
         return f"TracingContext(trace='{self.trace_id}', spans={[f'{span.id} {span.spankind}' for span in self.spans.values()]}, tree={self.tree})"
@@ -31,12 +32,13 @@ class TracingContext:
         if span.parent_span_id is None:
             ### --- ROOT  SPAN  --- ###
             self.tree[span.id] = OrderedDict()
-        elif span.parent_span_id in self.tree:
+            self.index[span.id] = self.tree[span.id]
+        elif span.parent_span_id in self.index:
             ### --- OTHER SPANS --- ###
-            self.tree[span.parent_span_id][span.id] = OrderedDict()
+            self.index[span.parent_span_id][span.id] = OrderedDict()
+            self.index[span.id] = self.index[span.parent_span_id][span.id]
         else:
             # ERROR : The parent should have been in the tree.
             pass
-
 
 tracing_context = ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)

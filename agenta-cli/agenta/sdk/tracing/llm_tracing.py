@@ -379,9 +379,9 @@ class Tracing(metaclass=SingletonMeta):
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
                     "end_time": tracing.spans[id].end_time.isoformat(),
-                    "inputs": tracing.spans[id].inputs,
-                    "locals": {k.replace("locals.", ""):v for k,v in tracing.spans[id].attributes.items() if k.startswith("locals.")},
-                    "outputs": tracing.spans[id].outputs,
+                    "inputs": {k:repr(v) for (k,v) in tracing.spans[id].inputs.items()},
+                    "locals": {k.replace("locals.", ""):repr(v) for k,v in tracing.spans[id].attributes.items() if k.startswith("locals.")},
+                    "outputs": {k:repr(v) for (k,v) in tracing.spans[id].outputs.items()},
                 }
 
                 children_spans = self.dump_spans(children)
