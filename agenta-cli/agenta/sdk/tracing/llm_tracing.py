@@ -1,4 +1,5 @@
 import os
+import copy
 from uuid import uuid4
 
 import traceback
@@ -335,6 +336,15 @@ class Tracing(metaclass=SingletonMeta):
         self.set_attributes(attributes=attributes)
 
     def dump_trace(self):
+        """
+        Collects and organizes tracing information into a dictionary.
+        This function retrieves the current tracing context and extracts relevant data such as `trace_id`, `cost`, `tokens`, and `latency` for the whole trace.
+        It also dumps detailed span information using the `dump_spans` method and includes it in the trace dictionary.
+        If an error occurs during the process, it logs the error message and stack trace.
+        
+        Returns:
+            dict: A dictionary containing the trace information.
+        """
         try:
             trace = dict()
 
@@ -348,7 +358,7 @@ class Tracing(metaclass=SingletonMeta):
                     trace["tokens"] = span.tokens
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
-            spans = self.dump_spans(tracing.tree)
+            spans = self.dump_spans(copy.deepcopy(tracing.tree))
 
             if spans is not None:
                 trace["spans"] = spans
@@ -360,6 +370,17 @@ class Tracing(metaclass=SingletonMeta):
         return trace
 
     def dump_spans(self, tree):
+        """
+        Recursively collects and organizes span information into a dictionary.
+        This function retrieves the current tracing context and extracts detailed data for each span.
+        It processes spans in a tree structure, organizing them with their start time, end time, inputs, local variables, and outputs.
+        If an error occurs, it logs the error message and stack trace.
+        
+        Args:
+            tree (OrderedDict): A tree structure representing the spans to be processed.
+        Returns:
+            dict: A dictionary containing the organized span information.
+        """
         try:
             spans = dict()
             count = dict()

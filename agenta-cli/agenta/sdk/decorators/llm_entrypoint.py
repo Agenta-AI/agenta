@@ -66,8 +66,11 @@ class PathValidator(BaseModel):
 
 
 class route(BaseDecorator):
-    # TODO:
-    # - Explain with @route(), for backward compatibility due to @entrypoint limitations.
+    # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
+    # as independent endpoints. It is designed for backward compatibility with existing code that uses
+    # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
+    # routes without altering the main workflow entrypoint. This helps in modularizing the services 
+    # and provides flexibility in how we expose different functionalities as APIs.
     def __init__(self, path):
         if path != "" and path[0] != "/":
             path = "/" + path
