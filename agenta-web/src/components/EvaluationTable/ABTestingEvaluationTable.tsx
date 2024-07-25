@@ -299,6 +299,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         result = result.message
                     } else if (isBaseResponse(result)) {
                         result = result.data.message
+                            ? (result.data.message as string)
+                            : JSON.stringify(result.data)
                     }
 
                     setRowValue(rowIndex, variant.variantId, result)

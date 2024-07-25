@@ -166,7 +166,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
                               params,
                               <CompareOutputDiff
                                   variantOutput={
-                                      result?.value?.data ? result.value.data : result?.value
+                                      typeof result.value === "string"
+                                          ? result.value
+                                          : JSON.stringify(result.value)
                                   }
                                   expectedOutput={correctAnswer?.value || ""}
                               />,
@@ -175,7 +177,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 },
                 valueGetter: (params: any) => {
                     const result = params.data?.outputs[index].result.value
-                    return result?.data ? result?.data : result
+                    return typeof result === "string" ? result : JSON.stringify(result)
                 },
             })
         })
