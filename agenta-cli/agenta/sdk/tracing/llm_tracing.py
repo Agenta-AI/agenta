@@ -330,7 +330,7 @@ class Tracing(metaclass=SingletonMeta):
         logging.info(f"Closed  span  {span_id} {spankind}")
 
     def store_locals(self, locals: Dict[str, Any] = {}):
-        attributes = {f"locals.{k}":v for k,v in locals.items()}
+        attributes = {f"locals.{k}": v for k, v in locals.items()}
 
         self.set_attributes(attributes=attributes)
 
@@ -346,7 +346,7 @@ class Tracing(metaclass=SingletonMeta):
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
                     trace["tokens"] = span.tokens
-                    trace["latency"] = (span.end_time-span.start_time).total_seconds()
+                    trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
             spans = self.dump_spans(tracing.tree)
 
@@ -374,7 +374,7 @@ class Tracing(metaclass=SingletonMeta):
                 id, children = tree.popitem(last=False)
 
                 key = tracing.spans[id].name
-                #key = tracing.spans[id].attributes["block"] if ("block" in tracing.spans[id].attributes) else tracing.spans[id].name
+                # key = tracing.spans[id].attributes["block"] if ("block" in tracing.spans[id].attributes) else tracing.spans[id].name
 
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
@@ -388,7 +388,7 @@ class Tracing(metaclass=SingletonMeta):
 
                 if children_spans:
                     span.update({"spans": children_spans})
-                
+
                 if count[key] > 1:
                     if key not in spans:
                         spans[key] = list()
@@ -470,7 +470,7 @@ class Tracing(metaclass=SingletonMeta):
 
     def _process_spans(self) -> None:
         tracing = tracing_context.get()
-        
+
         spans = list(tracing.spans.values())
 
         logging.info(f"Sending trace {tracing.trace_id} spans={len(spans)} ")
