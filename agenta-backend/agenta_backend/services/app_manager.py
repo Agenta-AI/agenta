@@ -152,7 +152,9 @@ async def update_variant_image(
     await db_manager.remove_deployment(str(deployment.id))
 
     if isOss():
-        await db_manager.remove_image(base.image)
+        await deployment_manager.remove_image(base.image)
+
+    await db_manager.remove_image(base.image)
 
     # Create a new image instance
     db_image = await db_manager.create_image(
