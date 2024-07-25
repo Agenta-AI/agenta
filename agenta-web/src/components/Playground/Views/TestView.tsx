@@ -207,6 +207,23 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
 
+    function modifySpans(spans: any) {
+        if (typeof spans === "object" && spans !== null) {
+            const modifiedSpans: any = {}
+            for (const [key, value] of Object.entries(spans)) {
+                if (Array.isArray(value)) {
+                    value.forEach((item, index) => {
+                        modifiedSpans[`${key}[${index}]`] = item
+                    })
+                } else {
+                    modifiedSpans[key] = modifySpans(value)
+                }
+            }
+            return modifiedSpans
+        }
+        return spans
+    }
+
     const spansComponent = (span: Record<string, any>) => {
         return (
             <div className="flex flex-col gap-4">
@@ -398,7 +415,10 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     />
                 </Row>
             )}
-            <Collapse items={buildAccordion(traceSpans)} className={classes.baseSpansAccordion} />
+            <Collapse
+                items={buildAccordion(modifySpans(traceSpans))}
+                className={classes.baseSpansAccordion}
+            />
         </Card>
     )
 }
