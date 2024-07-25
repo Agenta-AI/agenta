@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import json
 import inspect
 import argparse
 import asyncio
@@ -15,11 +16,11 @@ from typing import Any, Callable, Dict, Optional, Tuple, List
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
-import agenta
+import agenta as ag
 from agenta.sdk.context import save_context
 from agenta.sdk.router import router as router
 from agenta.sdk.tracing.logger import llm_logger as logging
-from agenta.sdk.tracing.llm_tracing import Tracing
+from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.decorators.base import BaseDecorator
 from agenta.sdk.types import (
     Context,
@@ -32,9 +33,11 @@ from agenta.sdk.types import (
     TextParam,
     MessagesInput,
     FileInputURL,
-    FuncResponse,
+    BaseResponse,
     BinaryParam,
 )
+
+from pydantic import BaseModel, HttpUrl
 
 app = FastAPI()
 
@@ -52,11 +55,37 @@ app.add_middleware(
 
 app.include_router(router, prefix="")
 
-
 from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
 logging.setLevel("DEBUG")
+
+
+class PathValidator(BaseModel):
+    url: HttpUrl
+
+
+class route(BaseDecorator):
+    # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
+    # as independent endpoints. It is designed for backward compatibility with existing code that uses
+    # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
+    # routes without altering the main workflow entrypoint. This helps in modularizing the services
+    # and provides flexibility in how we expose different functionalities as APIs.
+    def __init__(self, path):
+        if path != "" and path[0] != "/":
+            path = "/" + path
+
+        while path != "" and path[-1] == "/":
+            path = path[:-1]
+
+        PathValidator(url=f"http://localhost:8000{path}")
+
+        self.route_path = path
+
+    def __call__(self, f):
+        self.e = entrypoint(f, route_path=self.route_path)
+
+        return f
 
 
 class entrypoint(BaseDecorator):
@@ -73,31 +102,69 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __init__(self, func: Callable[..., Any]):
+    routes = list()
+
+    def __init__(self, func: Callable[..., Any], route_path=""):
         endpoint_name = "generate"
+        playground_path = "/playground"
+        run_path = "/run"
         func_signature = inspect.signature(func)
-        config_params = agenta.config.all()
+        config_params = ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        ### --- Playground / Drafts  --- #
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
-            agenta.config.set(**api_config_params)
+            ag.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.update_baggage(
+            ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
 
             # Exceptions are all handled inside self.execute_function()
-            llm_result = await self.execute_function(
+            entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
 
-            return llm_result
+            return entrypoint_result
 
+        self.update_function_signature(
+            wrapper, func_signature, config_params, ingestible_files
+        )
+
+        # TODO:
+        # - The whole ag.Config is now required for individual stages.
+        #   Once ag.Config goes from Singleton to Instance, and
+        #   depending on how ag.Config is implemented,
+        #   we need to filter the part of ag.Config that matters to each route.
+
+        if route_path == "":
+            route = f"/{endpoint_name}"
+            app.post(route, response_model=BaseResponse)(wrapper)
+            entrypoint.routes.append(
+                {
+                    "func": func.__name__,
+                    "endpoint": endpoint_name,
+                    "params": {**config_params, **func_signature.parameters},
+                }
+            )
+
+        route = f"{playground_path}{run_path}{route_path}"
+        app.post(route, response_model=BaseResponse)(wrapper)
+        entrypoint.routes.append(
+            {
+                "func": func.__name__,
+                "endpoint": route[1:].replace("/", "_"),
+                "params": {**config_params, **func_signature.parameters},
+            }
+        )
+        ### ---------------------------- #
+
+        ### --- Deployed / Published --- #
         @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
@@ -106,44 +173,49 @@ class entrypoint(BaseDecorator):
             }
 
             if "environment" in kwargs and kwargs["environment"] is not None:
-                agenta.config.pull(environment_name=kwargs["environment"])
+                ag.config.pull(environment_name=kwargs["environment"])
             elif "config" in kwargs and kwargs["config"] is not None:
-                agenta.config.pull(config_name=kwargs["config"])
+                ag.config.pull(config_name=kwargs["config"])
             else:
-                agenta.config.pull(config_name="default")
+                ag.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.update_baggage(
+            ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
-            llm_result = await self.execute_function(
+            entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
 
-            return llm_result
-
-        self.update_function_signature(
-            wrapper, func_signature, config_params, ingestible_files
-        )
-        route = f"/{endpoint_name}"
-        app.post(route, response_model=FuncResponse)(wrapper)
+            return entrypoint_result
 
         self.update_deployed_function_signature(
             wrapper_deployed,
             func_signature,
             ingestible_files,
         )
-        route_deployed = f"/{endpoint_name}_deployed"
-        app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
-        self.override_schema(
-            openapi_schema=app.openapi(),
-            func_name=func.__name__,
-            endpoint=endpoint_name,
-            params={**config_params, **func_signature.parameters},
-        )
 
-        if self.is_main_script(func):
+        if route_path == "/":
+            route_deployed = f"/{endpoint_name}_deployed"
+            app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
+
+        route_deployed = f"{run_path}{route_path}"
+        app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
+        ### ---------------------------- #
+
+        app.openapi_schema = None
+        openapi_schema = app.openapi()
+
+        for route in entrypoint.routes:
+            self.override_schema(
+                openapi_schema=openapi_schema,
+                func=route["func"],
+                endpoint=route["endpoint"],
+                params=route["params"],
+            )
+
+        if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
@@ -198,51 +270,67 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            data = None
+            trace = None
+
+            token = None
+            if tracing_context.get() is None:
+                token = tracing_context.set(TracingContext())
+
             is_coroutine_function = inspect.iscoroutinefunction(func)
-            start_time = time.perf_counter()
 
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
                 result = func(*args, **func_params["params"])
 
-            end_time = time.perf_counter()
-            latency = end_time - start_time
+            if token is not None:
+                # check that it doesn't affect the tracing.tree
+                trace = ag.tracing.dump_trace()
+
+                tracing_context.reset(token)
 
             if isinstance(result, Context):
                 save_context(result)
+
             if isinstance(result, Dict):
-                return FuncResponse(**result, latency=round(latency, 4))
-            if isinstance(result, str):
-                return FuncResponse(
-                    message=result, usage=None, cost=None, latency=round(latency, 4)
+                if "message" in result:
+                    data = {"message": result["message"]}
+                else:
+                    data = result
+            elif isinstance(result, str):
+                data = {"message": result}
+            elif isinstance(result, int) or isinstance(result, float):
+                data = {"message": str(result)}
+
+            if data is None:
+                warning = (
+                    "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
-            if isinstance(result, int) or isinstance(result, float):
-                return FuncResponse(
-                    message=str(result),
-                    usage=None,
-                    cost=None,
-                    latency=round(latency, 4),
-                )
-            if result is None:
-                return FuncResponse(
-                    message="Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
-                    usage=None,
-                    cost=None,
-                    latency=round(latency, 4),
-                )
+
+                data = {"message": warning}
+
+            return BaseResponse(data=data, trace=trace)
+
         except Exception as e:
             self.handle_exception(e)
-        return FuncResponse(message="Unexpected error occurred when calling the @entrypoint decorated function", latency=0)  # type: ignore
 
     def handle_exception(self, e: Exception):
-        """Handle exceptions."""
+        try:
+            status_code = e.status_code if hasattr(e, "status_code") else 500
+            message = str(e)
+            stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
 
-        status_code: int = e.status_code if hasattr(e, "status_code") else 500
-        traceback_str = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+        except:
+            status_code = 500
+            message = ("Unexpected error occurred when calling @entrypoint or @route.",)
+            stacktrace = traceback.format_exc()
+
+        detail = {"message": message, "stacktrace": stacktrace}
+
         raise HTTPException(
             status_code=status_code,
-            detail={"error": str(e), "traceback": "".join(traceback_str)},
+            detail=detail,
         )
 
     def update_wrapper_signature(
@@ -418,26 +506,29 @@ class entrypoint(BaseDecorator):
                 file_path=args_func_params[name],
             )
 
-        agenta.config.set(**args_config_params)
+        ag.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        agenta.tracing.update_baggage(
-            {"config": agenta.config.all(), "environment": "bash"}
-        )
+        ag.tracing.update_baggage({"config": ag.config.all(), "environment": "bash"})
 
         loop = asyncio.get_event_loop()
+
         result = loop.run_until_complete(
             self.execute_function(
                 func,
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
-        print(
-            f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
-        )
+
+        print(f"\n========== Result ==========\n")
+
+        print("--- data")
+        print(json.dumps(result.data, indent=2))
+        print("--- trace")
+        print(json.dumps(result.trace, indent=2))
 
     def override_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
+        self, openapi_schema: dict, func: str, endpoint: str, params: dict
     ):
         """
         Overrides the default openai schema generated by fastapi with additional information about:
@@ -452,7 +543,7 @@ class entrypoint(BaseDecorator):
 
         Args:
             openapi_schema (dict): The openapi schema generated by fastapi
-            func_name (str): The name of the function to override
+            func (str): The name of the function to override
             endpoint (str): The name of the endpoint to override
             params (dict(param_name, param_val)): The dictionary of the parameters for the function
         """
@@ -485,7 +576,7 @@ class entrypoint(BaseDecorator):
                     return value
 
         schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_{endpoint}_post"
+            f"Body_{func}_{endpoint}_post"
         ]["properties"]
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):

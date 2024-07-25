@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
 
@@ -16,11 +16,10 @@ class LLMTokenUsage(BaseModel):
     total_tokens: int
 
 
-class FuncResponse(BaseModel):
-    message: str
-    usage: Optional[LLMTokenUsage]
-    cost: Optional[float]
-    latency: float
+class BaseResponse(BaseModel):
+    type: Optional[str] = "BaseResponseV1"
+    data: Optional[Dict[str, Any]]
+    trace: Optional[Dict[str, Any]]
 
 
 class DictInput(dict):

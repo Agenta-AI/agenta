@@ -57,15 +57,14 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
 
-    EXCLUDED_KEYS = [
-        "start_time",
-        "end_time",
-        "trace_id",
-        "span_id",
-        "cost",
-        "usage",
-        "latency",
+    SPECIAL_KEYS = [
+        "inputs",
+        "locals",
+        "outputs",
     ]
+
+    spans = True
+
     tree = trace
     fields = key.split(".")
 
@@ -78,35 +77,42 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
                 key = field.split("[")[0]
                 idx = int(field.split("[")[1].split("]")[0])
 
-            if key in EXCLUDED_KEYS:
-                return None
-
             try:
+                if key in SPECIAL_KEYS:
+                    spans = False
+
+                if spans:
+                    tree = tree["spans"]
+
                 tree = tree[key]
+
                 if idx is not None:
                     tree = tree[idx]
-            except:
+
+            except Exception as e:
+                logging.error(e)
                 return None
 
         return tree
+
     except Exception as e:
         logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
 
 
-def get_user_key_from_settings(settings_values: Dict[str, Any], user_key: str) -> Any:
+def get_user_key_from_settings(settings_values: Dict[str, Any], target_key: str) -> Any:
     """
     Retrieve the value of a specified key from the settings values.
 
     Args:
         settings_values (Dict[str, Any]): The settings values containing the key.
-        user_key (str): The key to access from the settings values.
+        target_key (str): The key to access from the settings values.
 
     Returns:
-        str | None: The value of the specified key from the settings values, or None if a KeyError is encountered.
+        str | None: The value of the specified key from the settings values, or None if the key does not exist.
     """
 
-    user_key = settings_values.get(user_key, {}).get("default", None)
+    user_key = settings_values.get(target_key, None)
     return user_key
 
 
@@ -694,24 +700,28 @@ def rag_faithfulness(
             )
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(output, question_key)
-        answer_value = get_field_value_from_trace(output, answer_key)
-        contexts_value = get_field_value_from_trace(output, contexts_key)
+        question_value = get_field_value_from_trace(output["trace"], question_key)
+        answer_value = get_field_value_from_trace(output["trace"], answer_key)
+        contexts_value = get_field_value_from_trace(output["trace"], contexts_key)
 
         if None in [question_value, answer_value, contexts_value]:
             raise ValueError(
                 "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
             )
 
+        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+
         # Initialize RAG evaluator to calculate faithfulness score
         loop = asyncio.get_event_loop()
-        faithfulness = Faithfulness()
+        faithfulness = Faithfulness(api_key=openai_api_key)
         eval_score = loop.run_until_complete(
             faithfulness._run_eval_async(
                 output=answer_value, input=question_value, context=contexts_value
             )
         )
+
         return Result(type="number", value=eval_score.score)
+
     except Exception:
         return Result(
             type="error",
@@ -743,24 +753,27 @@ def rag_context_relevancy(
             )
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(output, question_key)
-        answer_value = get_field_value_from_trace(output, answer_key)
-        contexts_value = get_field_value_from_trace(output, contexts_key)
+        question_value = get_field_value_from_trace(output["trace"], question_key)
+        answer_value = get_field_value_from_trace(output["trace"], answer_key)
+        contexts_value = get_field_value_from_trace(output["trace"], contexts_key)
 
         if None in [question_value, answer_value, contexts_value]:
             raise ValueError(
                 "Missing required key values for rag_evaluator: 'question_value', 'answer_value', or 'contexts_value'. Please check your settings and try again."
             )
 
+        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+
         # Initialize RAG evaluator to calculate context relevancy score
         loop = asyncio.get_event_loop()
-        context_rel = ContextRelevancy()
+        context_rel = ContextRelevancy(api_key=openai_api_key)
         eval_score = loop.run_until_complete(
             context_rel._run_eval_async(
                 output=answer_value, input=question_value, context=contexts_value
             )
         )
         return Result(type="number", value=eval_score.score)
+
     except Exception:
         return Result(
             type="error",
