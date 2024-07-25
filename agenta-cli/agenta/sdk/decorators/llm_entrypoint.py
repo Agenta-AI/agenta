@@ -575,6 +575,27 @@ class entrypoint(BaseDecorator):
                         # value = {'temperature': { "type": "number", "title": "Temperature", "x-parameter": "float" }}
                     return value
 
+        def get_type_from_param(param_val):
+            param_type = "string"
+            annotation = param_val.annotation
+
+            if annotation == int:
+                param_type = "integer"
+            elif annotation == dict:
+                param_type = "object"
+            elif annotation == bool:
+                param_type = "boolean"
+            elif annotation == list:
+                param_type = "list"
+            elif annotation == str:
+                param_type = "string"
+            else:
+                print("hey", annotation)
+
+            print(param_type)
+
+            return param_type
+
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func}_{endpoint}_post"
         ]["properties"]
@@ -592,7 +613,7 @@ class entrypoint(BaseDecorator):
                 subschema["choices"] = param_val.choices  # type: ignore
                 subschema["default"] = param_val.default  # type: ignore
 
-            if isinstance(param_val, MultipleChoiceParam):
+            elif isinstance(param_val, MultipleChoiceParam):
                 subschema = find_in_schema(
                     param_val.__schema_type_properties__(),
                     schema_to_override,
@@ -611,7 +632,7 @@ class entrypoint(BaseDecorator):
                     default if default in param_choices else choices[0]
                 )
 
-            if isinstance(param_val, FloatParam):
+            elif isinstance(param_val, FloatParam):
                 subschema = find_in_schema(
                     param_val.__schema_type_properties__(),
                     schema_to_override,
@@ -622,7 +643,7 @@ class entrypoint(BaseDecorator):
                 subschema["maximum"] = param_val.maxval  # type: ignore
                 subschema["default"] = param_val
 
-            if isinstance(param_val, IntParam):
+            elif isinstance(param_val, IntParam):
                 subschema = find_in_schema(
                     param_val.__schema_type_properties__(),
                     schema_to_override,
@@ -633,7 +654,7 @@ class entrypoint(BaseDecorator):
                 subschema["maximum"] = param_val.maxval  # type: ignore
                 subschema["default"] = param_val
 
-            if (
+            elif (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is DictInput
             ):
@@ -645,7 +666,7 @@ class entrypoint(BaseDecorator):
                 )
                 subschema["default"] = param_val.default["default_keys"]
 
-            if isinstance(param_val, TextParam):
+            elif isinstance(param_val, TextParam):
                 subschema = find_in_schema(
                     param_val.__schema_type_properties__(),
                     schema_to_override,
@@ -654,7 +675,7 @@ class entrypoint(BaseDecorator):
                 )
                 subschema["default"] = param_val
 
-            if (
+            elif (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is MessagesInput
             ):
@@ -666,7 +687,7 @@ class entrypoint(BaseDecorator):
                 )
                 subschema["default"] = param_val.default
 
-            if (
+            elif (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is FileInputURL
             ):
@@ -678,7 +699,7 @@ class entrypoint(BaseDecorator):
                 )
                 subschema["default"] = "https://example.com"
 
-            if isinstance(param_val, BinaryParam):
+            elif isinstance(param_val, BinaryParam):
                 subschema = find_in_schema(
                     param_val.__schema_type_properties__(),
                     schema_to_override,
@@ -686,3 +707,11 @@ class entrypoint(BaseDecorator):
                     "bool",
                 )
                 subschema["default"] = param_val.default  # type: ignore
+            else:
+                subschema = {
+                    "title": str(param_name).capitalize(),
+                    "type": get_type_from_param(param_val),
+                }
+                if param_val.default != inspect._empty:
+                    subschema["default"] = param_val.default  # type: ignore
+                schema_to_override[param_name] = subschema
