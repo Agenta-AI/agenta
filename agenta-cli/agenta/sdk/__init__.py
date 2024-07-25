@@ -16,7 +16,7 @@ from .types import (
 
 from .tracing.llm_tracing import Tracing
 from .decorators.tracing import instrument
-from .decorators.llm_entrypoint import entrypoint, app
+from .decorators.llm_entrypoint import entrypoint, app, route
 from .agenta_init import Config, AgentaSingleton, init
 from .utils.helper.openai_cost import calculate_token_usage
 
