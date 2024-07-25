@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal, Collapse, CollapseProps} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/services/api"
 import {
@@ -10,6 +10,7 @@ import {
     Parameter,
     Variant,
     StyleProps,
+    BaseResponseSpans,
 } from "@/lib/Types"
 import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
@@ -32,6 +33,8 @@ import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {dynamicService} from "@/lib/helpers/dynamic"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
+import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 
 const promptRevision: any = dynamicService("promptVersioning/api")
 
@@ -87,6 +90,22 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         opacity: 0.5,
         bottom: 6,
         color: theme.colorPrimary,
+    },
+    baseSpansAccordion: {
+        margin: "8px 0",
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+        },
+    },
+    baseSpanContainer: {
+        padding: theme.paddingSM,
+        borderRadius: theme.borderRadius,
+        border: `1px solid ${theme.colorBorder}`,
+        margin: "8px 0",
+        backgroundColor: theme.isDark ? "#111" : "#fff",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
     },
 }))
 
@@ -146,7 +165,6 @@ interface TestViewProps {
     optParams: Parameter[] | null
     isChatVariant?: boolean
     compareMode: boolean
-    onStateChange: (isDirty: boolean) => void
     setPromptOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
     promptOptParams: Parameter[] | null
 }
@@ -167,6 +185,7 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
+    traceSpans: Record<string, BaseResponseSpans | BaseResponseSpans[]>
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -181,11 +200,104 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     isChatVariant = false,
     variant,
     onCancel,
+    traceSpans,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
+
+    function modifySpans(spans: any) {
+        if (typeof spans === "object" && spans !== null) {
+            const modifiedSpans: any = {}
+            for (const [key, value] of Object.entries(spans)) {
+                if (Array.isArray(value)) {
+                    value.forEach((item, index) => {
+                        modifiedSpans[`${key}[${index}]`] = item
+                    })
+                } else {
+                    modifiedSpans[key] = modifySpans(value)
+                }
+            }
+            return modifiedSpans
+        }
+        return spans
+    }
+
+    const spansComponent = (span: Record<string, any>) => {
+        return (
+            <div className="flex flex-col gap-4">
+                {Object.entries(span).map(([key, value], idx) => (
+                    <>
+                        <div key={idx} className="flex gap-4">
+                            <span className="font-bold">{`${key}`}</span>
+                            {Array.isArray(value) ? (
+                                <div>
+                                    {value.map((item, idx) => (
+                                        <span key={idx}>{item}</span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span>{value}</span>
+                            )}
+                        </div>
+                    </>
+                ))}
+            </div>
+        )
+    }
+
+    const buildAccordion = (
+        spans: Record<string, BaseResponseSpans | BaseResponseSpans[]>,
+    ): CollapseProps["items"] => {
+        return Object.entries(spans).map(([key, value], idx) => ({
+            key: String(idx),
+            label: (
+                <>
+                    <span className="flex items-center justify-between">
+                        <span className="font-bold">{key}</span>
+                        <span className="text-xs text-gray-500">
+                            {Array.isArray(value)
+                                ? `${formatDate24(value[0].start_time)} / ${formatDate24(value[0].end_time)}`
+                                : `${formatDate24(value.start_time)} / ${formatDate24(value.end_time)}`}
+                        </span>
+                    </span>
+                </>
+            ),
+            children: Array.isArray(value) ? (
+                <div className="flex flex-col gap-8">
+                    {value.map((item, index) => {
+                        return (
+                            <div key={index}>
+                                <span className="font-bold">{`${key}_${index}`}</span>
+                                <div className={classes.baseSpanContainer}>
+                                    {item.inputs && spansComponent(item.inputs)}
+                                    {item.outputs && spansComponent(item.outputs)}
+                                    {item.locals && spansComponent(item.locals)}
+                                </div>
+                                {item.spans && <Collapse items={buildAccordion(item.spans)} />}
+                            </div>
+                        )
+                    })}
+                </div>
+            ) : !Array.isArray(value) && value.spans ? (
+                <div>
+                    <div className={classes.baseSpanContainer}>
+                        {value.inputs && spansComponent(value.inputs)}
+                        {value.outputs && spansComponent(value.outputs)}
+                        {value.locals && spansComponent(value.locals)}
+                    </div>
+                    <Collapse items={buildAccordion(value.spans)} />
+                </div>
+            ) : (
+                <div className={classes.baseSpanContainer}>
+                    {value.inputs && spansComponent(value.inputs)}
+                    {value.outputs && spansComponent(value.outputs)}
+                    {value.locals && spansComponent(value.locals)}
+                </div>
+            ),
+        }))
+    }
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -303,6 +415,10 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     />
                 </Row>
             )}
+            <Collapse
+                items={buildAccordion(modifySpans(traceSpans))}
+                className={classes.baseSpansAccordion}
+            />
         </Card>
     )
 }
@@ -313,7 +429,6 @@ const App: React.FC<TestViewProps> = ({
     variant,
     isChatVariant,
     compareMode,
-    onStateChange,
     setPromptOptParams,
 }) => {
     const router = useRouter()
@@ -340,6 +455,9 @@ const App: React.FC<TestViewProps> = ({
             usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
+    const [traceSpans, setTraceSpans] = useState<
+        Record<string, BaseResponseSpans | BaseResponseSpans[]>
+    >({})
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -488,16 +606,38 @@ const App: React.FC<TestViewProps> = ({
                 true,
             )
 
-            // check if res is an object or string
+            // Check res type
+            // String, FuncResponse or BaseResponse
             if (typeof res === "string") {
                 setResultForIndex(res, index)
-            } else {
-                setResultForIndex(res.message, index)
+            } else if (isFuncResponse(res)) {
+                const {message, cost, latency, usage} = res
+                setResultForIndex(message, index)
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    newDataList[index] = {cost, latency, usage}
                     return newDataList
                 })
+            } else if (isBaseResponse(res)) {
+                const {data, trace} = res
+                setResultForIndex(
+                    data.message ? (data.message as string) : JSON.stringify(data),
+                    index,
+                )
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {
+                        cost: trace?.cost || null,
+                        latency: trace?.latency || null,
+                        usage: trace?.usage || null,
+                    }
+                    return newDataList
+                })
+                if (trace?.spans) {
+                    setTraceSpans(trace?.spans)
+                }
+            } else {
+                console.error("Unknown response type:", res)
             }
         } catch (e: any) {
             if (!controller.signal.aborted) {
@@ -642,6 +782,7 @@ const App: React.FC<TestViewProps> = ({
                     isChatVariant={isChatVariant}
                     variant={variant}
                     onCancel={() => handleCancel(index)}
+                    traceSpans={traceSpans}
                 />
             ))}
             <Button

@@ -35,6 +35,7 @@ import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
 import {debounce} from "lodash"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 
 const {Title} = Typography
 
@@ -294,8 +295,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
-                    if (typeof result !== "string") {
+                    if (isFuncResponse(result)) {
                         result = result.message
+                    } else if (isBaseResponse(result)) {
+                        result = result.data.message
+                            ? (result.data.message as string)
+                            : JSON.stringify(result.data)
                     }
 
                     setRowValue(rowIndex, variant.variantId, result)

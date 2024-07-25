@@ -493,3 +493,30 @@ export type PaginationQuery = {
 export type StyleProps = {
     themeMode: "dark" | "light"
 }
+
+export type FuncResponse = {
+    message: string
+    cost: number
+    latency: number
+    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+}
+
+export type BaseResponse = {
+    data: Record<string, any>
+    trace?: {
+        trace_id: string
+        cost?: number
+        latency?: number
+        usage?: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+        spans?: Record<string, BaseResponseSpans | BaseResponseSpans[]>
+    }
+}
+
+export type BaseResponseSpans = {
+    start_time: string
+    end_time: string
+    inputs: Record<string, any>
+    locals: Record<string, any>
+    outputs: Record<string, any>
+    spans?: Record<string, BaseResponseSpans | BaseResponseSpans[]>
+}
