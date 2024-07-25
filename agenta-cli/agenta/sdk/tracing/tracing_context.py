@@ -43,4 +43,5 @@ class TracingContext:
             logging.error("The parent span id should have been in the tracing tree.")
             pass
 
+
 tracing_context = ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)

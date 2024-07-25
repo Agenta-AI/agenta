@@ -341,7 +341,7 @@ class Tracing(metaclass=SingletonMeta):
         This function retrieves the current tracing context and extracts relevant data such as `trace_id`, `cost`, `tokens`, and `latency` for the whole trace.
         It also dumps detailed span information using the `dump_spans` method and includes it in the trace dictionary.
         If an error occurs during the process, it logs the error message and stack trace.
-        
+
         Returns:
             dict: A dictionary containing the trace information.
         """
@@ -375,7 +375,7 @@ class Tracing(metaclass=SingletonMeta):
         This function retrieves the current tracing context and extracts detailed data for each span.
         It processes spans in a tree structure, organizing them with their start time, end time, inputs, local variables, and outputs.
         If an error occurs, it logs the error message and stack trace.
-        
+
         Args:
             tree (OrderedDict): A tree structure representing the spans to be processed.
         Returns:
@@ -400,9 +400,17 @@ class Tracing(metaclass=SingletonMeta):
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
                     "end_time": tracing.spans[id].end_time.isoformat(),
-                    "inputs": {k:repr(v) for (k,v) in tracing.spans[id].inputs.items()},
-                    "locals": {k.replace("locals.", ""):repr(v) for k,v in tracing.spans[id].attributes.items() if k.startswith("locals.")},
-                    "outputs": {k:repr(v) for (k,v) in tracing.spans[id].outputs.items()},
+                    "inputs": {
+                        k: repr(v) for (k, v) in tracing.spans[id].inputs.items()
+                    },
+                    "locals": {
+                        k.replace("locals.", ""): repr(v)
+                        for k, v in tracing.spans[id].attributes.items()
+                        if k.startswith("locals.")
+                    },
+                    "outputs": {
+                        k: repr(v) for (k, v) in tracing.spans[id].outputs.items()
+                    },
                 }
 
                 children_spans = self.dump_spans(children)
