@@ -4,6 +4,7 @@ from collections import OrderedDict
 from typing import Optional, Dict, List
 
 from agenta.client.backend.types.create_span import CreateSpan
+from agenta.sdk.tracing.logger import llm_logger as logging
 
 CURRENT_TRACING_CONTEXT_KEY = "current_tracing_context"
 
@@ -39,7 +40,7 @@ class TracingContext:
             self.index[span.parent_span_id][span.id] = OrderedDict()
             self.index[span.id] = self.index[span.parent_span_id][span.id]
         else:
-            # ERROR : The parent should have been in the tree.
+            logging.error("The parent span id should have been in the tracing tree.")
             pass
 
 tracing_context = ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)
