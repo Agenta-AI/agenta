@@ -150,6 +150,8 @@ async def update_variant_image(
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
 
+    await db_manager.remove_image(base.image)
+
     # Create a new image instance
     db_image = await db_manager.create_image(
         image_type="image",
