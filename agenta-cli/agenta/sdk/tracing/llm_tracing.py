@@ -1,5 +1,6 @@
 import os
 import copy
+import json
 from uuid import uuid4
 
 import traceback
@@ -26,6 +27,14 @@ from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
 logging.setLevel("DEBUG")
+
+
+def is_serializable(x):
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
 
 
 class SingletonMeta(type):
@@ -200,6 +209,8 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Opening span  {span_id} {spankind.upper()}")
 
+        input = {k: v if is_serializable(v) else repr(v) for (k, v) in input.items()}
+
         ### --- TO BE CLEANED --- >>>
         span = CreateSpan(
             id=span_id,
@@ -310,6 +321,10 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- >>>
         tracing.active_span.end_time = datetime.now(timezone.utc)
 
+        outputs = {
+            k: v if is_serializable(v) else repr(v) for (k, v) in outputs.items()
+        }
+
         tracing.active_span.outputs = outputs
 
         if tracing.active_span.spankind.upper() in [
@@ -400,17 +415,13 @@ class Tracing(metaclass=SingletonMeta):
                 span = {
                     "start_time": tracing.spans[id].start_time.isoformat(),
                     "end_time": tracing.spans[id].end_time.isoformat(),
-                    "inputs": {
-                        k: repr(v) for (k, v) in tracing.spans[id].inputs.items()
-                    },
+                    "inputs": {k: v for (k, v) in tracing.spans[id].inputs.items()},
                     "locals": {
-                        k.replace("locals.", ""): repr(v)
+                        k.replace("locals.", ""): v
                         for k, v in tracing.spans[id].attributes.items()
                         if k.startswith("locals.")
                     },
-                    "outputs": {
-                        k: repr(v) for (k, v) in tracing.spans[id].outputs.items()
-                    },
+                    "outputs": {k: v for (k, v) in tracing.spans[id].outputs.items()},
                 }
 
                 children_spans = self.dump_spans(children)
