@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy.future import select
 
 from agenta_backend.models.db_models import UserDB
-from agenta_backend.models.db_engine.shared import db_engine
+from agenta_backend.models.db.shared import db_engine
 from agenta_backend.models.api.user_models import User
 
 

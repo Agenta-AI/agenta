@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from agenta_backend.models.db_engine.config import (
+from agenta_backend.models.db.config import (
     POSTGRES_URI,
     MONGODB_URI,
     DATABASE_MODE,
