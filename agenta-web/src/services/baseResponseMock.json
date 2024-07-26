@@ -1,9 +1,10 @@
 {
+    "type": "BaseResponseV1",
     "data": {
-        "message": "The capital of Germany is Berlin."
+        "report": "These three psychological thrillers offer profound insights into the human psyche. \"Blood River\" (2009) examines a couple\\'s psychological breakdown in isolation, revealing the haunting effects of their past. \"Shattered Image\" (1998) follows a woman\\'s descent into chaos as she navigates deception and identity turmoil. \"House of Last Things\" (2013) combines supernatural elements with psychological tension, portraying a family\\'s struggle against their deepest fears."
     },
     "trace": {
-        "trace_id": "669e4d55e51a875e6b94c492",
+        "trace_id": "66a2862603cbee93a25914ad",
         "cost": 0.0000515,
         "usage": {
             "completion_tokens": 7,
@@ -11,87 +12,386 @@
             "total_tokens": 35
         },
         "latency": 1.2054,
-        "spans": {
-            "rag": {
-                "start_time": "2024-07-22T12:15:17.335835+00:01",
-                "end_time": "2024-07-22T12:15:17.336452+00:00",
-                "inputs": {"topic": "sci-fi", "genre": "fiction", "count": 5},
-                "locals": {},
-                "outputs": {"report": ""},
-                "spans": {
-                    "retriever": {
-                        "start_time": "2024-07-22T12:15:17.336041+00:02",
-                        "end_time": "2024-07-22T12:15:17.336147+00:00",
-                        "inputs": {"topic": "enchantment", "genre": "fiction", "count": 5},
-                        "locals": {"prompt": "sci-fi, fiction, 3"},
-                        "outputs": {
-                            "movies": ["ex machina", "i am mother", "mother/android"],
-                            "prompt": "List 3 movies about sci-fi in the genre of fiction."
-                        },
-                        "spans": {
-                            "retriever_child": {
-                                "start_time": "2024-07-22T12:15:17.336041+00:03",
-                                "end_time": "2024-07-22T12:15:17.336147+00:00",
-                                "inputs": {"topic": "enchantment", "genre": "fiction", "count": 5},
-                                "locals": {"prompt": "sci-fi, fiction, 3"},
-                                "outputs": {
-                                    "movies": ["ex machina", "i am mother", "mother/android"],
-                                    "prompt": "List 3 movies about sci-fi in the genre of fiction."
-                                }
-                            }
-                        }
-                    },
-                    "generator": {
-                        "start_time": "2024-07-22T12:15:17.336192+00:04",
-                        "end_time": "2024-07-22T12:15:17.336239+00:00",
-                        "inputs": {"movies": ["ex machina", "i am mother", "mother/android"]},
-                        "locals": {},
-                        "outputs": {
-                            "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
-                        }
-                    },
-                    "summarizer": [
+        "spans": [
+            {
+                "id": "66a2862603cbee93a25914ac",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "topic": "witches",
+                    "genre": "fiction",
+                    "count": 3
+                },
+                "locals": null,
+                "outputs": {
+                    "message": "Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n\"Snow White: A Tale of Terror\" (1997) offers a sinister twist on the classic story, highlighting the witch's envy and vengeful nature.  \n\"Hocus Pocus\" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem."
+                },
+                "config": {},
+                "environment": "bash",
+                "tags": null,
+                "token_consumption": null,
+                "name": "rag",
+                "parent_span_id": null,
+                "attributes": {},
+                "spankind": "RAG",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.141393Z",
+                "end_time": "2024-07-25T17:06:52.513890Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862603cbee93a25914ae",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "topic": "witches",
+                    "genre": "fiction",
+                    "count": 3
+                },
+                "locals": {
+                    "prompt": "Movies about witches in the genre of fiction.",
+                    "topk": 9
+                },
+                "outputs": {
+                    "movies": [
+                        "The Craft (1996) in ['Drama', 'Fantasy', 'Horror']: A newcomer to a Catholic prep high school falls in with a trio of outcast teenage girls who practice witchcraft and they all soon conjure up various spells and curses against those who even slightly anger them.",
+                        "Oz the Great and Powerful (2013) in ['Adventure', 'Family', 'Fantasy']: A small-time magician is swept away to an enchanted land and is forced into a power struggle between three witches.",
+                        "Snow White: A Tale of Terror (1997) in ['Fantasy', 'Horror']: In this dark take on the fairy tale, the growing hatred of a noblewoman, secretly a practitioner of the dark arts, for her stepdaughter, and the witch's horrifying attempts to kill her.",
+                        "Into the Woods (2014) in ['Adventure', 'Fantasy', 'Musical']: A witch tasks a childless baker and his wife with procuring magical items from classic fairy tales to reverse the curse put on their family tree.",
+                        "Wicked Stepmother (1989) in ['Comedy', 'Fantasy']: A mother/daughter pair of witches descend on a yuppie family's home and cause havoc, one at a time since they share one body & the other must live in a cat the rest of the time. Now it's up...",
+                        "Hocus Pocus (1993) in ['Comedy', 'Family', 'Fantasy']: After three centuries, three witch sisters are resurrected in Salem Massachusetts on Halloween night, and it is up to two teen-agers, a young girl, and an immortal cat to put an end to the witches' reign of terror once and for all.",
+                        "Warlock (1989) in ['Action', 'Fantasy', 'Horror']: A warlock flees from the 17th to the 20th century, with a witch-hunter in hot pursuit.",
+                        "The Hexer (2001) in ['Adventure', 'Fantasy']: The adventures of Geralt of Rivea, \"The Witcher\".",
+                        "Heavy Metal (1981) in ['Animation', 'Adventure', 'Fantasy']: A glowing orb terrorizes a young girl with a collection of stories of dark fantasy, eroticism and horror."
+                    ]
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "retriever",
+                "parent_span_id": "66a2862603cbee93a25914ac",
+                "attributes": {},
+                "spankind": "RETRIEVER",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.141563Z",
+                "end_time": "2024-07-25T17:06:46.885700Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862603cbee93a25914af",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "description": "Movies about witches in the genre of fiction."
+                },
+                "locals": null,
+                "outputs": {
+                    "message": [
+                        0.0066267895, -0.03967523, -0.017745983, -0.021850318, -0.0050745094,
+                        0.0029417684, -0.00841257, -0.03980678, 0.012457706, -0.030598337,
+                        0.009760949, 0.016943533, 0.014391479, -0.010234525, 0.0058736703,
+                        0.005646748, 0.03536042, -0.00051797484, 0.015496492, -0.023744626,
+                        -0.011089595, 0.0016838294, -0.0034564545, 0.009728061, -0.021258347,
+                        -0.001415798, 0.006715585, -0.026494002, -0.009622822, -0.004518714,
+                        0.01990339, -0.013075988, 0.005650037, -0.02437606, -0.020100713,
+                        -0.020640064, -0.011089595, -0.0270202, -0.015220239, -0.0051008193,
+                        0.018666828, 0.018232714, -0.013253579, -0.012003861, 0.00061992544,
+                        0.005479023, 0.022810627, 0.0036603557, -0.008504654, 0.019942854,
+                        0.02523113, 0.0023645964, -0.015562267, -0.0315718, 0.004604221,
+                        0.025652088, 0.02150829, 0.0130431, 0.022508062, -0.032019068, -0.009662286,
+                        -0.0054033822, -0.02595465, -0.021218881, -0.00649524, -0.0025043674,
+                        -0.01156975, -0.004446362, -0.005814473, -0.03283467, 0.037780922,
+                        0.009037428, -0.007866641, -0.011056708, 0.014220465, -0.035413038,
+                        -0.023928793, 0.01420731, -0.008070542, -0.0016312097, 0.015128154,
+                        -0.011069863, -0.0038576794, 0.0109909335, 0.023165809, 0.020587444,
+                        -0.018364264, 0.031203464, 0.0012340957, -0.0035485388, 0.0068208245,
+                        -0.0027115573, 0.01661466, 0.026678171, 0.008037655, 0.009149245,
+                        9.311215e-5, 0.036728527, -0.009517582, -0.0157859
+                    ]
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "embed",
+                "parent_span_id": "66a2862603cbee93a25914ae",
+                "attributes": {},
+                "spankind": "EMBEDDING",
+                "status": "OK",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.141683Z",
+                "end_time": "2024-07-25T17:06:46.593858Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862603cbee93a25914b0",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "db": "Database(MongoClient(host=['ac-t3c3s8s-shard-00-01.qdqqcim.mongodb.net:27017', 'ac-t3c3s8s-shard-00-02.qdqqcim.mongodb.net:27017', 'ac-t3c3s8s-shard-00-00.qdqqcim.mongodb.net:27017'], document_class=dict, tz_aware=False, connect=True, retrywrites=True, w='majority', appname='AgentaCluster', authsource='admin', replicaset='atlas-s2jfsv-shard-0', tls=True, tlscafile='/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/certifi/cacert.pem', server_api=<pymongo.server_api.ServerApi object at 0x1083a37d0>), 'sample_mflix')",
+                    "query": [
+                        0.0066267895, -0.03967523, -0.017745983, -0.021850318, -0.0050745094,
+                        0.0029417684, -0.00841257, -0.03980678, 0.012457706, -0.030598337,
+                        0.009760949, 0.016943533, 0.014391479, -0.010234525, 0.0058736703,
+                        0.005646748, 0.03536042
+                    ],
+                    "topk": 9
+                },
+                "locals": null,
+                "outputs": {
+                    "message": [
                         {
-                            "start_time": "2024-07-22T12:15:17.336281+00:05",
-                            "end_time": "2024-07-22T12:15:17.336325+00:00",
-                            "inputs": {
-                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
-                            },
-                            "locals": {},
-                            "outputs": {
-                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
-                            },
-                            "spans": {
-                                "summarizer_child": {
-                                    "start_time": "2024-07-22T12:15:17.336041+00:06",
-                                    "end_time": "2024-07-22T12:15:17.336147+00:00",
-                                    "inputs": {
-                                        "topic": "enchantment",
-                                        "genre": "fiction",
-                                        "count": 5
-                                    },
-                                    "locals": {"prompt": "sci-fi, fiction, 3"},
-                                    "outputs": {
-                                        "movies": ["ex machina", "i am mother", "mother/android"],
-                                        "prompt": "List 3 movies about sci-fi in the genre of fiction."
-                                    }
-                                }
-                            }
+                            "plot": "A newcomer to a Catholic prep high school falls in with a trio of outcast teenage girls who practice witchcraft and they all soon conjure up various spells and curses against those who even slightly anger them.",
+                            "genres": ["Drama", "Fantasy", "Horror"],
+                            "title": "The Craft",
+                            "year": 1996
                         },
                         {
-                            "start_time": "2024-07-22T12:15:17.336355+00:07",
-                            "end_time": "2024-07-22T12:15:17.336429+00:00",
-                            "inputs": {
-                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
-                            },
-                            "locals": {},
-                            "outputs": {
-                                "report": "These three films explore the complex relationship between humans and artificial intelligence. In 'Ex Machina,' a programmer interacts with a humanoid AI, questioning consciousness and morality. 'I Am Mother' features a girl raised by a robot in a post-extinction world, who challenges her understanding of trust and the outside world when a human arrives. 'Mother/Android' follows a pregnant woman and her boyfriend navigating a post-apocalyptic landscape controlled by hostile androids, highlighting themes of survival and human resilience."
-                            }
+                            "plot": "A small-time magician is swept away to an enchanted land and is forced into a power struggle between three witches.",
+                            "genres": ["Adventure", "Family", "Fantasy"],
+                            "title": "Oz the Great and Powerful",
+                            "year": 2013
+                        },
+                        {
+                            "plot": "In this dark take on the fairy tale, the growing hatred of a noblewoman, secretly a practitioner of the dark arts, for her stepdaughter, and the witch's horrifying attempts to kill her.",
+                            "genres": ["Fantasy", "Horror"],
+                            "title": "Snow White: A Tale of Terror",
+                            "year": 1997
+                        },
+                        {
+                            "plot": "A witch tasks a childless baker and his wife with procuring magical items from classic fairy tales to reverse the curse put on their family tree.",
+                            "genres": ["Adventure", "Fantasy", "Musical"],
+                            "title": "Into the Woods",
+                            "year": 2014
+                        },
+                        {
+                            "plot": "A mother/daughter pair of witches descend on a yuppie family's home and cause havoc, one at a time since they share one body & the other must live in a cat the rest of the time. Now it's up...",
+                            "genres": ["Comedy", "Fantasy"],
+                            "title": "Wicked Stepmother",
+                            "year": 1989
+                        },
+                        {
+                            "plot": "After three centuries, three witch sisters are resurrected in Salem Massachusetts on Halloween night, and it is up to two teen-agers, a young girl, and an immortal cat to put an end to the witches' reign of terror once and for all.",
+                            "genres": ["Comedy", "Family", "Fantasy"],
+                            "title": "Hocus Pocus",
+                            "year": 1993
+                        },
+                        {
+                            "plot": "A warlock flees from the 17th to the 20th century, with a witch-hunter in hot pursuit.",
+                            "genres": ["Action", "Fantasy", "Horror"],
+                            "title": "Warlock",
+                            "year": 1989
+                        },
+                        {
+                            "plot": "The adventures of Geralt of Rivea, \"The Witcher\".",
+                            "genres": ["Adventure", "Fantasy"],
+                            "title": "The Hexer",
+                            "year": 2001
+                        },
+                        {
+                            "plot": "A glowing orb terrorizes a young girl with a collection of stories of dark fantasy, eroticism and horror.",
+                            "genres": ["Animation", "Adventure", "Fantasy"],
+                            "title": "Heavy Metal",
+                            "year": 1981
                         }
                     ]
-                }
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "search",
+                "parent_span_id": "66a2862603cbee93a25914ae",
+                "attributes": {},
+                "spankind": "SEARCH",
+                "status": "OK",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.594219Z",
+                "end_time": "2024-07-25T17:06:46.885542Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862603cbee93a25914b1",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "topic": "witches",
+                    "genre": "fiction",
+                    "count": 3,
+                    "movies": [
+                        "The Craft (1996) in ['Drama', 'Fantasy', 'Horror']: A newcomer to a Catholic prep high school falls in with a trio of outcast teenage girls who practice witchcraft and they all soon conjure up various spells and curses against those who even slightly anger them.",
+                        "Oz the Great and Powerful (2013) in ['Adventure', 'Family', 'Fantasy']: A small-time magician is swept away to an enchanted land and is forced into a power struggle between three witches.",
+                        "Snow White: A Tale of Terror (1997) in ['Fantasy', 'Horror']: In this dark take on the fairy tale, the growing hatred of a noblewoman, secretly a practitioner of the dark arts, for her stepdaughter, and the witch's horrifying attempts to kill her.",
+                        "Into the Woods (2014) in ['Adventure', 'Fantasy', 'Musical']: A witch tasks a childless baker and his wife with procuring magical items from classic fairy tales to reverse the curse put on their family tree.",
+                        "Wicked Stepmother (1989) in ['Comedy', 'Fantasy']: A mother/daughter pair of witches descend on a yuppie family's home and cause havoc, one at a time since they share one body & the other must live in a cat the rest of the time. Now it's up...",
+                        "Hocus Pocus (1993) in ['Comedy', 'Family', 'Fantasy']: After three centuries, three witch sisters are resurrected in Salem Massachusetts on Halloween night, and it is up to two teen-agers, a young girl, and an immortal cat to put an end to the witches' reign of terror once and for all.",
+                        "Warlock (1989) in ['Action', 'Fantasy', 'Horror']: A warlock flees from the 17th to the 20th century, with a witch-hunter in hot pursuit.",
+                        "The Hexer (2001) in ['Adventure', 'Fantasy']: The adventures of Geralt of Rivea, \"The Witcher\".",
+                        "Heavy Metal (1981) in ['Animation', 'Adventure', 'Fantasy']: A glowing orb terrorizes a young girl with a collection of stories of dark fantasy, eroticism and horror."
+                    ]
+                },
+                "locals": null,
+                "outputs": {
+                    "report": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "reporter",
+                "parent_span_id": "66a2862603cbee93a25914ac",
+                "attributes": {},
+                "spankind": "GENERATOR",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.885880Z",
+                "end_time": "2024-07-25T17:06:48.008789Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862603cbee93a25914b2",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "prompts": {
+                        "system": "Given the following list of suggested movies:\nThe Craft (1996) in ['Drama', 'Fantasy', 'Horror']: A newcomer to a Catholic prep high school falls in with a trio of outcast teenage girls who practice witchcraft and they all soon conjure up various spells and curses against those who even slightly anger them.\nOz the Great and Powerful (2013) in ['Adventure', 'Family', 'Fantasy']: A small-time magician is swept away to an enchanted land and is forced into a power struggle between three witches.\nSnow White: A Tale of Terror (1997) in ['Fantasy', 'Horror']: In this dark take on the fairy tale, the growing hatred of a noblewoman, secretly a practitioner of the dark arts, for her stepdaughter, and the witch's horrifying attempts to kill her.\nInto the Woods (2014) in ['Adventure', 'Fantasy', 'Musical']: A witch tasks a childless baker and his wife with procuring magical items from classic fairy tales to reverse the curse put on their family tree.\nWicked Stepmother (1989) in ['Comedy', 'Fantasy']: A mother/daughter pair of witches descend on a yuppie family's home and cause havoc, one at a time since they share one body & the other must live in a cat the rest of the time. Now it's up...\nHocus Pocus (1993) in ['Comedy', 'Family', 'Fantasy']: After three centuries, three witch sisters are resurrected in Salem Massachusetts on Halloween night, and it is up to two teen-agers, a young girl, and an immortal cat to put an end to the witches' reign of terror once and for all.\nWarlock (1989) in ['Action', 'Fantasy', 'Horror']: A warlock flees from the 17th to the 20th century, with a witch-hunter in hot pursuit.\nThe Hexer (2001) in ['Adventure', 'Fantasy']: The adventures of Geralt of Rivea, \"The Witcher\".\nHeavy Metal (1981) in ['Animation', 'Adventure', 'Fantasy']: A glowing orb terrorizes a young girl with a collection of stories of dark fantasy, eroticism and horror.\n",
+                        "user": "Provide a list of 3 movies about witches in the genre of fiction."
+                    },
+                    "opts": {
+                        "model": "gpt-3.5-turbo",
+                        "temperature": 0.8
+                    }
+                },
+                "locals": null,
+                "outputs": {
+                    "message": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "chat",
+                "parent_span_id": "66a2862603cbee93a25914b1",
+                "attributes": {},
+                "spankind": "MESSAGE",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:46.886069Z",
+                "end_time": "2024-07-25T17:06:48.008701Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862803cbee93a25914b3",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "topic": "witches",
+                    "genre": "fiction",
+                    "report": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
+                },
+                "locals": null,
+                "outputs": {
+                    "report": "The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n\"Snow White: A Tale of Terror\" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n\"Hocus Pocus\" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem."
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "summarizer",
+                "parent_span_id": "66a2862603cbee93a25914ac",
+                "attributes": {},
+                "spankind": "GENERATOR",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:48.008960Z",
+                "end_time": "2024-07-25T17:06:50.075531Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862803cbee93a25914b4",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "prompts": {
+                        "system": "Act as a professional cinema critic.\nBe concise and factual.\nUse one intro sentence, and one sentence per movie.",
+                        "user": "Summarize the following recommendations about witches in the genre of fiction:\n\n1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
+                    },
+                    "opts": {
+                        "model": "gpt-4o-mini",
+                        "temperature": 0.2
+                    }
+                },
+                "locals": null,
+                "outputs": {
+                    "message": "The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n\"Snow White: A Tale of Terror\" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n\"Hocus Pocus\" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem."
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "chat",
+                "parent_span_id": "66a2862803cbee93a25914b3",
+                "attributes": {},
+                "spankind": "MESSAGE",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:48.009321Z",
+                "end_time": "2024-07-25T17:06:50.075418Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862a03cbee93a25914b5",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "topic": "witches",
+                    "genre": "fiction",
+                    "report": "The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n\"Snow White: A Tale of Terror\" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n\"Hocus Pocus\" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem."
+                },
+                "locals": null,
+                "outputs": {
+                    "report": "Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n\"Snow White: A Tale of Terror\" (1997) offers a sinister twist on the classic story, highlighting the witch's envy and vengeful nature.  \n\"Hocus Pocus\" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem."
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "summarizer",
+                "parent_span_id": "66a2862603cbee93a25914ac",
+                "attributes": {},
+                "spankind": "GENERATOR",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:50.075792Z",
+                "end_time": "2024-07-25T17:06:52.513867Z",
+                "tokens": null,
+                "cost": null
+            },
+            {
+                "id": "66a2862a03cbee93a25914b6",
+                "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
+                "inputs": {
+                    "prompts": {
+                        "system": "Act as a professional cinema critic.\nBe concise and factual.\nUse one intro sentence, and one sentence per movie.",
+                        "user": "Summarize the following recommendations about witches in the genre of fiction:\n\nThe portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n\"Snow White: A Tale of Terror\" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n\"Hocus Pocus\" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem."
+                    },
+                    "opts": {
+                        "model": "gpt-4o-mini",
+                        "temperature": 0.2
+                    }
+                },
+                "locals": null,
+                "outputs": {
+                    "message": "Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n\"The Craft\" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n\"Snow White: A Tale of Terror\" (1997) offers a sinister twist on the classic story, highlighting the witch's envy and vengeful nature.  \n\"Hocus Pocus\" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem."
+                },
+                "config": null,
+                "tags": null,
+                "token_consumption": null,
+                "name": "chat",
+                "parent_span_id": "66a2862a03cbee93a25914b5",
+                "attributes": {},
+                "spankind": "MESSAGE",
+                "status": "UNSET",
+                "user": null,
+                "start_time": "2024-07-25T17:06:50.076096Z",
+                "end_time": "2024-07-25T17:06:52.513824Z",
+                "tokens": null,
+                "cost": null
             }
-        }
+        ]
     }
 }
