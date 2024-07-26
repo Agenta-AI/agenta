@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from agenta_backend.models.db.shared import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 
 
 # this is the Alembic Config object, which provides
