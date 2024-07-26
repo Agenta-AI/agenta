@@ -3,7 +3,7 @@ import httpx
 import pytest
 import asyncio
 
-from agenta_backend.models.db.shared import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
     AppDB,
