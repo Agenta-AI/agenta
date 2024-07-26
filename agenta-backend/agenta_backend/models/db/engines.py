@@ -1,6 +1,6 @@
-from agenta_backend.models.db_engine.config import logger
-from agenta_backend.models.db_engine.shared import DBEngine
-from agenta_backend.models.db_engine.models import isCloudEE
+from agenta_backend.models.db.config import logger
+from agenta_backend.models.db.shared import DBEngine
+from agenta_backend.models.db.models import isCloudEE
 
 
 class CloudEEDBEngine(DBEngine):

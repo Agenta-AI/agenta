@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine.shared import db_engine
+from agenta_backend.models.db.shared import db_engine
 from agenta_backend.services.json_importer_helper import get_json
 
 from sqlalchemy import func, or_
