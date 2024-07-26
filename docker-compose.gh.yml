@@ -28,8 +28,6 @@ services:
             - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
         command:
             [
                 "uvicorn",
@@ -44,6 +42,8 @@ services:
                 "--root-path",
                 "/api",
             ]
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
