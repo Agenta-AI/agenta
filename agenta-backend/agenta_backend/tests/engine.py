@@ -1,5 +1,5 @@
-from agenta_backend.models.db_engine.models import models
-from agenta_backend.models.db_engine.shared import DBEngine
+from agenta_backend.models.db.models import models
+from agenta_backend.models.db.shared import DBEngine
 
 
 class TestDBEngine(DBEngine):
