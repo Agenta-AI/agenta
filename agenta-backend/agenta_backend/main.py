@@ -55,6 +55,11 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    if isCloudEE():
+        from agenta_backend.cloud.db.mongo_engine import initialize_mongodb
+
+        await initialize_mongodb()
+
     await check_for_new_migrations()
     if await check_if_templates_table_exist():
         await templates_manager.update_and_sync_templates(cache=cache)
