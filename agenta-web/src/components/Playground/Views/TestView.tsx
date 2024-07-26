@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useRef, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, Form, Modal, Collapse, CollapseProps} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/services/api"
 import {
@@ -34,7 +34,8 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import {formatDate24} from "@/lib/helpers/dateTimeHelper"
+import PlaygroundDrawer from "../PlaygroundDrawer/PlaygroundDrawer"
+import {fromBaseResponseToTraceSpanType} from "@/lib/transformers"
 
 const promptRevision: any = dynamicService("promptVersioning/api")
 
@@ -51,7 +52,7 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         marginRight: "24px",
         marginLeft: "12px",
         "& .ant-card-body": {
-            padding: "4px 16px",
+            padding: "8px 16px",
             border: "0px solid #ccc",
         },
     },
@@ -72,9 +73,9 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         marginTop: "16px",
     },
     row2Col: {
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         display: "flex",
-        gap: "0.75rem",
+        alignItems: "center",
     },
     row3: {
         margin: "16px 0",
@@ -91,21 +92,17 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         bottom: 6,
         color: theme.colorPrimary,
     },
-    baseSpansAccordion: {
-        margin: "8px 0",
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
+    viewTracesBtn: {
+        "& > span": {
+            textDecoration: "underline",
+            color: theme.colorPrimary,
+            "&:hover": {
+                textDecoration: "none",
+            },
         },
     },
-    baseSpanContainer: {
-        padding: theme.paddingSM,
-        borderRadius: theme.borderRadius,
-        border: `1px solid ${theme.colorBorder}`,
-        margin: "8px 0",
-        backgroundColor: theme.isDark ? "#111" : "#fff",
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
+    cardDeleteIcon: {
+        color: "red",
     },
 }))
 
@@ -185,7 +182,19 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
-    traceSpans: Record<string, BaseResponseSpans | BaseResponseSpans[]>
+    traceSpans:
+        | {
+              trace_id: string
+              cost?: number
+              latency?: number
+              usage?: {
+                  completion_tokens: number
+                  prompt_tokens: number
+                  total_tokens: number
+              }
+              spans?: BaseResponseSpans[]
+          }
+        | undefined
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -203,101 +212,10 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     traceSpans,
 }) => {
     const {appTheme} = useAppTheme()
+    const [activeSpan, setActiveSpan] = useQueryParam("activeSpan")
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
-
-    function modifySpans(spans: any) {
-        if (typeof spans === "object" && spans !== null) {
-            const modifiedSpans: any = {}
-            for (const [key, value] of Object.entries(spans)) {
-                if (Array.isArray(value)) {
-                    value.forEach((item, index) => {
-                        modifiedSpans[`${key}[${index}]`] = item
-                    })
-                } else {
-                    modifiedSpans[key] = modifySpans(value)
-                }
-            }
-            return modifiedSpans
-        }
-        return spans
-    }
-
-    const spansComponent = (span: Record<string, any>) => {
-        return (
-            <div className="flex flex-col gap-4">
-                {Object.entries(span).map(([key, value], idx) => (
-                    <>
-                        <div key={idx} className="flex gap-4">
-                            <span className="font-bold">{`${key}`}</span>
-                            {Array.isArray(value) ? (
-                                <div>
-                                    {value.map((item, idx) => (
-                                        <span key={idx}>{item}</span>
-                                    ))}
-                                </div>
-                            ) : (
-                                <span>{value}</span>
-                            )}
-                        </div>
-                    </>
-                ))}
-            </div>
-        )
-    }
-
-    const buildAccordion = (
-        spans: Record<string, BaseResponseSpans | BaseResponseSpans[]>,
-    ): CollapseProps["items"] => {
-        return Object.entries(spans).map(([key, value], idx) => ({
-            key: String(idx),
-            label: (
-                <>
-                    <span className="flex items-center justify-between">
-                        <span className="font-bold">{key}</span>
-                        <span className="text-xs text-gray-500">
-                            {Array.isArray(value)
-                                ? `${formatDate24(value[0].start_time)} / ${formatDate24(value[0].end_time)}`
-                                : `${formatDate24(value.start_time)} / ${formatDate24(value.end_time)}`}
-                        </span>
-                    </span>
-                </>
-            ),
-            children: Array.isArray(value) ? (
-                <div className="flex flex-col gap-8">
-                    {value.map((item, index) => {
-                        return (
-                            <div key={index}>
-                                <span className="font-bold">{`${key}_${index}`}</span>
-                                <div className={classes.baseSpanContainer}>
-                                    {item.inputs && spansComponent(item.inputs)}
-                                    {item.outputs && spansComponent(item.outputs)}
-                                    {item.locals && spansComponent(item.locals)}
-                                </div>
-                                {item.spans && <Collapse items={buildAccordion(item.spans)} />}
-                            </div>
-                        )
-                    })}
-                </div>
-            ) : !Array.isArray(value) && value.spans ? (
-                <div>
-                    <div className={classes.baseSpanContainer}>
-                        {value.inputs && spansComponent(value.inputs)}
-                        {value.outputs && spansComponent(value.outputs)}
-                        {value.locals && spansComponent(value.locals)}
-                    </div>
-                    <Collapse items={buildAccordion(value.spans)} />
-                </div>
-            ) : (
-                <div className={classes.baseSpanContainer}>
-                    {value.inputs && spansComponent(value.inputs)}
-                    {value.outputs && spansComponent(value.outputs)}
-                    {value.locals && spansComponent(value.locals)}
-                </div>
-            ),
-        }))
-    }
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -322,7 +240,14 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         <Card className={classes.card}>
             <Row className={classes.rowHeader}>
                 <h4>{isChatVariant ? "Chat" : "Input parameters"}</h4>
-                {onDelete && <Button icon={<DeleteOutlined />} onClick={onDelete}></Button>}
+
+                {onDelete && (
+                    <Button
+                        type="text"
+                        icon={<DeleteOutlined className={classes.cardDeleteIcon} />}
+                        onClick={onDelete}
+                    ></Button>
+                )}
             </Row>
 
             <Row className={classes.row1}>
@@ -341,48 +266,41 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     isLoading={loading}
                 />
             </Row>
-            {additionalData?.cost || additionalData?.latency ? (
-                <Space>
-                    <p>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</p>
-                    <p>Cost: {formatCurrency(additionalData?.cost)}</p>
-                    <p>Latency: {formatLatency(additionalData?.latency)}</p>
-                </Space>
-            ) : (
-                ""
-            )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
-                    <Button
-                        shape="round"
-                        icon={<PlusOutlined />}
-                        onClick={handleAddToTestset}
-                        disabled={loading}
-                    >
-                        Add to Test Set
-                    </Button>
-                    {loading ? (
+                    <h4>{isChatVariant ? "" : "Results"}</h4>
+
+                    <Space>
                         <Button
-                            icon={<CloseCircleOutlined />}
-                            type="primary"
-                            style={{backgroundColor: "#d32f2f"}}
-                            onClick={onCancel}
-                            className={`testview-cancel-button-${testData._id}`}
+                            icon={<PlusOutlined />}
+                            onClick={handleAddToTestset}
+                            disabled={loading}
                         >
-                            Cancel
+                            Add to Test Set
                         </Button>
-                    ) : (
-                        <Button
-                            data-cy="testview-input-parameters-run-button"
-                            className={`testview-run-button-${testData._id}`}
-                            type="primary"
-                            shape="round"
-                            icon={<CaretRightOutlined />}
-                            onClick={isChatVariant ? onRun : form.submit}
-                            loading={loading}
-                        >
-                            Run
-                        </Button>
-                    )}
+                        {loading ? (
+                            <Button
+                                icon={<CloseCircleOutlined />}
+                                type="primary"
+                                style={{backgroundColor: "#d32f2f"}}
+                                onClick={onCancel}
+                                className={`testview-cancel-button-${testData._id}`}
+                            >
+                                Cancel
+                            </Button>
+                        ) : (
+                            <Button
+                                data-cy="testview-input-parameters-run-button"
+                                className={`testview-run-button-${testData._id}`}
+                                type="primary"
+                                icon={<CaretRightOutlined />}
+                                onClick={isChatVariant ? onRun : form.submit}
+                                loading={loading}
+                            >
+                                Run Test
+                            </Button>
+                        )}
+                    </Space>
                 </Col>
             </Row>
             {!isChatVariant && (
@@ -415,10 +333,37 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     />
                 </Row>
             )}
-            <Collapse
-                items={buildAccordion(modifySpans(traceSpans))}
-                className={classes.baseSpansAccordion}
-            />
+            {additionalData?.cost || additionalData?.latency ? (
+                <Space className="flex items-center gap-3">
+                    <span>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</span>
+                    <span>Cost: {formatCurrency(additionalData?.cost)}</span>
+                    <span>Latency: {formatLatency(additionalData?.latency)}</span>
+                    {traceSpans?.spans?.length && (
+                        <Button
+                            type="link"
+                            className={classes.viewTracesBtn}
+                            onClick={() => setActiveSpan(traceSpans.trace_id)}
+                        >
+                            View Traces
+                        </Button>
+                    )}
+                </Space>
+            ) : (
+                ""
+            )}
+
+            {traceSpans?.spans?.length && !!activeSpan && (
+                <PlaygroundDrawer
+                    type="trace"
+                    placement="bottom"
+                    open={!!activeSpan}
+                    onClose={() => setActiveSpan("")}
+                    traceSpans={fromBaseResponseToTraceSpanType(
+                        traceSpans.spans,
+                        traceSpans.trace_id,
+                    )}
+                />
+            )}
         </Card>
     )
 }
@@ -456,8 +401,19 @@ const App: React.FC<TestViewProps> = ({
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
     const [traceSpans, setTraceSpans] = useState<
-        Record<string, BaseResponseSpans | BaseResponseSpans[]>
-    >({})
+        | {
+              trace_id: string
+              cost?: number
+              latency?: number
+              usage?: {
+                  completion_tokens: number
+                  prompt_tokens: number
+                  total_tokens: number
+              }
+              spans?: BaseResponseSpans[]
+          }
+        | undefined
+    >()
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -633,8 +589,8 @@ const App: React.FC<TestViewProps> = ({
                     }
                     return newDataList
                 })
-                if (trace?.spans) {
-                    setTraceSpans(trace?.spans)
+                if (trace) {
+                    setTraceSpans(trace)
                 }
             } else {
                 console.error("Unknown response type:", res)
