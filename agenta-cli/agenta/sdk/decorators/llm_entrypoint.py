@@ -527,6 +527,10 @@ class entrypoint(BaseDecorator):
         print("--- trace")
         print(json.dumps(result.trace, indent=2))
 
+        trace_file = open("trace.json", "w")
+        json.dump(result.trace, trace_file, indent=4)
+        trace_file.close()
+
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict
     ):
@@ -590,9 +594,7 @@ class entrypoint(BaseDecorator):
             elif annotation == str:
                 param_type = "string"
             else:
-                print("hey", annotation)
-
-            print(param_type)
+                print("ERROR, unhandled annotation:", annotation)
 
             return param_type
 

@@ -8,6 +8,7 @@ from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
+from agenta.sdk.utils.encoder import encode_json
 from agenta.sdk.tracing.tracing_context import tracing_context
 from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.tasks_manager import TaskQueue
@@ -27,14 +28,6 @@ from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
 logging.setLevel("DEBUG")
-
-
-def is_serializable(x):
-    try:
-        json.dumps(x)
-        return True
-    except (TypeError, OverflowError):
-        return False
 
 
 class SingletonMeta(type):
@@ -209,8 +202,6 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Opening span  {span_id} {spankind.upper()}")
 
-        input = {k: v if is_serializable(v) else repr(v) for (k, v) in input.items()}
-
         ### --- TO BE CLEANED --- >>>
         span = CreateSpan(
             id=span_id,
@@ -222,6 +213,7 @@ class Tracing(metaclass=SingletonMeta):
             attributes={},
             status=SpanStatusCode.UNSET.value,
             start_time=datetime.now(timezone.utc),
+            locals=None,
             outputs=None,
             tags=None,
             user=None,
@@ -321,10 +313,6 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- >>>
         tracing.active_span.end_time = datetime.now(timezone.utc)
 
-        outputs = {
-            k: v if is_serializable(v) else repr(v) for (k, v) in outputs.items()
-        }
-
         tracing.active_span.outputs = outputs
 
         if tracing.active_span.spankind.upper() in [
@@ -345,12 +333,30 @@ class Tracing(metaclass=SingletonMeta):
 
         logging.info(f"Closed  span  {span_id} {spankind}")
 
-    def store_locals(self, locals: Dict[str, Any] = {}):
-        locals = {k: v if is_serializable(v) else repr(v) for (k, v) in locals.items()}
+    @debug()
+    def store_locals(self, locals: Dict[str, Any] = {}) -> None:
+        """
+        Set localcs for the active span.
 
-        attributes = {f"locals.{k}": v for k, v in locals.items()}
+        Args:
+            locals (Dict[str, Any], optional): A dictionary of local variables to set. Defaults to {}.
+        """
 
-        self.set_attributes(attributes=attributes)
+        tracing = tracing_context.get()
+
+        if tracing.active_span is None:
+            logging.error(f"Cannot set attributes ({set(locals)}), no active span")
+            return
+
+        logging.info(
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} locals={locals}"
+        )
+
+        if tracing.active_span.locals is None:
+            tracing.active_span.locals = dict()
+
+        for key, value in locals.items():
+            tracing.active_span.locals[key] = value  # type: ignore
 
     def dump_trace(self):
         """
@@ -375,7 +381,7 @@ class Tracing(metaclass=SingletonMeta):
                     trace["usage"] = span.tokens
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
-            spans = self.dump_spans(copy.deepcopy(tracing.tree))
+            spans = encode_json(list(tracing.spans.values()))
 
             if spans is not None:
                 trace["spans"] = spans
@@ -385,65 +391,6 @@ class Tracing(metaclass=SingletonMeta):
             logging.error(traceback.format_exc())
 
         return trace
-
-    def dump_spans(self, tree):
-        """
-        Recursively collects and organizes span information into a dictionary.
-        This function retrieves the current tracing context and extracts detailed data for each span.
-        It processes spans in a tree structure, organizing them with their start time, end time, inputs, local variables, and outputs.
-        If an error occurs, it logs the error message and stack trace.
-
-        Args:
-            tree (OrderedDict): A tree structure representing the spans to be processed.
-        Returns:
-            dict: A dictionary containing the organized span information.
-        """
-        try:
-            spans = dict()
-            count = dict()
-
-            tracing = tracing_context.get()
-
-            for idx in tree.keys():
-                key = tracing.spans[idx].name
-                count[key] = count.get(key, 0) + 1
-
-            while len(tree.keys()):
-                id, children = tree.popitem(last=False)
-
-                key = tracing.spans[id].name
-                # key = tracing.spans[id].attributes["block"] if ("block" in tracing.spans[id].attributes) else tracing.spans[id].name
-
-                span = {
-                    "start_time": tracing.spans[id].start_time.isoformat(),
-                    "end_time": tracing.spans[id].end_time.isoformat(),
-                    "inputs": {k: v for (k, v) in tracing.spans[id].inputs.items()},
-                    "locals": {
-                        k.replace("locals.", ""): v
-                        for k, v in tracing.spans[id].attributes.items()
-                        if k.startswith("locals.")
-                    },
-                    "outputs": {k: v for (k, v) in tracing.spans[id].outputs.items()},
-                }
-
-                children_spans = self.dump_spans(children)
-
-                if children_spans:
-                    span.update({"spans": children_spans})
-
-                if count[key] > 1:
-                    if key not in spans:
-                        spans[key] = list()
-
-                    spans[key].append(span)
-                else:
-                    spans[key] = span
-
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-
-        return spans
 
     def flush_spans(self) -> None:
         self.close_trace()
