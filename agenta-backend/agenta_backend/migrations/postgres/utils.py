@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-alembic_cfg = Config("alembic.ini")
+alembic_cfg = Config("alembic.oss.ini")
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
