@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 
 from agenta_backend.utils.common import isCloud
-from agenta_backend.models.db.shared import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 
 if isCloud():
     from agenta_backend.commons.models.db_models import UserDB_ as UserDB
