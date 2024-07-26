@@ -21,4 +21,4 @@ Schema migration is different from [Migration to PostgreSQL](https://docs.agenta
 
 After completing the migration, ensure you check the data integrity in PostgreSQL by accessing Agenta on the web and verifying that your data is intact and everything works fine.
 
-In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic downgrade head` and create a GitHub issue describing the problem you encountered.
+In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.oss.ini downgrade head` and create a GitHub issue describing the problem you encountered.
