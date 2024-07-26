@@ -30,6 +30,20 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+        command:
+            [
+                "uvicorn",
+                "agenta_backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--log-level",
+                "info",
+                "--root-path",
+                "/api",
+            ]
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
@@ -42,7 +56,6 @@ services:
             - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        command: "uvicorn agenta_backend.main:app --host 0.0.0.0 --port 8000 --reload --log-level info --root-path /api"
         depends_on:
             postgres:
                 condition: service_healthy
