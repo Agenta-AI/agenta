@@ -165,9 +165,7 @@ After making this change, restart Agenta Compose.
 
 # ⭐️ Join Our Team
 
-- [Founding Lead Software Engineer Backend](https://agentaai.notion.site/Founding-Lead-Software-Engineer-Backend-d70bfefed6d543778bc4aa38b543a678)
 - [Founding Product Engineer Frontend](https://agentaai.notion.site/Founding-Product-Engineer-Frontend-b6d26a3e9b254be6b6c2bfffbf0b53c5)
-- [Founding Product Designer](https://agentaai.notion.site/Founding-Product-Designer-96b1e760ff0241fd96632578d533a778)
 
 # Contributing
 
