@@ -34,7 +34,20 @@ services:
             - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
-        command: "uvicorn agenta_backend.main:app --host 0.0.0.0 --port 8000 --reload --log-level info --root-path /api"
+        command:
+            [
+                "uvicorn",
+                "agenta_backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--log-level",
+                "info",
+                "--root-path",
+                "/api",
+            ]
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
