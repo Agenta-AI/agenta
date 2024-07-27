@@ -10,7 +10,7 @@ import {JSSTheme} from "@/lib/Types"
 import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 import {formatCurrency, formatLatency, formatNumber} from "@/lib/helpers/formatters"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {snakeToTitle} from "@/lib/helpers/utils"
+import {getStringOrJson, snakeToTitle} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     detailItem: {
@@ -114,9 +114,7 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
                     className={classes.contentCard}
                 >
                     <Typography className="whitespace-pre-line">
-                        {typeof input.input_value === "string"
-                            ? input.input_value
-                            : JSON.stringify(input.input_value)}
+                        {getStringOrJson(input.input_value)}
                     </Typography>
                 </Card>
             ))}
@@ -138,11 +136,7 @@ export const GenerationModelConfigTab: React.FC<{data: TraceSpanDetails}> = ({da
         <>
             {data.config &&
                 Object.entries(data.config).map(([key, value]) => (
-                    <DetailItem
-                        key={key}
-                        name={snakeToTitle(key)}
-                        value={typeof value === "string" ? value : JSON.stringify(value)}
-                    />
+                    <DetailItem key={key} name={snakeToTitle(key)} value={getStringOrJson(value)} />
                 ))}
         </>
     )
