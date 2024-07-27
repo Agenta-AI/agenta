@@ -8,7 +8,7 @@ import {
 } from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
-import {snakeToCamel} from "./helpers/utils"
+import {getStringOrJson, snakeToCamel} from "./helpers/utils"
 import {TraceSpan} from "@/lib/Types"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
@@ -100,7 +100,7 @@ export const fromBaseResponseToTraceSpanType = (
                 }
                 if (span.outputs) {
                     let outputArr = Object.values(span.outputs).map((value) =>
-                        typeof value === "string" ? value : JSON.stringify(value),
+                        getStringOrJson(value),
                     )
 
                     acc["outputs"] = outputArr

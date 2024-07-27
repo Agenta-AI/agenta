@@ -6,7 +6,7 @@ import {Drawer, DrawerProps, Space, Tabs, Tooltip, Tree, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, KeyValuePair} from "@/lib/Types"
 import AddToTestSetDrawer from "@/components/Playground/AddToTestSetDrawer/AddToTestSetDrawer"
-import {capitalize} from "@/lib/helpers/utils"
+import {capitalize, getStringOrJson} from "@/lib/helpers/utils"
 import {GenerationContentTab, GenerationDetailsTab, GenerationModelConfigTab} from "./tabItems"
 import _ from "lodash"
 import {RiCoinLine, RiArrowLeftUpLine} from "react-icons/ri"
@@ -267,14 +267,9 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
                     onClose={() => setAddToTestset(false)}
                     params={{
                         ...generation.content.inputs.reduce((acc: KeyValuePair, input) => {
-                            acc[
-                                typeof input.input_name === "string"
-                                    ? input.input_name
-                                    : JSON.stringify(input.input_name)
-                            ] =
-                                typeof input.input_value === "string"
-                                    ? input.input_value
-                                    : JSON.stringify(input.input_value)
+                            acc[getStringOrJson(input.input_name)] = getStringOrJson(
+                                input.input_value,
+                            )
                             return acc
                         }, {}),
                         correct_answer: (generation.content.outputs?.[0] ?? "").toString(),
