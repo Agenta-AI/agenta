@@ -69,10 +69,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-type Type = "generation" | "trace"
-
-const TreeItem: React.FC<TraceSpan & {type: Type; onClick: () => void}> = ({
-    type,
+const TreeItem: React.FC<TraceSpan & {onClick: () => void}> = ({
     onClick,
     ...data
 }) => {
@@ -112,11 +109,10 @@ const TreeItem: React.FC<TraceSpan & {type: Type; onClick: () => void}> = ({
 }
 
 interface Props {
-    type: Type
-    traceSpans: TraceSpan[]
+    traceSpans: [TraceSpan[], Record<string, TraceSpan>]
 }
 
-const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...props}) => {
+const GenerationDrawer: React.FC<Props & DrawerProps> = ({traceSpans, ...props}) => {
     const classes = useStyles()
     const [tab, setTab] = useQueryParam("tab", "content")
     const [selected, setSelected] = useQueryParam("selected")
@@ -124,18 +120,12 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
     // const [trace, setTrace] = useState<any>()
     const [addToTestset, setAddToTestset] = useState(false)
 
-    const fetchGen = (id: string) => {
-        const trace = traceSpans.find((span) => span.id === id)
-        if (trace) {
-            setGeneration(trace)
-        }
-    }
+    const [root_spans, spans_dict] = traceSpans
 
     const fetchTraceDetails = (id: string) => {
-        const trace = traceSpans.find((span) => span.id === id)
+        const trace = spans_dict[id]
 
         if (trace) {
-            // setTrace({...trace, spans: traceSpans})
             setGeneration(trace)
             setSelected(trace.id)
         }
@@ -143,15 +133,15 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
 
     const buildTreeData = (spans: TraceSpan[]): TraceSpanTreeNode[] => {
         return spans.map((span) => ({
-            title: <TreeItem {...span} onClick={() => fetchGen(span.id!)} type="generation" />,
+            title: <TreeItem {...span} onClick={() => fetchTraceDetails(span.id!)} />,
             key: span.id,
             children: span.children ? buildTreeData(span.children) : undefined,
         }))
     }
 
     useEffect(() => {
-        if (!traceSpans.length) return
-        type === "generation" ? fetchGen(traceSpans[0].id) : fetchTraceDetails(traceSpans[0].id)
+        if (!root_spans.length) return
+        fetchTraceDetails(root_spans[0].id)
     }, [props.open])
 
     const onAddToTestset = () => {
@@ -191,7 +181,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
                         style={{justifyContent: "space-between"}}
                     >
                         <Typography.Title className={classes.title} level={5}>
-                            {capitalize(type)} Details
+                            Trace Details
                         </Typography.Title>
                         <Space>
                             {generation?.content && (
@@ -222,7 +212,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
         >
             <div className={classes.container}>
                 <div className="flex flex-col">
-                    {traceSpans.map((span) => (
+                    {root_spans.map((span) => (
                         <>
                             <Tree
                                 selectedKeys={[selected]}
@@ -234,10 +224,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({type, traceSpans, ...p
                                         title: (
                                             <TreeItem
                                                 {...span}
-                                                onClick={() => {
-                                                    setGeneration(span)
-                                                }}
-                                                type="trace"
+                                                onClick={() => fetchTraceDetails(span.id!)}
                                             />
                                         ),
                                         key: span.id,
