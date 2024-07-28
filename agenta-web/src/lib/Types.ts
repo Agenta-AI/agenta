@@ -555,12 +555,13 @@ export interface TraceSpan {
     spankind: string
     metadata?: TraceSpanMetadata
     user_id?: string | null
-    children?: [] | null
+    children?: TraceSpan[] | null
     parent_span_id?: string | null
     name?: string
     content: {
-        inputs: {input_name: string; input_value: string}[]
-        outputs: string[]
+        inputs: { input_name: string; input_value: string }[] | null
+        locals: { local_name: string; local_value: string }[] | null
+        outputs: string[] | null
         role?: string | null
     }
 }
