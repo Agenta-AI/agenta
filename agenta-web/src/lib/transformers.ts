@@ -128,11 +128,15 @@ export const fromBaseResponseToTraceSpanType = (
                     acc["locals"] = localArr
                 }
                 if (span.outputs) {
-                    let outputArr = Object.values(span.outputs).map((value) =>
-                        getStringOrJson(value),
-                    )
+                    if (typeof span.outputs === "string") {
+                        acc["outputs"] = [span.outputs]
+                    } else {
+                        let outputArr = Object.values(span.outputs).map((value) =>
+                            getStringOrJson(value),
+                        )
 
-                    acc["outputs"] = outputArr
+                        acc["outputs"] = outputArr
+                    }
                 }
                 acc["role"] = null
 
