@@ -86,8 +86,29 @@ export const fromBaseResponseToTraceSpanType = (
     spans: BaseResponseSpans[],
     traceId: string,
 ): TraceSpan[] => {
-    return spans.map((span) => ({
-        children: null,
+    const all_spans = spans.map((span) => ({
+        id: span.id,
+        name: span.name,
+        created_at: span.start_time,
+        variant: {
+            variant_id: span.variant_id || null,
+            variant_name: span.variant_name || null,
+
+            revision:
+                span.environment == "playground"
+                    ? null
+                    : span.config
+                      ? span.config?.revision
+                      : null,
+        },
+        environment: span.environment || null,
+        spankind: span.spankind,
+        status: span.status,
+        metadata: {
+            cost: span.cost,
+            latency: null, // span.end_time - span.start_time,
+            usage: span.tokens,
+        },
         content: spans.reduce(
             (acc) => {
                 if (span.inputs) {
@@ -98,6 +119,14 @@ export const fromBaseResponseToTraceSpanType = (
 
                     acc["inputs"] = inputArr
                 }
+                if (span.locals) {
+                    let localArr = Object.entries(span.locals).map(([key, value]) => ({
+                        local_name: key,
+                        local_value: value,
+                    }))
+
+                    acc["locals"] = localArr
+                }
                 if (span.outputs) {
                     let outputArr = Object.values(span.outputs).map((value) =>
                         getStringOrJson(value),
@@ -105,34 +134,48 @@ export const fromBaseResponseToTraceSpanType = (
 
                     acc["outputs"] = outputArr
                 }
-                acc["role"] = null // TODO: remove hardcoded role
+                acc["role"] = null
+
                 return acc
             },
             {} as {
-                inputs: {input_name: string; input_value: string}[]
-                outputs: string[]
+                inputs: { input_name: string; input_value: string }[] | null
+                locals: { local_name: string; local_value: string }[] | null
+                outputs: string[] | null
                 role: string | null
             },
         ),
-        created_at: span.start_time,
-        environment: span.environment || null,
-        id: span.id,
-        metadata: {
-            cost: span.cost,
-            latency: null, // TODO: remove hardcoded latency
-            usage: span.tokens,
-        },
-        name: span.name,
-        parent_span_id: span.parent_span_id,
-        spankind: span.spankind,
-        status: span.status,
-        trace_id: traceId,
         user_id: span.user,
-        variant: {
-            revision: null, // TODO: remove hardcoded variant revision
-            variant_id: span.variant_id || null,
-            variant_name: span.variant_name || null,
-        },
-        config: span.config,
+        trace_id: traceId,
+        parent_span_id: span.parent_span_id,
+
+        children: null,
     }))
+
+    let spans_dict: Record<string, TraceSpan> = {}
+    for (const span of all_spans) {
+        spans_dict[span.id] = span
+    }
+
+    let child_spans: Array<string> = []
+    
+    for (const span of all_spans) {
+        if (span.parent_span_id) {
+            const parent_span: TraceSpan = spans_dict[span.parent_span_id]
+            const child_span: TraceSpan = spans_dict[span.id]
+
+            if (parent_span) {
+                if (parent_span?.children === null) {
+                    parent_span.children = []
+                }
+
+                parent_span.children?.push(child_span)
+                child_spans.push(child_span.id)
+            }
+        }
+    }
+
+    const top_level_spans: Array<TraceSpan> = all_spans.filter((span) => !child_spans.includes(span.id))
+
+    return top_level_spans
 }
