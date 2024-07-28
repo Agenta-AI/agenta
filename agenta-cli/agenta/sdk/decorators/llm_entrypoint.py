@@ -316,16 +316,9 @@ class entrypoint(BaseDecorator):
             self.handle_exception(e)
 
     def handle_exception(self, e: Exception):
-        try:
-            status_code = e.status_code if hasattr(e, "status_code") else 500
-            message = str(e)
-            stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
-
-        except:
-            status_code = 500
-            message = ("Unexpected error occurred when calling @entrypoint or @route.",)
-            stacktrace = traceback.format_exc()
-
+        status_code = e.status_code if hasattr(e, "status_code") else 500
+        message = str(e)
+        stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
 
         raise HTTPException(
@@ -522,14 +515,13 @@ class entrypoint(BaseDecorator):
 
         print(f"\n========== Result ==========\n")
 
-        print("--- data")
+        print("-> data")
         print(json.dumps(result.data, indent=2))
-        print("--- trace")
+        print("-> trace")
         print(json.dumps(result.trace, indent=2))
 
-        trace_file = open("trace.json", "w")
-        json.dump(result.trace, trace_file, indent=4)
-        trace_file.close()
+        with open("trace.json", "w") as trace_file:
+            json.dump(result.trace, trace_file, indent=4)
 
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict

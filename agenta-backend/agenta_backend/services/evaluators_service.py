@@ -79,21 +79,16 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
                 key = field.split("[")[0]
                 idx = int(field.split("[")[1].split("]")[0])
 
-            try:
-                if key in SPECIAL_KEYS:
-                    spans = False
+            if key in SPECIAL_KEYS:
+                spans = False
 
-                if spans:
-                    tree = tree["spans"]
+            if spans:
+                tree = tree["spans"]
 
-                tree = tree[key]
+            tree = tree[key]
 
-                if idx is not None:
-                    tree = tree[idx]
-
-            except Exception as e:
-                logging.error(e)
-                return None
+            if idx is not None:
+                tree = tree[idx]
 
         return tree
 
@@ -115,6 +110,7 @@ def get_user_key_from_settings(settings_values: Dict[str, Any], target_key: str)
     """
 
     user_key = settings_values.get(target_key, None)
+
     return user_key
 
 
@@ -683,6 +679,22 @@ def auto_json_diff(
 
 
 def make_spans_id_tree(trace):
+    """
+    Creates spans tree (id only) from flat spans list
+
+    Args:
+        trace: {trace_id : str, spans: List[Span]}
+
+    Returns:
+        tree: {[span_id]: tree(span_id)} # recursive
+            e.g. {span_id_0: {span_id_0_0: {span_id_0_0_0: {}}, span_id_0_1: {}}}
+            for:
+                span_id_0
+                    span_id_0_0
+                        span_id_0_0_0
+                    span_id_0_1
+    """
+
     tree = OrderedDict()
     index = {}
 
@@ -704,12 +716,35 @@ def make_spans_id_tree(trace):
 
 
 def make_spans_index(trace):
+    """
+    Creates span index from flat spans list
+
+    Args:
+        trace: {trace_id : str, spans: List[Span]}
+
+    Returns:
+        index: {[span_id]: span}
+    """
+
     index = {span["id"]: span for span in trace["spans"]}
 
     return index
 
 
 def make_trace_tree(trace, spans_id_tree, spans_index):
+    """
+    Creates trace tree from flat trace, spans id tree, and spans index,
+    which includes a spans tree (not to be confounded with the spans id tree).
+
+    Args:
+        trace: {trace_id : str, spans: List[Span]}
+        spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive
+        spans_index: {[span_id]: span}
+
+    Returns:
+        trace_tree: {trace_id: str, spans: spans_tree}
+    """
+
     trace_tree = {
         "trace_id": trace["trace_id"],
         "spans": make_spans_tree(deepcopy(spans_id_tree), spans_index),
@@ -718,7 +753,7 @@ def make_trace_tree(trace, spans_id_tree, spans_index):
     return trace_tree
 
 
-def make_spans_tree(spans_tree, spans_index):
+def make_spans_tree(spans_id_tree, spans_index):
     """
     Recursively collects and organizes span information into a dictionary.
     This function retrieves the current spans tree and extracts detailed data for each span.
@@ -726,22 +761,23 @@ def make_spans_tree(spans_tree, spans_index):
     If an error occurs, it logs the error message and stack trace.
 
     Args:
-        tree (OrderedDict): A tree structure representing the spans to be processed.
+        spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive (ids only)
+        index: {[span_id]: span}
     Returns:
-        dict: A dictionary containing the organized span information.
+        spans_tree: {[span_id]: spans_tree(span_id)} # recursive (full span)
     """
-    spans = dict()
+    spans_tree = dict()
     count = dict()
 
     try:
-        for idx in spans_tree.keys():
+        for idx in spans_id_tree.keys():
             key = spans_index[idx]["name"]
 
-            spans[key] = list()
+            spans_tree[key] = list()
             count[key] = count.get(key, 0) + 1
 
-        while len(spans_tree.keys()):
-            id, children = spans_tree.popitem(last=False)
+        while len(spans_id_tree.keys()):
+            id, children = spans_id_tree.popitem(last=False)
 
             key = spans_index[id]["name"]
 
@@ -756,18 +792,28 @@ def make_spans_tree(spans_tree, spans_index):
             span.update({"spans": make_spans_tree(children, spans_index)})
 
             if count[key] > 1:
-                spans[key].append(span)
+                spans_tree[key].append(span)
             else:
-                spans[key] = span
+                spans_tree[key] = span
 
     except Exception as e:
         logging.error(e)
         logging.error(traceback.format_exc())
 
-    return spans
+    return spans_tree
 
 
 def process_trace(trace):
+    """
+    Creates trace tree from flat trace
+
+    Args:
+        trace: {trace_id : str, spans: List[Span]}
+
+    Returns:
+        trace: {trace_id: str, spans: spans_tree}
+    """
+
     spans_id_tree = make_spans_id_tree(trace)
     spans_index = make_spans_index(trace)
     trace = make_trace_tree(trace, spans_id_tree, spans_index)

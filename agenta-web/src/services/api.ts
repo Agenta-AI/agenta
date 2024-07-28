@@ -12,7 +12,6 @@ import {
     FuncResponse,
     BaseResponse,
 } from "@/lib/Types"
-import baseResponse from "./baseResponseMock.json"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -106,13 +105,6 @@ export async function callVariant(
             ? chatMessages.filter((item) => item.content).map((item) => removeKeys(item, ["id"]))
             : secondaryInputParams,
     }
-
-    // return new Promise((resolve) => {
-    //     setTimeout(() => {
-    //         // @ts-ignore
-    //         resolve(baseResponse)
-    //     }, 1000)
-    // })
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
 

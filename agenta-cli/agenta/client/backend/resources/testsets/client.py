@@ -182,10 +182,10 @@ class TestsetsClient:
 
     def get_single_testset(self, testset_id: str) -> typing.Any:
         """
-        Fetch a specific testset in a MongoDB collection using its id.
+        Fetch a specific testset in a MongoDB collection using its \_id.
 
         Args:
-        testset_id (str): The id of the testset to fetch.
+        testset_id (str): The \_id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
