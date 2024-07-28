@@ -107,11 +107,12 @@ export async function callVariant(
             : secondaryInputParams,
     }
 
-    /*return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve(baseResponse)
-        }, 1000)
-    })*/
+    // return new Promise((resolve) => {
+    //     setTimeout(() => {
+    //         // @ts-ignore
+    //         resolve(baseResponse)
+    //     }, 1000)
+    // })
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
 

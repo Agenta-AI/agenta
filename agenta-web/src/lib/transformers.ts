@@ -1,8 +1,15 @@
 import {getAppValues} from "@/contexts/app.context"
-import {Evaluation, EvaluationResponseType, GenericObject, Variant} from "./Types"
+import {
+    BaseResponseSpans,
+    Evaluation,
+    EvaluationResponseType,
+    GenericObject,
+    Variant,
+} from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
-import {snakeToCamel} from "./helpers/utils"
+import {getStringOrJson, snakeToCamel} from "./helpers/utils"
+import {TraceSpan} from "@/lib/Types"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
     const variants: Variant[] = item.variant_ids.map((variantId: string, ix) => {
@@ -73,4 +80,59 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         evaluationScenario = {...evaluationScenario, score: item.score}
     }
     return evaluationScenario
+}
+
+export const fromBaseResponseToTraceSpanType = (
+    spans: BaseResponseSpans[],
+    traceId: string,
+): TraceSpan[] => {
+    return spans.map((span) => ({
+        children: null,
+        content: spans.reduce(
+            (acc) => {
+                if (span.inputs) {
+                    let inputArr = Object.entries(span.inputs).map(([key, value]) => ({
+                        input_name: key,
+                        input_value: value,
+                    }))
+
+                    acc["inputs"] = inputArr
+                }
+                if (span.outputs) {
+                    let outputArr = Object.values(span.outputs).map((value) =>
+                        getStringOrJson(value),
+                    )
+
+                    acc["outputs"] = outputArr
+                }
+                acc["role"] = null // TODO: remove hardcoded role
+                return acc
+            },
+            {} as {
+                inputs: {input_name: string; input_value: string}[]
+                outputs: string[]
+                role: string | null
+            },
+        ),
+        created_at: span.start_time,
+        environment: span.environment || null,
+        id: span.id,
+        metadata: {
+            cost: span.cost,
+            latency: null, // TODO: remove hardcoded latency
+            usage: span.tokens,
+        },
+        name: span.name,
+        parent_span_id: span.parent_span_id,
+        spankind: span.spankind,
+        status: span.status,
+        trace_id: traceId,
+        user_id: span.user,
+        variant: {
+            revision: null, // TODO: remove hardcoded variant revision
+            variant_id: span.variant_id || null,
+            variant_name: span.variant_name || null,
+        },
+        config: span.config,
+    }))
 }
