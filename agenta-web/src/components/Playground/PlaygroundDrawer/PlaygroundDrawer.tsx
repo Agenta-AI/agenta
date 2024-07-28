@@ -6,7 +6,7 @@ import {Drawer, DrawerProps, Space, Tabs, Tooltip, Tree, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, KeyValuePair} from "@/lib/Types"
 import AddToTestSetDrawer from "@/components/Playground/AddToTestSetDrawer/AddToTestSetDrawer"
-import {capitalize, getStringOrJson} from "@/lib/helpers/utils"
+import {getStringOrJson} from "@/lib/helpers/utils"
 import {GenerationContentTab, GenerationDetailsTab, GenerationModelConfigTab} from "./tabItems"
 import _ from "lodash"
 import {RiCoinLine, RiArrowLeftUpLine} from "react-icons/ri"
@@ -69,10 +69,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const TreeItem: React.FC<TraceSpan & {onClick: () => void}> = ({
-    onClick,
-    ...data
-}) => {
+const TreeItem: React.FC<TraceSpan & {onClick: () => void}> = ({onClick, ...data}) => {
     return (
         <Space className={"w-full"} direction="vertical" onClick={onClick}>
             <Space className="justify-between w-full gap-x-6 items-center flex">
@@ -253,7 +250,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({traceSpans, ...props})
                     open={addToTestset}
                     onClose={() => setAddToTestset(false)}
                     params={{
-                        ...generation.content.inputs.reduce((acc: KeyValuePair, input) => {
+                        ...generation.content.inputs?.reduce((acc: KeyValuePair, input) => {
                             acc[getStringOrJson(input.input_name)] = getStringOrJson(
                                 input.input_value,
                             )
