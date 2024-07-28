@@ -85,7 +85,7 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
 export const fromBaseResponseToTraceSpanType = (
     spans: BaseResponseSpans[],
     traceId: string,
-): TraceSpan[] => {
+): [TraceSpan[], Record<string, TraceSpan>] => {
     const all_spans = spans.map((span) => ({
         id: span.id,
         name: span.name,
@@ -177,5 +177,5 @@ export const fromBaseResponseToTraceSpanType = (
 
     const top_level_spans: Array<TraceSpan> = all_spans.filter((span) => !child_spans.includes(span.id))
 
-    return top_level_spans
+    return [top_level_spans, spans_dict]
 }

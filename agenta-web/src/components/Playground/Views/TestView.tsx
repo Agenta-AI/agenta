@@ -354,7 +354,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 
             {traceSpans?.spans?.length && !!activeSpan && (
                 <PlaygroundDrawer
-                    type="trace"
                     placement="bottom"
                     open={!!activeSpan}
                     onClose={() => setActiveSpan("")}
