@@ -17,17 +17,10 @@ from agenta_backend.routers import (
 )
 from agenta_backend.open_api import open_api_tags_metadata
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
-
-if isCloudEE():
-    from agenta_backend.commons.migrations.postgres.utils import (
-        check_for_new_migrations,
-        check_if_templates_table_exist,
-    )
-elif isOss():
-    from agenta_backend.migrations.postgres.utils import (
-        check_for_new_migrations,
-        check_if_templates_table_exist,
-    )
+from agenta_backend.migrations.postgres.utils import (
+    check_for_new_migrations,
+    check_if_templates_table_exist,
+)
 
 if isEE() or isCloudProd():
     from agenta_backend.commons.services import templates_manager
