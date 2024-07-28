@@ -559,8 +559,8 @@ export interface TraceSpan {
     parent_span_id?: string | null
     name?: string
     content: {
-        inputs: { input_name: string; input_value: string }[] | null
-        locals: { local_name: string; local_value: string }[] | null
+        inputs: {input_name: string; input_value: string}[] | null
+        locals: {local_name: string; local_value: string}[] | null
         outputs: string[] | null
         role?: string | null
     }
