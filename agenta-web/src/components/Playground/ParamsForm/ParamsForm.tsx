@@ -110,7 +110,6 @@ const ParamsForm: React.FC<Props> = ({
                                         />
                                     )}
 
-
                                 <Input.TextArea
                                     data-cy={`testview-input-parameters-${index}`}
                                     key={index}

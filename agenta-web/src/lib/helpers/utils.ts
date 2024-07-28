@@ -331,3 +331,7 @@ export const getInitials = (str: string, limit = 2) => {
 
     return initialText
 }
+
+export const getStringOrJson = (value: any) => {
+    return typeof value === "string" ? value : JSON.stringify(value)
+}

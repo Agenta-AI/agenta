@@ -502,21 +502,91 @@ export type FuncResponse = {
 }
 
 export type BaseResponse = {
+    type: string
     data: Record<string, any>
     trace?: {
         trace_id: string
         cost?: number
         latency?: number
         usage?: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
-        spans?: Record<string, BaseResponseSpans | BaseResponseSpans[]>
+        spans?: BaseResponseSpans[]
     }
 }
 
 export type BaseResponseSpans = {
+    id: string
+    app_id?: string
+    variant_id?: string
+    variant_name?: string
+    inputs?: Record<string, any>
+    outputs?: Record<string, any> | string[]
+    locals?: Record<string, any> | null
+    config?: Record<string, any> | null
+    environment?: string
+    tags?: string[] | null
+    token_consumption?: number | null
+    name: string
+    parent_span_id?: string | null
+    attributes?: Record<string, any>
+    spankind: string
+    status: TraceSpanStatus
+    user?: string | null
     start_time: string
     end_time: string
-    inputs: Record<string, any>
-    locals: Record<string, any>
-    outputs: Record<string, any>
-    spans?: Record<string, BaseResponseSpans | BaseResponseSpans[]>
+    tokens?: {
+        completion_tokens: number
+        prompt_tokens: number
+        total_tokens: number
+    } | null
+    cost?: number | null
+}
+
+export interface TraceSpan {
+    id: string
+    created_at: string
+    variant: {
+        variant_id: string | null
+        variant_name: string | null
+        revision: number | null
+    }
+    environment: string | null
+    status: TraceSpanStatus
+    error?: string
+    spankind: string
+    metadata?: TraceSpanMetadata
+    user_id?: string | null
+    children?: [] | null
+    parent_span_id?: string | null
+    name?: string
+    content: {
+        inputs: {input_name: string; input_value: string}[]
+        outputs: string[]
+        role?: string | null
+    }
+}
+
+export enum TraceSpanStatus {
+    UNSET = "UNSET",
+    OK = "OK",
+    ERROR = "ERROR",
+}
+
+export type TraceSpanMetadata = {
+    cost?: number | null
+    latency?: number | null
+    usage?: {
+        completion_tokens: number
+        prompt_tokens: number
+        total_tokens: number
+    } | null
+}
+
+export interface TraceSpanDetails extends TraceSpan {
+    config?: GenericObject
+}
+
+export interface TraceSpanTreeNode {
+    title: React.ReactElement
+    key: string
+    children?: TraceSpanTreeNode[]
 }
