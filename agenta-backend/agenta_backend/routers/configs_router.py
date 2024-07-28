@@ -137,12 +137,12 @@ async def get_config(
             if not found_variant_revision:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Environment name {environment_name} not found for base {base_id}",
+                    detail=f"Environment name {environment_name} not found for base {str(base_db.id)}",
                 )
-            if str(found_variant_revision.base_id) != base_id:
+            if str(found_variant_revision.base_id) != str(base_db.id):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Environment {environment_name} does not deploy base {base_id}",
+                    detail=f"Environment {environment_name} does not deploy base {str(base_db.id)}",
                 )
 
             variant_revision = found_variant_revision.revision
@@ -163,7 +163,7 @@ async def get_config(
             if not found_variant:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Config name {config_name} not found for base {base_id}",
+                    detail=f"Config name {config_name} not found for base {str(base_db.id)}",
                 )
             variant_revision = found_variant.revision
             config = {

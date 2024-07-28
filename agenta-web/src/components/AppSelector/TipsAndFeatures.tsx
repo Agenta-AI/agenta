@@ -4,9 +4,8 @@ import {Space} from "antd"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {MDXProvider} from "@mdx-js/react"
 import {StyleProps} from "@/lib/Types"
+import Image from "next/image"
 
-import slide1 from "../../welcome-highlights/tip1.mdx"
-import slide2 from "../../welcome-highlights/tip2.mdx"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -43,6 +42,10 @@ const useStyles = createUseStyles({
         margin: "10px auto",
         width: "100%",
         lineHeight: 1.6,
+    },
+    img: {
+        width: "100%",
+        height: "auto",
     },
 })
 
@@ -100,7 +103,17 @@ const TipsAndFeatures = () => {
                     <div className={classes.mdxContainer}>
                         <MDXProvider
                             components={{
-                                img: (props) => <img {...props} src={getImagePath(props.src)} />,
+                                img: (props) => (
+                                    <Image
+                                        {...props}
+                                        src={getImagePath(props.src)}
+                                        alt="tips-and-tricks"
+                                        className={classes.img}
+                                        sizes="100vw"
+                                        width={500}
+                                        height={300}
+                                    />
+                                ),
                             }}
                         >
                             {slides.map((Slide, index) => (

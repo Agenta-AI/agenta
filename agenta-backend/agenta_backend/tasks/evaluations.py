@@ -432,6 +432,8 @@ async def aggregate_evaluator_results(
             "auto_contains_any",
             "auto_contains_all",
             "auto_contains_json",
+            "auto_json_diff",
+            "auto_semantic_similarity",
             "auto_levenshtein_distance",
         ]:
             result = aggregation_service.aggregate_float(results)
