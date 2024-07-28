@@ -106,18 +106,19 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
 
     return (
         <Space direction="vertical" size="large" className={classes.fullWidth}>
-            {data.content.inputs.map((input, ix) => (
-                <Card
-                    key={input.input_name + ix}
-                    title="Input"
-                    extra={<Tag>{input.input_name}</Tag>}
-                    className={classes.contentCard}
-                >
-                    <Typography className="whitespace-pre-line">
-                        {getStringOrJson(input.input_value)}
-                    </Typography>
-                </Card>
-            ))}
+            {data.content.inputs &&
+                data.content.inputs.map((input, ix) => (
+                    <Card
+                        key={input.input_name + ix}
+                        title="Input"
+                        extra={<Tag>{input.input_name}</Tag>}
+                        className={classes.contentCard}
+                    >
+                        <Typography className="whitespace-pre-line">
+                            {getStringOrJson(input.input_value)}
+                        </Typography>
+                    </Card>
+                ))}
             {output && (
                 <Card
                     title={"Output"}

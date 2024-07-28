@@ -139,8 +139,8 @@ export const fromBaseResponseToTraceSpanType = (
                 return acc
             },
             {} as {
-                inputs: { input_name: string; input_value: string }[] | null
-                locals: { local_name: string; local_value: string }[] | null
+                inputs: {input_name: string; input_value: string}[] | null
+                locals: {local_name: string; local_value: string}[] | null
                 outputs: string[] | null
                 role: string | null
             },
@@ -158,7 +158,7 @@ export const fromBaseResponseToTraceSpanType = (
     }
 
     let child_spans: Array<string> = []
-    
+
     for (const span of all_spans) {
         if (span.parent_span_id) {
             const parent_span: TraceSpan = spans_dict[span.parent_span_id]
@@ -175,7 +175,9 @@ export const fromBaseResponseToTraceSpanType = (
         }
     }
 
-    const top_level_spans: Array<TraceSpan> = all_spans.filter((span) => !child_spans.includes(span.id))
+    const top_level_spans: Array<TraceSpan> = all_spans.filter(
+        (span) => !child_spans.includes(span.id),
+    )
 
     return [top_level_spans, spans_dict]
 }
