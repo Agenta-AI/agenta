@@ -10,12 +10,18 @@ from sqlalchemy import inspect, text
 from alembic.script import ScriptDirectory
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
+from agenta_backend.utils.common import isCloudEE
+
 
 # Initializer logger
 logger = logging.getLogger("alembic.env")
 
+if isCloudEE():
+    alembic_cfg = Config("/app/commons_backend/alembic.cloud.ini")
+else:
+    alembic_cfg = Config("alembic.oss.ini")
+
 # Initialize alembic config
-alembic_cfg = Config("alembic.oss.ini")
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
@@ -26,10 +32,10 @@ def is_initial_setup(engine) -> bool:
     This function inspects the current state of the database and determines if it needs initial setup by checking for the presence of a predefined set of required tables.
 
     Args:
-            engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine used to connect to the database.
+        engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine used to connect to the database.
 
     Returns:
-            bool: True if the database is in its initial state (i.e., not all required tables exist), False otherwise.
+        bool: True if the database is in its initial state (i.e., not all required tables exist), False otherwise.
     """
 
     inspector = inspect(engine)
@@ -60,10 +66,10 @@ async def get_applied_migrations(engine: AsyncEngine):
     Checks the alembic_version table to get all the migrations that has been applied.
 
     Args:
-      engine (Engine): The engine that connects to an sqlalchemy pool
+        engine (Engine): The engine that connects to an sqlalchemy pool
 
     Returns:
-      a list of strings
+        a list of strings
     """
 
     async with engine.connect() as connection:
@@ -86,7 +92,7 @@ async def get_pending_migrations():
     Gets the migrations that have not been applied.
 
     Returns:
-            the number of pending migrations
+        the number of pending migrations
     """
 
     engine = create_async_engine(url=os.environ["POSTGRES_URI"])
