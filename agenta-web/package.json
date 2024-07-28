@@ -92,6 +92,7 @@
         "@swc/core": "^1.4.15",
         "@types/node": "^20.8.10",
         "cypress": "^13.4.0",
+        "cypress-mailosaur": "^2.15.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.2.5"
     }
