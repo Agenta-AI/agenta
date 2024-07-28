@@ -271,6 +271,8 @@ def evaluate(
             ]
 
             # 4. We save the result of the eval scenario in the db
+
+            # But not the 'trace' in case of BaseResponse
             if isinstance(app_output.result.value, str):
                 value = app_output.result.value
             else:

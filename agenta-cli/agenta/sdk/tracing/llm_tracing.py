@@ -8,8 +8,10 @@ from threading import Lock
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
+from contextlib import contextmanager
+
 from agenta.sdk.utils.encoder import encode_json
-from agenta.sdk.tracing.tracing_context import tracing_context
+from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.tasks_manager import TaskQueue
 from agenta.client.backend.client import AsyncAgentaApi
@@ -94,6 +96,50 @@ class Tracing(metaclass=SingletonMeta):
         return AsyncAgentaApi(
             base_url=self.host, api_key=self.api_key, timeout=120  # type: ignore
         ).observability
+
+    ### --- Context Manager --- ###
+
+    @contextmanager
+    def Context(self, **kwargs):
+        token = None
+
+        try:
+            if tracing_context.get() is None:
+                token = tracing_context.set(TracingContext())
+
+            # This will evolve as be work towards OTel compliance
+            self.open_span(**kwargs)
+
+            yield
+
+            # This will evolve as be work towards OTel compliance
+            self.set_status(status="OK")
+
+        except Exception as e:
+            # any cleanup that should only be done on failure
+
+            logging.error(e)
+
+            result = {
+                "message": str(e),
+                "stacktrace": traceback.format_exc(),
+            }
+
+            # This will evolve as be work towards OTel compliance
+            self.set_status(status="ERROR")
+            self.set_attributes({"traceback_exception": traceback.format_exc()})
+            self.store_outputs(result)
+
+            raise
+
+        finally:
+            # This will evolve as be work towards OTel compliance
+            self.close_span()
+
+            if token is not None:
+                self.flush_spans()
+
+                tracing_context.reset(token)
 
     ### --- API --- ###
 
@@ -282,7 +328,7 @@ class Tracing(metaclass=SingletonMeta):
         tracing.active_span.status = status
 
     @debug()
-    def close_span(self, outputs: Dict[str, Any]) -> None:
+    def close_span(self) -> None:
         """
         Ends the active span, if it is a parent span, ends the trace too.
 
@@ -313,14 +359,16 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- >>>
         tracing.active_span.end_time = datetime.now(timezone.utc)
 
-        tracing.active_span.outputs = outputs
-
         if tracing.active_span.spankind.upper() in [
             "LLM",
             "RETRIEVER",
         ]:  # TODO: Remove this whole part. Setting the cost should be done through set_span_attribute
-            self._update_span_cost(tracing.active_span, outputs.get("cost", None))
-            self._update_span_tokens(tracing.active_span, outputs.get("usage", None))
+            self._update_span_cost(
+                tracing.active_span, tracing.active_span.outputs.get("cost", None)
+            )
+            self._update_span_tokens(
+                tracing.active_span, tracing.active_span.outputs.get("usage", None)
+            )
 
         active_span_parent_id = tracing.active_span.parent_span_id
 
@@ -345,7 +393,7 @@ class Tracing(metaclass=SingletonMeta):
         tracing = tracing_context.get()
 
         if tracing.active_span is None:
-            logging.error(f"Cannot set attributes ({set(locals)}), no active span")
+            logging.error(f"Cannot set locals ({set(locals)}), no active span")
             return
 
         logging.info(
@@ -357,6 +405,27 @@ class Tracing(metaclass=SingletonMeta):
 
         for key, value in locals.items():
             tracing.active_span.locals[key] = value  # type: ignore
+
+    @debug()
+    def store_outputs(self, outputs: Dict[str, Any] = {}) -> None:
+        """
+        Set outputs for the active span.
+
+        Args:
+            outputs (Dict[str, Any], optional): A dictionary of output variables to set. Defaults to {}.
+        """
+
+        tracing = tracing_context.get()
+
+        if tracing.active_span is None:
+            logging.error(f"Cannot set outputs ({set(outputs)}), no active span")
+            return
+
+        logging.info(
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} outputs={outputs}"
+        )
+
+        tracing.active_span.outputs = outputs
 
     def dump_trace(self):
         """
@@ -405,7 +474,7 @@ class Tracing(metaclass=SingletonMeta):
     ) -> None:  # Legacy
         self.open_trace(span, config, **kwargs)
 
-    def end_trace(self, parent_span: CreateSpan) -> None:  # Legacy
+    def end_trace(self, _: CreateSpan) -> None:  # Legacy
         self.close_trace()
 
     def start_span(
@@ -428,7 +497,8 @@ class Tracing(metaclass=SingletonMeta):
         self.set_attributes(attributes)
 
     def end_span(self, outputs: Dict[str, Any]) -> None:  # Legacy
-        self.close_span(outputs)
+        self.store_outputs(outputs)
+        self.close_span()
 
     ### --- Helper Functions --- ###
 
