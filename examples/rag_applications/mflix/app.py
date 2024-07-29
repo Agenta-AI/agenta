@@ -15,7 +15,7 @@ mongodb = MongoClient(
 )
 db = mongodb[config["MONGODB_DATABASE_NAME"]]
 
-ag.init()
+ag.init()  # without the file, api-id seems to be missing
 
 ag.config.default(
     # RETRIEVER
@@ -60,23 +60,6 @@ def embed(description: str):
     }
 
 
-@ag.instrument(spankind="MESSAGE")
-async def chat(prompts: str, opts: dict):
-    response = openai.chat.completions.create(
-        model=opts["model"],
-        temperature=opts["temperature"],
-        messages=[
-            {"role": agent, "content": prompt} for (agent, prompt) in prompts.items()
-        ],
-    )
-
-    return {
-        "message": response.choices[0].message.content,
-        "cost": ag.calculate_token_usage(opts["model"], response.usage.dict()),
-        "usage": response.usage.dict(),
-    }
-
-
 @ag.instrument(spankind="SEARCH")
 def search(query: list, topk: int):
     embeddings = db["embedded_movies"]
@@ -97,6 +80,23 @@ def search(query: list, topk: int):
     movies = [movie for movie in embeddings.aggregate(pipeline)]
 
     return movies
+
+
+@ag.instrument(spankind="MESSAGE")
+async def chat(prompts: str, opts: dict):
+    response = openai.chat.completions.create(
+        model=opts["model"],
+        temperature=opts["temperature"],
+        messages=[
+            {"role": agent, "content": prompt} for (agent, prompt) in prompts.items()
+        ],
+    )
+
+    return {
+        "message": response.choices[0].message.content,
+        "cost": ag.calculate_token_usage(opts["model"], response.usage.dict()),
+        "usage": response.usage.dict(),
+    }
 
 
 @ag.instrument(spankind="RETRIEVER")
@@ -161,6 +161,7 @@ async def summarizer(topic: str, genre: str, report: dict) -> dict:
 @ag.entrypoint
 @ag.instrument(spankind="RAG")
 async def rag(topic: str, genre: str, count: int = 5):
+
     count = int(count)  # FE issue
 
     result = await retriever(topic, genre, count)
