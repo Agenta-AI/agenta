@@ -210,7 +210,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({traceSpans, ...props})
             <div className={classes.container}>
                 <div className="flex flex-col">
                     {root_spans.map((span) => (
-                        <>
+                        <React.Fragment key={span.id}>
                             <Tree
                                 selectedKeys={[selected]}
                                 onSelect={(keys) => setSelected(keys[0]?.toString() || span.id)}
@@ -231,7 +231,7 @@ const GenerationDrawer: React.FC<Props & DrawerProps> = ({traceSpans, ...props})
                                     },
                                 ]}
                             />
-                        </>
+                        </React.Fragment>
                     ))}
                 </div>
 
