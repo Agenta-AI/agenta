@@ -1,8 +1,5 @@
 import agenta as ag
 
-from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
-from agenta.sdk.tracing.logger import llm_logger as logging
-
 
 def litellm_handler():
     try:
@@ -34,8 +31,6 @@ def litellm_handler():
             return ag.tracing
 
         def log_pre_api_call(self, model, messages, kwargs):
-            logging.debug("log_pre_api_call()")
-
             call_type = kwargs.get("call_type")
             span_kind = (
                 "llm" if call_type in ["completion", "acompletion"] else "embedding"
@@ -58,8 +53,6 @@ def litellm_handler():
             )
 
         def log_stream_event(self, kwargs, response_obj, start_time, end_time):
-            logging.debug("log_stream_event()")
-
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -80,8 +73,6 @@ def litellm_handler():
         def log_success_event(
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
-            logging.debug("log_success_event()")
-
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -100,8 +91,6 @@ def litellm_handler():
         def log_failure_event(
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
-            logging.debug("log_failure_event()")
-
             ag.tracing.set_status(status="ERROR")
             ag.tracing.set_attributes(
                 {
@@ -130,8 +119,6 @@ def litellm_handler():
         async def async_log_stream_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            logging.debug("async_log_stream_event()")
-
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -152,7 +139,6 @@ def litellm_handler():
         async def async_log_success_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            logging.debug("async_log_success_event()")
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -171,8 +157,6 @@ def litellm_handler():
         async def async_log_failure_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            logging.debug("async_log_failure_event()")
-
             ag.tracing.set_status(status="ERROR")
             ag.tracing.set_attributes(
                 {
