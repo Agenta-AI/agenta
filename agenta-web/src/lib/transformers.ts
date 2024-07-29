@@ -106,7 +106,7 @@ export const fromBaseResponseToTraceSpanType = (
         status: span.status,
         metadata: {
             cost: span.cost,
-            latency: null, // span.end_time - span.start_time,
+            latency: (new Date(span.end_time)-new Date(span.start_time))/1000.0,
             usage: span.tokens,
         },
         content: spans.reduce(
