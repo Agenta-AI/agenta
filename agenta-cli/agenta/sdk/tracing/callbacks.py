@@ -35,13 +35,11 @@ def litellm_handler():
 
         def log_pre_api_call(self, model, messages, kwargs):
             logging.debug("log_pre_api_call()")
+
             call_type = kwargs.get("call_type")
             span_kind = (
                 "llm" if call_type in ["completion", "acompletion"] else "embedding"
             )
-
-            if tracing_context.get() is None:
-                self.context_token = tracing_context.set(TracingContext())
 
             ag.tracing.start_span(
                 name=f"{span_kind}_call",
@@ -61,6 +59,7 @@ def litellm_handler():
 
         def log_stream_event(self, kwargs, response_obj, start_time, end_time):
             logging.debug("log_stream_event()")
+
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -82,6 +81,7 @@ def litellm_handler():
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
             logging.debug("log_success_event()")
+
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -101,6 +101,7 @@ def litellm_handler():
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
             logging.debug("log_failure_event()")
+
             ag.tracing.set_status(status="ERROR")
             ag.tracing.set_attributes(
                 {
@@ -130,6 +131,7 @@ def litellm_handler():
             self, kwargs, response_obj, start_time, end_time
         ):
             logging.debug("async_log_stream_event()")
+
             ag.tracing.set_status(status="OK")
             ag.tracing.end_span(
                 outputs={
@@ -170,6 +172,7 @@ def litellm_handler():
             self, kwargs, response_obj, start_time, end_time
         ):
             logging.debug("async_log_failure_event()")
+
             ag.tracing.set_status(status="ERROR")
             ag.tracing.set_attributes(
                 {
