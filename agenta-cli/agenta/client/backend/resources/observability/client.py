@@ -16,6 +16,7 @@ from ...types.http_validation_error import HttpValidationError
 from ...types.span_detail import SpanDetail
 from ...types.trace_detail import TraceDetail
 from ...types.with_pagination import WithPagination
+from agenta.sdk.tracing.logger import llm_logger as logging
 
 try:
     import pydantic.v1 as pydantic  # type: ignore
@@ -190,6 +191,7 @@ class ObservabilityClient:
             ],
         )
         """
+
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
@@ -769,6 +771,7 @@ class AsyncObservabilityClient:
             ],
         )
         """
+
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
