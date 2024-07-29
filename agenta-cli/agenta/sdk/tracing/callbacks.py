@@ -23,9 +23,6 @@ def litellm_handler():
             LitellmCustomLogger (object): custom logger that allows us to override the events to capture.
         """
 
-        def __init__(self):
-            self.context_token = None
-
         @property
         def _trace(self):
             return ag.tracing
