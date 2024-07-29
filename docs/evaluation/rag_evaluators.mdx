@@ -1,0 +1,139 @@
+---
+title: 'Using RAG Evaluators'
+description: 'Intermediate variables and inline traces in RAG applications'
+---
+
+Sometimes, evaluators that rely on inputs and ouputs may not be sufficient for your specific use case and you may wish to access intermediate variables, like in the case of RAG. In this page, we will see how to use intermediate variables and how to configure RAG evaluators on Agenta based on the application tree.
+
+<Info>Access to intermediate variables and to RAG evaluators requires version 0.20.0+ of the Python SDK.</Info>
+
+## Understanding the application tree.
+Let's consider a simple RAG appication (the source code can be found [here](https://github.com/Agenta-AI/agenta/tree/main/examples/rag_applications/mflix)).
+
+The main workflow, denoted by `@entrypoint`, fetches `count` movies on the topic of `topic` within the genre of `genre`, then generates an initial summary from those movies, and finally summarizes the report twice in a row.
+```python
+@ag.entrypoint
+@ag.instrument(spankind="RAG")
+async def rag(topic: str, genre: str, count: int = 5):
+    result = await retriever(topic, genre, count)
+    result = await reporter(topic, genre, count, result["movies"])
+    result = await summarizer(topic, genre, result["report"])
+    result = await summarizer(topic, genre, result["report"])
+
+    return result["report"]
+```
+
+On top of performing semantic search on the formatted prompt fetched from Agenta, the retriever stores the formatted prompt into `locals`.
+```python
+@ag.instrument(spankind="RETRIEVER")
+async def retriever(topic: str, genre: str, count: int) -> dict:
+    prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
+    topk = count * ag.config.retriever_multiplier
+
+    ag.tracing.store_locals({"prompt": prompt, "topk": topk})
+
+    query = embed(prompt)
+    result = search(query["embedding"], topk)
+    movies = [
+        f"{movie['title']} ({movie['year']}) in {movie['genres']}: {movie['plot']}"
+        for movie in result
+    ]
+
+    return {"movies": movies}
+```
+
+As usual, all the parameters for the app are available in `ag.config`.
+```python
+ag.config.default(
+    # RETRIEVER
+    retriever_prompt=ag.TextParam("Movies about {topic} in the genre of {genre}."),
+    retriever_multiplier=ag.FloatParam(default=3, minval=1, maxval=10),
+    # GENERATOR
+    generator_context_prompt=ag.TextParam(
+        "Given the following list of suggested movies:\n\n{movies}"
+    ),
+    generator_instructions_prompt=ag.TextParam(
+        "Provide a list of {count} movies about {topic} in the genre of {genre}."
+    ),
+    generator_model=ag.MultipleChoiceParam(
+        "gpt-3.5-turbo", ["gpt-4o-mini", "gpt-3.5-turbo"]
+    ),
+    generator_temperature=ag.FloatParam(default=0.8),
+    # SUMMARIZER
+    summarizer_context_prompt=ag.TextParam(
+        "Act as a professional cinema critic.\nBe concise and factual.\nUse one intro sentence, and one sentence per movie."
+    ),
+    summarizer_instructions_prompt=ag.TextParam(
+        "Summarize the following recommendations about {topic} in the genre of {genre}:\n\n{report}"
+    ),
+    summarizer_model=ag.MultipleChoiceParam(
+        "gpt-4o-mini", ["gpt-4o-mini", "gpt-3.5-turbo"]
+    ),
+    summarizer_temperature=ag.FloatParam(default=0.2),
+)
+```
+
+In short, as we will see below, the application tree runs like this,
+```
+rag
+    retriever
+        embed
+        search
+    reporter
+        chat
+    summarizer[0]
+        chat
+    summarizer[1]
+        chat
+
+```
+where the two summarizers are shown with _list_-type indexes to identify them uniquely.
+
+## Evaluating the application
+
+Once again, the Playground is a powerful tool to explore our LLM application.
+
+When we deploy the application, we see a list of interactive parameters.
+And upon entering values for the app inputs, we see the app outputs along with a new feature: inline traces in the Playground.
+<img height="600" className="dark:hidden" src="/images/basic_guides/playground_view_traces_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/playground_view_traces_dark.png" />
+
+When we click on `view traces`, a bottom drawer slides up and display the current execution of the application.
+As you can see, the inline trace corresponds to the application tree shown above.
+<img height="600" className="dark:hidden" src="/images/basic_guides/playground_inline_traces_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/playground_inline_traces_dark.png" />
+
+We can also see the list of all `inputs`, `locals`, and `outputs` for each node of the tree, or stage of the workflow.
+For instance, the retriever has the following accessible variables,
+```
+rag.retriever.inputs.topic
+rag.retriever.inputs.genre
+rag.retriever.inputs.count
+rag.retriever.locals.prompt
+rag.retriever.locals.topk
+rag.retriever.outputs.movies
+```
+whereas the second summarizer has the follow accessible variables,
+```
+rag.summarizer[1].inputs.topic
+rag.summarizer[1].inputs.genre
+rag.summarizer[1].inputs.report
+rag.summarizer[1].outputs.report
+```
+
+## Adding a RAG evaluator
+
+Now that we have a RAG application, and that we know how to access all the three types of variables, `inputs`, `locals`, and `outputs`, we can jump to RAG evaluators.
+
+RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from other evaluators in Agenta in that they often require intermediate variables. For instance, [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html) and [Context Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html) both require `question`, `answer`, and `contexts`. In our case,
+```
+question = rag.retriever.locals.prompt
+answer   = rag.summarizer[1].otuputs.report
+contexts = rag.retriever.outputs.movies
+```
+
+On the evlauators page, when setting up RAG evaluators, those are the key that we need to provide.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_faithfulness_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_faithfulness_dark.png" />
+
+Once your RAG evaluators are set up, you are ready to go. The rest of your journey is the same as before.
