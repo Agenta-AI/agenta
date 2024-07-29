@@ -1237,13 +1237,13 @@ jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "setuptools"
-version = "71.1.0"
+version = "72.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-71.1.0-py3-none-any.whl", hash = "sha256:33874fdc59b3188304b2e7c80d9029097ea31627180896fb549c578ceb8a0855"},
-    {file = "setuptools-71.1.0.tar.gz", hash = "sha256:032d42ee9fb536e33087fb66cac5f840eb9391ed05637b3f2a76a7c8fb477936"},
+    {file = "setuptools-72.0.0-py3-none-any.whl", hash = "sha256:98b4d786a12fadd34eabf69e8d014b84e5fc655981e4ff419994700434ace132"},
+    {file = "setuptools-72.0.0.tar.gz", hash = "sha256:5a0d9c6a2f332881a0153f629d8000118efd33255cfa802757924c53312c76da"},
 ]
 
 [package.extras]
@@ -1670,4 +1670,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "3bad9f9d736eaad52d7f116a663193192814b1ccd347de93a82c675d82a05a0f"
+content-hash = "a4144a322f6f4a54e07b367f7e767f92c24b69039002625ed929df503940c9a8"

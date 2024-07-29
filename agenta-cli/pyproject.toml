@@ -34,7 +34,7 @@ cachetools = "^5.3.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3"
-setuptools = "^71.1.0"
+setuptools = "^72.0.0"
 
 [build-system]
 requires = ["poetry-core"]
