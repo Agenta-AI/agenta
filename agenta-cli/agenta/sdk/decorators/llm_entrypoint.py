@@ -577,6 +577,8 @@ class entrypoint(BaseDecorator):
 
             if annotation == int:
                 param_type = "integer"
+            elif annotation == float:
+                param_type = "number"
             elif annotation == dict:
                 param_type = "object"
             elif annotation == bool:
