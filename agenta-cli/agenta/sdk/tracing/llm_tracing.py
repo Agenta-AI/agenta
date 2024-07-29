@@ -359,10 +359,8 @@ class Tracing(metaclass=SingletonMeta):
         ### --- TO BE CLEANED --- >>>
         tracing.active_span.end_time = datetime.now(timezone.utc)
 
-        if tracing.active_span.spankind.upper() in [
-            "LLM",
-            "RETRIEVER",
-        ]:  # TODO: Remove this whole part. Setting the cost should be done through set_span_attribute
+        # TODO: Remove this whole part. Setting the cost should be done through set_span_attribute
+        if isinstance(tracing.active_span.outputs, dict):
             self._update_span_cost(
                 tracing.active_span, tracing.active_span.outputs.get("cost", None)
             )
@@ -447,7 +445,7 @@ class Tracing(metaclass=SingletonMeta):
             for span in tracing.spans.values():
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
-                    trace["usage"] = span.tokens
+                    trace["usage"] = encode_json(span.tokens)
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
             spans = encode_json(list(tracing.spans.values()))
@@ -560,6 +558,16 @@ class Tracing(metaclass=SingletonMeta):
             if span.tokens is None:
                 span.tokens = LlmTokens(**tokens)
             else:
-                span.tokens.prompt_tokens += tokens["prompt_tokens"]
-                span.tokens.completion_tokens += tokens["completion_tokens"]
-                span.tokens.total_tokens += tokens["total_tokens"]
+                span.tokens.prompt_tokens += (
+                    tokens["prompt_tokens"]
+                    if tokens["prompt_tokens"] is not None
+                    else 0
+                )
+                span.tokens.completion_tokens += (
+                    tokens["completion_tokens"]
+                    if tokens["completion_tokens"] is not None
+                    else 0
+                )
+                span.tokens.total_tokens += (
+                    tokens["total_tokens"] if tokens["total_tokens"] is not None else 0
+                )
