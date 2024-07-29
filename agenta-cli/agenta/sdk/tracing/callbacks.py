@@ -32,12 +32,13 @@ def litellm_handler():
             span_kind = (
                 "llm" if call_type in ["completion", "acompletion"] else "embedding"
             )
-            self._trace.start_span(
+
+            ag.tracing.start_span(
                 name=f"{span_kind}_call",
                 input={"messages": kwargs["messages"]},
                 spankind=span_kind,
             )
-            self._trace.set_span_attribute(
+            ag.tracing.set_attributes(
                 {
                     "model_config": {
                         "model": kwargs.get("model"),
@@ -49,15 +50,17 @@ def litellm_handler():
             )
 
         def log_stream_event(self, kwargs, response_obj, start_time, end_time):
-            self._trace.update_span_status(span=self._trace.active_span, value="OK")
-            self._trace.end_span(
+            ag.tracing.set_status(status="OK")
+            ag.tracing.end_span(
                 outputs={
                     "message": kwargs.get(
                         "complete_streaming_response"
                     ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -67,13 +70,15 @@ def litellm_handler():
         def log_success_event(
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
-            self._trace.update_span_status(span=self._trace.active_span, value="OK")
-            self._trace.end_span(
+            ag.tracing.set_status(status="OK")
+            ag.tracing.end_span(
                 outputs={
                     "message": response_obj.choices[0].message.content,
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -83,23 +88,25 @@ def litellm_handler():
         def log_failure_event(
             self, kwargs, response_obj: ModelResponse, start_time, end_time
         ):
-            self._trace.update_span_status(span=self._trace.active_span, value="ERROR")
-            self._trace.set_span_attribute(
+            ag.tracing.set_status(status="ERROR")
+            ag.tracing.set_attributes(
                 {
-                    "traceback_exception": kwargs[
-                        "traceback_exception"
-                    ],  # the traceback generated via `traceback.format_exc()`
+                    "traceback_exception": repr(
+                        kwargs["traceback_exception"]
+                    ),  # the traceback generated via `traceback.format_exc()`
                     "call_end_time": kwargs[
                         "end_time"
                     ],  # datetime object of when call was completed
                 },
             )
-            self._trace.end_span(
+            ag.tracing.end_span(
                 outputs={
                     "message": kwargs["exception"],  # the Exception raised
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -109,15 +116,17 @@ def litellm_handler():
         async def async_log_stream_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            self._trace.update_span_status(span=self._trace.active_span, value="OK")
-            self._trace.end_span(
+            ag.tracing.set_status(status="OK")
+            ag.tracing.end_span(
                 outputs={
                     "message": kwargs.get(
                         "complete_streaming_response"
                     ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -127,13 +136,15 @@ def litellm_handler():
         async def async_log_success_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            self._trace.update_span_status(span=self._trace.active_span, value="OK")
-            self._trace.end_span(
+            ag.tracing.set_status(status="OK")
+            ag.tracing.end_span(
                 outputs={
                     "message": response_obj.choices[0].message.content,
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
@@ -143,8 +154,8 @@ def litellm_handler():
         async def async_log_failure_event(
             self, kwargs, response_obj, start_time, end_time
         ):
-            self._trace.update_span_status(span=self._trace.active_span, value="ERROR")
-            self._trace.set_span_attribute(
+            ag.tracing.set_status(status="ERROR")
+            ag.tracing.set_attributes(
                 {
                     "traceback_exception": kwargs[
                         "traceback_exception"
@@ -154,12 +165,14 @@ def litellm_handler():
                     ],  # datetime object of when call was completed
                 },
             )
-            self._trace.end_span(
+            ag.tracing.end_span(
                 outputs={
-                    "message": kwargs["exception"],  # the Exception raised
-                    "usage": response_obj.usage.dict()
-                    if hasattr(response_obj, "usage")
-                    else None,  # litellm calculates usage
+                    "message": repr(kwargs["exception"]),  # the Exception raised
+                    "usage": (
+                        response_obj.usage.dict()
+                        if hasattr(response_obj, "usage")
+                        else None
+                    ),  # litellm calculates usage
                     "cost": kwargs.get(
                         "response_cost"
                     ),  # litellm calculates response cost
