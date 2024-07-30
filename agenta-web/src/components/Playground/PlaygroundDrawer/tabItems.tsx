@@ -119,7 +119,7 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
     if (data.content.inputs && data.content.inputs.length > 0) {
         items.push({
             key: "1",
-            label: <div>Inputs</div>,
+            label: <div>inputs</div>,
             children: (
                 <>
                     {data.content.inputs.map((input, ix) => (
@@ -141,7 +141,7 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
     if (data.content.locals && data.content.locals.length > 0) {
         items.push({
             key: "2",
-            label: <div>Locals</div>,
+            label: <div>locals</div>,
             children: (
                 <>
                     {data.content.locals.map((local, ix) => (
@@ -163,7 +163,7 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
     if (output) {
         items.push({
             key: "3",
-            label: <div>Outputs</div>,
+            label: <div>outputs</div>,
             children: (
                 <Card
                     title={data.content?.role ? <Tag>{data.content.role}</Tag> : null}
