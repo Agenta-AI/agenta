@@ -86,7 +86,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
                 message.success("Copied to clipboard")
             })
             .catch(console.error)
-    }, [])
+    }, [value])
 
     const onExpand = useCallback(() => {
         const cells = document.querySelectorAll(`[row-id='${node.id}'] .ag-cell > *`)
@@ -111,13 +111,13 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
             node.setRowHeight(defaultHeight)
         }
         api.onRowHeightChanged()
-    }, [expanded])
+    }, [expanded, api, node])
 
     useEffect(() => {
         node.addEventListener("heightChanged", () => {
             setExpanded(node.rowHeight !== api.getSizesForCurrentTheme().rowHeight)
         })
-    }, [])
+    }, [api, node])
 
     return (
         <div
