@@ -259,7 +259,7 @@ class Tracing(metaclass=SingletonMeta):
             attributes={},
             status=SpanStatusCode.UNSET.value,
             start_time=datetime.now(timezone.utc),
-            locals=None,
+            internals=None,
             outputs=None,
             tags=None,
             user=None,
@@ -380,29 +380,29 @@ class Tracing(metaclass=SingletonMeta):
         logging.info(f"Closed  span  {span_id} {spankind}")
 
     @debug()
-    def store_locals(self, locals: Dict[str, Any] = {}) -> None:
+    def store_internals(self, internals: Dict[str, Any] = {}) -> None:
         """
-        Set localcs for the active span.
+        Set internals for the active span.
 
         Args:
-            locals (Dict[str, Any], optional): A dictionary of local variables to set. Defaults to {}.
+            internals (Dict[str, Any], optional): A dictionary of local variables to set. Defaults to {}.
         """
 
         tracing = tracing_context.get()
 
         if tracing.active_span is None:
-            logging.error(f"Cannot set locals ({set(locals)}), no active span")
+            logging.error(f"Cannot set internals ({set(internals)}), no active span")
             return
 
         logging.info(
-            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} locals={locals}"
+            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} internals={internals}"
         )
 
-        if tracing.active_span.locals is None:
-            tracing.active_span.locals = dict()
+        if tracing.active_span.internals is None:
+            tracing.active_span.internals = dict()
 
-        for key, value in locals.items():
-            tracing.active_span.locals[key] = value  # type: ignore
+        for key, value in internals.items():
+            tracing.active_span.internals[key] = value  # type: ignore
 
     @debug()
     def store_outputs(self, outputs: Dict[str, Any] = {}) -> None:

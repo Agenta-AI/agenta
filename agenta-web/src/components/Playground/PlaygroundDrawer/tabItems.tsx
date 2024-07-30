@@ -138,13 +138,13 @@ export const GenerationContentTab: React.FC<{data: TraceSpanDetails}> = ({data})
         })
     }
 
-    if (data.content.locals && data.content.locals.length > 0) {
+    if (data.content.internals && data.content.internals.length > 0) {
         items.push({
             key: "2",
-            label: <div>locals</div>,
+            label: <div>internals</div>,
             children: (
                 <>
-                    {data.content.locals.map((local, ix) => (
+                    {data.content.internals.map((local, ix) => (
                         <Card
                             key={local.local_name + ix}
                             title={<Tag>{local.local_name}</Tag>}
