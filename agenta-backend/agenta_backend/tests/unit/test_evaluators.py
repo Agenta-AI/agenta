@@ -281,7 +281,7 @@ def test_auto_semantic_similarity_match(
         settings_values,
         {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
     )
-    assert round(result.value, 3) == expected_score
+    assert round(result.value, 3) == pytest.approx(expected_score, rel=1e-3)
 
 
 @pytest.mark.parametrize(

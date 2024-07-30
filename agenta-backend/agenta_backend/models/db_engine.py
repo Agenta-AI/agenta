@@ -97,7 +97,7 @@ class DBEngine:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.postgres_uri = os.environ.get("POSTGRES_URI")
         self.mongo_uri = os.environ.get("MONGODB_URI")
-        self.engine = create_async_engine(url=self.postgres_uri)  # type: ignore
+        self.engine = create_async_engine(url=self.postgres_uri, echo=True)  # type: ignore
         self.async_session_maker = async_sessionmaker(
             bind=self.engine, class_=AsyncSession, expire_on_commit=False
         )
