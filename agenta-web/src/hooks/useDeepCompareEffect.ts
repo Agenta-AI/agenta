@@ -13,7 +13,7 @@ function useDeepCompareMemoize(value: any) {
 }
 
 export function useDeepCompareEffect(callback: React.EffectCallback, deps?: React.DependencyList) {
-    useEffect(callback, deps?.map(useDeepCompareMemoize))
+    useEffect(callback, [deps?.map(useDeepCompareMemoize), callback])
 }
 
 export function useDeepCompareUpdateEffect(

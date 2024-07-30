@@ -27,7 +27,7 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
 
     useEffect(() => {
         form.resetFields()
-    }, [props.open])
+    }, [props.open, form])
 
     const handleSave = (values: {testset_name: string}) => {
         setSubmitLoading(true)

@@ -262,7 +262,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 evaluators.find((item) => item.key === initialValues?.evaluator_key) || null,
             )
         }
-    }, [newEvalModalConfigOpen])
+    }, [newEvalModalConfigOpen, evaluators, form, initialValues])
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)

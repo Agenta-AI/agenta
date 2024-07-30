@@ -28,7 +28,7 @@ const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
                 setShouldRender(isSignedIn)
             }
         }
-    }, [pathname, isSignedIn, loading])
+    }, [pathname, isSignedIn, loading, router])
 
     return <>{shouldRender ? children : null}</>
 }

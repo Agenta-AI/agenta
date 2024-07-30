@@ -41,9 +41,12 @@ const CellEditor = (props: any, ref: React.ForwardedRef<unknown>) => {
     const [value, setValue] = useState(props.value)
     const classes = useStyles()
 
-    const onHeightChanged = useCallback(({height}: ResizeObserverEntry["contentRect"]) => {
-        if (height >= props.node.rowHeight) props.node.setRowHeight(height)
-    }, [])
+    const onHeightChanged = useCallback(
+        ({height}: ResizeObserverEntry["contentRect"]) => {
+            if (height >= props.node.rowHeight) props.node.setRowHeight(height)
+        },
+        [props.node],
+    )
     const elemRef = useResizeObserver(onHeightChanged)
 
     // to expose AG Grid cell editor API

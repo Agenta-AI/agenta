@@ -145,7 +145,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             }
             return prev
         })
-    }, [status])
+    }, [status, appId, details, router])
 
     useEffect(() => {
         if (!props.open) reset()
