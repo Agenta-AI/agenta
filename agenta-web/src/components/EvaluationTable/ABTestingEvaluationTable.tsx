@@ -408,7 +408,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <>
                         <Input.TextArea
                             defaultValue={correctAnswer}
-                            autoSize={{minRows: 3, maxRows: 5}}
+                            autoSize={{minRows: 3, maxRows: 10}}
                             onChange={(e) =>
                                 depouncedUpdateEvaluationScenario(
                                     {
@@ -456,7 +456,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <>
                         <Input.TextArea
                             defaultValue={record?.note || ""}
-                            autoSize={{minRows: 3, maxRows: 5}}
+                            autoSize={{minRows: 3, maxRows: 10}}
                             onChange={(e) =>
                                 depouncedUpdateEvaluationScenario({note: e.target.value}, record.id)
                             }
