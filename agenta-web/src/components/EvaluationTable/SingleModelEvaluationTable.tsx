@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback} from "react"
+import {useState, useEffect, useCallback, useMemo} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {
@@ -189,13 +189,6 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [accuracy, setAccuracy] = useState<number>(0)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 
-    const depouncedUpdateEvaluationScenario = useCallback(
-        debounce((data: Partial<EvaluationScenario>, scenarioId) => {
-            updateEvaluationScenarioData(scenarioId, data)
-        }, 800),
-        [rows],
-    )
-
     useEffect(() => {
         if (evaluationScenarios) {
             const obj = [...evaluationScenarios]
@@ -251,10 +244,11 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
     }
 
-    const depouncedHandleScoreChange = useCallback(
-        debounce((...args: Parameters<typeof handleScoreChange>) => {
-            handleScoreChange(...args)
-        }, 800),
+    const depouncedHandleScoreChange = useMemo(
+        () =>
+            debounce((...args: Parameters<typeof handleScoreChange>) => {
+                handleScoreChange(...args)
+            }, 800),
         [handleScoreChange],
     )
 
@@ -287,6 +281,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             })
             .catch(console.error)
     }
+
+    const depouncedUpdateEvaluationScenario = useMemo(
+        () =>
+            debounce((data: Partial<EvaluationScenario>, scenarioId) => {
+                updateEvaluationScenarioData(scenarioId, data)
+            }, 800),
+        [updateEvaluationScenarioData],
+    )
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
