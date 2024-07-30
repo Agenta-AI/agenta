@@ -27,7 +27,7 @@ const NLines: React.FC<Props> = ({lines = 8, allowReadMore = false, children}) =
             return ref.offsetHeight / lineHeight
         }
         return lines
-    }, [collapsed, ref])
+    }, [ref, lines])
 
     return (
         <Space direction="vertical" size={4}>

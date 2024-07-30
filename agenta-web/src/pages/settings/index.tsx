@@ -69,22 +69,20 @@ const Settings: React.FC = () => {
     ]
 
     return (
-        <div className={classes.root}>
-            <Typography.Title className={classes.heading} level={3}>
-                Settings
-            </Typography.Title>
-            <Tabs
-                className={classes.tabs}
-                onChange={setTab}
-                activeKey={tab}
-                items={items.filter((item) => !item.hidden)}
-            />
-        </div>
+        <ProtectedRoute>
+            <div className={classes.root}>
+                <Typography.Title className={classes.heading} level={3}>
+                    Settings
+                </Typography.Title>
+                <Tabs
+                    className={classes.tabs}
+                    onChange={setTab}
+                    activeKey={tab}
+                    items={items.filter((item) => !item.hidden)}
+                />
+            </div>
+        </ProtectedRoute>
     )
 }
 
-export default () => (
-    <ProtectedRoute>
-        <Settings />
-    </ProtectedRoute>
-)
+export default Settings

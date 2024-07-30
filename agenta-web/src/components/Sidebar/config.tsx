@@ -68,7 +68,7 @@ export const useSidebarConfig = () => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
         })
-    }, [])
+    }, [useOrgData])
 
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
 

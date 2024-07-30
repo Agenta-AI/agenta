@@ -90,7 +90,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             })
             .catch(console.error)
             .finally(() => setFetching(false))
-    }, [props.open, appId])
+    }, [props.open, appId, form])
 
     const [rateLimitValues, setRateLimitValues] = useState<LLMRunRateLimit>({
         batch_size: 10,

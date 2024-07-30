@@ -9,7 +9,7 @@ export const useAgGridCustomHeaders = (gridApi?: AgGridReact["api"]) => {
     const [gridRendered, setGridRendered] = useState(false)
     const cache = useMemo<Entity>(() => createCache(), [])
 
-    const colDefs: ColDef[] = gridApi?.getColumnDefs() || []
+    const colDefs: ColDef[] = useMemo(() => gridApi?.getColumnDefs() || [], [gridApi])
 
     useEffect(() => {
         gridApi?.addEventListener("firstDataRendered", () => {
@@ -75,5 +75,5 @@ export const useAgGridCustomHeaders = (gridApi?: AgGridReact["api"]) => {
             document.body.appendChild(styleNode)
         }
         styleNode.innerHTML = styleText
-    }, [colDefs, gridRendered])
+    }, [colDefs, gridRendered, cache])
 }

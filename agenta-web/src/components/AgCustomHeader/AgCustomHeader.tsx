@@ -1,7 +1,7 @@
 import {GenericObject, JSSTheme} from "@/lib/Types"
 import {ArrowDownOutlined, ArrowUpOutlined, MenuOutlined} from "@ant-design/icons"
 import {Space} from "antd"
-import React, {useEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -36,15 +36,17 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
         e.stopPropagation()
     }
 
-    const onSortChanged = () => {
-        setSortDir(
-            props.column.isSortAscending()
-                ? "asc"
-                : props.column.isSortDescending()
-                  ? "desc"
-                  : null,
-        )
-    }
+    const onSortChanged = useCallback(
+        () =>
+            setSortDir(
+                props.column.isSortAscending()
+                    ? "asc"
+                    : props.column.isSortDescending()
+                      ? "desc"
+                      : null,
+            ),
+        [props.column],
+    )
 
     const onSortRequested = (order: string, event: GenericObject) => {
         props.setSort(order, event.shiftKey)
@@ -58,7 +60,7 @@ const AgCustomHeader: React.FC<Props & GenericObject> = ({children, ...props}) =
     useEffect(() => {
         props.column.addEventListener("sortChanged", onSortChanged)
         onSortChanged()
-    }, [])
+    }, [onSortChanged, props.column])
 
     return (
         <Space align="center" onClick={onClick} className={classes.root}>

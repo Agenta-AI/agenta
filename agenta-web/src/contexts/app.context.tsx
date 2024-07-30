@@ -35,7 +35,7 @@ const useApps = () => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
         })
-    }, [])
+    }, [useOrgData])
 
     const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
