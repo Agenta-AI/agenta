@@ -16,12 +16,14 @@ from agenta_backend.utils.common import isCloudEE
 # Initializer logger
 logger = logging.getLogger("alembic.env")
 
-if isCloudEE():
-    alembic_cfg = Config("/app/commons_backend/alembic.cloud.ini")
-else:
-    alembic_cfg = Config("alembic.oss.ini")
-
 # Initialize alembic config
+try:
+    alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
+except KeyError:
+    raise KeyError(
+        "Could not find ALEMBIC_CFG_PATH. Ensure that it is in the backend environment variables."
+    )
+
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
