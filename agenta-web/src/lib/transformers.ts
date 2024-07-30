@@ -120,13 +120,13 @@ export const fromBaseResponseToTraceSpanType = (
 
                     acc["inputs"] = inputArr
                 }
-                if (span.locals) {
-                    let localArr = Object.entries(span.locals).map(([key, value]) => ({
-                        local_name: key,
-                        local_value: value,
+                if (span.internals) {
+                    let internalArr = Object.entries(span.internals).map(([key, value]) => ({
+                        internal_name: key,
+                        internal_value: value,
                     }))
 
-                    acc["locals"] = localArr
+                    acc["internals"] = internalArr
                 }
                 if (span.outputs) {
                     if (typeof span.outputs === "string") {
@@ -145,7 +145,7 @@ export const fromBaseResponseToTraceSpanType = (
             },
             {} as {
                 inputs: {input_name: string; input_value: string}[] | null
-                locals: {local_name: string; local_value: string}[] | null
+                internals: {internal_name: string; internal_value: string}[] | null
                 outputs: string[] | null
                 role: string | null
             },

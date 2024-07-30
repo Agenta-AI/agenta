@@ -520,7 +520,7 @@ export type BaseResponseSpans = {
     variant_name?: string
     inputs?: Record<string, any>
     outputs?: Record<string, any> | string[]
-    locals?: Record<string, any> | null
+    internals?: Record<string, any> | null
     config?: Record<string, any> | null
     environment?: string
     tags?: string[] | null
@@ -560,7 +560,7 @@ export interface TraceSpan {
     name?: string
     content: {
         inputs: {input_name: string; input_value: string}[] | null
-        locals: {local_name: string; local_value: string}[] | null
+        internals: {internal_name: string; internal_value: string}[] | null
         outputs: string[] | null
         role?: string | null
     }

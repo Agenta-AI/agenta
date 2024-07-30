@@ -1,14 +1,15 @@
 ---
 title: 'Using RAG Evaluators'
-description: 'Intermediate variables and inline traces in RAG applications'
+description: 'Internal variables and inline traces in RAG applications'
 ---
 
-Sometimes, evaluators that rely on inputs and ouputs may not be sufficient for your specific use case and you may wish to access intermediate variables, like in the case of RAG. In this page, we will see how to use intermediate variables and how to configure RAG evaluators on Agenta based on the application tree.
+Sometimes, evaluators that rely on inputs and ouputs may not be sufficient for your specific use case and you may wish to access internal variables, like in the case of RAG. In this page, we will see how to use internal variables and how to configure RAG evaluators on Agenta based on the application tree.
 
-<Info>Access to intermediate variables and to RAG evaluators requires version 0.20.0+ of the Python SDK.</Info>
+<Info>Access to `internals` and `inline traces` requires version 0.20.0+ of the Python SDK.</Info>
+<Info>Access to `RAG evaluators` and `view traces` in the Web UI requires the cloud version of Agenta.</Info>
 
 ## Understanding the application tree.
-Let's consider a simple RAG appication (the source code can be found [here](https://github.com/Agenta-AI/agenta/tree/main/examples/rag_applications/mflix)).
+Let's consider a simple RAG application (the source code can be found [here](https://github.com/Agenta-AI/agenta/tree/main/examples/rag_applications/mflix)).
 
 The main workflow, denoted by `@entrypoint`, fetches `count` movies on the topic of `topic` within the genre of `genre`, then generates an initial summary from those movies, and finally summarizes the report twice in a row.
 ```python
@@ -23,14 +24,14 @@ async def rag(topic: str, genre: str, count: int = 5):
     return result["report"]
 ```
 
-On top of performing semantic search on the formatted prompt fetched from Agenta, the retriever stores the formatted prompt into `locals`.
+On top of performing semantic search on the formatted prompt fetched from Agenta, the retriever stores the formatted prompt into `internals`.
 ```python
 @ag.instrument(spankind="RETRIEVER")
 async def retriever(topic: str, genre: str, count: int) -> dict:
     prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
     topk = count * ag.config.retriever_multiplier
 
-    ag.tracing.store_locals({"prompt": prompt, "topk": topk})
+    ag.tracing.store_internals({"prompt": prompt, "topk": topk})
 
     query = embed(prompt)
     result = search(query["embedding"], topk)
@@ -103,14 +104,14 @@ As you can see, the inline trace corresponds to the application tree shown above
 <img height="600" className="dark:hidden" src="/images/basic_guides/playground_inline_traces_light.png" />
 <img height="600" className="hidden dark:block" src="/images/basic_guides/playground_inline_traces_dark.png" />
 
-We can also see the list of all `inputs`, `locals`, and `outputs` for each node of the tree, or stage of the workflow.
+We can also see the list of all `inputs`, `internals`, and `outputs` for each node of the tree, or stage of the workflow.
 For instance, the retriever has the following accessible variables,
 ```
 rag.retriever.inputs.topic
 rag.retriever.inputs.genre
 rag.retriever.inputs.count
-rag.retriever.locals.prompt
-rag.retriever.locals.topk
+rag.retriever.internals.prompt
+rag.retriever.internals.topk
 rag.retriever.outputs.movies
 ```
 whereas the second summarizer has the follow accessible variables,
@@ -123,11 +124,11 @@ rag.summarizer[1].outputs.report
 
 ## Adding a RAG evaluator
 
-Now that we have a RAG application, and that we know how to access all the three types of variables, `inputs`, `locals`, and `outputs`, we can jump to RAG evaluators.
+Now that we have a RAG application, and that we know how to access all the three types of variables, `inputs`, `internals`, and `outputs`, we can jump to RAG evaluators.
 
-RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from other evaluators in Agenta in that they often require intermediate variables. For instance, [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html) and [Context Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html) both require `question`, `answer`, and `contexts`. In our case,
+RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from other evaluators in Agenta in that they often require internal variables. For instance, [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html) and [Context Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html) both require `question`, `answer`, and `contexts`. In our case,
 ```
-question = rag.retriever.locals.prompt
+question = rag.retriever.internals.prompt
 answer   = rag.summarizer[1].otuputs.report
 contexts = rag.retriever.outputs.movies
 ```

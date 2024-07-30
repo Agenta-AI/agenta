@@ -104,7 +104,7 @@ async def retriever(topic: str, genre: str, count: int) -> dict:
     prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
     topk = count * ag.config.retriever_multiplier
 
-    ag.tracing.store_locals({"prompt": prompt, "topk": topk})
+    ag.tracing.store_internals({"prompt": prompt, "topk": topk})
 
     query = embed(prompt)
 

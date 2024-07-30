@@ -361,7 +361,7 @@ app_output = {
                 "id": "66a2862603cbee93a25914ac",
                 "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
                 "inputs": {"topic": "witches", "genre": "fiction", "count": 3},
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "message": 'Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n"Snow White: A Tale of Terror" (1997) offers a sinister twist on the classic story, highlighting the witch\'s envy and vengeful nature.  \n"Hocus Pocus" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem.'
                 },
@@ -384,7 +384,7 @@ app_output = {
                 "id": "66a2862603cbee93a25914ae",
                 "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
                 "inputs": {"topic": "witches", "genre": "fiction", "count": 3},
-                "locals": {
+                "internals": {
                     "prompt": "Movies about witches in the genre of fiction.",
                     "topk": 9,
                 },
@@ -421,7 +421,7 @@ app_output = {
                 "inputs": {
                     "description": "Movies about witches in the genre of fiction."
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {"message": [0, 2, 3, 4, 5, 6, 7, 8, 9]},
                 "config": None,
                 "tags": None,
@@ -445,7 +445,7 @@ app_output = {
                     "query": [0, 2, 3, 4, 5, 6, 7, 8, 9],
                     "topk": 9,
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "message": [
                         {
@@ -537,7 +537,7 @@ app_output = {
                         "Heavy Metal (1981) in ['Animation', 'Adventure', 'Fantasy']: A glowing orb terrorizes a young girl with a collection of stories of dark fantasy, eroticism and horror.",
                     ],
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "report": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
                 },
@@ -565,7 +565,7 @@ app_output = {
                     },
                     "opts": {"model": "gpt-3.5-turbo", "temperature": 0.8},
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "message": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)"
                 },
@@ -591,7 +591,7 @@ app_output = {
                     "genre": "fiction",
                     "report": "1. The Craft (1996)\n2. Snow White: A Tale of Terror (1997)\n3. Hocus Pocus (1993)",
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "report": 'The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n"Snow White: A Tale of Terror" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n"Hocus Pocus" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem.'
                 },
@@ -619,7 +619,7 @@ app_output = {
                     },
                     "opts": {"model": "gpt-4o-mini", "temperature": 0.2},
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "message": 'The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n"Snow White: A Tale of Terror" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n"Hocus Pocus" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem.'
                 },
@@ -645,7 +645,7 @@ app_output = {
                     "genre": "fiction",
                     "report": 'The portrayal of witches in fiction often blends elements of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) explores the lives of teenage girls who dabble in witchcraft, leading to both empowerment and tragic consequences.  \n"Snow White: A Tale of Terror" (1997) presents a dark reimagining of the classic fairy tale, emphasizing the malevolent nature of the witch as a figure of envy and vengeance.  \n"Hocus Pocus" (1993) combines humor and family-friendly adventure, featuring three resurrected witches who create chaos in modern-day Salem.',
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "report": 'Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n"Snow White: A Tale of Terror" (1997) offers a sinister twist on the classic story, highlighting the witch\'s envy and vengeful nature.  \n"Hocus Pocus" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem.'
                 },
@@ -673,7 +673,7 @@ app_output = {
                     },
                     "opts": {"model": "gpt-4o-mini", "temperature": 0.2},
                 },
-                "locals": None,
+                "internals": None,
                 "outputs": {
                     "message": 'Witches in fiction are depicted through a mix of horror, fantasy, and dark comedy. \n\n"The Craft" (1996) delves into the complexities of teenage witchcraft, showcasing both empowerment and the darker repercussions of their actions.  \n"Snow White: A Tale of Terror" (1997) offers a sinister twist on the classic story, highlighting the witch\'s envy and vengeful nature.  \n"Hocus Pocus" (1993) delivers a comedic and adventurous take on witchcraft, as three resurrected witches wreak havoc in contemporary Salem.'
                 },
@@ -701,7 +701,7 @@ app_output = {
     [
         (
             {
-                "question_key": "rag.retriever.locals.prompt",
+                "question_key": "rag.retriever.internals.prompt",
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },
@@ -729,7 +729,7 @@ def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max)
     [
         (
             {
-                "question_key": "rag.retriever.locals.prompt",
+                "question_key": "rag.retriever.internals.prompt",
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },

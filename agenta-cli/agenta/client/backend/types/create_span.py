@@ -20,7 +20,7 @@ class CreateSpan(pydantic.BaseModel):
     variant_id: typing.Optional[str]
     variant_name: typing.Optional[str]
     inputs: typing.Optional[typing.Dict[str, typing.Any]]
-    locals: typing.Optional[typing.Dict[str, typing.Any]]
+    internals: typing.Optional[typing.Dict[str, typing.Any]]
     outputs: typing.Optional[
         typing.Union[typing.Dict[str, typing.Any], typing.List[str]]
     ]

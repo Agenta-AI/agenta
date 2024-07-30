@@ -61,7 +61,7 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
 
     SPECIAL_KEYS = [
         "inputs",
-        "locals",
+        "internals",
         "outputs",
     ]
 
@@ -757,7 +757,7 @@ def make_spans_tree(spans_id_tree, spans_index):
     """
     Recursively collects and organizes span information into a dictionary.
     This function retrieves the current spans tree and extracts detailed data for each span.
-    It processes spans in a tree structure, organizing them with their start time, end time, inputs, locals, and outputs.
+    It processes spans in a tree structure, organizing them with their start time, end time, inputs, internals, and outputs.
     If an error occurs, it logs the error message and stack trace.
 
     Args:
@@ -785,7 +785,7 @@ def make_spans_tree(spans_id_tree, spans_index):
                 "start_time": spans_index[id]["start_time"],
                 "end_time": spans_index[id]["end_time"],
                 "inputs": spans_index[id]["inputs"],
-                "locals": spans_index[id]["locals"],
+                "internals": spans_index[id]["internals"],
                 "outputs": spans_index[id]["outputs"],
             }
 
