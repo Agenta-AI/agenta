@@ -121,7 +121,7 @@ const AppSelector: React.FC = () => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
         })
-    }, [])
+    }, [useOrgData])
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -176,7 +176,7 @@ const AppSelector: React.FC = () => {
         }
 
         fetchTemplates()
-    }, [])
+    }, [isLoading, mutate])
 
     const handleTemplateCardClick = async (template_id: string) => {
         handleInputTemplateModalCancel()
