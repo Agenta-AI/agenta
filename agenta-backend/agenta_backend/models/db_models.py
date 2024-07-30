@@ -187,6 +187,7 @@ class Result(BaseModel):
     type: str
     value: Optional[Any] = None
     error: Optional[Error] = None
+    reason: Optional[str] = None
 
 
 class InvokationResult(BaseModel):

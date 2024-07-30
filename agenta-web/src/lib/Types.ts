@@ -366,6 +366,7 @@ export interface TypedValue {
     type: ValueTypeOptions
     value: ValueType
     error: null | EvaluationError
+    reason: null | string
 }
 
 export enum EvaluationStatus {
