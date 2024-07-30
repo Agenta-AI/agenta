@@ -207,7 +207,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         } else {
             body.classList.add("light-mode")
         }
-    }, [appTheme])
+    }, [appTheme, isDarkTheme])
 
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && (!appId || !currentApp)) return null

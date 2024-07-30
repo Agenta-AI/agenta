@@ -141,7 +141,7 @@ const ServerTable = <T extends AnyObject>(
                 ? getFilterParams(col.filterDataType, col.key?.toString()!, tableParams)
                 : {}),
         }))
-    }, [hiddenCols, columns, tableParams, props.colsDraggable])
+    }, [hiddenCols, columns, tableParams, props.colsDraggable, classes.dragHandle])
 
     return (
         <Space direction="vertical" size="middle" className={classes.root}>
