@@ -422,9 +422,7 @@ app_output = {
                     "description": "Movies about witches in the genre of fiction."
                 },
                 "locals": None,
-                "outputs": {
-                    "message" : [0, 2, 3, 4, 5, 6, 7, 8 ,9]
-                },
+                "outputs": {"message": [0, 2, 3, 4, 5, 6, 7, 8, 9]},
                 "config": None,
                 "tags": None,
                 "token_consumption": None,
@@ -444,7 +442,7 @@ app_output = {
                 "app_id": "0190e436-818a-7c97-83b4-d7af4bd23e99",
                 "inputs": {
                     "db": "Database(MongoClient(host=['ac-t3c3s8s-shard-00-01.qdqqcim.mongodb.net:27017', 'ac-t3c3s8s-shard-00-02.qdqqcim.mongodb.net:27017', 'ac-t3c3s8s-shard-00-00.qdqqcim.mongodb.net:27017'], document_class=dict, tz_aware=False, connect=True, retrywrites=True, w='majority', appname='AgentaCluster', authsource='admin', replicaset='atlas-s2jfsv-shard-0', tls=True, tlscafile='/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/certifi/cacert.pem', server_api=<pymongo.server_api.ServerApi object at 0x1083a37d0>), 'sample_mflix')",
-                    "query": [0, 2, 3, 4, 5, 6, 7, 8 ,9]
+                    "query": [0, 2, 3, 4, 5, 6, 7, 8, 9],
                     "topk": 9,
                 },
                 "locals": None,
