@@ -70,7 +70,7 @@ export function useVariant(appId: string, variant: Variant) {
     useEffect(() => {
         const updatedInputParams = updateInputParams(promptOptParams, inputParams || [])
         setInputParams(updatedInputParams)
-    }, [promptOptParams, inputParams])
+    }, [promptOptParams])
 
     /**
      * Saves new values for the optional parameters of the variant.
