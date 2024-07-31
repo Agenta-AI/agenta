@@ -414,7 +414,8 @@ class Tracing(metaclass=SingletonMeta):
             "trace",
             # mock_create_traces(
             self.client.create_traces(
-                trace=tracing.trace_id, spans=tracing.closed_spans  # type: ignore
+                trace=tracing.trace_id,
+                spans=tracing.closed_spans,  # type: ignore
             ),
             self.client,
         )
