@@ -145,7 +145,8 @@ async def auto_webhook_test(
                         message="Error during Auto Webhook evaluation; Webhook returned an invalid score. Score must be between 0 and 1",
                     ),
                 )
-            return Result(type="number", value=score)
+            reason = response_data.get("reason", None)
+            return Result(type="number", value=score, reason=reason)
     except httpx.HTTPError as e:
         return Result(
             type="error",

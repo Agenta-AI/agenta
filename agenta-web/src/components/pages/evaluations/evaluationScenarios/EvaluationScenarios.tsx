@@ -132,7 +132,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     )
                 },
                 autoHeaderHeight: true,
-                field: `results`,
                 ...getFilterParams("text"),
                 cellRenderer: ResultRenderer,
                 cellRendererParams: {
@@ -142,6 +141,27 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     return params.data?.results[index].result.value
                 },
             })
+            if (scenarios.some(scenario => scenario.results[index].result.reason !== null)) {
+                colDefs.push({
+                    headerName: config?.name + "-reason",
+                    headerComponent: (props: any) => {
+                        const evaluator = evaluators.find((item) => item.key === config?.evaluator_key)!
+                        return (
+                            <AgCustomHeader {...props}>
+                                <Space direction="vertical" style={{padding: "0.5rem 0"}}>
+                                    <span>{config.name + "-reason"}</span>
+                                    <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
+                                </Space>
+                            </AgCustomHeader>
+                        )
+                    },
+                    autoHeaderHeight: true,
+                    cellRenderer: (params: any) => LongTextCellRenderer(params),
+                    valueGetter: (params) => {
+                        return params.data?.results[index].result.reason
+                    },
+                })
+            }
         })
         colDefs.push({
             flex: 1,
