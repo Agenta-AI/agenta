@@ -26,7 +26,7 @@ try:
 
     elif isCloudEE():
         alembic_cfg.set_main_option(
-            "script_location", "/app/commons/migrations/postgres"
+            "script_location", "/app/agenta_backend/commons/migrations/postgres"
         )
 except KeyError:
     raise KeyError(
