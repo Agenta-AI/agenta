@@ -3,7 +3,7 @@ title: Applying Schema Migration
 description: "Guide for applying schema migration changes to the PostgreSQL database."
 ---
 
-This guide provides step-by-step instructions for applying schema migration to your PostgreSQL database. 
+This guide provides step-by-step instructions for applying schema migration to your PostgreSQL database.
 
 Schema migration is different from [Migration to PostgreSQL](https://docs.agenta.ai/self-host/migration/migration-to-postgres). Schema migration involves modifying the database schema (such as creating, altering, or dropping tables and columns) to match the application's current requirements.
 
@@ -12,7 +12,11 @@ Schema migration is different from [Migration to PostgreSQL](https://docs.agenta
 	```bash
 	docker exec -it {backend-container-id} bash
 	```
-2. Apply the migration:
+2. Change directory in alembic-postgres folder:
+	```bash
+	cd /app/agenta_backend/migrations/postgres
+	```
+3. Apply the migration:
 	```bash
 	alembic -c alembic.oss.ini upgrade head
 	```
@@ -21,4 +25,4 @@ Schema migration is different from [Migration to PostgreSQL](https://docs.agenta
 
 After completing the migration, ensure you check the data integrity in PostgreSQL by accessing Agenta on the web and verifying that your data is intact and everything works fine.
 
-In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.oss.ini downgrade head` and create a GitHub issue describing the problem you encountered.
+In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.oss.ini downgrade head`. Afterwards, create a GitHub issue describing the problem you encountered.
