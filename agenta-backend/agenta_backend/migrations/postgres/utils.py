@@ -20,7 +20,9 @@ logger = logging.getLogger("alembic.env")
 ini_section = (
     "alembic_cloud_dev"
     if isCloudDev()
-    else "alembic_cloud_prod" if isCloudEE() else "alembic"
+    else "alembic_cloud_prod"
+    if isCloudEE()
+    else "alembic"
 )
 alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"], ini_section=ini_section)
 script = ScriptDirectory.from_config(alembic_cfg)
