@@ -1,5 +1,6 @@
 """The code for the Agenta SDK"""
 
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 import os
 import sys
 import time
@@ -35,6 +36,7 @@ from agenta.sdk.types import (
     FuncResponse,
     BinaryParam,
 )
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -51,9 +53,6 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="")
-
-
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
 logging.setLevel("DEBUG")
@@ -73,27 +72,29 @@ class entrypoint(BaseDecorator):
     ```
     """
 
-    def __init__(self, func: Callable[..., Any]):
+    def __init__(self, config: BaseModel):
+        self.config: BaseModel = config
+
+    def __call__(self, func: Callable[..., Any]):
         endpoint_name = "generate"
         func_signature = inspect.signature(func)
-        config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            func_params, api_config_params = self.split_kwargs(kwargs, config_params)
+            func_params, api_config_params = self.split_kwargs(kwargs, self.config.dict())
             self.ingest_files(func_params, ingestible_files)
             agenta.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
             agenta.tracing.update_baggage(
-                {"config": config_params, "environment": "playground"}
+                {"config": self.config.dict(), "environment": "playground"}
             )
 
             # Exceptions are all handled inside self.execute_function()
             llm_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func, *args, params=func_params, config_params=self.config.dict()
             )
 
             return llm_result
@@ -114,17 +115,17 @@ class entrypoint(BaseDecorator):
 
             # Set the configuration and environment of the LLM app parent span at run-time
             agenta.tracing.update_baggage(
-                {"config": config_params, "environment": kwargs["environment"]}
+                {"config": self.config.dict(), "environment": kwargs["environment"]}
             )
 
             llm_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func, *args, params=func_params, config_params=self.config.dict()
             )
 
             return llm_result
 
         self.update_function_signature(
-            wrapper, func_signature, config_params, ingestible_files
+            wrapper, func_signature, self.config.dict(), ingestible_files
         )
         route = f"/{endpoint_name}"
         app.post(route, response_model=FuncResponse)(wrapper)
@@ -140,14 +141,14 @@ class entrypoint(BaseDecorator):
             openapi_schema=app.openapi(),
             func_name=func.__name__,
             endpoint=endpoint_name,
-            params={**config_params, **func_signature.parameters},
+            params={**self.config.dict(), **func_signature.parameters},
         )
 
         if self.is_main_script(func):
             self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
-                config_params,
+                self.config.dict(),
                 ingestible_files,
             )
 
@@ -418,11 +419,12 @@ class entrypoint(BaseDecorator):
                 file_path=args_func_params[name],
             )
 
-        agenta.config.set(**args_config_params)
+        # Update args_config_params with default values from config_params if not provided in command line arguments
+        args_config_params.update({key: value for key, value in config_params.items() if key not in args_config_params})
 
         # Set the configuration and environment of the LLM app parent span at run-time
         agenta.tracing.update_baggage(
-            {"config": agenta.config.all(), "environment": "bash"}
+            {"config": args_config_params, "environment": "bash"}
         )
 
         loop = asyncio.get_event_loop()
