@@ -17,22 +17,12 @@ from agenta_backend.utils.common import isCloudEE, isCloudDev
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-try:
-    alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
-    if isCloudDev():
-        alembic_cfg.set_main_option(
-            "script_location", "/app/commons_backend/commons/migrations/postgres"
-        )
-
-    elif isCloudEE():
-        alembic_cfg.set_main_option(
-            "script_location", "/app/agenta_backend/commons/migrations/postgres"
-        )
-except KeyError:
-    raise KeyError(
-        "Could not find ALEMBIC_CFG_PATH. Ensure that it is in the backend environment variables."
-    )
-
+ini_section = (
+    "alembic_cloud_dev"
+    if isCloudDev()
+    else "alembic_cloud_prod" if isCloudEE() else "alembic"
+)
+alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"], ini_section=ini_section)
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
