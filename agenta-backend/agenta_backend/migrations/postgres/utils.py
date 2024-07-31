@@ -10,7 +10,7 @@ from sqlalchemy import inspect, text
 from alembic.script import ScriptDirectory
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
-from agenta_backend.utils.common import isCloudEE
+from agenta_backend.utils.common import isCloudEE, isCloudDev
 
 
 # Initializer logger
@@ -19,6 +19,15 @@ logger = logging.getLogger("alembic.env")
 # Initialize alembic config
 try:
     alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
+    if isCloudDev():
+        alembic_cfg.set_main_option(
+            "script_location", "/app/commons_backend/commons/migrations/postgres"
+        )
+
+    elif isCloudEE():
+        alembic_cfg.set_main_option(
+            "script_location", "/app/commons/migrations/postgres"
+        )
 except KeyError:
     raise KeyError(
         "Could not find ALEMBIC_CFG_PATH. Ensure that it is in the backend environment variables."
