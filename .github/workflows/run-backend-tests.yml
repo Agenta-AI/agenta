@@ -34,7 +34,7 @@ jobs:
           sleep 10 && curl -i http://localhost/api/openapi.json
 
       - name: Apply Schema Migration
-        run:  docker exec agenta-backend-test alembic -c alembic.oss.ini upgrade head
+        run:  docker exec -w /app/agenta_backend/migrations/postgres agenta-backend-test alembic -c alembic.oss.ini upgrade head
 
       - name: Restart Backend Service To Fetch Template Images
         run: docker container restart agenta-backend-test
