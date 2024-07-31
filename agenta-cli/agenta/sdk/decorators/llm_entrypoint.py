@@ -37,6 +37,8 @@ from agenta.sdk.types import (
     BinaryParam,
 )
 from pydantic import BaseModel
+from typing import Type
+from annotated_types import Ge, Le, Gt, Lt
 
 app = FastAPI()
 
@@ -125,7 +127,7 @@ class entrypoint(BaseDecorator):
             return llm_result
 
         self.update_function_signature(
-            wrapper, func_signature, self.config.dict(), ingestible_files
+            wrapper, func_signature, self.config, ingestible_files
         )
         route = f"/{endpoint_name}"
         app.post(route, response_model=FuncResponse)(wrapper)
@@ -137,11 +139,17 @@ class entrypoint(BaseDecorator):
         )
         route_deployed = f"/{endpoint_name}_deployed"
         app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
-        self.override_schema(
+        self.override_inputs_in_schema(
             openapi_schema=app.openapi(),
             func_name=func.__name__,
             endpoint=endpoint_name,
-            params={**self.config.dict(), **func_signature.parameters},
+            params=func_signature.parameters,
+        )
+        self.override_config_in_schema(
+            openapi_schema=app.openapi(),
+            func_name=func.__name__,
+            endpoint=endpoint_name,
+            params=self.config,
         )
 
         if self.is_main_script(func):
@@ -266,13 +274,13 @@ class entrypoint(BaseDecorator):
         self,
         wrapper: Callable[..., Any],
         func_signature: inspect.Signature,
-        config_params: Dict[str, Any],
+        config_class: Type[BaseModel],  # TODO: change to our type
         ingestible_files: Dict[str, inspect.Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[inspect.Parameter] = []
-        self.add_config_params_to_parser(updated_params, config_params)
+        self.add_config_params_to_parser(updated_params, config_class)
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
 
@@ -292,8 +300,8 @@ class entrypoint(BaseDecorator):
         ]:  # we add the config and environment parameters
             updated_params.append(
                 inspect.Parameter(
-                    param,
-                    inspect.Parameter.KEYWORD_ONLY,
+                    name=param,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
                     default=Body(None),
                     annotation=str,
                 )
@@ -301,23 +309,17 @@ class entrypoint(BaseDecorator):
         self.update_wrapper_signature(wrapper, updated_params)
 
     def add_config_params_to_parser(
-        self, updated_params: list, config_params: Dict[str, Any]
+        self, updated_params: list, config_class: Type[BaseModel]
     ) -> None:
         """Add configuration parameters to function signature."""
-        for name, param in config_params.items():
-            assert (
-                len(param.__class__.__bases__) == 1
-            ), f"Inherited standard type of {param.__class__} needs to be one."
+        for name, field in config_class.__fields__.items():
+            assert field.default is not None, f"Field {name} has no default value"
             updated_params.append(
                 inspect.Parameter(
-                    name,
-                    inspect.Parameter.KEYWORD_ONLY,
-                    default=Body(param),
-                    annotation=param.__class__.__bases__[
-                        0
-                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                    # thus, why we are accessing the first item.
+                    name=name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    annotation=field.annotation.__name__,
+                    default=Body(field.default)
                 )
             )
 
@@ -438,7 +440,40 @@ class entrypoint(BaseDecorator):
             f"\n========== Result ==========\n\nMessage: {result.message}\nCost: {result.cost}\nToken Usage: {result.usage}"
         )
 
-    def override_schema(
+    def override_config_in_schema(
+        self, openapi_schema: dict, func_name: str, endpoint: str, params: Type[BaseModel]
+    ):
+        schema_to_override = openapi_schema["components"]["schemas"][
+            f"Body_{func_name}_{endpoint}_post"
+        ]["properties"]
+        # New logic
+        for param_name, param_val in params.__fields__.items():
+            if param_val.annotation is str:
+                schema_to_override[param_name]["x-parameter"] = "text"
+            if param_val.annotation is bool:
+                schema_to_override[param_name]["x-parameter"] = "bool"
+            if param_val.annotation is int:
+                schema_to_override[param_name]["x-parameter"] = "int"
+                # Check for greater than or equal to constraint
+                if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
+                    min_value = next(constraint.ge for constraint in param_val.metadata if isinstance(constraint, Ge))
+                    schema_to_override[param_name]["minimum"] = min_value
+                # Check for less than or equal to constraint
+                if any(isinstance(constraint, Le) for constraint in param_val.metadata):
+                    max_value = next(constraint.le for constraint in param_val.metadata if isinstance(constraint, Le))
+                    schema_to_override[param_name]["maximum"] = max_value
+            if param_val.annotation is float:
+                schema_to_override[param_name]["x-parameter"] = "float"
+                # Check for greater than constraint
+                if any(isinstance(constraint, Gt) for constraint in param_val.metadata):
+                    min_value = next(constraint.gt for constraint in param_val.metadata if isinstance(constraint, Gt))
+                    schema_to_override[param_name]["minimum"] = min_value
+                # Check for less than constraint
+                if any(isinstance(constraint, Lt) for constraint in param_val.metadata):
+                    max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
+                    schema_to_override[param_name]["maximum"] = max_value
+
+    def override_inputs_in_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
     ):
         """
@@ -486,9 +521,11 @@ class entrypoint(BaseDecorator):
                         # value = {'temperature': { "type": "number", "title": "Temperature", "x-parameter": "float" }}
                     return value
 
+        # Old logic
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func_name}_{endpoint}_post"
         ]["properties"]
+
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):
                 subschema = find_in_schema(
