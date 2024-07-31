@@ -350,6 +350,7 @@ export interface Evaluator {
     color?: string
     direct_use?: boolean
     description: string
+    oss?: boolean
 }
 
 export interface EvaluatorConfig {
