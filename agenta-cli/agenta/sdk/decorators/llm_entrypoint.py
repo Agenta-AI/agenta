@@ -1,5 +1,6 @@
 """The code for the Agenta SDK"""
 
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 import os
 import sys
 import time
@@ -36,6 +37,7 @@ from agenta.sdk.types import (
     BaseResponse,
     BinaryParam,
 )
+from pydantic import BaseModel
 
 from pydantic import BaseModel, HttpUrl
 
@@ -55,8 +57,6 @@ app.add_middleware(
 
 app.include_router(router, prefix="")
 
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
-
 
 logging.setLevel("DEBUG")
 
@@ -71,7 +71,8 @@ class route(BaseDecorator):
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
     # routes without altering the main workflow entrypoint. This helps in modularizing the services
     # and provides flexibility in how we expose different functionalities as APIs.
-    def __init__(self, path):
+    def __init__(self, path, config: BaseModel):
+        self.config: BaseModel = config
         if path != "" and path[0] != "/":
             path = "/" + path
 
@@ -83,7 +84,7 @@ class route(BaseDecorator):
         self.route_path = path
 
     def __call__(self, f):
-        self.e = entrypoint(f, route_path=self.route_path)
+        self.e = entrypoint(f, route_path=self.route_path, config=self.config)
 
         return f
 
@@ -104,19 +105,19 @@ class entrypoint(BaseDecorator):
 
     routes = list()
 
-    def __init__(self, func: Callable[..., Any], route_path=""):
+    def __init__(self, func: Callable[..., Any], route_path="", config: BaseModel = None):
         endpoint_name = "generate"
         playground_path = "/playground"
         run_path = "/run"
         func_signature = inspect.signature(func)
-        config_params = ag.config.all()
+        config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
         ### --- Playground / Drafts  --- #
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            func_params, api_config_params = self.split_kwargs(kwargs, config_params)
+            func_params, api_config_params = self.split_kwargs(kwargs, self.config.dict())
             self.ingest_files(func_params, ingestible_files)
             ag.config.set(**api_config_params)
 
@@ -219,7 +220,7 @@ class entrypoint(BaseDecorator):
             self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
-                config_params,
+                self.config.dict(),
                 ingestible_files,
             )
 
@@ -499,10 +500,13 @@ class entrypoint(BaseDecorator):
                 file_path=args_func_params[name],
             )
 
-        ag.config.set(**args_config_params)
+        # Update args_config_params with default values from config_params if not provided in command line arguments
+        args_config_params.update({key: value for key, value in config_params.items() if key not in args_config_params})
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage({"config": ag.config.all(), "environment": "bash"})
+        agenta.tracing.update_baggage(
+            {"config": args_config_params, "environment": "bash"}
+        )
 
         loop = asyncio.get_event_loop()
 
