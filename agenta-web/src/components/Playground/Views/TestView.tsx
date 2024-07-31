@@ -12,7 +12,7 @@ import {
     StyleProps,
     BaseResponseSpans,
 } from "@/lib/Types"
-import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -32,11 +32,11 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {dynamicService} from "@/lib/helpers/dynamic"
+import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import PlaygroundDrawer from "../PlaygroundDrawer/PlaygroundDrawer"
 import {fromBaseResponseToTraceSpanType} from "@/lib/transformers"
 
+const PlaygroundDrawer: any = dynamicComponent(`Playground/PlaygroundDrawer/PlaygroundDrawer`)
 const promptRevision: any = dynamicService("promptVersioning/api")
 
 dayjs.extend(relativeTime)
@@ -338,7 +338,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <span>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</span>
                     <span>Cost: {formatCurrency(additionalData?.cost)}</span>
                     <span>Latency: {formatLatency(additionalData?.latency)}</span>
-                    {traceSpans?.spans?.length && (
+                    {traceSpans?.spans?.length && isDemo() && (
                         <Button
                             type="link"
                             className={classes.viewTracesBtn}
@@ -588,7 +588,7 @@ const App: React.FC<TestViewProps> = ({
                     }
                     return newDataList
                 })
-                if (trace) {
+                if (trace && isDemo()) {
                     setTraceSpans(trace)
                 }
             } else {
