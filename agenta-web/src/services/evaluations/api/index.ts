@@ -13,7 +13,7 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
-import {stringToNumberInRange} from "@/lib/helpers/utils"
+import {isDemo, stringToNumberInRange} from "@/lib/helpers/utils"
 import {v4 as uuidv4} from "uuid"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
@@ -53,13 +53,16 @@ export const fetchAllEvaluators = async () => {
     const tagColors = getTagColors()
 
     const response = await axios.get(`/api/evaluators/`)
-    return (response.data || [])
+    const evaluators = (response.data || [])
         .filter((item: Evaluator) => !item.key.startsWith("human"))
+        .filter((item: Evaluator) => isDemo() || item.oss)
         .map((item: Evaluator) => ({
             ...item,
             icon_url: evaluatorIconsMap[item.key as keyof typeof evaluatorIconsMap],
             color: tagColors[stringToNumberInRange(item.key, 0, tagColors.length - 1)],
         })) as Evaluator[]
+
+    return evaluators
 }
 
 // Evaluator Configs

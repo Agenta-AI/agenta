@@ -109,7 +109,7 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
 
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
-        return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
+        return ["cloud", "ee", "cloud-dev"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
 }
