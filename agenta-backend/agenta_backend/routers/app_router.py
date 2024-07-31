@@ -384,8 +384,6 @@ async def add_variant_from_image(
         )
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-        logger.debug("Step 8: We create ready-to use evaluators")
-        await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
@@ -514,6 +512,12 @@ async def create_app_and_variant_from_template(
                 payload.organization_id if isCloudEE() else None,  # type: ignore
                 payload.workspace_id if isCloudEE() else None,  # type: ignore
             )
+            logger.debug(
+                "Step 9: We create ready-to use evaluators"
+                if isCloudEE()
+                else "Step 6: We create ready-to use evaluators"
+            )
+            await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
             "Step 6: Retrieve template from db"
@@ -555,13 +559,6 @@ async def create_app_and_variant_from_template(
             app_name=app.app_name,  # type: ignore
             user_uid=request.state.user_id,
         )
-
-        logger.debug(
-            "Step 9: We create ready-to use evaluators"
-            if isCloudEE()
-            else "Step 6: We create ready-to use evaluators"
-        )
-        await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
             "Step 10: Starting variant and injecting environment variables"
