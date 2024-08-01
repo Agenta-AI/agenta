@@ -5,11 +5,13 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluator_manager, db_manager
+from agenta_backend.services import evaluator_manager, db_manager, evaluators_service
 
 from agenta_backend.models.api.evaluation_model import (
+    Result,
     Evaluator,
     EvaluatorConfig,
+    VariantEvaluation,
     NewEvaluatorConfig,
     UpdateEvaluatorConfig,
 )
@@ -45,6 +47,33 @@ async def get_evaluators_endpoint():
         return evaluators
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{evaluator_key}/evaluate/", response_model=Result)
+def evaluator_evaluate(
+    request: Request, evaluator_key: str, payload: VariantEvaluation
+):
+    """Endpoint to evaluate LLM app run
+
+    Args:
+        request (Request): The request object.
+        evaluator_key (str): The key of the evaluator.
+        payload (VariantEvaluation): The payload containing request data.
+
+    Returns:
+        result: Result object containing the type, value, or error.
+    """
+
+    result = evaluators_service.evaluate(
+        evaluator_key=evaluator_key,
+        output=payload.output,
+        data_point=payload.data_point,
+        settings_values=payload.settings_values,
+        app_params=payload.variant_parameters,
+        inputs=payload.data_point,
+        lm_providers_keys=payload.llm_provider_keys,
+    )
+    return result
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])

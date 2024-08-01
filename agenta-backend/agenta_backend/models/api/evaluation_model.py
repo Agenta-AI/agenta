@@ -79,6 +79,15 @@ class Evaluation(BaseModel):
     updated_at: datetime
 
 
+class VariantEvaluation(BaseModel):
+    output: Any
+    data_point: Any
+    settings_values: Dict[str, Any]
+    variant_parameters: Dict[str, Any]
+    data_point: Dict[str, Any]
+    llm_provider_keys: Dict[str, Any]
+
+
 class SimpleEvaluationOutput(BaseModel):
     id: str
     variant_ids: List[str]
