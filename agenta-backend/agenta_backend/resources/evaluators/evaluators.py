@@ -1,6 +1,6 @@
 rag_evaluator_settings_template = {
     "question_key": {
-        "label": "Expected Question Key",
+        "label": "Question Key",
         "default": "",
         "type": "string",
         "required": True,
