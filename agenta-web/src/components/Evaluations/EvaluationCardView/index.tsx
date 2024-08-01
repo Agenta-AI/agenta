@@ -245,10 +245,11 @@ const EvaluationCardView: React.FC<Props> = ({
         })
     }, [])
 
-    const depouncedUpdateEvaluationScenario = useCallback(
-        debounce((data: Partial<EvaluationScenario>) => {
-            updateEvaluationScenarioData(scenarioId, data)
-        }, 800),
+    const depouncedUpdateEvaluationScenario = useMemo(
+        () =>
+            debounce((data: Partial<EvaluationScenario>) => {
+                updateEvaluationScenarioData(scenarioId, data)
+            }, 800),
         [scenarioId],
     )
 
@@ -309,7 +310,7 @@ const EvaluationCardView: React.FC<Props> = ({
             const chatStr = scenario?.inputs.find((ip) => ip.input_name === "chat")?.input_value
             if (chatStr) testsetRow[evaluation.testset.testsetChatColumn] = chatStr
         }
-    }, [scenario])
+    }, [scenario, testsetRow, evaluation.testset.testsetChatColumn])
 
     const correctAnswer = useMemo(() => {
         if (scenario?.correctAnswer) return scenario.correctAnswer
@@ -327,7 +328,7 @@ const EvaluationCardView: React.FC<Props> = ({
                 : testsetRow || {},
             false,
         )
-    }, [scenarioIndex])
+    }, [isChat, scenario?.inputs, testsetRow])
 
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
