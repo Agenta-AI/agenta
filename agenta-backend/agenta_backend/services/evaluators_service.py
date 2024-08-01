@@ -1,7 +1,6 @@
 import re
 import json
 import logging
-import asyncio
 import traceback
 from typing import Any, Dict, Union
 
@@ -12,6 +11,8 @@ from numpy._core._multiarray_umath import array
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
+from agenta_backend.utils.event_loop_utils import ensure_event_loop
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -744,7 +745,7 @@ def auto_semantic_similarity(
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
     try:
-        loop = asyncio.get_event_loop()
+        loop = ensure_event_loop()
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
         correct_answer = get_correct_answer(data_point, settings_values)
 
