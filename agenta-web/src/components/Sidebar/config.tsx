@@ -32,6 +32,7 @@ import {
     Question,
     Scroll,
     SlackLogo,
+    Gear,
 } from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -70,6 +71,8 @@ export const useSidebarConfig = () => {
             setUseOrgData(() => context.useOrgData)
         })
     }, [])
+
+    const {selectedOrg} = useOrgData()
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -217,7 +220,15 @@ export const useSidebarConfig = () => {
             link: "/settings?tab=workspace",
             icon: <PaperPlane size={16} />,
             isBottom: true,
-            isHidden: !doesSessionExist,
+            isHidden: !doesSessionExist || (true && !selectedOrg),
+        },
+        {
+            key: "settings-link",
+            title: "Settings",
+            link: "/settings",
+            icon: <Gear size={16} />,
+            isBottom: true,
+            isHidden: !isOss,
         },
         {
             key: "help-docs-link",

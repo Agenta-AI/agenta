@@ -1,6 +1,17 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {Avatar, Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip} from "antd"
+import {
+    Avatar,
+    Button,
+    Divider,
+    Dropdown,
+    Layout,
+    Menu,
+    Space,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -18,6 +29,7 @@ import AlertPopup from "../AlertPopup/AlertPopup"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
 const {Sider} = Layout
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     sidebar: {
@@ -29,6 +41,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
         "&>div:nth-of-type(2)": {
             background: `${theme.colorBgContainer} !important`,
+        },
+    },
+    sidebarLogo: {
+        display: "flex",
+        gap: 4,
+        alignItems: "center",
+        "& > .ant-typography": {
+            fontSize: `${theme.sizeSM}px`,
+            color: theme.colorTextDescription,
         },
     },
     siderWrapper: {
@@ -310,8 +331,13 @@ const Sidebar: React.FC = () => {
                 <div className={classes.sliderContainer}>
                     <div>
                         {!isDemo() && (
-                            <Link data-cy="app-management-link" href="/apps">
+                            <Link
+                                data-cy="app-management-link"
+                                href="/apps"
+                                className={classes.sidebarLogo}
+                            >
                                 <Logo isOnlyIconLogo={collapsed} />
+                                <Text className="text-xs">Open source</Text>
                             </Link>
                         )}
                         {selectedOrg?.id && user?.id && isDemo() && (

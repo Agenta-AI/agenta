@@ -30,7 +30,7 @@ const Logo: React.FC<Partial<React.ComponentProps<typeof Image>> & {isOnlyIconLo
             alt="Agenta Logo"
         />
     ) : (
-        <Image width={154.8} height={51} {...imageProps} src={logoSrc.complete} alt="Agenta Logo" />
+        <Image width={137} height={46} {...imageProps} src={logoSrc.complete} alt="Agenta Logo" />
     )
 }
 
