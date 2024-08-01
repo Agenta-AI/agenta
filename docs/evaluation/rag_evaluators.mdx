@@ -1,43 +1,38 @@
 ---
 title: 'Using RAG Evaluators'
-description: 'Internal variables and inline traces in RAG applications'
+description: 'Evaluating RAG Applications'
 ---
 
-## 
-On this page, you'll learn how to configure and use RAG evaluators for your custom-built application. RAG evaluators are unique because they need intermediate outputs and internal variables (such as context) to run.
+On this page, you will learn how to configure and use RAG evaluators for your custom-built application. RAG evaluators are unique because they need intermediate outputs and internal variables (such as context) to run.
 
-By the end of this tutorial, you'll know how to write a RAG application that saves the required internal variables and how to configure the evaluator in Agenta to use these in evaluation.
+By the end of this tutorial, you will know how to write a RAG application that saves the required internal variables and how to configure the evaluator in Agenta to use these in evaluation.
 
-<Info>Access to `internals` and `inline traces` requires version 0.20.0+ of the Python SDK.</Info>
-<Info>Access to `RAG evaluators` and `view traces` in the Web UI requires the cloud version of Agenta.</Info>
+<Info>Access to internal variables (`internals`) and intermediate outputs (`traces` or `inline traces`) requires version `0.20.0+` of the Python SDK.</Info>
+<Info>Access to RAG Evaluators and `view trace` in the Web UI requires Agenta Cloud and is not available in Agenta OSS.</Info>
 
-## Understanding the application tree.
-Let's consider a simple RAG application (the source code can be found [here](https://github.com/Agenta-AI/agenta/tree/main/examples/rag_applications/mflix)).
+## Developing the RAG Application
+Let's consider a simple RAG Application (the source code can be found [here](https://github.com/Agenta-AI/agenta/tree/main/examples/rag_applications/mflix)).
 
-The main workflow, denoted by `@entrypoint`, fetches `count` movies on the topic of `topic` within the genre of `genre`, then generates an initial summary from those movies, and finally summarizes the report twice in a row.
+The application fetches `count` movies on the topic of `topic` within the genre of `genre`, then generates an initial summary from those movies, and finally summarizes the report twice in a row, arbitrarily.
 ```python
-@ag.entrypoint
-@ag.instrument(spankind="RAG")
 async def rag(topic: str, genre: str, count: int = 5):
     result = await retriever(topic, genre, count)
     result = await reporter(topic, genre, count, result["movies"])
     result = await summarizer(topic, genre, result["report"])
     result = await summarizer(topic, genre, result["report"])
 
-    return result["report"]
+    return result
 ```
 
-On top of performing semantic search on the formatted prompt fetched from Agenta, the retriever stores the formatted prompt into `internals`.
+The retriever simply performs semantic search on the formatted prompt fetched from Agenta.
 ```python
-@ag.instrument(spankind="RETRIEVER")
 async def retriever(topic: str, genre: str, count: int) -> dict:
     prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
     topk = count * ag.config.retriever_multiplier
 
-    ag.tracing.store_internals({"prompt": prompt, "topk": topk})
-
     query = embed(prompt)
     result = search(query["embedding"], topk)
+
     movies = [
         f"{movie['title']} ({movie['year']}) in {movie['genres']}: {movie['plot']}"
         for movie in result
@@ -46,98 +41,110 @@ async def retriever(topic: str, genre: str, count: int) -> dict:
     return {"movies": movies}
 ```
 
-As usual, all the parameters for the app are available in `ag.config`.
+The reporter processes the set of movies retrieved in the previous step and generates a report.
 ```python
-ag.config.default(
-    # RETRIEVER
-    retriever_prompt=ag.TextParam("Movies about {topic} in the genre of {genre}."),
-    retriever_multiplier=ag.FloatParam(default=3, minval=1, maxval=10),
-    # GENERATOR
-    generator_context_prompt=ag.TextParam(
-        "Given the following list of suggested movies:\n\n{movies}"
-    ),
-    generator_instructions_prompt=ag.TextParam(
-        "Provide a list of {count} movies about {topic} in the genre of {genre}."
-    ),
-    generator_model=ag.MultipleChoiceParam(
-        "gpt-3.5-turbo", ["gpt-4o-mini", "gpt-3.5-turbo"]
-    ),
-    generator_temperature=ag.FloatParam(default=0.8),
-    # SUMMARIZER
-    summarizer_context_prompt=ag.TextParam(
-        "Act as a professional cinema critic.\nBe concise and factual.\nUse one intro sentence, and one sentence per movie."
-    ),
-    summarizer_instructions_prompt=ag.TextParam(
-        "Summarize the following recommendations about {topic} in the genre of {genre}:\n\n{report}"
-    ),
-    summarizer_model=ag.MultipleChoiceParam(
-        "gpt-4o-mini", ["gpt-4o-mini", "gpt-3.5-turbo"]
-    ),
-    summarizer_temperature=ag.FloatParam(default=0.2),
-)
+async def reporter(topic: str, genre: str, count: int, movies: dict) -> dict:
+    context = ag.config.generator_context_prompt.format(movies="\n".join(movies))
+    instructions = ag.config.generator_instructions_prompt.format(
+        count=count, topic=topic, genre=genre
+    )
+
+    prompts = {"system": context, "user": instructions}
+    opts = {
+        "model": ag.config.generator_model,
+        "temperature": ag.config.generator_temperature,
+    }
+
+    result = await chat(prompts, opts)
+
+    report = result["message"]
+
+    return {"report": report}
 ```
 
-In short, as we will see below, the application tree runs like this,
-```
-rag
-    retriever
-        embed
-        search
-    reporter
-        chat
-    summarizer[0]
-        chat
-    summarizer[1]
-        chat
+The summarizer finally improves on the reporter's output, in two passes.
+```python
+async def summarizer(topic: str, genre: str, report: dict) -> dict:
+    context = ag.config.summarizer_context_prompt
+    instructions = ag.config.summarizer_instructions_prompt.format(
+        topic=topic, genre=genre, report=report
+    )
 
-```
-where the two summarizers are shown with _list_-type indexes to identify them uniquely.
+    prompts = {"system": context, "user": instructions}
+    opts = {
+        "model": ag.config.summarizer_model,
+        "temperature": ag.config.summarizer_temperature,
+    }
 
-## Evaluating the application
+    result = await chat(prompts, opts)
 
-Once again, the Playground is a powerful tool to explore our LLM application.
+    report = result["message"]
 
-When we deploy the application, we see a list of interactive parameters.
-And upon entering values for the app inputs, we see the app outputs along with a new feature: inline traces in the Playground.
-<img height="600" className="dark:hidden" src="/images/basic_guides/playground_view_traces_light.png" />
-<img height="600" className="hidden dark:block" src="/images/basic_guides/playground_view_traces_dark.png" />
-
-When we click on `view traces`, a bottom drawer slides up and display the current execution of the application.
-As you can see, the inline trace corresponds to the application tree shown above.
-<img height="600" className="dark:hidden" src="/images/basic_guides/playground_inline_traces_light.png" />
-<img height="600" className="hidden dark:block" src="/images/basic_guides/playground_inline_traces_dark.png" />
-
-We can also see the list of all `inputs`, `internals`, and `outputs` for each node of the tree, or stage of the workflow.
-For instance, the retriever has the following accessible variables,
-```
-rag.retriever.inputs.topic
-rag.retriever.inputs.genre
-rag.retriever.inputs.count
-rag.retriever.internals.prompt
-rag.retriever.internals.topk
-rag.retriever.outputs.movies
-```
-whereas the second summarizer has the follow accessible variables,
-```
-rag.summarizer[1].inputs.topic
-rag.summarizer[1].inputs.genre
-rag.summarizer[1].inputs.report
-rag.summarizer[1].outputs.report
+    return {"report": report}
 ```
 
-## Adding a RAG evaluator
+## Testing the RAG Avaluation
+Upon instrumenting and serving the RAG Application with Agenta, you should see the output of the second summarizer.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_output_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_output_dark.png" />
 
-Now that we have a RAG application, and that we know how to access all the three types of variables, `inputs`, `internals`, and `outputs`, we can jump to RAG evaluators.
+Upon clicking on `view trace`, you should be able to see the `inputs` and `outputs` for each instrumented stage in the RAG workflow.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_initial_trace_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_initial_trace_dark.png" />
 
-RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from other evaluators in Agenta in that they often require internal variables. For instance, [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html) and [Context Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html) both require `question`, `answer`, and `contexts`. In our case,
+Now that we have a RAG Application, let's create a RAG evaluator. 
+
+## Creating the RAG Evaluator
+
+On the evlauators page, click on `RAG Faithfulness` for example.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_initial_faithfulness_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_initial_faithfulness_dark.png" />
+RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from other evaluators in Agenta in that they often require internal variables. For instance, [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html) and [Context Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html) both require `question`, `answer`, and `contexts`.
+
+From the trace we saw before, we could say that `answer` maps to the second rag summarizer output report, denoted by `rag.summarizer[1].outputs.report`. Similarly, the `contexts` map to the rag retriever output movies, denoted by `rag.retriever.outputs.movies`.
+
+However, the `question`, which corresponds to the formatted prompt sent to the retriever (or the reporter) is not part of the inputs or the outputs of any stage in the workflow.
+
+Next, let's see how and where you to find that variable.
+
+## Updating the RAG Application
+
+In Agenta, when instrumenting stages of a workflow, there is a utility to add internal variables, called `internals`, to the stage's span.
+```python
+async def retriever(topic: str, genre: str, count: int) -> dict:
+    prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
+    topk = count * ag.config.retriever_multiplier
+
+    ag.tracing.store_internals({"prompt": prompt})
+
+    query = embed(prompt)
+    result = search(query["embedding"], topk)
+
+    movies = [
+        f"{movie['title']} ({movie['year']}) in {movie['genres']}: {movie['plot']}"
+        for movie in result
+    ]
+
+    return {"movies": movies}
 ```
-question = rag.retriever.internals.prompt
-answer   = rag.summarizer[1].otuputs.report
-contexts = rag.retriever.outputs.movies
-```
+The utility `ag.tracing.store_internals(...)`, as shown in the snippet above.
 
-On the evlauators page, when setting up RAG evaluators, those are the key that we need to provide.
-<img height="600" className="dark:hidden" src="/images/basic_guides/rag_faithfulness_light.png" />
-<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_faithfulness_dark.png" />
+Upon serving the RAG Application again, the trace should now contain the formatted prompt
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_final_trace_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_final_trace_dark.png" />
 
-Once your RAG evaluators are set up, you are ready to go. The rest of your journey is the same as before.
+We are ready to resume the configuration of our RAG Evaluator.
+
+## Configuring the RAG Evaluator
+
+Back to the evaluators page, we can now map the `question` to the rag retriever internal prompt, denoted by `rag.retriever.internals.prompt`, as shown below.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_final_faithfulness_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_final_faithfulness_dark.png" />
+
+Once the RAG Evaluator is set up, you are ready to go.
+
+## Running the evaluation
+
+You can now run evaluations on RAG Applications based on RAG Evaluators.
+<img height="600" className="dark:hidden" src="/images/basic_guides/rag_evaluation_light.png" />
+<img height="600" className="hidden dark:block" src="/images/basic_guides/rag_evaluation_dark.png" />
