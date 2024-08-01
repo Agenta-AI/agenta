@@ -100,23 +100,21 @@ class Tracing(metaclass=SingletonMeta):
 
     @contextmanager
     def Context(self, **kwargs):
+        # This will evolve as be work towards OTel compliance
+
         token = None
 
         try:
             if tracing_context.get() is None:
                 token = tracing_context.set(TracingContext())
 
-            # This will evolve as be work towards OTel compliance
             self.open_span(**kwargs)
 
             yield
 
-            # This will evolve as be work towards OTel compliance
             self.set_status(status="OK")
 
         except Exception as e:
-            # any cleanup that should only be done on failure
-
             logging.error(e)
 
             result = {
@@ -124,7 +122,6 @@ class Tracing(metaclass=SingletonMeta):
                 "stacktrace": traceback.format_exc(),
             }
 
-            # This will evolve as be work towards OTel compliance
             self.set_status(status="ERROR")
             self.set_attributes({"traceback_exception": traceback.format_exc()})
             self.store_outputs(result)
@@ -132,7 +129,6 @@ class Tracing(metaclass=SingletonMeta):
             raise
 
         finally:
-            # This will evolve as be work towards OTel compliance
             self.close_span()
 
             if token is not None:
