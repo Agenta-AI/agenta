@@ -14,7 +14,7 @@ from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
-from utils.traces import process_distributed_trace_into_trace_tree
+from agenta_backend.utils.traces import process_distributed_trace_into_trace_tree
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
