@@ -19,6 +19,7 @@ services:
             - REDIS_URL=redis://redis:6379/0
             - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - BARE_DOMAIN_NAME=${BARE_DOMAIN_NAME:-localhost}
@@ -107,6 +108,7 @@ services:
             celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - REDIS_URL=redis://redis:6379/0
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
