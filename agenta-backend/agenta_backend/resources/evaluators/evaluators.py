@@ -5,7 +5,7 @@ rag_evaluator_settings_template = {
         "type": "string",
         "required": True,
         "advanced": False,
-        "description": "The question or prompt provided to the language model, which serves as the initial input for generating a response. This input guides the model in retrieving relevant documents and formulating an answer based on the retrieved information.",
+        "description": "The input question to the LLM application. This is the question used to retrieve the context and formulate the answer.",
     },
     "answer_key": {
         "label": "Expected Answer Key",
