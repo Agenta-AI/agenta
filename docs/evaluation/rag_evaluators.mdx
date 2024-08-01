@@ -3,7 +3,10 @@ title: 'Using RAG Evaluators'
 description: 'Internal variables and inline traces in RAG applications'
 ---
 
-Sometimes, evaluators that rely on inputs and ouputs may not be sufficient for your specific use case and you may wish to access internal variables, like in the case of RAG. In this page, we will see how to use internal variables and how to configure RAG evaluators on Agenta based on the application tree.
+## 
+On this page, you'll learn how to configure and use RAG evaluators for your custom-built application. RAG evaluators are unique because they need intermediate outputs and internal variables (such as context) to run.
+
+By the end of this tutorial, you'll know how to write a RAG application that saves the required internal variables and how to configure the evaluator in Agenta to use these in evaluation.
 
 <Info>Access to `internals` and `inline traces` requires version 0.20.0+ of the Python SDK.</Info>
 <Info>Access to `RAG evaluators` and `view traces` in the Web UI requires the cloud version of Agenta.</Info>
