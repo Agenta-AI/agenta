@@ -214,8 +214,7 @@ class entrypoint(BaseDecorator):
         ### ---------------------------- #
 
         ### --- Update OpenAPI --- #
-        # This happens across all @entrypoint and @route()
-        app.openapi_schema = None
+        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
 
         for route in entrypoint.routes:
@@ -526,9 +525,6 @@ class entrypoint(BaseDecorator):
         print(json.dumps(result.data, indent=2))
         print("-> trace")
         print(json.dumps(result.trace, indent=2))
-
-        with open("trace.json", "w") as trace_file:
-            json.dump(result.trace, trace_file, indent=4)
 
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict
