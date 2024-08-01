@@ -1,37 +1,38 @@
-import {useProfileData} from "@/contexts/profile.context"
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
-import {GenericObject, JSSTheme} from "@/lib/Types"
-import {getColorFromStr} from "@/lib/helpers/colors"
+import {JSSTheme} from "@/lib/Types"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {
-    ApartmentOutlined,
     ApiOutlined,
     AppstoreOutlined,
-    BarChartOutlined,
-    CloudUploadOutlined,
     DashboardOutlined,
     DatabaseOutlined,
-    FormOutlined,
-    LineChartOutlined,
-    LogoutOutlined,
     PartitionOutlined,
-    PhoneOutlined,
     PlayCircleOutlined,
-    ReadOutlined,
     RocketOutlined,
-    SettingOutlined,
     SlidersOutlined,
     SwapOutlined,
+    GithubFilled,
 } from "@ant-design/icons"
-import {Avatar} from "antd"
-import {use, useEffect, useState} from "react"
-import AlertPopup from "../AlertPopup/AlertPopup"
+import {useEffect, useState} from "react"
 import Image from "next/image"
 import abTesting from "@/media/testing.png"
 import singleModel from "@/media/score.png"
 import {createUseStyles} from "react-jss"
+import {
+    ChartDonut,
+    ChartLineUp,
+    CloudArrowUp,
+    Desktop,
+    GithubLogo,
+    PaperPlane,
+    PersonSimpleRun,
+    Phone,
+    Question,
+    Scroll,
+    SlackLogo,
+} from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationImg: {
@@ -46,7 +47,7 @@ export type SidebarConfig = {
     title: string
     tooltip?: string
     link?: string
-    icon: JSX.Element
+    icon?: JSX.Element
     isHidden?: boolean
     isBottom?: boolean
     submenu?: Omit<SidebarConfig, "submenu">[]
@@ -54,13 +55,13 @@ export type SidebarConfig = {
     tag?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
+    divider?: boolean
 }
 
 export const useSidebarConfig = () => {
     const classes = useStyles()
     const appId = useAppId()
-    const {user} = useProfileData()
-    const {doesSessionExist, logout} = useSession()
+    const {doesSessionExist} = useSession()
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
 
@@ -70,8 +71,6 @@ export const useSidebarConfig = () => {
         })
     }, [])
 
-    const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
-
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
@@ -79,6 +78,15 @@ export const useSidebarConfig = () => {
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,
+            divider: true,
+        },
+        {
+            key: "overview-link",
+            title: "Overview",
+            tooltip: "Overview link",
+            link: "/apps",
+            icon: <Desktop size={16} />,
+            isHidden: !appId,
         },
         {
             key: "app-playground-link",
@@ -100,7 +108,7 @@ export const useSidebarConfig = () => {
         {
             key: "app-auto-evaluations-link",
             title: "Automatic Evaluation",
-            icon: <BarChartOutlined />,
+            icon: <ChartDonut size={16} />,
             isHidden: !appId,
             submenu: [
                 {
@@ -123,7 +131,7 @@ export const useSidebarConfig = () => {
         {
             key: "app-human-evaluations-link",
             title: "Human Evaluation",
-            icon: <FormOutlined />,
+            icon: <PersonSimpleRun size={16} />,
             isHidden: !appId,
             submenu: [
                 {
@@ -159,7 +167,7 @@ export const useSidebarConfig = () => {
         {
             key: "app-observability-link",
             title: "Observability",
-            icon: <LineChartOutlined />,
+            icon: <ChartLineUp size={16} />,
             isHidden: !appId,
             isCloudFeature: true && isOss,
             cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
@@ -191,7 +199,7 @@ export const useSidebarConfig = () => {
         {
             key: "app-deployment-link",
             title: "Deployment",
-            icon: <CloudUploadOutlined />,
+            icon: <CloudArrowUp size={16} />,
             isHidden: !appId,
             submenu: [
                 {
@@ -204,66 +212,50 @@ export const useSidebarConfig = () => {
             ],
         },
         {
-            key: "settings-link",
-            title: "Settings",
-            link: "/settings",
-            icon: <SettingOutlined />,
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
+            link: "/settings?tab=workspace",
+            icon: <PaperPlane size={16} />,
             isBottom: true,
             isHidden: !doesSessionExist,
         },
         {
-            key: "docs-link",
-            title: "Docs",
-            link: "https://docs.agenta.ai",
-            icon: <ReadOutlined />,
+            key: "help-docs-link",
+            title: "Help & Docs",
+            icon: <Question size={16} />,
             isBottom: true,
-        },
-        {
-            key: "book-onboarding-call-link",
-            title: "Book Onboarding Call",
-            link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-            icon: <PhoneOutlined />,
-            isBottom: true,
-            isHidden: isOss,
-        },
-        {
-            key: "orgs-link",
-            title: selectedOrg?.name || "",
-            icon: <ApartmentOutlined />,
-            isHidden: !doesSessionExist || (true && !selectedOrg),
-            submenu: (orgs || []).map((org: GenericObject) => ({
-                key: `orgs-${org.id}-link`,
-                title: org.name,
-                onClick: () => {
-                    changeSelectedOrg?.(org.id)
+            submenu: [
+                {
+                    key: "docs",
+                    title: "Documentation",
+                    link: "https://docs.agenta.ai/",
+                    icon: <Scroll size={16} />,
                 },
-                icon: (
-                    <Avatar
-                        size="small"
-                        style={{
-                            backgroundColor: getColorFromStr(org.id),
-                            color: "#fff",
-                        }}
-                    >
-                        {getInitials(org.name)}
-                    </Avatar>
-                ),
-            })),
-            isBottom: true,
-        },
-        {
-            key: "logout-link",
-            title: "Logout",
-            icon: <LogoutOutlined />,
-            isBottom: true,
-            isHidden: !doesSessionExist || (isOss && !!user?.username),
-            onClick: () => {
-                AlertPopup({
-                    title: "Logout",
-                    message: "Are you sure you want to logout?",
-                    onOk: logout,
-                })
-            },
+                {
+                    key: "github-issues",
+                    title: "GitHub Issues",
+                    link: "https://github.com/Agenta-AI/agenta/issues",
+                    icon: <GithubLogo size={16} />,
+                },
+                {
+                    key: "github-support",
+                    title: "GitHub Support",
+                    link: "https://github.com/Agenta-AI/agenta",
+                    icon: <GithubFilled size={16} />,
+                },
+                {
+                    key: "slack-connect",
+                    title: "Slack connect",
+                    link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
+                    icon: <SlackLogo size={16} />,
+                },
+                {
+                    key: "book-call",
+                    title: "Book a call",
+                    link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+                    icon: <Phone size={16} />,
+                },
+            ],
         },
     ]
 
