@@ -1,18 +1,15 @@
-import {ConfigProvider, theme} from "antd"
+import {ConfigProvider, theme, ThemeConfig} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
+import antdTokens from "@/styles/tokens/antd-themeConfig.json"
 
-export const AntdThemeConfig = {
+export const AntdThemeConfig: ThemeConfig = {
     token: {
         // Seed Token
-        colorPrimary: "#4AA081",
-        borderRadius: 8,
+        ...antdTokens.token,
     },
     components: {
-        Button: {
-            colorPrimary: "#4AA081",
-            colorErrorText: "#ef4146",
-        },
+        ...antdTokens.components,
     },
 }
 
