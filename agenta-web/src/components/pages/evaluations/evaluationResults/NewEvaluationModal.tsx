@@ -216,7 +216,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                 )!
 
                                 if (!evaluator) {
-                                    return 
+                                    return
                                 }
 
                                 return (
