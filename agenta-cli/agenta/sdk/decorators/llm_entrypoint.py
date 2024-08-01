@@ -72,13 +72,10 @@ class route(BaseDecorator):
     # routes without altering the main workflow entrypoint. This helps in modularizing the services
     # and provides flexibility in how we expose different functionalities as APIs.
     def __init__(self, path):
-        if path != "" and path[0] != "/":
-            path = "/" + path
+        path = "/" + path.strip("/").strip()
+        path = "" if path == "/" else path
 
-        while path != "" and path[-1] == "/":
-            path = path[:-1]
-
-        PathValidator(url=f"http://localhost:8000{path}")
+        PathValidator(url=f"http://example.com{path}")
 
         self.route_path = path
 
