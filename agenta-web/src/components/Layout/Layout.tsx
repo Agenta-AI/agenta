@@ -274,19 +274,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             </a>
                                         </Dropdown>
                                         <Button
-                                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
-                                            target="_blank"
-                                            className={classes.joinBtn}
-                                        >
-                                            <Image
-                                                src="/assets/slack.png"
-                                                alt="Slack Image"
-                                                width={15}
-                                                height={15}
-                                            />
-                                            <span>Join us</span>
-                                        </Button>
-                                        <Button
                                             className={classes.star}
                                             href="https://github.com/Agenta-AI/agenta"
                                         >

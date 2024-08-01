@@ -342,7 +342,7 @@ const Sidebar: React.FC = () => {
                         )}
                         {selectedOrg?.id && user?.id && isDemo() && (
                             <Dropdown
-                                trigger={["click"]}
+                                trigger={["hover"]}
                                 menu={{
                                     items: [
                                         ...orgs.map((org: any) => ({
@@ -360,7 +360,7 @@ const Sidebar: React.FC = () => {
                                                     >
                                                         {getInitials(org.name)}
                                                     </Avatar>
-                                                    <div>{org.name}</div>
+                                                    <Text>{org.name}</Text>
                                                 </Space>
                                             ),
                                         })),
@@ -373,7 +373,7 @@ const Sidebar: React.FC = () => {
                                                     className="flex items-center gap-2"
                                                 >
                                                     <Gear size={16} />
-                                                    <div>Settings</div>
+                                                    <Text>Settings</Text>
                                                 </Link>
                                             ),
                                         },
@@ -392,7 +392,7 @@ const Sidebar: React.FC = () => {
                                                     }}
                                                 >
                                                     <SignOut size={16} />
-                                                    <div>Logout</div>
+                                                    <Text>Logout</Text>
                                                 </div>
                                             ),
                                         },
@@ -417,7 +417,7 @@ const Sidebar: React.FC = () => {
                                             {getInitials(selectedOrg.name)}
                                         </Avatar>
 
-                                        <div>{selectedOrg.name}</div>
+                                        <Text>{selectedOrg.name}</Text>
                                     </div>
 
                                     <CaretDown size={14} />
