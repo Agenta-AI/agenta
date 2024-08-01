@@ -384,7 +384,6 @@ async def add_variant_from_image(
         )
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
