@@ -47,17 +47,33 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any]:
+def get_field_value_from_trace(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
     """
-    Retrieve the value of the key from the trace data.
+    Retrieve the value of the key from the trace tree.
 
     Args:
-        trace (Dict[str, Any]): The nested dictionary to retrieve the value from.
+        tree (Dict[str, Any]): The nested dictionary to retrieve the value from.
+            i.e. inline trace
+            e.g. tree["spans"]["rag"]["spans"]["retriever"]["internals"]["prompt"]
         key (str): The dot-separated key to access the value.
+            e.g. rag.summarizer[0].outputs.report
 
     Returns:
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
+
+    def is_indexed(field):
+        return "[" in field and "]" in field
+
+    def parse(field):
+        key = field
+        idx = None
+
+        if is_indexed(field):
+            key = field.split("[")[0]
+            idx = int(field.split("[")[1].split("]")[0])
+
+        return key, idx
 
     SPECIAL_KEYS = [
         "inputs",
@@ -65,25 +81,26 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
         "outputs",
     ]
 
+    SPANS_SEPARATOR = "spans"
+
     spans = True
 
-    tree = trace
     fields = key.split(".")
 
     try:
         for field in fields:
-            key = field
-            idx = None
+            # by default, expects something like 'retriever'
+            key, idx = parse(field)
 
-            if "[" in field and "]" in field:
-                key = field.split("[")[0]
-                idx = int(field.split("[")[1].split("]")[0])
-
+            # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
+            # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
             if key in SPECIAL_KEYS:
                 spans = False
 
+            # after 'SPECIAL_KEYS', it is a normal dict.
+            # e.g. trace[...]["internals"]["prompt"]
             if spans:
-                tree = tree["spans"]
+                tree = tree[SPANS_SEPARATOR]
 
             tree = tree[key]
 
