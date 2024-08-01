@@ -19,6 +19,7 @@ import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
 import {StyleProps as MainStyleProps} from "@/lib/Types"
+import {Lightning} from "@phosphor-icons/react"
 
 const {Content, Footer} = Layout
 
@@ -224,7 +225,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     <Breadcrumb
                                         className={classes.breadcrumb}
                                         items={[
-                                            {title: <Link href="/apps">Apps</Link>},
+                                            {
+                                                title: (
+                                                    <div className="flex items-center gap-1">
+                                                        <Lightning size={16} />
+                                                        <Link href="/apps">Apps</Link>
+                                                    </div>
+                                                ),
+                                            },
                                             {title: capitalizedAppName},
                                         ]}
                                     />
