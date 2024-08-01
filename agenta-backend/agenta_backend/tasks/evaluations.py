@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
@@ -91,8 +90,6 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        loop.run_until_complete(DBEngine().init_db())
-
         # 0. Update evaluation status to STARTED
         loop.run_until_complete(
             update_evaluation(

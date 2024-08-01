@@ -11,12 +11,17 @@ RUN apt-get update -y \
 RUN pip install --upgrade pip \
     && pip install poetry
 
-# Copy only requirements to cache them in docker layer
-COPY pyproject.toml poetry.lock* README.md /app/
+# Copy only requirements and alembic configuration file
+# to cache them in docker layer
+COPY pyproject.toml poetry.lock* alembic.* README.md /app/
 
-# This is a hack to create a dummy module so that poetry install doesn't fail 
+# This is a hack to create a dummy module so that poetry install doesn't fail
 RUN mkdir -p /app/agenta_backend
 RUN touch /app/agenta_backend/__init__.py
+
+# Copy migrations folder
+RUN mkdir -p /app/agenta_backend/migrations/postgres
+COPY agenta_backend/migrations/postgres /app/agenta_backend/migrations/postgres
 
 # Project initialization:
 RUN poetry config virtualenvs.create false \
