@@ -83,7 +83,7 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
     }
 
     if (!evaluator) {
-        return
+        return null
     }
 
     return (
