@@ -61,7 +61,6 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
     const classes = useStyles()
     const [evaluators] = useAtom(evaluatorsAtom)
     const evaluator = evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
-    console.log(evaluator)
 
     const onDelete = async () => {
         AlertPopup({

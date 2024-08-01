@@ -76,7 +76,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
         const URIPath = `${appId}/${variant.baseId}`
         return {parameters, inputs, URIPath, isChatVariant}
     } catch (err) {
-        console.log("getAllVariantParameters Error: ", err)
+        console.error("getAllVariantParameters Error: ", err)
         throw err
     }
 }

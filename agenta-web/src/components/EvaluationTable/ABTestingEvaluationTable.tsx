@@ -312,7 +312,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         }
                     }
                 } catch (err) {
-                    console.log("Error running evaluation:", err)
+                    console.error("Error running evaluation:", err)
                     setRowValue(rowIndex, variant.variantId, "")
                 }
             }),
