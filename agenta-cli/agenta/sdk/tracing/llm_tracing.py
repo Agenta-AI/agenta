@@ -440,7 +440,7 @@ class Tracing(metaclass=SingletonMeta):
             for span in tracing.spans.values():
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
-                    trace["usage"] = encode_json(span.tokens)
+                    trace["usage"] = json.loads(span.tokens.json())
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
             spans = [json.loads(span.json()) for span in tracing.spans.values()]
