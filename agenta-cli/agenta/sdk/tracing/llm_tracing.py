@@ -10,7 +10,6 @@ from typing import Optional, Dict, Any, List
 
 from contextlib import contextmanager
 
-from agenta.sdk.utils.encoder import encode_json
 from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.tasks_manager import TaskQueue
@@ -448,7 +447,7 @@ class Tracing(metaclass=SingletonMeta):
                     trace["usage"] = encode_json(span.tokens)
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
-            spans = encode_json(list(tracing.spans.values()))
+            spans = [json.loads(span.json()) for span in tracing.spans.values()]
 
             if spans is not None:
                 trace["spans"] = spans
