@@ -82,6 +82,10 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
         })
     }
 
+    if (!evaluator) {
+        return
+    }
+
     return (
         <Card
             className={classes.card}
