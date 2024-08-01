@@ -86,8 +86,25 @@ class route(BaseDecorator):
 
 
 class entrypoint(BaseDecorator):
-    """Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
+    """
+    Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
+    This decorator generates the following endpoints:
+
+    Playground Endpoints
+    - /generate                 with @entrypoint, @route("/"), @route(path="") # LEGACY
+    - /playground/run           with @entrypoint, @route("/"), @route(path="")
+    - /playground/run/{route}   with @route({route}), @route(path={route})
+
+    Deployed Endpoints:
+    - /generate_deployed        with @entrypoint, @route("/"), @route(path="") # LEGACY
+    - /run                      with @entrypoint, @route("/"), @route(path="")
+    - /run/{route}              with @route({route}), @route(path={route})
+
+    The rationale is:
+    - There may be multiple endpoints, based on the different routes.
+    - It's better to make it explicit that an endpoint is for the playground.
+    - Prefixing the routes with /run is more futureproof in case we add more endpoints.
 
     Example:
     ```python
@@ -102,14 +119,15 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
-        endpoint_name = "generate"
-        playground_path = "/playground"
-        run_path = "/run"
+        DEFAULT_PATH = "generate"
+        PLAYGROUND_PATH = "/playground"
+        RUN_PATH = "/run"
+
         func_signature = inspect.signature(func)
         config_params = ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
-        ### --- Playground / Drafts  --- #
+        ### --- Playground  --- #
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
@@ -122,7 +140,6 @@ class entrypoint(BaseDecorator):
                 {"config": config_params, "environment": "playground"}
             )
 
-            # Exceptions are all handled inside self.execute_function()
             entrypoint_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
@@ -133,24 +150,19 @@ class entrypoint(BaseDecorator):
             wrapper, func_signature, config_params, ingestible_files
         )
 
-        # TODO:
-        # - The whole ag.Config is now required for individual stages.
-        #   Once ag.Config goes from Singleton to Instance, and
-        #   depending on how ag.Config is implemented,
-        #   we need to filter the part of ag.Config that matters to each route.
-
+        #
         if route_path == "":
-            route = f"/{endpoint_name}"
+            route = f"/{DEFAULT_PATH}"
             app.post(route, response_model=BaseResponse)(wrapper)
             entrypoint.routes.append(
                 {
                     "func": func.__name__,
-                    "endpoint": endpoint_name,
+                    "endpoint": DEFAULT_PATH,
                     "params": {**config_params, **func_signature.parameters},
                 }
             )
 
-        route = f"{playground_path}{run_path}{route_path}"
+        route = f"{PLAYGROUND_PATH}{RUN_PATH}{route_path}"
         app.post(route, response_model=BaseResponse)(wrapper)
         entrypoint.routes.append(
             {
@@ -194,13 +206,15 @@ class entrypoint(BaseDecorator):
         )
 
         if route_path == "/":
-            route_deployed = f"/{endpoint_name}_deployed"
+            route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
-        route_deployed = f"{run_path}{route_path}"
+        route_deployed = f"{RUN_PATH}{route_path}"
         app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
         ### ---------------------------- #
 
+        ### --- Update OpenAPI --- #
+        # This happens across all @entrypoint and @route()
         app.openapi_schema = None
         openapi_schema = app.openapi()
 
@@ -211,6 +225,7 @@ class entrypoint(BaseDecorator):
                 endpoint=route["endpoint"],
                 params=route["params"],
             )
+        ### ---------------------- #
 
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
@@ -282,19 +297,14 @@ class entrypoint(BaseDecorator):
                 result = func(*args, **func_params["params"])
 
             if token is not None:
-                # check that it doesn't affect the tracing.tree
                 trace = ag.tracing.dump_trace()
-
                 tracing_context.reset(token)
 
             if isinstance(result, Context):
                 save_context(result)
 
             if isinstance(result, Dict):
-                if "message" in result:
-                    data = {"message": result["message"]}
-                else:
-                    data = result
+                data = result
             elif isinstance(result, str):
                 data = {"message": result}
             elif isinstance(result, int) or isinstance(result, float):
