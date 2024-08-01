@@ -17,14 +17,7 @@ from agenta_backend.utils.common import isCloudEE, isCloudDev
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-ini_section = (
-    "alembic_cloud_dev"
-    if isCloudDev()
-    else "alembic_cloud_prod"
-    if isCloudEE()
-    else "alembic"
-)
-alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"], ini_section=ini_section)
+alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
