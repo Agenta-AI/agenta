@@ -2,6 +2,13 @@ import json
 from typing import Dict, List, Optional, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
+from dataclasses import dataclass
+from typing import Union
+
+
+@dataclass
+class MultipleChoice:
+    choices: Union[List[str], Dict[str, List[str]]]
 
 
 class InFile:

@@ -30,6 +30,7 @@ from agenta.sdk.types import (
     InFile,
     IntParam,
     MultipleChoiceParam,
+    MultipleChoice,
     GroupedMultipleChoiceParam,
     TextParam,
     MessagesInput,
@@ -541,7 +542,16 @@ class entrypoint(BaseDecorator):
         # New logic
         for param_name, param_val in config.__fields__.items():
             if param_val.annotation is str:
-                schema_to_override[param_name]["x-parameter"] = "text"
+                if any(isinstance(constraint, MultipleChoice) for constraint in param_val.metadata):
+                    choices = next(constraint.choices for constraint in param_val.metadata if isinstance(constraint, MultipleChoice))
+                    if isinstance(choices, dict):
+                        schema_to_override[param_name]["x-parameter"] = "grouped_choice"
+                        schema_to_override[param_name]["choices"] = choices
+                    elif isinstance(choices, list):
+                        schema_to_override[param_name]["x-parameter"] = "choice"
+                        schema_to_override[param_name]["choices"] = choices
+                else:
+                    schema_to_override[param_name]["x-parameter"] = "text"
             if param_val.annotation is bool:
                 schema_to_override[param_name]["x-parameter"] = "bool"
             if param_val.annotation is int:
