@@ -96,7 +96,28 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         borderRight: "0 !important",
     },
     menuLinks: {
+        display: "inline-block",
         width: "100%",
+    },
+    menuItem: {
+        textOverflow: "initial !important",
+    },
+    avatarContainer: {
+        display: "flex",
+        alignItems: "center",
+        gap: theme.paddingSM,
+        "& > div": {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            "& .ant-typography:nth-of-type(2)": {
+                color: theme.colorTextDescription,
+            },
+        },
+    },
+    menuHeader: {
+        padding: `${theme.paddingXS}px ${theme.padding}px`,
+        color: theme.colorTextDescription,
     },
 }))
 
@@ -204,6 +225,7 @@ const SidebarMenu: React.FC<{
                                             key={subitem.key}
                                             onClick={subitem.onClick}
                                             data-cy={subitem.key}
+                                            className={classes.menuItem}
                                         >
                                             {collapsed ? (
                                                 node
@@ -218,6 +240,12 @@ const SidebarMenu: React.FC<{
                             </Menu.SubMenu>
                         )
                     }
+                } else if (item.header) {
+                    return (
+                        <div key={item.key} className={classes.menuHeader}>
+                            {item.title}
+                        </div>
+                    )
                 } else {
                     const node = (
                         <Link
@@ -235,6 +263,7 @@ const SidebarMenu: React.FC<{
                                 icon={item.icon}
                                 key={item.key}
                                 onClick={item.onClick}
+                                className={classes.menuItem}
                             >
                                 {collapsed ? (
                                     node
@@ -405,7 +434,7 @@ const Sidebar: React.FC = () => {
                                 }}
                             >
                                 <Button className="flex w-full h-full items-center justify-between">
-                                    <div className="flex gap-2">
+                                    <div className={classes.avatarContainer}>
                                         <Avatar
                                             shape="square"
                                             style={{
@@ -417,7 +446,12 @@ const Sidebar: React.FC = () => {
                                             {getInitials(selectedOrg.name)}
                                         </Avatar>
 
-                                        <Text>{selectedOrg.name}</Text>
+                                        {!collapsed && (
+                                            <div>
+                                                <Text>{selectedOrg.name}</Text>
+                                                <Text>{selectedOrg.type}</Text>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <CaretDown size={14} />
