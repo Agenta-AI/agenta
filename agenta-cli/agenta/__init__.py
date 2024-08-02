@@ -23,7 +23,7 @@ from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 from .sdk.client import Agenta
 from .sdk.tracing import callbacks
-
+from .sdk.config_manager import ConfigManager
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()

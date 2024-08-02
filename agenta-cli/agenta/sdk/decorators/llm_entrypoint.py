@@ -45,6 +45,9 @@ from typing import Type
 from annotated_types import Ge, Le, Gt, Lt
 
 from pydantic import BaseModel, HttpUrl
+import contextvars
+from contextlib import contextmanager
+
 
 app = FastAPI()
 
@@ -64,6 +67,17 @@ app.include_router(router, prefix="")
 
 
 logging.setLevel("DEBUG")
+
+route_context = contextvars.ContextVar('route_context', default={})
+
+
+@contextmanager
+def route_context_manager(config):
+    token = route_context.set(config)
+    try:
+        yield
+    finally:
+        route_context.reset(token)
 
 
 class PathValidator(BaseModel):
@@ -131,9 +145,10 @@ class entrypoint(BaseDecorator):
         try:
             config = config_schema() if config_schema else None  # we initialize the config object to be able to use it
         except pydantic.ValidationError as e:
-            raise ValueError(f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}")
+            raise ValueError(f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}") from e
         except Exception as e:
-            raise ValueError(f"Unexpected error initializing config_schema: {str(e)}")
+            raise ValueError(f"Unexpected error initializing config_schema: {str(e)}") from e
+
         config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
@@ -150,10 +165,10 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
-
-            entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
-            )
+            with route_context_manager(api_config_params):
+                entrypoint_result = await self.execute_function(
+                    func, *args, params=func_params, config_params=config_params
+                )
 
             return entrypoint_result
 

@@ -4,10 +4,12 @@ from typing import List, Union, Dict
 from dataclasses import dataclass
 import pdb
 import agenta as ag
+from agenta.sdk.config_manager import ConfigManager
 from agenta import FloatParam, TextParam
 from pydantic import BaseModel, Field
 from typing import Annotated
 from typing import Literal
+
 
 # AGENTA_MODE = TRUE
 default_prompt = (
@@ -57,7 +59,8 @@ def rag(country: str, gender: str) -> str:
     # config = ag.ConfigLoader.from_route(MyConfigSchema)
     # config = ag.ConfigLoader.from_backend(MyConfigSchema)
     # config = ag.ConfigLoader.from_file(MyConfigSchema)
-    config = MyConfigSchema()
+    config = ConfigManager.from_route(MyConfigSchema)
+    # config = ConfigManager.from_backend(MyConfigSchema)
     prompt = config.prompt_template.format(country=country, gender=gender)
 
     return {
