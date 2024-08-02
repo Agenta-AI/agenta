@@ -38,6 +38,8 @@ from agenta.sdk.types import (
     BaseResponse,
     BinaryParam,
 )
+import pydantic
+
 from pydantic import BaseModel
 from typing import Type
 from annotated_types import Ge, Le, Gt, Lt
@@ -74,8 +76,8 @@ class route(BaseDecorator):
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
     # routes without altering the main workflow entrypoint. This helps in modularizing the services
     # and provides flexibility in how we expose different functionalities as APIs.
-    def __init__(self, path, config: BaseModel):
-        self.config: BaseModel = config
+    def __init__(self, path, config_schema: BaseModel):
+        self.config_schema: BaseModel = config_schema
         if path != "" and path[0] != "/":
             path = "/" + path
         PathValidator(url=f"http://example.com{path}")
@@ -83,7 +85,7 @@ class route(BaseDecorator):
         self.route_path = path
 
     def __call__(self, f):
-        self.e = entrypoint(f, route_path=self.route_path, config=self.config)
+        self.e = entrypoint(f, route_path=self.route_path, config_schema=self.config_schema)
 
         return f
 
@@ -121,11 +123,17 @@ class entrypoint(BaseDecorator):
 
     routes = list()
 
-    def __init__(self, func: Callable[..., Any], route_path="", config: BaseModel = None):
+    def __init__(self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None):
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
         func_signature = inspect.signature(func)
+        try:
+            config = config_schema() if config_schema else None  # we initialize the config object to be able to use it
+        except pydantic.ValidationError as e:
+            raise ValueError(f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error initializing config_schema: {str(e)}")
         config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
@@ -133,9 +141,10 @@ class entrypoint(BaseDecorator):
         @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            func_params, api_config_params = self.split_kwargs(kwargs, self.config.dict())
+            func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
-            ag.config.set(**api_config_params)
+            if not config_schema:
+                ag.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
             ag.tracing.update_baggage(
@@ -243,7 +252,7 @@ class entrypoint(BaseDecorator):
             self.handle_terminal_run(
                 func,
                 func_signature.parameters,  # type: ignore
-                self.config.dict(),
+                config_params,
                 ingestible_files,
             )
 
