@@ -426,14 +426,10 @@ class entrypoint(BaseDecorator):
             ), f"Inherited standard type of {param.__class__} needs to be one."
             updated_params.append(
                 inspect.Parameter(
-                    name,
-                    inspect.Parameter.KEYWORD_ONLY,
-                    default=Body(param),
-                    annotation=param.__class__.__bases__[
-                        0
-                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                    # thus, why we are accessing the first item.
+                    name=name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    annotation=field.annotation.__name__,
+                    default=Body(field.default)
                 )
             )
 
@@ -604,7 +600,49 @@ class entrypoint(BaseDecorator):
                     max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
                     schema_to_override[param_name]["maximum"] = max_value
 
-    def override_schema(
+    def override_config_in_schema(
+        self, openapi_schema: dict, func_name: str, endpoint: str, params: Type[BaseModel]
+    ):
+        schema_to_override = openapi_schema["components"]["schemas"][
+            f"Body_{func_name}_{endpoint}_post"
+        ]["properties"]
+        # New logic
+        for param_name, param_val in params.__fields__.items():
+            if param_val.annotation is str:
+                if any(isinstance(constraint, MultipleChoice) for constraint in param_val.metadata):
+                    choices = next(constraint.choices for constraint in param_val.metadata if isinstance(constraint, MultipleChoice))
+                    if isinstance(choices, dict):
+                        schema_to_override[param_name]["x-parameter"] = "grouped_choice"
+                        schema_to_override[param_name]["choices"] = choices
+                    elif isinstance(choices, list):
+                        schema_to_override[param_name]["x-parameter"] = "choice"
+                        schema_to_override[param_name]["choices"] = choices
+                else:
+                    schema_to_override[param_name]["x-parameter"] = "text"
+            if param_val.annotation is bool:
+                schema_to_override[param_name]["x-parameter"] = "bool"
+            if param_val.annotation is int:
+                schema_to_override[param_name]["x-parameter"] = "int"
+                # Check for greater than or equal to constraint
+                if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
+                    min_value = next(constraint.ge for constraint in param_val.metadata if isinstance(constraint, Ge))
+                    schema_to_override[param_name]["minimum"] = min_value
+                # Check for less than or equal to constraint
+                if any(isinstance(constraint, Le) for constraint in param_val.metadata):
+                    max_value = next(constraint.le for constraint in param_val.metadata if isinstance(constraint, Le))
+                    schema_to_override[param_name]["maximum"] = max_value
+            if param_val.annotation is float:
+                schema_to_override[param_name]["x-parameter"] = "float"
+                # Check for greater than constraint
+                if any(isinstance(constraint, Gt) for constraint in param_val.metadata):
+                    min_value = next(constraint.gt for constraint in param_val.metadata if isinstance(constraint, Gt))
+                    schema_to_override[param_name]["minimum"] = min_value
+                # Check for less than constraint
+                if any(isinstance(constraint, Lt) for constraint in param_val.metadata):
+                    max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
+                    schema_to_override[param_name]["maximum"] = max_value
+
+    def override_inputs_in_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
     ):
         """
