@@ -2,7 +2,7 @@ import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
 import {JSSTheme} from "@/lib/Types"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import {isDemo} from "@/lib/helpers/utils"
+import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {
     ApiOutlined,
     AppstoreOutlined,
@@ -34,6 +34,7 @@ import {
     SlackLogo,
     Gear,
 } from "@phosphor-icons/react"
+import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationImg: {
@@ -48,7 +49,7 @@ export type SidebarConfig = {
     title: string
     tooltip?: string
     link?: string
-    icon?: JSX.Element
+    icon: JSX.Element
     isHidden?: boolean
     isBottom?: boolean
     submenu?: Omit<SidebarConfig, "submenu">[]
@@ -57,12 +58,15 @@ export type SidebarConfig = {
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean
+    header?: boolean
 }
 
 export const useSidebarConfig = () => {
     const classes = useStyles()
     const appId = useAppId()
     const {doesSessionExist} = useSession()
+    const {currentApp} = useAppsData()
+    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
 
@@ -82,6 +86,12 @@ export const useSidebarConfig = () => {
             link: "/apps",
             icon: <AppstoreOutlined />,
             divider: true,
+        },
+        {
+            key: `${currentApp?.app_name || ""}_key`,
+            title: capitalizedAppName,
+            icon: <></>,
+            header: true,
         },
         {
             key: "overview-link",
