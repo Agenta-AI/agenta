@@ -53,7 +53,6 @@ export const useAgGridCustomHeaders = (gridApi?: AgGridReact["api"]) => {
                                     const hasCustomHeader = !!el.querySelector(
                                         ".agenta-custom-header-ag-grid",
                                     )
-                                    console.log("hasCustomHeader: ", hasCustomHeader)
                                     if (!hasCustomHeader) headerNode.innerHTML = html
                                 })
                         })

@@ -268,6 +268,13 @@ def evaluate(
             ]
 
             # 4. We save the result of the eval scenario in the db
+
+            # But not the 'trace' in case of BaseResponse
+            if isinstance(app_output.result.value, str):
+                value = app_output.result.value
+            else:
+                value = app_output.result.value["data"]
+
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user_id=str(app.user_id),
@@ -276,7 +283,7 @@ def evaluate(
                     inputs=inputs,
                     outputs=[
                         EvaluationScenarioOutput(
-                            result=Result(type="text", value=app_output.result.value),
+                            result=Result(type="text", value=value),
                             latency=app_output.latency,
                             cost=app_output.cost,
                         )
@@ -432,6 +439,8 @@ async def aggregate_evaluator_results(
             "auto_json_diff",
             "auto_semantic_similarity",
             "auto_levenshtein_distance",
+            "rag_faithfulness",
+            "rag_context_relevancy",
         ]:
             result = aggregation_service.aggregate_float(results)
 
