@@ -90,6 +90,8 @@ if isCloudEE():
 
     app, allow_headers = cloud.extend_main(app)
 
+print("test")
+
 app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps", tags=["Apps"])
