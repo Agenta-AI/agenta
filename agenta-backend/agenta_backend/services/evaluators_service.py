@@ -5,8 +5,6 @@ import logging
 import asyncio
 import traceback
 from typing import Any, Dict, Union
-from collections import OrderedDict
-from copy import deepcopy
 
 import httpx
 import numpy as np
@@ -16,6 +14,7 @@ from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
+from agenta_backend.utils.traces import process_distributed_trace_into_trace_tree
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -47,17 +46,33 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any]:
+def get_field_value_from_trace(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
     """
-    Retrieve the value of the key from the trace data.
+    Retrieve the value of the key from the trace tree.
 
     Args:
-        trace (Dict[str, Any]): The nested dictionary to retrieve the value from.
+        tree (Dict[str, Any]): The nested dictionary to retrieve the value from.
+            i.e. inline trace
+            e.g. tree["spans"]["rag"]["spans"]["retriever"]["internals"]["prompt"]
         key (str): The dot-separated key to access the value.
+            e.g. rag.summarizer[0].outputs.report
 
     Returns:
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
+
+    def is_indexed(field):
+        return "[" in field and "]" in field
+
+    def parse(field):
+        key = field
+        idx = None
+
+        if is_indexed(field):
+            key = field.split("[")[0]
+            idx = int(field.split("[")[1].split("]")[0])
+
+        return key, idx
 
     SPECIAL_KEYS = [
         "inputs",
@@ -65,25 +80,26 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
         "outputs",
     ]
 
-    spans = True
+    SPANS_SEPARATOR = "spans"
 
-    tree = trace
+    spans_flag = True
+
     fields = key.split(".")
 
     try:
         for field in fields:
-            key = field
-            idx = None
+            # by default, expects something like 'retriever'
+            key, idx = parse(field)
 
-            if "[" in field and "]" in field:
-                key = field.split("[")[0]
-                idx = int(field.split("[")[1].split("]")[0])
-
+            # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
+            # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
             if key in SPECIAL_KEYS:
-                spans = False
+                spans_flag = False
 
-            if spans:
-                tree = tree["spans"]
+            # after 'SPECIAL_KEYS', it is a normal dict.
+            # e.g. trace[...]["internals"]["prompt"]
+            if spans_flag:
+                tree = tree[SPANS_SEPARATOR]
 
             tree = tree[key]
 
@@ -92,26 +108,10 @@ def get_field_value_from_trace(trace: Dict[str, Any], key: str) -> Dict[str, Any
 
         return tree
 
+    # Suppress all Exception and leave Exception management to the caller.
     except Exception as e:
         logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
-
-
-def get_user_key_from_settings(settings_values: Dict[str, Any], target_key: str) -> Any:
-    """
-    Retrieve the value of a specified key from the settings values.
-
-    Args:
-        settings_values (Dict[str, Any]): The settings values containing the key.
-        target_key (str): The key to access from the settings values.
-
-    Returns:
-        str | None: The value of the specified key from the settings values, or None if the key does not exist.
-    """
-
-    user_key = settings_values.get(target_key, None)
-
-    return user_key
 
 
 def auto_exact_match(
@@ -678,149 +678,6 @@ def auto_json_diff(
         )
 
 
-def make_spans_id_tree(trace):
-    """
-    Creates spans tree (id only) from flat spans list
-
-    Args:
-        trace: {trace_id : str, spans: List[Span]}
-
-    Returns:
-        tree: {[span_id]: tree(span_id)} # recursive
-            e.g. {span_id_0: {span_id_0_0: {span_id_0_0_0: {}}, span_id_0_1: {}}}
-            for:
-                span_id_0
-                    span_id_0_0
-                        span_id_0_0_0
-                    span_id_0_1
-    """
-
-    tree = OrderedDict()
-    index = {}
-
-    def push(span) -> None:
-        if span["parent_span_id"] is None:
-            tree[span["id"]] = OrderedDict()
-            index[span["id"]] = tree[span["id"]]
-        elif span["parent_span_id"] in index:
-            index[span["parent_span_id"]][span["id"]] = OrderedDict()
-            index[span["id"]] = index[span["parent_span_id"]][span["id"]]
-        else:
-            logging.error("The parent span id should have been in the tracing tree.")
-
-    # MUST BE ORDERED BY START_TIME
-    for span in trace["spans"]:
-        push(span)
-
-    return tree
-
-
-def make_spans_index(trace):
-    """
-    Creates span index from flat spans list
-
-    Args:
-        trace: {trace_id : str, spans: List[Span]}
-
-    Returns:
-        index: {[span_id]: span}
-    """
-
-    index = {span["id"]: span for span in trace["spans"]}
-
-    return index
-
-
-def make_trace_tree(trace, spans_id_tree, spans_index):
-    """
-    Creates trace tree from flat trace, spans id tree, and spans index,
-    which includes a spans tree (not to be confounded with the spans id tree).
-
-    Args:
-        trace: {trace_id : str, spans: List[Span]}
-        spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive
-        spans_index: {[span_id]: span}
-
-    Returns:
-        trace_tree: {trace_id: str, spans: spans_tree}
-    """
-
-    trace_tree = {
-        "trace_id": trace["trace_id"],
-        "spans": make_spans_tree(deepcopy(spans_id_tree), spans_index),
-    }
-
-    return trace_tree
-
-
-def make_spans_tree(spans_id_tree, spans_index):
-    """
-    Recursively collects and organizes span information into a dictionary.
-    This function retrieves the current spans tree and extracts detailed data for each span.
-    It processes spans in a tree structure, organizing them with their start time, end time, inputs, internals, and outputs.
-    If an error occurs, it logs the error message and stack trace.
-
-    Args:
-        spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive (ids only)
-        index: {[span_id]: span}
-    Returns:
-        spans_tree: {[span_id]: spans_tree(span_id)} # recursive (full span)
-    """
-    spans_tree = dict()
-    count = dict()
-
-    try:
-        for idx in spans_id_tree.keys():
-            key = spans_index[idx]["name"]
-
-            spans_tree[key] = list()
-            count[key] = count.get(key, 0) + 1
-
-        while len(spans_id_tree.keys()):
-            id, children = spans_id_tree.popitem(last=False)
-
-            key = spans_index[id]["name"]
-
-            span = {
-                "start_time": spans_index[id]["start_time"],
-                "end_time": spans_index[id]["end_time"],
-                "inputs": spans_index[id]["inputs"],
-                "internals": spans_index[id]["internals"],
-                "outputs": spans_index[id]["outputs"],
-            }
-
-            span.update({"spans": make_spans_tree(children, spans_index)})
-
-            if count[key] > 1:
-                spans_tree[key].append(span)
-            else:
-                spans_tree[key] = span
-
-    except Exception as e:
-        logging.error(e)
-        logging.error(traceback.format_exc())
-
-    return spans_tree
-
-
-def process_trace(trace):
-    """
-    Creates trace tree from flat trace
-
-    Args:
-        trace: {trace_id : str, spans: List[Span]}
-
-    Returns:
-        trace: {trace_id: str, spans: spans_tree}
-    """
-
-    spans_id_tree = make_spans_id_tree(trace)
-    spans_index = make_spans_index(trace)
-    trace = make_trace_tree(trace, spans_id_tree, spans_index)
-
-    return trace
-
-
 def rag_faithfulness(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Dict[str, Any],
@@ -837,54 +694,59 @@ def rag_faithfulness(
             )
 
         # Get required keys for rag evaluator
-        question_key = get_user_key_from_settings(settings_values, "question_key")
-        answer_key = get_user_key_from_settings(settings_values, "answer_key")
-        contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+        question_key: Union[str, None] = settings_values.get("question_key", None)
+        answer_key: Union[str, None] = settings_values.get("answer_key", None)
+        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
             )
             raise ValueError(
-                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
             )
 
         # Turn distributed trace into trace tree
-        trace = process_trace(output["trace"])
+        trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(trace, question_key)
-        answer_value = get_field_value_from_trace(trace, answer_key)
-        contexts_value = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace(trace, question_key)
+        answer_val: Any = get_field_value_from_trace(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
 
-        if None in [question_value, answer_value, contexts_value]:
+        if None in [question_val, answer_val, contexts_val]:
             logging.error(
-                f"Missing trace field ? {['question', question_value is None, 'answer', answer_value is None, 'context', contexts_value is None]}"
+                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
             message = ""
-            if question_value is None:
+            if question_val is None:
                 message += (
                     f"'question_key' is set to {question_key} which can't be found. "
                 )
-            if answer_value is None:
+            if answer_val is None:
                 message += f"'answer_key' is set to {answer_key} which can't be found. "
-            if contexts_value is None:
+            if contexts_val is None:
                 message += (
                     f"'contexts_key' is set to {contexts_key} which can't be found. "
                 )
-            message += "Please check your settings and try again."
+            message += "Please check your evaluator settings and try again."
 
             raise ValueError(message)
 
-        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+        openai_api_key = lm_providers_keys.get("OPENAI_API_KEY", None)
+
+        if not openai_api_key:
+            raise Exception(
+                "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            )
 
         # Initialize RAG evaluator to calculate faithfulness score
         loop = asyncio.get_event_loop()
         faithfulness = Faithfulness(api_key=openai_api_key)
         eval_score = loop.run_until_complete(
             faithfulness._run_eval_async(
-                output=answer_value, input=question_value, context=contexts_value
+                output=answer_val, input=question_val, context=contexts_val
             )
         )
 
@@ -917,54 +779,59 @@ def rag_context_relevancy(
             )
 
         # Get required keys for rag evaluator
-        question_key = get_user_key_from_settings(settings_values, "question_key")
-        answer_key = get_user_key_from_settings(settings_values, "answer_key")
-        contexts_key = get_user_key_from_settings(settings_values, "contexts_key")
+        question_key: Union[str, None] = settings_values.get("question_key", None)
+        answer_key: Union[str, None] = settings_values.get("answer_key", None)
+        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
             )
             raise ValueError(
-                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your settings and try again."
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
             )
 
         # Turn distributed trace into trace tree
-        trace = process_trace(output["trace"])
+        trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_value = get_field_value_from_trace(trace, question_key)
-        answer_value = get_field_value_from_trace(trace, answer_key)
-        contexts_value = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace(trace, question_key)
+        answer_val: Any = get_field_value_from_trace(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
 
-        if None in [question_value, answer_value, contexts_value]:
+        if None in [question_val, answer_val, contexts_val]:
             logging.error(
-                f"Missing trace field ? {['question', question_value is None, 'answer', answer_value is None, 'context', contexts_value is None]}"
+                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
             message = ""
-            if question_value is None:
+            if question_val is None:
                 message += (
                     f"'question_key' is set to {question_key} which can't be found. "
                 )
-            if answer_value is None:
+            if answer_val is None:
                 message += f"'answer_key' is set to {answer_key} which can't be found. "
-            if contexts_value is None:
+            if contexts_val is None:
                 message += (
                     f"'contexts_key' is set to {contexts_key} which can't be found. "
                 )
-            message += "Please check your settings and try again."
+            message += "Please check your evaluator settings and try again."
 
             raise ValueError(message)
 
-        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
+        openai_api_key = lm_providers_keys.get("OPENAI_API_KEY", None)
+
+        if not openai_api_key:
+            raise Exception(
+                "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            )
 
         # Initialize RAG evaluator to calculate context relevancy score
         loop = asyncio.get_event_loop()
         context_rel = ContextRelevancy(api_key=openai_api_key)
         eval_score = loop.run_until_complete(
             context_rel._run_eval_async(
-                output=answer_value, input=question_value, context=contexts_value
+                output=answer_val, input=question_val, context=contexts_val
             )
         )
         return Result(type="number", value=eval_score.score)

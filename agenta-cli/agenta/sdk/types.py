@@ -24,7 +24,7 @@ class LLMTokenUsage(BaseModel):
 
 
 class BaseResponse(BaseModel):
-    type: Optional[str] = "BaseResponseV1"
+    version: Optional[str] = "2.0"
     data: Optional[Dict[str, Any]]
     trace: Optional[Dict[str, Any]]
 

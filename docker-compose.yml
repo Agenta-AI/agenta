@@ -19,6 +19,7 @@ services:
             - ENVIRONMENT=development
             - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
@@ -30,6 +31,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
@@ -113,6 +115,7 @@ services:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
         volumes:

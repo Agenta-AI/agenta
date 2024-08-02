@@ -10,7 +10,6 @@ from typing import Optional, Dict, Any, List
 
 from contextlib import contextmanager
 
-from agenta.sdk.utils.encoder import encode_json
 from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.tasks_manager import TaskQueue
@@ -101,23 +100,21 @@ class Tracing(metaclass=SingletonMeta):
 
     @contextmanager
     def Context(self, **kwargs):
+        # This will evolve as be work towards OTel compliance
+
         token = None
 
         try:
             if tracing_context.get() is None:
                 token = tracing_context.set(TracingContext())
 
-            # This will evolve as be work towards OTel compliance
             self.open_span(**kwargs)
 
             yield
 
-            # This will evolve as be work towards OTel compliance
             self.set_status(status="OK")
 
         except Exception as e:
-            # any cleanup that should only be done on failure
-
             logging.error(e)
 
             result = {
@@ -125,7 +122,6 @@ class Tracing(metaclass=SingletonMeta):
                 "stacktrace": traceback.format_exc(),
             }
 
-            # This will evolve as be work towards OTel compliance
             self.set_status(status="ERROR")
             self.set_attributes({"traceback_exception": traceback.format_exc()})
             self.store_outputs(result)
@@ -133,7 +129,6 @@ class Tracing(metaclass=SingletonMeta):
             raise
 
         finally:
-            # This will evolve as be work towards OTel compliance
             self.close_span()
 
             if token is not None:
@@ -445,10 +440,16 @@ class Tracing(metaclass=SingletonMeta):
             for span in tracing.spans.values():
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
-                    trace["usage"] = encode_json(span.tokens)
+                    trace["usage"] = (
+                        None if span.tokens is None else json.loads(span.tokens.json())
+                    )
                     trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
-            spans = encode_json(list(tracing.spans.values()))
+            spans = (
+                []
+                if len(tracing.spans) == 0
+                else [json.loads(span.json()) for span in tracing.spans.values()]
+            )
 
             if spans is not None:
                 trace["spans"] = spans
