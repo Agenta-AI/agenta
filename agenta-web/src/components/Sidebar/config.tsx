@@ -33,6 +33,7 @@ import {
     Scroll,
     SlackLogo,
     Gear,
+    Dot,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
 
@@ -130,14 +131,14 @@ export const useSidebarConfig = () => {
                     tooltip:
                         "Select and customize evaluators such as custom code or regex evaluators.",
                     link: `/apps/${appId}/evaluations/new-evaluator`,
-                    icon: <SlidersOutlined />,
+                    icon: <Dot size={16} />,
                 },
                 {
                     key: "app-evaluations-results-link",
                     title: "Results",
                     tooltip: "Choose your variants and evaluators to start the evaluation process.",
                     link: `/apps/${appId}/evaluations/results`,
-                    icon: <PlayCircleOutlined />,
+                    icon: <Dot size={16} />,
                 },
             ],
         },
@@ -153,13 +154,7 @@ export const useSidebarConfig = () => {
                     tooltip:
                         "A/B tests allow you to compare the performance of two different variants manually.",
                     link: `/apps/${appId}/annotations/human_a_b_testing`,
-                    icon: (
-                        <Image
-                            src={abTesting}
-                            alt="A/B Evaluation"
-                            className={classes.evaluationImg}
-                        />
-                    ),
+                    icon: <Dot size={16} />,
                 },
                 {
                     key: "app-single-model-test-link",
@@ -167,13 +162,7 @@ export const useSidebarConfig = () => {
                     tooltip:
                         "Single model test allows you to score the performance of a single LLM app manually.",
                     link: `/apps/${appId}/annotations/single_model_test`,
-                    icon: (
-                        <Image
-                            src={singleModel}
-                            alt="Single Model Evaluation"
-                            className={classes.evaluationImg}
-                        />
-                    ),
+                    icon: <Dot size={16} />,
                 },
             ],
         },
@@ -191,21 +180,21 @@ export const useSidebarConfig = () => {
                     title: "Dashboard",
                     tooltip: "Dashboard view of traces and generations",
                     link: `/apps/${appId}/observability`,
-                    icon: <DashboardOutlined />,
+                    icon: <Dot size={16} />,
                 },
                 {
                     key: "app-observability-traces-link",
                     title: "Traces",
                     tooltip: "Traces and their details",
                     link: `/apps/${appId}/observability/traces`,
-                    icon: <PartitionOutlined />,
+                    icon: <Dot size={16} />,
                 },
                 {
                     key: "app-observability-generations-link",
                     title: "Generations",
                     tooltip: "Generations and their details",
                     link: `/apps/${appId}/observability/generations`,
-                    icon: <SwapOutlined style={{transform: "rotate(90deg)"}} />,
+                    icon: <Dot size={16} />,
                 },
             ],
         },
@@ -220,14 +209,14 @@ export const useSidebarConfig = () => {
                     title: "Endpoints",
                     tooltip: "Deploy your applications to different environments.",
                     link: `/apps/${appId}/endpoints`,
-                    icon: <ApiOutlined />,
+                    icon: <Dot size={16} />,
                 },
             ],
         },
         {
             key: "invite-teammate-link",
             title: "Invite Teammate",
-            link: "/settings?tab=workspace",
+            link: "/settings?tab=workspace&inviteModal=true",
             icon: <PaperPlane size={16} />,
             isBottom: true,
             isHidden: !doesSessionExist || (true && !selectedOrg),
