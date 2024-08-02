@@ -3,6 +3,7 @@ from .context import get_contexts, save_context
 from .types import (
     Context,
     DictInput,
+    MultipleChoice,
     FloatParam,
     InFile,
     IntParam,
