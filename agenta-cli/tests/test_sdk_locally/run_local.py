@@ -1,6 +1,6 @@
 from uvicorn import run
 import agenta
-import v1  # This will register the routes with the FastAPI application
+import v2  # This will register the routes with the FastAPI application
 import os
 
 try:
