@@ -137,7 +137,11 @@ class entrypoint(BaseDecorator):
             return entrypoint_result
 
         self.update_function_signature(
-            wrapper, func_signature, config_params, ingestible_files
+            wrapper=wrapper,
+            func_signature=func_signature,
+            config_class=config,
+            config_dict=config_params,
+            ingestible_files=ingestible_files
         )
 
         # TODO:
@@ -153,7 +157,7 @@ class entrypoint(BaseDecorator):
                 {
                     "func": func.__name__,
                     "endpoint": endpoint_name,
-                    "params": {**config_params, **func_signature.parameters},
+                    "params": {**config_params, **func_signature.parameters} if not config else func_signature.parameters,
                     "config": config,
                 }
             )
@@ -164,7 +168,7 @@ class entrypoint(BaseDecorator):
             {
                 "func": func.__name__,
                 "endpoint": route[1:].replace("/", "_"),
-                "params": {**config_params, **func_signature.parameters},
+                "params": {**config_params, **func_signature.parameters} if not config else func_signature.parameters,
                 "config": config,
             }
         )
@@ -201,8 +205,8 @@ class entrypoint(BaseDecorator):
             func_signature,
             ingestible_files,
         )
-
         if route_path == "/":
+
             route_deployed = f"/{endpoint_name}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
@@ -360,12 +364,16 @@ class entrypoint(BaseDecorator):
         wrapper: Callable[..., Any],
         func_signature: inspect.Signature,
         config_class: Type[BaseModel],  # TODO: change to our type
+        config_dict: Dict[str, Any],
         ingestible_files: Dict[str, inspect.Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[inspect.Parameter] = []
-        self.add_config_params_to_parser(updated_params, config_class)
+        if config_class:
+            self.add_config_params_to_parser(updated_params, config_class)
+        else:
+            self.depracated_add_config_params_to_parser(updated_params, config_dict)
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
 
@@ -405,6 +413,27 @@ class entrypoint(BaseDecorator):
                     kind=inspect.Parameter.KEYWORD_ONLY,
                     annotation=field.annotation.__name__,
                     default=Body(field.default)
+                )
+            )
+
+    def depracated_add_config_params_to_parser(
+        self, updated_params: list, config_dict: Dict[str, Any]
+    ) -> None:
+        """Add configuration parameters to function signature."""
+        for name, param in config_dict.items():
+            assert (
+                len(param.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.__class__} needs to be one."
+            updated_params.append(
+                inspect.Parameter(
+                    name,
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=Body(param),
+                    annotation=param.__class__.__bases__[
+                        0
+                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                    # thus, why we are accessing the first item.
                 )
             )
 
@@ -640,9 +669,8 @@ class entrypoint(BaseDecorator):
                 print("ERROR, unhandled annotation:", annotation)
 
             return param_type
-
         schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_post"
+            f"Body_generate_{func_name}_post"  # TODO: Remove hard code
         ]["properties"]
 
         for param_name, param_val in params.items():
