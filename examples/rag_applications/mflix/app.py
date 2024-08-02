@@ -15,7 +15,7 @@ mongodb = MongoClient(
 )
 db = mongodb[config["MONGODB_DATABASE_NAME"]]
 
-ag.init()  # without the file, api-id seems to be missing
+ag.init()
 
 ag.config.default(
     # RETRIEVER
@@ -46,7 +46,7 @@ ag.config.default(
 )
 
 
-@ag.instrument(spankind="EMBEDDING")
+# @ag.instrument(spankind="EMBEDDING")
 def embed(description: str):
     response = openai.embeddings.create(
         input=description, model="text-embedding-ada-002"
@@ -60,7 +60,7 @@ def embed(description: str):
     }
 
 
-@ag.instrument(spankind="SEARCH")
+# @ag.instrument(spankind="SEARCH")
 def search(query: list, topk: int):
     embeddings = db["embedded_movies"]
 
@@ -82,7 +82,7 @@ def search(query: list, topk: int):
     return movies
 
 
-@ag.instrument(spankind="MESSAGE")
+# @ag.instrument(spankind="MESSAGE")
 async def chat(prompts: str, opts: dict):
     response = openai.chat.completions.create(
         model=opts["model"],
@@ -104,7 +104,7 @@ async def retriever(topic: str, genre: str, count: int) -> dict:
     prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
     topk = count * ag.config.retriever_multiplier
 
-    ag.tracing.store_internals({"prompt": prompt, "topk": topk})
+    ag.tracing.store_internals({"prompt": prompt})
 
     query = embed(prompt)
 
@@ -161,7 +161,7 @@ async def summarizer(topic: str, genre: str, report: dict) -> dict:
 @ag.entrypoint
 @ag.instrument(spankind="RAG")
 async def rag(topic: str, genre: str, count: int = 5):
-    count = int(count)  # FE issue
+    count = int(count)
 
     result = await retriever(topic, genre, count)
 
