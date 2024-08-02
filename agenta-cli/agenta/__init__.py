@@ -3,6 +3,7 @@ from .sdk.context import get_contexts, save_context
 from .sdk.types import (
     Context,
     DictInput,
+    MultipleChoice,
     FloatParam,
     InFile,
     IntParam,
