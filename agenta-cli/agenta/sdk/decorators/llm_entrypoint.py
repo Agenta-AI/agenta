@@ -601,13 +601,13 @@ class entrypoint(BaseDecorator):
                     schema_to_override[param_name]["maximum"] = max_value
 
     def override_config_in_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, params: Type[BaseModel]
+        self, openapi_schema: dict, func_name: str, endpoint: str, config: Type[BaseModel]
     ):
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func_name}_{endpoint}_post"
         ]["properties"]
         # New logic
-        for param_name, param_val in params.__fields__.items():
+        for param_name, param_val in config.__fields__.items():
             if param_val.annotation is str:
                 if any(isinstance(constraint, MultipleChoice) for constraint in param_val.metadata):
                     choices = next(constraint.choices for constraint in param_val.metadata if isinstance(constraint, MultipleChoice))
@@ -642,7 +642,7 @@ class entrypoint(BaseDecorator):
                     max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
                     schema_to_override[param_name]["maximum"] = max_value
 
-    def override_inputs_in_schema(
+    def override_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
     ):
         """
