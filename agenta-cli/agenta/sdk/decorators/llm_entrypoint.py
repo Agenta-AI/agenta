@@ -157,13 +157,13 @@ class entrypoint(BaseDecorator):
         )
 
         #
-        if route_path == "":
+        if route_path == "" or route_path == "/":
             route = f"/{DEFAULT_PATH}"
             app.post(route, response_model=BaseResponse)(wrapper)
             entrypoint.routes.append(
                 {
                     "func": func.__name__,
-                    "endpoint": endpoint_name,
+                    "endpoint": DEFAULT_PATH,
                     "params": {**config_params, **func_signature.parameters} if not config else func_signature.parameters,
                     "config": config,
                 }
@@ -710,7 +710,7 @@ class entrypoint(BaseDecorator):
 
             return param_type
         schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_generate_{func_name}_post"  # TODO: Remove hard code
+            f"Body_{func_name}_{endpoint}_post"
         ]["properties"]
 
         for param_name, param_val in params.items():
