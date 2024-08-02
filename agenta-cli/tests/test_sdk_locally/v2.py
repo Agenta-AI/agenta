@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import Annotated
 from typing import Literal
 
+# AGENTA_MODE = TRUE
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
@@ -16,9 +17,10 @@ default_prompt = (
 ag.init(config_fname="config.toml")
 
 # To add to our types
+# Option 1
 
 
-class MyConfig(BaseModel):
+class MyConfigSchema(BaseModel):  # <- the app
     prompt_template: str = Field(default=default_prompt)
     bool_param: bool = Field(default=True)
     int_param: int = Field(default=1, ge=1, le=5)
@@ -27,16 +29,14 @@ class MyConfig(BaseModel):
     # multiple: Literal["gpt-3", "gpt-5"] = Field(default="gpt-3")
     grouped_multiple: Annotated[str, ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]})] = Field(default="gpt3")
 
-
-config = MyConfig(prompt_template=default_prompt)
-
-
-@ag.instrument()
-def retriever(query: str) -> str:
-    return "mock output for " + query
+    class Settings:
+        app_name: str = 'myapp'
 
 
-@ag.route(path="/", config=config)
+config = MyConfigSchema()
+
+
+@ag.route(path="/", config=config)  # side effects
 def generate(country: str, gender: str) -> str:
     """
     Generate a baby name based on the given country and gender.
@@ -48,6 +48,7 @@ def generate(country: str, gender: str) -> str:
     Returns:
         str: The generated baby name.`
     """
+
     prompt = config.prompt_template.format(country=country, gender=gender)
 
     return {
