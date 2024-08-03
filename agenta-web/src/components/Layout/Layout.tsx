@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, Dropdown, Layout, Modal, Space, Tooltip, theme} from "antd"
+import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -13,21 +13,19 @@ import ErrorFallback from "./ErrorFallback"
 import {fetchData} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {useRouter} from "next/router"
-import Image from "next/image"
-import moonIcon from "@/media/night.png"
-import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
-import {StyleProps as MainStyleProps} from "@/lib/Types"
+import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 
 const {Content, Footer} = Layout
+const {Text} = Typography
 
 interface StyleProps extends MainStyleProps {
     footerHeight: number
 }
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     layout: ({themeMode}: StyleProps) => ({
         display: "flex",
         background: themeMode === "dark" ? "#141414" : "#ffffff",
@@ -104,12 +102,11 @@ const useStyles = createUseStyles({
         display: "flex",
         alignItems: "center",
         gap: "1rem",
-        "& >span": {
-            cursor: "pointer",
-            marginTop: 3,
+        "& span.ant-typography": {
+            color: "rgba(0, 0, 0, 0.45)",
         },
     },
-})
+}))
 
 type LayoutProps = {
     children: React.ReactNode
@@ -237,52 +234,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         ]}
                                     />
                                     <div className={classes.topRightBar}>
-                                        <Dropdown
-                                            trigger={["click"]}
-                                            menu={{
-                                                items: [
-                                                    {
-                                                        key: "system",
-                                                        label: "System",
-                                                        onClick: () => toggleAppTheme("system"),
-                                                    },
-                                                    {
-                                                        key: "light",
-                                                        label: "Light",
-                                                        onClick: () => toggleAppTheme("light"),
-                                                    },
-                                                    {
-                                                        key: "dark",
-                                                        label: "Dark",
-                                                        onClick: () => toggleAppTheme("dark"),
-                                                    },
-                                                ],
-                                                selectedKeys: [themeMode],
-                                            }}
-                                        >
-                                            <a onClick={(e) => e.preventDefault()}>
-                                                <Tooltip title="Change theme" placement="left">
-                                                    <Image
-                                                        alt={`Curren Theme: ${
-                                                            isDarkTheme ? "dark" : "light"
-                                                        }`}
-                                                        src={isDarkTheme ? sunIcon : moonIcon}
-                                                        width={24}
-                                                        height={24}
-                                                    />
-                                                </Tooltip>
-                                            </a>
-                                        </Dropdown>
-                                        <Button
-                                            className={classes.star}
-                                            href="https://github.com/Agenta-AI/agenta"
-                                        >
-                                            <div>
-                                                <GithubFilled style={{fontSize: 18}} />
-                                                <p>Star</p>
-                                            </div>
-                                            <div>{starCount || 0}</div>
-                                        </Button>
+                                        <Text>agenta</Text>
                                     </div>
                                 </Space>
                                 <ErrorBoundary FallbackComponent={ErrorFallback}>
