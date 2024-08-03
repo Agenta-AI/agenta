@@ -97,8 +97,7 @@ export const useSidebarConfig = () => {
         {
             key: "overview-link",
             title: "Overview",
-            tooltip: "Overview link",
-            link: "/apps",
+            link: `/apps/${appId}/overview`,
             icon: <Desktop size={16} />,
             isHidden: !appId,
         },

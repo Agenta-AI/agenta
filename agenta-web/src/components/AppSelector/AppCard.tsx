@@ -109,7 +109,7 @@ const AppCard: React.FC<{
                 className={classes.card}
                 actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
             >
-                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
+                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/overview`}>
                     <Card.Meta
                         title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
                         avatar={

@@ -75,7 +75,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             onTimeoutRetry?.()
         } else if (isSuccess) {
             props.onCancel?.(e)
-            if (appId) router.push(`/apps/${appId}/playground`)
+            if (appId) router.push(`/apps/${appId}/overview`)
         }
     }
 
@@ -112,7 +112,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
-                    if (appId) router.push(`/apps/${appId}/playground`)
+                    if (appId) router.push(`/apps/${appId}/overview`)
                     return obj
                 case "bad_request":
                 case "error":
