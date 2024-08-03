@@ -1,4 +1,5 @@
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
+import VariantsOverview from "@/components/pages/overview/variants/VariantsOverview"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
@@ -31,8 +32,7 @@ export default function Overview() {
 
             <DeploymentOverview />
 
-            <div>hello</div>
-            <div>hello</div>
+            <VariantsOverview />
         </div>
     )
 }
