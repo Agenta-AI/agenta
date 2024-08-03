@@ -43,15 +43,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             background: `${theme.colorBgContainer} !important`,
         },
     },
-    sidebarLogo: {
-        display: "flex",
-        gap: 4,
-        alignItems: "center",
-        "& > .ant-typography": {
-            fontSize: `${theme.sizeSM}px`,
-            color: theme.colorTextDescription,
-        },
-    },
     siderWrapper: {
         border: `0.01px solid ${theme.isDark ? "#222" : "#ddd"}`,
     },
@@ -357,13 +348,8 @@ const Sidebar: React.FC = () => {
                 <div className={classes.sliderContainer}>
                     <div>
                         {!isDemo() && (
-                            <Link
-                                data-cy="app-management-link"
-                                href="/apps"
-                                className={classes.sidebarLogo}
-                            >
+                            <Link data-cy="app-management-link" href="/apps">
                                 <Logo isOnlyIconLogo={collapsed} />
-                                <Text className="text-xs">Open source</Text>
                             </Link>
                         )}
                         {selectedOrg?.id && user?.id && isDemo() && (
