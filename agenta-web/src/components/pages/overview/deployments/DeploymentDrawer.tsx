@@ -1,19 +1,30 @@
 import CopyButton from "@/components/CopyButton/CopyButton"
-import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
-import {Environment, JSSTheme} from "@/lib/Types"
+import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {createParams} from "@/pages/apps/[app_id]/endpoints"
 import {MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Typography} from "antd"
-import React, {useState} from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
+import invokeLlmAppcURLCode from "@/code_snippets/endpoints/invoke_llm_app/curl"
+import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/python"
+import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
+import {useRouter} from "next/router"
+import {fetchAppContainerURL, fetchVariants} from "@/services/api"
+import {useVariant} from "@/lib/hooks/useVariant"
 
 interface DeploymentDrawerProps {
-    selectedEnvironment: Environment | undefined
+    selectedEnvironment: Environment
+}
+
+interface LanguageCodeBlockProps {
+    selectedLang: string
+    fetchConfigCodeSnippet: Record<string, string>
+    invokeLlmAppCodeSnippet: Record<string, string>
 }
 
 const {Title, Text} = Typography
@@ -37,27 +48,110 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const LanguageCodeBlock = ({
+    selectedLang,
+    fetchConfigCodeSnippet,
+    invokeLlmAppCodeSnippet,
+}: LanguageCodeBlockProps) => {
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <Text className="font-[500]">Fetch Prompt/Config</Text>
+                    <CopyButton
+                        buttonText={null}
+                        text={fetchConfigCodeSnippet[selectedLang]}
+                        icon={true}
+                    />
+                </div>
+
+                <CodeBlock
+                    key={selectedLang}
+                    language={selectedLang}
+                    value={fetchConfigCodeSnippet[selectedLang]}
+                />
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                    <Text className="font-[500]">Invoke LLM</Text>
+                    <CopyButton
+                        buttonText={null}
+                        text={invokeLlmAppCodeSnippet[selectedLang]}
+                        icon={true}
+                    />
+                </div>
+
+                <CodeBlock
+                    key={selectedLang}
+                    language={selectedLang}
+                    value={invokeLlmAppCodeSnippet[selectedLang]}
+                />
+            </div>
+        </div>
+    )
+}
+
 const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps & DrawerProps) => {
     const classes = useStyles()
+    const router = useRouter()
+    const appId = router.query.app_id as string
     const [selectedLang, setSelectedLang] = useState("python")
+    const [uri, setURI] = useState<string | null>(null)
+    const [variants, setVariants] = useState<Variant[]>([])
+    const [variant, setVariant] = useState<Variant | null>(null)
 
-    // const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
-    // const invokeLlmAppCodeSnippet: Record<string, string> = {
-    //     Python: invokeLlmApppythonCode(uri!, params),
-    //     cURL: invokeLlmAppcURLCode(uri!, params),
-    //     TypeScript: invokeLlmApptsCode(uri!, params),
-    // }
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const backendVariants = await fetchVariants(appId)
+                setVariants(backendVariants)
+            } catch (error) {
+                console.error(error)
+            }
+        }
+        fetchData()
+    }, [appId])
 
-    // const fetchConfigCodeSnippet: Record<string, string> = {
-    //     Python: fetchConfigpythonCode(variant.baseId, selectedEnvironment?.name!),
-    //     cURL: fetchConfigcURLCode(variant.baseId, selectedEnvironment?.name!),
-    //     TypeScript: fetchConfigtsCode(variant.baseId, selectedEnvironment?.name!),
-    // }
+    useEffect(() => {
+        loadURL(selectedEnvironment)
+    }, [selectedEnvironment, appId])
+
+    useEffect(() => {
+        const variant = variants.find(
+            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+        )
+        if (!variant) return
+
+        setVariant(variant)
+    }, [selectedEnvironment, variants])
+
+    const loadURL = async (environment: Environment) => {
+        if (environment.deployed_app_variant_id) {
+            const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
+            setURI(`${url}/generate_deployed`)
+        }
+    }
+
+    const {inputParams, isChatVariant} = useVariant(appId, variant!)
+
+    const params = createParams(
+        inputParams,
+        selectedEnvironment?.name || "none",
+        "add_a_value",
+        isChatVariant,
+    )
+
+    const invokeLlmAppCodeSnippet: Record<string, string> = {
+        python: invokeLlmApppythonCode(uri!, params),
+        bash: invokeLlmAppcURLCode(uri!, params),
+        typescript: invokeLlmApptsCode(uri!, params),
+    }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode("variant.baseId", selectedEnvironment?.name!),
-        bash: fetchConfigcURLCode("variant.baseId", selectedEnvironment?.name!),
-        typescript: fetchConfigtsCode("variant.baseId", selectedEnvironment?.name!),
+        python: fetchConfigpythonCode(variant?.baseId!, selectedEnvironment?.name!),
+        bash: fetchConfigcURLCode(variant?.baseId!, selectedEnvironment?.name!),
+        typescript: fetchConfigtsCode(variant?.baseId!, selectedEnvironment?.name!),
     }
 
     return (
@@ -71,8 +165,8 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
                     <Title>{selectedEnvironment?.name} environment</Title>
 
                     <Space direction="horizontal">
-                        <Button type="primary">Button1</Button>
-                        <Button>Button2</Button>
+                        <Button>Button1</Button>
+                        <Button type="primary">Button2</Button>
                     </Space>
                 </Space>
             }
@@ -116,43 +210,11 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
                                 key: "python",
                                 label: "Python",
                                 children: (
-                                    <div className="flex flex-col gap-6">
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">
-                                                    Fetch Prompt/Config
-                                                </Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">Invoke LLM</Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-                                    </div>
+                                    <LanguageCodeBlock
+                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                        selectedLang={selectedLang}
+                                    />
                                 ),
                                 icon: <PythonOutlined />,
                             },
@@ -160,43 +222,11 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
                                 key: "typescript",
                                 label: "TypeScript",
                                 children: (
-                                    <div className="flex flex-col gap-6">
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">
-                                                    Fetch Prompt/Config
-                                                </Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">Invoke LLM</Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-                                    </div>
+                                    <LanguageCodeBlock
+                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                        selectedLang={selectedLang}
+                                    />
                                 ),
                                 icon: <FileTs size={14} />,
                             },
@@ -204,43 +234,11 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
                                 key: "bash",
                                 label: "cURL",
                                 children: (
-                                    <div className="flex flex-col gap-6">
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">
-                                                    Fetch Prompt/Config
-                                                </Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <Text className="font-[500]">Invoke LLM</Text>
-                                                <CopyButton
-                                                    buttonText={null}
-                                                    text={"result"}
-                                                    icon={true}
-                                                />
-                                            </div>
-
-                                            <CodeBlock
-                                                key={selectedLang}
-                                                language={selectedLang}
-                                                value={fetchConfigCodeSnippet[selectedLang]}
-                                            />
-                                        </div>
-                                    </div>
+                                    <LanguageCodeBlock
+                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                        selectedLang={selectedLang}
+                                    />
                                 ),
                                 icon: <FileCode size={14} />,
                             },

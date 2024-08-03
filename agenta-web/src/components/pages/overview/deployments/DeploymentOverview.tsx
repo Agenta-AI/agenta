@@ -112,11 +112,13 @@ const DeploymentOverview = () => {
                 ))}
             </div>
 
-            <DeploymentDrawer
-                selectedEnvironment={selectedEnvironment}
-                open={!!queryEnv}
-                onClose={() => setQueryEnv("")}
-            />
+            {selectedEnvironment && (
+                <DeploymentDrawer
+                    selectedEnvironment={selectedEnvironment}
+                    open={!!queryEnv}
+                    onClose={() => setQueryEnv("")}
+                />
+            )}
         </div>
     )
 }
