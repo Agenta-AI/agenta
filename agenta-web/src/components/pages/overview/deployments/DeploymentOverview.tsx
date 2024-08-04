@@ -45,20 +45,24 @@ const DeploymentOverview = () => {
     const appId = router.query.app_id as string
     const [environments, setEnvironments] = useState<Environment[]>([])
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>()
-
-    const loadEnvironments = async () => {
-        try {
-            const response = await fetchEnvironments(appId)
-            setEnvironments(response)
-        } catch (error) {
-            console.error(error)
-        }
-    }
+    const [isDeploymentLoading, setIsDeploymentLoading] = useState(false)
 
     useEffect(() => {
-        if (appId) {
-            loadEnvironments()
+        if (!appId) return
+
+        const loadEnvironments = async () => {
+            try {
+                setIsDeploymentLoading(true)
+                const response = await fetchEnvironments(appId)
+                setEnvironments(response)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setIsDeploymentLoading(false)
+            }
         }
+
+        loadEnvironments()
     }, [appId])
 
     return (
@@ -67,7 +71,7 @@ const DeploymentOverview = () => {
 
             <div className={classes.cardContainer}>
                 {environments.map((env, index) => (
-                    <Card key={index}>
+                    <Card key={index} loading={isDeploymentLoading}>
                         <Dropdown
                             trigger={["click"]}
                             menu={{
