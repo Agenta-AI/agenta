@@ -117,12 +117,14 @@ interface HumanEvaluationModalProps {
     isEvalModalOpen: boolean
     setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
     evaluationType: "single_model_test" | "human_a_b_testing"
+    setIsQueryHumanEvalOpen: (val: string) => void
 }
 
 const HumanEvaluationModal = ({
     isEvalModalOpen,
     setIsEvalModalOpen,
     evaluationType,
+    setIsQueryHumanEvalOpen,
 }: HumanEvaluationModalProps) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
@@ -352,6 +354,7 @@ const HumanEvaluationModal = ({
                 open={isEvalModalOpen}
                 onCancel={() => {
                     setIsEvalModalOpen(false)
+                    setIsQueryHumanEvalOpen("")
                     setSelectedTestset({name: "Select a Test set"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
@@ -403,7 +406,10 @@ const HumanEvaluationModal = ({
                                 <Button
                                     style={{marginRight: "auto"}}
                                     key="cancel"
-                                    onClick={() => setIsEvalModalOpen(false)}
+                                    onClick={() => {
+                                        setIsEvalModalOpen(false)
+                                        setIsQueryHumanEvalOpen("")
+                                    }}
                                 >
                                     Cancel
                                 </Button>
