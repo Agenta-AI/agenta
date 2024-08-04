@@ -1,12 +1,13 @@
 import {JSSTheme} from "@/lib/Types"
-import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {GearSix, Rocket} from "@phosphor-icons/react"
+import {Table, Typography} from "antd"
+import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
-const {Title, Text} = Typography
+const {Title} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -20,10 +21,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     titleLink: {
         display: "flex",
         alignItems: "center",
-        gap: theme.paddingSM,
+        gap: theme.paddingXS,
         border: `1px solid ${theme.colorBorder}`,
-        padding: "5px 15px",
-        height: 32,
+        padding: "1px 7px",
+        height: 24,
         borderRadius: theme.borderRadius,
         color: theme.colorText,
         "&:hover": {
@@ -37,18 +38,41 @@ const VariantsOverview = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
 
+    const columns: ColumnsType<any> = [
+        {
+            title: "Name",
+        },
+        {
+            title: "Tokens",
+        },
+        {
+            title: "Cost",
+        },
+        {
+            title: "Latency",
+        },
+        {
+            title: "Created At",
+        },
+        {
+            title: <GearSix size={16} />,
+        },
+    ]
+
     return (
         <div className={classes.container}>
             <div className="flex items-center justify-between">
                 <Title>Variants</Title>
 
                 <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
-                    <Rocket size={16} />
+                    <Rocket size={14} />
                     Playground
                 </Link>
             </div>
 
-            <div>hello</div>
+            <div>
+                <Table className="ph-no-capture" columns={columns} dataSource={[]} />
+            </div>
         </div>
     )
 }
