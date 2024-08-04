@@ -215,7 +215,7 @@ export const useSidebarConfig = () => {
         {
             key: "invite-teammate-link",
             title: "Invite Teammate",
-            link: "/settings?tab=workspace&inviteModal=true",
+            link: "/settings?tab=workspace&inviteModal=open",
             icon: <PaperPlane size={16} />,
             isBottom: true,
             isHidden: !doesSessionExist || (true && !selectedOrg),
