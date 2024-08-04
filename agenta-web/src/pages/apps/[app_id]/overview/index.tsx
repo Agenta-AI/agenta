@@ -1,4 +1,8 @@
+import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
+import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
+import ObservabilityOverview from "@/components/pages/overview/observability/ObservabilityOverview"
+import SingleModelEvalOverview from "@/components/pages/overview/singleModelEvaluation/SingleModelEvalOverview"
 import VariantsOverview from "@/components/pages/overview/variants/VariantsOverview"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
@@ -12,14 +16,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
         gap: theme.paddingLG,
     },
-    section: {
-        display: "flex",
-        flexDirection: "column",
-        gap: theme.paddingXS,
-        "& > h1.ant-typography": {
-            fontSize: theme.fontSize,
-        },
-    },
 }))
 
 export default function Overview() {
@@ -28,11 +24,17 @@ export default function Overview() {
         <div className={classes.container}>
             <Title level={3}>Overview</Title>
 
-            <div>Observability Cards</div>
+            <ObservabilityOverview />
 
             <DeploymentOverview />
 
             <VariantsOverview />
+
+            <AutomaticEvalOverview />
+
+            <AbTestingEvalOverview />
+
+            <SingleModelEvalOverview />
         </div>
     )
 }
