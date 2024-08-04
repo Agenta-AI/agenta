@@ -1,7 +1,7 @@
 import {JSSTheme} from "@/lib/Types"
-import {PlusOutlined} from "@ant-design/icons"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {GearSix} from "@phosphor-icons/react"
-import {Button, Space, Table, Typography} from "antd"
+import {Button, Dropdown, Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React from "react"
@@ -49,6 +49,30 @@ const AutomaticEvalOverview = () => {
         },
         {
             title: <GearSix size={16} />,
+            key: "settings",
+            width: 50,
+            render: () => {
+                return (
+                    <Dropdown
+                        trigger={["hover"]}
+                        menu={{
+                            items: [
+                                {
+                                    key: "change_variant",
+                                    label: "Change Variant",
+                                },
+
+                                {
+                                    key: "open_playground",
+                                    label: "Open in playground",
+                                },
+                            ],
+                        }}
+                    >
+                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                    </Dropdown>
+                )
+            },
         },
     ]
 
