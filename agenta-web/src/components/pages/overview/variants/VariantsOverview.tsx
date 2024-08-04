@@ -1,6 +1,7 @@
 import {JSSTheme} from "@/lib/Types"
+import {MoreOutlined} from "@ant-design/icons"
 import {GearSix, Rocket} from "@phosphor-icons/react"
-import {Table, Typography} from "antd"
+import {Button, Dropdown, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -56,6 +57,30 @@ const VariantsOverview = () => {
         },
         {
             title: <GearSix size={16} />,
+            key: "settings",
+            width: 50,
+            render: () => {
+                return (
+                    <Dropdown
+                        trigger={["hover"]}
+                        menu={{
+                            items: [
+                                {
+                                    key: "change_variant",
+                                    label: "Change Variant",
+                                },
+
+                                {
+                                    key: "open_playground",
+                                    label: "Open in playground",
+                                },
+                            ],
+                        }}
+                    >
+                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                    </Dropdown>
+                )
+            },
         },
     ]
 
