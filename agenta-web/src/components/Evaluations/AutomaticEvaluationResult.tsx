@@ -13,7 +13,10 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
-import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
+import {
+    fromEvaluationResponseToEvaluation,
+    singleModelTestEvaluationTransformer,
+} from "@/lib/transformers"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 
 interface EvaluationListTableDataType {
@@ -108,20 +111,7 @@ export default function AutomaticEvaluationResult({
                 const newEvals = results.map((result, ix) => {
                     const item = evals[ix]
                     if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
-                        return {
-                            key: item.id,
-                            createdAt: item.createdAt,
-                            variants: item.variants,
-                            scoresData: result.scores_data,
-                            evaluationType: item.evaluationType,
-                            status: item.status,
-                            testset: item.testset,
-                            custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
-                            resultsData: result.results_data,
-                            avgScore: result.avg_score,
-                            revisions: item.revisions,
-                            variant_revision_ids: item.variant_revision_ids,
-                        }
+                        return singleModelTestEvaluationTransformer({item, result})
                     }
                 })
 
