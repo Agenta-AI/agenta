@@ -493,3 +493,28 @@ export type PaginationQuery = {
 export type StyleProps = {
     themeMode: "dark" | "light"
 }
+
+export interface SingleModelEvaluationListTableDataType {
+    key: string
+    variants: string[]
+    testset: {
+        _id: string
+        name: string
+    }
+    evaluationType: string
+    status: EvaluationFlow
+    scoresData: {
+        nb_of_rows: number
+        wrong?: GenericObject[]
+        correct?: GenericObject[]
+        true?: GenericObject[]
+        false?: GenericObject[]
+        variant: string[]
+    }
+    avgScore: number
+    custom_code_eval_id: string
+    resultsData: {[key: string]: number}
+    createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+}
