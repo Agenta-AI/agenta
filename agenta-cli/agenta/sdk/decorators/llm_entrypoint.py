@@ -141,7 +141,7 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func, True, *args, params=func_params, config_params=config_params
             )
 
             return entrypoint_result
@@ -194,7 +194,7 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func, False, *args, params=func_params, config_params=config_params
             )
 
             return entrypoint_result
@@ -272,7 +272,9 @@ class entrypoint(BaseDecorator):
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
-    async def execute_function(self, func: Callable[..., Any], *args, **func_params):
+    async def execute_function(
+        self, func: Callable[..., Any], wait_for_spans: bool, *args, **func_params
+    ):
         """Execute the function and handle any exceptions."""
 
         try:
@@ -281,6 +283,10 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            TIMEOUT = 10
+            TIMESTEP = 0.01
+            NOFSTEPS = TIMEOUT / TIMESTEP
+
             data = None
             trace = None
 
@@ -296,6 +302,13 @@ class entrypoint(BaseDecorator):
                 result = func(*args, **func_params["params"])
 
             if token is not None:
+                if wait_for_spans:
+                    remaining_steps = NOFSTEPS
+
+                    while not ag.tracing.is_trace_ready() and remaining_steps > 0:
+                        await asyncio.sleep(0.01)
+                        remaining_steps -= 1
+
                 trace = ag.tracing.dump_trace()
                 tracing_context.reset(token)
 
@@ -515,6 +528,7 @@ class entrypoint(BaseDecorator):
         result = loop.run_until_complete(
             self.execute_function(
                 func,
+                True,
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
