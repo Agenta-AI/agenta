@@ -281,6 +281,11 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            WAIT_FOR_SPANS = True
+            TIMEOUT = 10
+            TIMESTEP = 0.01
+            NOFSTEPS = TIMEOUT / TIMESTEP
+
             data = None
             trace = None
 
@@ -296,7 +301,15 @@ class entrypoint(BaseDecorator):
                 result = func(*args, **func_params["params"])
 
             if token is not None:
+                if WAIT_FOR_SPANS:
+                    remaining_steps = NOFSTEPS
+
+                    while not ag.tracing.is_trace_ready() and remaining_steps > 0:
+                        await asyncio.sleep(0.01)
+                        remaining_steps -= 1
+
                 trace = ag.tracing.dump_trace()
+                ag.tracing.flush_spans()
                 tracing_context.reset(token)
 
             if isinstance(result, Context):
