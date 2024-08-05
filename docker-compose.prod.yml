@@ -63,6 +63,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
         restart: always
 
     apply_alembic_migration:
