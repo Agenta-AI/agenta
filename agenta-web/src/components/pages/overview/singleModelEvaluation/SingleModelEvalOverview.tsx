@@ -202,11 +202,7 @@ const SingleModelEvalOverview = () => {
                     <Button
                         icon={<PlusOutlined />}
                         size="small"
-                        onClick={() =>
-                            router.push(
-                                `/apps/${appId}/annotations/single_model_test?openHumanEvalModal=open`,
-                            )
-                        }
+                        onClick={() => router.push(`/apps/${appId}/annotations/single_model_test`)}
                     >
                         Start New
                     </Button>

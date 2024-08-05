@@ -263,11 +263,7 @@ const AbTestingEvalOverview = () => {
                     <Button
                         icon={<PlusOutlined />}
                         size="small"
-                        onClick={() =>
-                            router.push(
-                                `/apps/${appId}/annotations/human_a_b_testing?openHumanEvalModal=open`,
-                            )
-                        }
+                        onClick={() => router.push(`/apps/${appId}/annotations/human_a_b_testing`)}
                     >
                         Start New
                     </Button>
