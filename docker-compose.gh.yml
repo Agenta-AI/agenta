@@ -63,7 +63,7 @@ services:
         restart: always
 
     apply_alembic_migration:
-        build: ./agenta-backend
+        build: ghcr.io/agenta-ai/agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
             - FEATURE_FLAG=oss
@@ -72,7 +72,6 @@ services:
             - AGENTA_AUTO_MIGRATIONS=false
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
           postgres:
             condition: service_healthy
