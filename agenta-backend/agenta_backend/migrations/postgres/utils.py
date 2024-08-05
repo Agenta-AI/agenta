@@ -104,7 +104,7 @@ async def get_pending_migrations():
 
 def run_alembic_migration():
     """
-    Applies migration for first-time users.
+    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
     """
 
     APPLY_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
