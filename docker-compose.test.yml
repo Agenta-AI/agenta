@@ -70,7 +70,7 @@ services:
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
             - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_AUTO_MIGRATIONS=true
         volumes:
