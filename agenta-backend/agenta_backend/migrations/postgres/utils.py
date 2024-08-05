@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import traceback
 
 import click
 import asyncpg
@@ -107,14 +108,37 @@ def run_alembic_migration():
     Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
     """
 
-    APPLY_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
-    pending_migrations = asyncio.run(get_pending_migrations())
-    if APPLY_MIGRATIONS == "false" and "alembic_version" in pending_migrations:
-        command.upgrade(alembic_cfg, "head")
-    elif APPLY_MIGRATIONS == "true":
-        command.upgrade(alembic_cfg, "head")
+    try:
+        pending_migrations = asyncio.run(get_pending_migrations())
+        APPLY_AUTO_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
+        FIRST_TIME_USER = True if "alembic_version" in pending_migrations else False
 
-    logger.info("Migration applied successfully.")
+        if FIRST_TIME_USER or APPLY_AUTO_MIGRATIONS == "true":
+            command.upgrade(alembic_cfg, "head")
+            click.echo(
+                click.style(
+                    "\nMigration applied successfully. The container will now exit.",
+                    fg="green",
+                ),
+                color=True,
+            )
+        else:
+            click.echo(
+                click.style(
+                    "\nAll migrations are up-to-date. The container will now exit.",
+                    fg="yellow",
+                ),
+                color=True,
+            )
+    except Exception as e:
+        click.echo(
+            click.style(
+                f"\nAn ERROR occured while applying migration: {traceback.format_exc()}\nThe container will now exit.",
+                fg="red",
+            ),
+            color=True,
+        )
+        raise e
 
 
 async def check_for_new_migrations():
