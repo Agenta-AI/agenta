@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo} from "react"
 import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -10,13 +10,13 @@ import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
-import {fetchData} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {useRouter} from "next/router"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
 import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
+import {version} from "../../../package.json"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -47,39 +47,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     breadcrumb: {
         padding: "24px 0",
-    },
-    star: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        alignItems: "center",
-        padding: 0,
-        height: 30,
-        borderWidth: 2,
-        borderColor: themeMode === "dark" ? "#333" : "#dfdfdf",
-        "& div:nth-of-type(1)": {
-            display: "flex",
-            alignItems: "center",
-            height: "100%",
-            width: "100%",
-            gap: 8,
-            padding: "0 10px",
-            background: themeMode === "dark" ? "#333" : "#dfdfdf",
-            borderTopLeftRadius: 3,
-            borderBottomLeftRadius: 3,
-        },
-        "& div:nth-of-type(2)": {
-            padding: "0 15px",
-        },
-    }),
-    joinBtn: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        "& span": {
-            display: "block",
-        },
-        "& img": {
-            width: "15px",
-        },
     },
     footer: {
         position: "absolute",
@@ -114,12 +81,11 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
-    const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
-    const {currentApp, setModalInstance} = useAppsData()
+    const {appTheme} = useAppTheme()
+    const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
-    const [starCount, setStarCount] = useState(0)
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
@@ -181,21 +147,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
     )
 
     useEffect(() => {
-        const githubRepo = async () => {
-            try {
-                fetchData("https://api.github.com/repos/Agenta-AI/agenta").then((resp) => {
-                    setStarCount(resp.stargazers_count)
-                })
-            } catch (error) {
-                console.log(error)
-            }
-        }
-        githubRepo()
-
-        setModalInstance(modal)
-    }, [])
-
-    useEffect(() => {
         if (typeof window === "undefined") return () => {}
 
         const body = document.body
@@ -234,7 +185,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         ]}
                                     />
                                     <div className={classes.topRightBar}>
-                                        <Text>agenta</Text>
+                                        <Text>agenta v{version}</Text>
                                     </div>
                                 </Space>
                                 <ErrorBoundary FallbackComponent={ErrorFallback}>

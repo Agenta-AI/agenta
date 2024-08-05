@@ -156,7 +156,7 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
 
     return (
         <Drawer
-            width={600}
+            width={560}
             {...props}
             destroyOnClose
             closeIcon={null}
