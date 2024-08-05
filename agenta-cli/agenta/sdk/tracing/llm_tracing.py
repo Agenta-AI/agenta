@@ -25,7 +25,7 @@ from bson.objectid import ObjectId
 
 VARIANT_TRACKING_FEATURE_FLAG = False
 
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
+from agenta.sdk.utils.debug import debug
 
 
 logging.setLevel("DEBUG")
@@ -196,6 +196,14 @@ class Tracing(metaclass=SingletonMeta):
         tracing.trace_tags.extend(tags)
 
     @debug()
+    def is_trace_ready(self):
+        tracing = tracing_context.get()
+
+        are_spans_ready = [span.end_time is not None for span in tracing.spans.values()]
+
+        return all(are_spans_ready)
+
+    @debug()
     def close_trace(self) -> None:
         """
         Ends the active trace and sends the recorded spans for processing.
@@ -234,6 +242,7 @@ class Tracing(metaclass=SingletonMeta):
         name: str,
         spankind: str,
         input: Dict[str, Any],
+        active: bool = True,
         config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> CreateSpan:
@@ -270,7 +279,14 @@ class Tracing(metaclass=SingletonMeta):
         else:
             span.parent_span_id = tracing.active_span.id  # type: ignore
 
-        tracing.push(span)
+        tracing.spans[span.id] = span
+
+        if active:
+            tracing.active_span = span
+        else:
+            # DETACHED SPAN
+            pass
+
         ### --- TO BE CLEANED --- <<<
 
         logging.info(f"Opened  span  {span_id} {spankind.upper()}")
@@ -279,8 +295,7 @@ class Tracing(metaclass=SingletonMeta):
 
     @debug(req=True)
     def set_attributes(
-        self,
-        attributes: Dict[str, Any] = {},
+        self, attributes: Dict[str, Any] = {}, span_id: Optional[str] = None
     ) -> None:
         """
         Set attributes for the active span.
@@ -289,41 +304,31 @@ class Tracing(metaclass=SingletonMeta):
             attributes (Dict[str, Any], optional): A dictionary of attributes to set. Defaults to {}.
         """
 
-        tracing = tracing_context.get()
-
-        if tracing.active_span is None:
-            logging.error(f"Cannot set attributes ({set(attributes)}), no active span")
-            return
+        span = self._get_target_span(span_id)
 
         logging.info(
-            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} attributes={attributes}"
+            f"Setting span  {span.id} {span.spankind.upper()} attributes={attributes}"
         )
 
         for key, value in attributes.items():
-            tracing.active_span.attributes[key] = value  # type: ignore
+            span.attributes[key] = value  # type: ignore
 
     @debug()
-    def set_status(self, status: str) -> None:
+    def set_status(self, status: str, span_id: Optional[str] = None) -> None:
         """
         Set status for the active span.
 
         Args:
             status: Enum ( UNSET, OK, ERROR )
         """
-        tracing = tracing_context.get()
+        span = self._get_target_span(span_id)
 
-        if tracing.active_span is None:
-            logging.error(f"Cannot set status ({status}), no active span")
-            return
+        logging.info(f"Setting span  {span.id} {span.spankind.upper()} status={status}")
 
-        logging.info(
-            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} status={status}"
-        )
-
-        tracing.active_span.status = status
+        span.status = status
 
     @debug()
-    def close_span(self) -> None:
+    def close_span(self, span_id: Optional[str] = None) -> None:
         """
         Ends the active span, if it is a parent span, ends the trace too.
 
@@ -340,86 +345,76 @@ class Tracing(metaclass=SingletonMeta):
         Returns:
             None
         """
+        span = self._get_target_span(span_id)
 
-        tracing = tracing_context.get()
+        spankind = span.spankind
 
-        if tracing.active_span is None:
-            logging.error("Cannot close span, no active span")
-
-        span_id = tracing.active_span.id
-        spankind = tracing.active_span.spankind
-
-        logging.info(f"Closing span  {span_id} {spankind}")
+        logging.info(f"Closing span  {span.id} {spankind}")
 
         ### --- TO BE CLEANED --- >>>
-        tracing.active_span.end_time = datetime.now(timezone.utc)
+        span.end_time = datetime.now(timezone.utc)
 
         # TODO: Remove this whole part. Setting the cost should be done through set_span_attribute
-        if isinstance(tracing.active_span.outputs, dict):
-            self._update_span_cost(
-                tracing.active_span, tracing.active_span.outputs.get("cost", None)
-            )
-            self._update_span_tokens(
-                tracing.active_span, tracing.active_span.outputs.get("usage", None)
-            )
+        if isinstance(span.outputs, dict):
+            self._update_span_cost(span, span.outputs.get("cost", None))
+            self._update_span_tokens(span, span.outputs.get("usage", None))
 
-        active_span_parent_id = tracing.active_span.parent_span_id
+        span_parent_id = span.parent_span_id
 
-        if active_span_parent_id is not None:
-            parent_span = tracing.spans[active_span_parent_id]
-            self._update_span_cost(parent_span, tracing.active_span.cost)
-            self._update_span_tokens(parent_span, tracing.active_span.tokens)
-            tracing.active_span = parent_span
+        if span_parent_id is not None:
+            tracing = tracing_context.get()
+
+            parent_span = tracing.spans[span_parent_id]
+            self._update_span_cost(parent_span, span.cost)
+            self._update_span_tokens(parent_span, span.tokens)
+
+            if span_id is None:
+                tracing.active_span = parent_span
         ### --- TO BE CLEANED --- <<<
 
         logging.info(f"Closed  span  {span_id} {spankind}")
 
     @debug()
-    def store_internals(self, internals: Dict[str, Any] = {}) -> None:
+    def store_internals(
+        self, internals: Dict[str, Any] = {}, span_id: Optional[str] = None
+    ) -> None:
         """
         Set internals for the active span.
 
         Args:
             internals (Dict[str, Any], optional): A dictionary of local variables to set. Defaults to {}.
         """
-
-        tracing = tracing_context.get()
-
-        if tracing.active_span is None:
-            logging.error(f"Cannot set internals ({set(internals)}), no active span")
-            return
+        span = self._get_target_span(span_id)
 
         logging.info(
-            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} internals={internals}"
+            f"Setting span  {span.id} {span.spankind.upper()} internals={internals}"
         )
 
-        if tracing.active_span.internals is None:
-            tracing.active_span.internals = dict()
+        if span.internals is None:
+            span.internals = dict()
 
         for key, value in internals.items():
-            tracing.active_span.internals[key] = value  # type: ignore
+            span.internals[key] = value  # type: ignore
 
     @debug()
-    def store_outputs(self, outputs: Dict[str, Any] = {}) -> None:
+    def store_outputs(
+        self, outputs: Dict[str, Any] = {}, span_id: Optional[str] = None
+    ) -> None:
         """
         Set outputs for the active span.
 
         Args:
             outputs (Dict[str, Any], optional): A dictionary of output variables to set. Defaults to {}.
         """
-
-        tracing = tracing_context.get()
-
-        if tracing.active_span is None:
-            logging.error(f"Cannot set outputs ({set(outputs)}), no active span")
-            return
+        span = self._get_target_span(span_id)
 
         logging.info(
-            f"Setting span  {tracing.active_span.id} {tracing.active_span.spankind.upper()} outputs={outputs}"
+            f"Setting span  {span.id} {span.spankind.upper()} outputs={outputs}"
         )
 
-        tracing.active_span.outputs = outputs
+        span.outputs = outputs
 
+    @debug()
     def dump_trace(self):
         """
         Collects and organizes tracing information into a dictionary.
@@ -443,7 +438,10 @@ class Tracing(metaclass=SingletonMeta):
                     trace["usage"] = (
                         None if span.tokens is None else json.loads(span.tokens.json())
                     )
-                    trace["latency"] = (span.end_time - span.start_time).total_seconds()
+                    trace["latency"] = (
+                        (span.end_time if span.end_time else span.start_time)
+                        - span.start_time
+                    ).total_seconds()
 
             spans = (
                 []
@@ -525,6 +523,26 @@ class Tracing(metaclass=SingletonMeta):
 
         # return uuid4().hex[:16]
         return str(ObjectId())
+
+    def _get_target_span(self, span_id) -> CreateSpan:
+        tracing = tracing_context.get()
+
+        span = None
+
+        if span_id is None:
+            if tracing.active_span is None:
+                logging.error(f"Cannot set attributes, no active span")
+                return
+
+            span = tracing.active_span
+        else:
+            if span_id not in tracing.spans.keys():
+                logging.error(f"Cannot set attributes, span ({span_id}) not found")
+                return
+
+            span = tracing.spans[span_id]
+
+        return span
 
     def _process_spans(self) -> None:
         tracing = tracing_context.get()
