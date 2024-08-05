@@ -1,7 +1,7 @@
 import {getAppValues} from "@/contexts/app.context"
 import {Evaluation, EvaluationResponseType, GenericObject, Variant} from "./Types"
 import {EvaluationType} from "./enums"
-import {formatDate} from "./helpers/dateTimeHelper"
+import {formatDay} from "./helpers/dateTimeHelper"
 import {snakeToCamel} from "./helpers/utils"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
@@ -26,7 +26,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
 
     return {
         id: item.id,
-        createdAt: formatDate(item.created_at),
+        createdAt: formatDay(item.created_at),
         user: {
             id: item.user_id,
             username: item.user_username,
@@ -83,7 +83,7 @@ export const abTestingEvaluationTransformer = ({
     results: any
 }) => ({
     key: item.id,
-    createdAt: formatDate(item.created_at),
+    createdAt: formatDay(item.created_at),
     variants: item.variant_ids,
     variantNames: item.variant_names,
     votesData: results.votes_data,
