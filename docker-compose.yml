@@ -78,6 +78,7 @@ services:
             - AGENTA_AUTO_MIGRATIONS=false
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
           postgres:
