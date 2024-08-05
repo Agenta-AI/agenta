@@ -46,7 +46,7 @@ ag.config.default(
 )
 
 
-# @ag.instrument(spankind="EMBEDDING")
+@ag.instrument(spankind="EMBEDDING")
 def embed(description: str):
     response = openai.embeddings.create(
         input=description, model="text-embedding-ada-002"
@@ -60,7 +60,7 @@ def embed(description: str):
     }
 
 
-# @ag.instrument(spankind="SEARCH")
+@ag.instrument(spankind="SEARCH")
 def search(query: list, topk: int):
     embeddings = db["embedded_movies"]
 
@@ -82,7 +82,7 @@ def search(query: list, topk: int):
     return movies
 
 
-# @ag.instrument(spankind="MESSAGE")
+@ag.instrument(spankind="MESSAGE")
 async def chat(prompts: str, opts: dict):
     response = openai.chat.completions.create(
         model=opts["model"],
