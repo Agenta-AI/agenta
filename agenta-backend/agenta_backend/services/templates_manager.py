@@ -20,6 +20,7 @@ if isCloud() or isOss():
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
 docker_hub_url = os.getenv("DOCKER_HUB_URL")
+docker_hub_template_url = os.getenv("DOCKER_HUB_TEMPLATE_URL", f"{docker_hub_url}/tags")
 
 
 async def update_and_sync_templates(cache: bool = True) -> None:
@@ -86,7 +87,7 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await retrieve_templates_from_dockerhub(
-        docker_hub_url,
+        docker_hub_template_url,
         agenta_template_repo,
     )
     response_data = response["results"]
@@ -133,8 +134,8 @@ async def retrieve_templates_from_dockerhub(
 
     Args:
         url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
-            for the `repo_owner` and `repo_name` values to be inserted. For example:
-            `https://hub.docker.com/v2/repositories/{}/{}/tags`.
+            `repo_name` value to be inserted. For example:
+            `https://hub.docker.com/v2/repositories/{}/tags`.
         repo_name (str): The name of the repository where the templates are located.
 
     Returns:
@@ -142,7 +143,7 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(f"{url}/{repo_name}/tags", timeout=90)
+        response = await client.get("{url}".format(repo_name), timeout=90)
         if response.status_code == 200:
             response_data = response.json()
             return response_data
