@@ -31,7 +31,7 @@ The above command will create a script that contains the changes that was made t
 ### Applying Migrations
 
 ```bash
-alembic -c alembic.oss.ini upgrade head
+docker exec -w /app/agenta_backend/migrations/postgres agenta-backend-1 alembic -c alembic.oss.ini upgrade head
 ```
 
 The above command will be used to apply the changes in the script created to the database table(s).
