@@ -309,6 +309,7 @@ class entrypoint(BaseDecorator):
                         remaining_steps -= 1
 
                 trace = ag.tracing.dump_trace()
+                ag.tracing.flush_spans()
                 tracing_context.reset(token)
 
             if isinstance(result, Context):
