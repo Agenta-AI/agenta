@@ -68,12 +68,6 @@ class AgentaSingleton:
             api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
         )
 
-        print(api_key)
-        print(config.get("api_key"))
-        print(os.environ.get("AGENTA_API_KEY"))
-        print(self.api_key)
-        print(os.environ)
-
         if not self.app_id:
             raise ValueError(
                 "App ID must be specified. You can provide it in one of the following ways:\n"
