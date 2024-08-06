@@ -565,7 +565,7 @@ class entrypoint(BaseDecorator):
         print("-> data")
         print(json.dumps(result.data, indent=2))
         print("-> trace")
-        # print(json.dumps(result.trace, indent=2))
+        print(json.dumps(result.trace, indent=2))
 
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict
