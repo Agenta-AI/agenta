@@ -205,7 +205,7 @@ class entrypoint(BaseDecorator):
             ingestible_files,
         )
 
-        if route_path == "/":
+        if route_path == "":
             route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
@@ -625,6 +625,7 @@ class entrypoint(BaseDecorator):
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func}_{endpoint}_post"
         ]["properties"]
+
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):
                 subschema = find_in_schema(
