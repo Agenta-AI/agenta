@@ -161,7 +161,7 @@ class entrypoint(BaseDecorator):
             entrypoint.routes.append(
                 {
                     "func": func.__name__,
-                    "endpoint": DEFAULT_PATH,
+                    "endpoint": route,
                     "params": {**config_params, **func_signature.parameters},
                 }
             )
@@ -171,7 +171,7 @@ class entrypoint(BaseDecorator):
         entrypoint.routes.append(
             {
                 "func": func.__name__,
-                "endpoint": route[1:].replace("/", "_"),
+                "endpoint": route,
                 "params": {**config_params, **func_signature.parameters},
             }
         )
@@ -635,6 +635,9 @@ class entrypoint(BaseDecorator):
                 print("ERROR, unhandled annotation:", annotation)
 
             return param_type
+
+        # Goes from '/some/path' to 'some_path'
+        endpoint = endpoint[1:].replace("/", "_")
 
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func}_{endpoint}_post"
