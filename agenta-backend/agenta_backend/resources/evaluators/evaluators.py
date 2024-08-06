@@ -48,6 +48,22 @@ evaluators = [
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
     },
     {
+        "name": "Semantic Similarity Match",
+        "key": "auto_semantic_similarity",
+        "direct_use": False,
+        "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+    },
+    {
         "name": "Regex Test",
         "key": "auto_regex_test",
         "direct_use": False,
@@ -92,6 +108,43 @@ evaluators = [
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
     },
     {
+        "name": "JSON Diff Match",
+        "key": "auto_json_diff",
+        "direct_use": False,
+        "description": "JSON Diff evaluator compares two JSON objects to identify differences. It highlights discrepancies, additions, deletions, and modifications between the objects, providing a clear report of how they differ.",
+        "settings_template": {
+            "compare_schema_only": {
+                "label": "Compare Schema Only",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will compare the keys and the values type. Otherwise, we will compare the keys, the values and the values type.",
+            },
+            "predict_keys": {
+                "label": "Include prediction keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will check the reference (ground truth) keys. Othwerise, we will check both the reference (ground truth) and prediction (app output) keys.",
+            },
+            "case_insensitive_keys": {
+                "label": "Enable Case-sensitive keys",
+                "type": "boolean",
+                "default": False,
+                "advanced": True,
+                "description": "If set to True, we will treat keys as case-insensitive, meaning 'key', 'Key', and 'KEY' would all be considered equivalent. Otherwise, we will not.",
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
+    },
+    {
         "name": "AI Critique",
         "key": "auto_ai_critique",
         "direct_use": False,
@@ -122,10 +175,18 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
+                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str, # output of the llm app\n    datapoint: Dict[str, str] # contains the testset row \n) -> float:\n    if output in datapoint.get('correct_answer', None):\n        return 1.0\n    else:\n        return 0.0\n",
                 "description": "Code for evaluating submissions",
                 "required": True,
-            }
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
+            },
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
     },
@@ -149,7 +210,7 @@ evaluators = [
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
-        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response indicating the correctness of the answer. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
+        "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response, in JSON format, indicating the correctness of the answer, along with a 200 HTTP status. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
     },
     {
         "name": "Starts With",

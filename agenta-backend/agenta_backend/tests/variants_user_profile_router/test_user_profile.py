@@ -1,8 +1,11 @@
 import os
+
 import httpx
 import pytest
+from sqlalchemy.future import select
 
 from agenta_backend.models.db_models import UserDB
+from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.api.user_models import User
 
 
@@ -20,15 +23,25 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_user_profile():
-    user_db = await UserDB.find_one(UserDB.uid == "0")
-    user_db_dict = User(
-        id=str(user_db.id),
-        uid=str(user_db.uid),
-        username=str(user_db.username),
-        email=str(user_db.email),
-    ).dict(exclude_unset=True)
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(UserDB).filter_by(uid="0"))
+        user_db = result.scalars().first()
+        if not user_db:
+            assert False
 
-    response = await test_client.get(f"{BACKEND_API_HOST}/profile/")
+        user_db_dict = User(
+            id=str(user_db.id),
+            uid=str(user_db.uid),
+            username=str(user_db.username),
+            email=str(user_db.email),
+            created_at=str(user_db.created_at),
+            updated_at=str(user_db.updated_at),
+        ).dict(exclude_unset=True)
 
-    assert response.status_code == 200
-    assert response.json() == user_db_dict
+        response = await test_client.get(f"{BACKEND_API_HOST}/profile/")
+
+        assert response.status_code == 200
+        assert response.json()["id"] == user_db_dict["id"]
+        assert response.json()["uid"] == user_db_dict["uid"]
+        assert response.json()["email"] == user_db_dict["email"]
+        assert response.json()["username"] == user_db_dict["username"]
