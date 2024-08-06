@@ -17,6 +17,9 @@ from ...types.span_detail import SpanDetail
 from ...types.trace_detail import TraceDetail
 from ...types.with_pagination import WithPagination
 
+from agenta.sdk.tracing.logger import llm_logger as logging
+
+
 try:
     import pydantic.v1 as pydantic  # type: ignore
 except ImportError:
@@ -769,6 +772,14 @@ class AsyncObservabilityClient:
             ],
         )
         """
+
+        logging.debug("----")
+        logging.debug(
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/trace/"
+            ),
+        )
+        logging.debug(self._client_wrapper.get_headers())
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(

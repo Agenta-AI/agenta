@@ -107,7 +107,12 @@ async def start_variant(
                 expiration_date=None,
                 hidden=True,
             )
+            print("---")
+            print(api_key)
+            print(env_vars)
             env_vars.update({"AGENTA_API_KEY": api_key})
+            print(env_vars)
+            print("---")
 
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
