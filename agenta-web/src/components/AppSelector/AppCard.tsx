@@ -1,54 +1,53 @@
-import {Modal, Card, Avatar} from "antd"
-import {DeleteOutlined} from "@ant-design/icons"
+import {Modal, Card, Dropdown, Button, Typography, Tag} from "antd"
+import {MoreOutlined} from "@ant-design/icons"
 import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
-import {ListAppsItem} from "@/lib/Types"
+import {JSSTheme, ListAppsItem} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
+import {Note, PencilLine, Trash} from "@phosphor-icons/react"
+import {useRouter} from "next/router"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
 
-const useStyles = createUseStyles({
+const {Text} = Typography
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
         width: 300,
-        height: 120,
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
-        overflow: "hidden",
-        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
-        "& svg": {
-            color: "#ef4146",
+        transition: "all 0.3s ease-in",
+        "& > .ant-card-head": {
+            minHeight: 0,
+            padding: theme.paddingSM,
+
+            "& .ant-card-head-title": {
+                fontSize: theme.fontSizeLG,
+                fontWeight: 500,
+            },
         },
-        "& .ant-card-meta": {
-            height: "110%",
+        "& > .ant-card-body": {
+            padding: theme.paddingSM,
+        },
+        "&:hover": {
+            boxShadow: theme.boxShadow,
+        },
+    },
+    app_card_link: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+        "& > div": {
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
+            textDecoration: "none",
+            color: theme.colorText,
         },
-        "& .ant-card-meta-title div": {
-            textAlign: "center",
-        },
     },
-    cardCover: {
-        "z-index": 1,
-        position: "absolute",
-        top: 0,
-        right: 0,
-        left: 0,
-        background: "transparent",
-        margin: "auto",
-        width: "300px",
-        height: "70px",
-        display: "flex",
-        overflow: "hidden",
-        "flex-direction": "column",
-        "justify-content": "space-between",
-    },
-    cardLink: {
-        padding: "24px",
-    },
-})
+}))
 
 const DeleteModal: React.FC<{
     open: boolean
@@ -78,10 +77,7 @@ const AppCard: React.FC<{
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false)
     const {mutate} = useAppsData()
-
-    const showDeleteModal = () => {
-        setVisibleDelete(true)
-    }
+    const router = useRouter()
 
     const handleDeleteOk = async () => {
         setConfirmLoading(true)
@@ -107,20 +103,53 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
+                title={renameVariablesCapitalizeAll(app.app_name)}
+                extra={
+                    <Dropdown
+                        trigger={["hover"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "open_app",
+                                    label: "Open",
+                                    icon: <Note size={16} />,
+                                    onClick: () => router.push(`/apps/${app.app_id}/overview`),
+                                },
+
+                                {type: "divider"},
+                                {
+                                    key: "rename_app",
+                                    label: "Rename",
+                                    icon: <PencilLine size={16} />,
+                                },
+                                {
+                                    key: "delete_app",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: () => setVisibleDelete(true),
+                                },
+                            ],
+                        }}
+                    >
+                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                    </Dropdown>
+                }
             >
-                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/overview`}>
-                    <Card.Meta
-                        title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
-                        avatar={
-                            <Avatar
-                                size="large"
-                                style={{backgroundColor: "hsl(150, 52%, 62%)"}} // Example: blue in HSL
-                            >
-                                {app.app_name.charAt(0).toUpperCase()}
-                            </Avatar>
-                        }
-                    />
+                <Link
+                    data-cy="app-card-link"
+                    href={`/apps/${app.app_id}/overview`}
+                    className={classes.app_card_link}
+                >
+                    <div>
+                        <Text>Type</Text>
+                        <Tag className="mr-0">Single Prompt</Tag>
+                    </div>
+                    <div>
+                        <Text>Last modified:</Text>
+                        <Text>{formatDay("2024-08-05T22:32:19.593503Z")}</Text>
+                    </div>
                 </Link>
             </Card>
 
