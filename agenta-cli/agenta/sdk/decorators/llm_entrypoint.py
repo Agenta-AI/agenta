@@ -327,9 +327,8 @@ class entrypoint(BaseDecorator):
                 # DEFAULT_KEY = "message"
 
                 if "message" in result.keys():
-                    if "cost" in result.keys() or "usage" in result.keys():
-                        data = {DEFAULT_KEY: result["message"]}
-                # END OF PATH
+                    data = {DEFAULT_KEY: result["message"]}
+                # END OF PATCH
 
             elif isinstance(result, str):
                 data = {DEFAULT_KEY: result}
