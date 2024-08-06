@@ -1,9 +1,9 @@
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {JSSTheme, Variant} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
-import {MoreOutlined} from "@ant-design/icons"
+import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUp, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Spin, Table, Typography} from "antd"
+import {Button, Dropdown, Space, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -177,10 +177,15 @@ const VariantsOverview = () => {
             <div className="flex items-center justify-between">
                 <Title>Variants</Title>
 
-                <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
-                    <Rocket size={14} />
-                    Playground
-                </Link>
+                <Space>
+                    <Button size="small" type="link" icon={<SwapOutlined />}>
+                        Compare variants
+                    </Button>
+                    <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
+                        <Rocket size={14} />
+                        Playground
+                    </Link>
+                </Space>
             </div>
 
             <Spin spinning={isVariantLoading}>
@@ -191,6 +196,7 @@ const VariantsOverview = () => {
                         ...rowSelection,
                     }}
                     className="ph-no-capture"
+                    rowKey={"variantId"}
                     columns={columns}
                     dataSource={variantList}
                     scroll={{x: true}}

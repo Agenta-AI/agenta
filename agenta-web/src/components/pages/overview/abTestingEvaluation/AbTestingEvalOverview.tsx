@@ -6,10 +6,14 @@ import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {abTestingEvaluationTransformer} from "@/lib/transformers"
 import {JSSTheme} from "@/lib/Types"
-import {fetchAllLoadEvaluations, fetchEvaluationResults} from "@/services/human-evaluations/api"
+import {
+    deleteEvaluations,
+    fetchAllLoadEvaluations,
+    fetchEvaluationResults,
+} from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
-import {Avatar, Button, Dropdown, Space, Spin, Statistic, Table, Typography} from "antd"
+import {Avatar, Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
@@ -86,9 +90,12 @@ const AbTestingEvalOverview = () => {
                         .catch((err) => console.error(err))
                 })
 
-                const results = (await Promise.all(fetchPromises)).filter(
-                    (evaluation) => evaluation !== undefined,
-                )
+                const results = (await Promise.all(fetchPromises))
+                    .filter((evaluation) => evaluation !== undefined)
+                    // shortend array to have 5 items (length 5)
+                    .slice(0, 5)
+                    // reverse array to have from new to old
+                    .reverse()
 
                 setEvaluationsList(results)
             } catch (error) {
@@ -105,7 +112,20 @@ const AbTestingEvalOverview = () => {
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
-    const handleDeleteEvaluation = async (record: HumanEvaluationListTableDataType) => {}
+    const handleDeleteEvaluation = async (record: HumanEvaluationListTableDataType) => {
+        try {
+            setFetchingEvaluations(true)
+            await deleteEvaluations([record.key])
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => ![record.key].includes(evaluation.key)),
+            )
+            message.success("Evaluation Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetchingEvaluations(false)
+        }
+    }
 
     const columns: ColumnsType<HumanEvaluationListTableDataType> = [
         {
@@ -341,24 +361,20 @@ const AbTestingEvalOverview = () => {
     return (
         <div className={classes.container}>
             <div className="flex items-center justify-between">
-                <Title>A/B Testing Evaluations</Title>
-
                 <Space>
-                    <Button
-                        icon={<PlusOutlined />}
-                        size="small"
-                        onClick={() => router.push(`/apps/${appId}/annotations/human_a_b_testing`)}
-                    >
-                        Start New
-                    </Button>
-                    <Button
-                        type="text"
-                        size="small"
-                        href={`/apps/${appId}/annotations/human_a_b_testing`}
-                    >
-                        View All
+                    <Title>A/B Testing Evaluations</Title>
+                    <Button size="small" href={`/apps/${appId}/annotations/human_a_b_testing`}>
+                        View all
                     </Button>
                 </Space>
+
+                <Button
+                    icon={<PlusOutlined />}
+                    size="small"
+                    onClick={() => router.push(`/apps/${appId}/annotations/human_a_b_testing`)}
+                >
+                    Create new
+                </Button>
             </div>
 
             <Spin spinning={fetchingEvaluations}>
