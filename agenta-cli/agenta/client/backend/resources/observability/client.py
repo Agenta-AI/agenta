@@ -772,14 +772,6 @@ class AsyncObservabilityClient:
             ],
         )
         """
-
-        logging.debug("----")
-        logging.debug(
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/trace/"
-            ),
-        )
-        logging.debug(self._client_wrapper.get_headers())
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
