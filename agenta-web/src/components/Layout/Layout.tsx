@@ -16,7 +16,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
 import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
-import {version} from "../../../package.json"
+import packageJsonData from "../../../package.json"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -185,7 +185,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         ]}
                                     />
                                     <div className={classes.topRightBar}>
-                                        <Text>agenta v{version}</Text>
+                                        <Text>agenta v{packageJsonData.version}</Text>
                                     </div>
                                 </Space>
                                 <ErrorBoundary FallbackComponent={ErrorFallback}>

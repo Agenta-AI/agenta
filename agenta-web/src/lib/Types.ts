@@ -39,6 +39,7 @@ export interface Variant {
     baseId: string
     baseName: string
     configName: string
+    revision: number
 }
 
 // Define the interface for the tabs item in playground page
@@ -496,7 +497,7 @@ export type StyleProps = {
 
 export interface SingleModelEvaluationListTableDataType {
     key: string
-    variants: string[]
+    variants: Variant[]
     testset: {
         _id: string
         name: string
