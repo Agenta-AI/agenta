@@ -1,11 +1,13 @@
-import {JSSTheme} from "@/lib/Types"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {JSSTheme, Variant} from "@/lib/Types"
+import {fetchVariants} from "@/services/api"
 import {MoreOutlined} from "@ant-design/icons"
-import {GearSix, Rocket} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Typography} from "antd"
+import {CloudArrowUp, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
-import React from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const {Title} = Typography
@@ -38,41 +40,127 @@ const VariantsOverview = () => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
+    const [variantList, setVariantList] = useState<Variant[]>([])
+    const [isVariantLoading, setIsVariantLoading] = useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
-    const columns: ColumnsType<any> = [
+    const rowSelection = {
+        onChange: (selectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(selectedRowKeys)
+        },
+    }
+
+    useEffect(() => {
+        const fetchOverviewVariants = async () => {
+            try {
+                setIsVariantLoading(true)
+                const data = await fetchVariants(appId)
+                setVariantList(data)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setIsVariantLoading(false)
+            }
+        }
+
+        fetchOverviewVariants()
+    }, [appId])
+
+    const handleNavigation = (variantName: string, revisionNum: number) => {
+        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
+    const handleDeleteEvaluation = async (record: Variant) => {}
+
+    const columns: ColumnsType<Variant> = [
         {
             title: "Name",
+            dataIndex: "variant_name",
+            key: "variant_name",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
+                return (
+                    <span>
+                        {variantNameWithRev({
+                            variant_name: record.variantName,
+                            revision: record.revision,
+                        })}
+                    </span>
+                )
+            },
         },
         {
-            title: "Tokens",
+            title: "Last modified",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
         },
         {
-            title: "Cost",
+            title: "Modified by",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
         },
         {
-            title: "Latency",
+            title: "Tags",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
         },
         {
-            title: "Created At",
+            title: "Model",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+        },
+        {
+            title: "Created on",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
         },
         {
             title: <GearSix size={16} />,
-            key: "settings",
-            width: 50,
-            render: () => {
+            key: "key",
+            width: 56,
+            fixed: "right",
+            render: (_, record) => {
                 return (
                     <Dropdown
-                        trigger={["hover"]}
+                        trigger={["click"]}
                         menu={{
                             items: [
                                 {
-                                    key: "change_variant",
-                                    label: "Change Variant",
+                                    key: "details",
+                                    label: "Open details",
+                                    icon: <Note size={16} />,
                                 },
-
                                 {
-                                    key: "open_playground",
+                                    key: "open_variant",
                                     label: "Open in playground",
+                                    icon: <Rocket size={16} />,
+                                    onClick: () =>
+                                        handleNavigation(record.variantName, record.revision),
+                                },
+                                {
+                                    key: "deploy",
+                                    label: "Deploy",
+                                    icon: <CloudArrowUp size={16} />,
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "rename",
+                                    label: "Rename",
+                                    icon: <PencilLine size={16} />,
+                                },
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: () => handleDeleteEvaluation(record),
                                 },
                             ],
                         }}
@@ -95,9 +183,19 @@ const VariantsOverview = () => {
                 </Link>
             </div>
 
-            <div>
-                <Table className="ph-no-capture" columns={columns} dataSource={[]} />
-            </div>
+            <Spin spinning={isVariantLoading}>
+                <Table
+                    rowSelection={{
+                        type: "checkbox",
+                        columnWidth: 48,
+                        ...rowSelection,
+                    }}
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={variantList}
+                    scroll={{x: true}}
+                />
+            </Spin>
         </div>
     )
 }

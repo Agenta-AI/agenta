@@ -1,14 +1,15 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import {EvaluationType} from "@/lib/enums"
+import {getColorFromStr} from "@/lib/helpers/colors"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {isDemo} from "@/lib/helpers/utils"
+import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {abTestingEvaluationTransformer} from "@/lib/transformers"
 import {JSSTheme} from "@/lib/Types"
 import {fetchAllLoadEvaluations, fetchEvaluationResults} from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {GearSix} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Statistic, Table, Typography} from "antd"
+import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {Avatar, Button, Dropdown, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
@@ -85,9 +86,9 @@ const AbTestingEvalOverview = () => {
                         .catch((err) => console.error(err))
                 })
 
-                const results = (await Promise.all(fetchPromises))
-                    .filter((evaluation) => evaluation !== undefined)
-                    .slice(0, 5)
+                const results = (await Promise.all(fetchPromises)).filter(
+                    (evaluation) => evaluation !== undefined,
+                )
 
                 setEvaluationsList(results)
             } catch (error) {
@@ -104,40 +105,23 @@ const AbTestingEvalOverview = () => {
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
+    const handleDeleteEvaluation = async (record: HumanEvaluationListTableDataType) => {}
+
     const columns: ColumnsType<HumanEvaluationListTableDataType> = [
-        {
-            title: "Test set",
-            dataIndex: "testsetName",
-            key: "testsetName",
-            render: (_, record: HumanEvaluationListTableDataType, index: number) => {
-                return <span>{record.testset.name}</span>
-            },
-        },
         {
             title: "Variant 1",
             dataIndex: "variantNames",
             key: "variant1",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
             render: (value, record) => {
-                const percentage = getVotesPercentage(record, 0)
                 return (
                     <div>
-                        <Statistic
-                            className={classes.stat}
-                            value={percentage}
-                            precision={percentage <= 99 ? 2 : 1}
-                            suffix="%"
-                        />
-                        <div
-                            style={{cursor: "pointer"}}
-                            onClick={() => handleNavigation(value[0], record.revisions[0])}
-                        >
-                            (
-                            {variantNameWithRev({
-                                variant_name: value[0],
-                                revision: record.revisions[0],
-                            })}
-                            )
-                        </div>
+                        {variantNameWithRev({
+                            variant_name: value[0],
+                            revision: record.revisions[0],
+                        })}
                     </div>
                 )
             },
@@ -146,27 +130,56 @@ const AbTestingEvalOverview = () => {
             title: "Variant 2",
             dataIndex: "variantNames",
             key: "variant2",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
             render: (value, record) => {
-                const percentage = getVotesPercentage(record, 1)
                 return (
                     <div>
+                        {variantNameWithRev({
+                            variant_name: value[1],
+                            revision: record.revisions[1],
+                        })}
+                    </div>
+                )
+            },
+        },
+        {
+            title: "Test set",
+            dataIndex: "testsetName",
+            key: "testsetName",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record: HumanEvaluationListTableDataType, index: number) => {
+                return <span>{record.testset.name}</span>
+            },
+        },
+        {
+            title: "Results",
+            key: "results",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record: HumanEvaluationListTableDataType) => {
+                const stat1 = getVotesPercentage(record, 0)
+                const stat2 = getVotesPercentage(record, 1)
+
+                return (
+                    <div className="flex items-center gap-2">
                         <Statistic
                             className={classes.stat}
-                            value={percentage}
-                            precision={percentage <= 99 ? 2 : 1}
+                            value={stat1}
+                            precision={stat1 <= 99 ? 2 : 1}
                             suffix="%"
                         />
-                        <div
-                            style={{cursor: "pointer"}}
-                            onClick={() => handleNavigation(value[1], record.revisions[1])}
-                        >
-                            (
-                            {variantNameWithRev({
-                                variant_name: value[1],
-                                revision: record.revisions[1],
-                            })}
-                            )
-                        </div>
+                        |
+                        <Statistic
+                            className={classes.stat}
+                            value={stat2}
+                            precision={stat2 <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
                     </div>
                 )
             },
@@ -175,7 +188,10 @@ const AbTestingEvalOverview = () => {
             title: "Both are good",
             dataIndex: "positive",
             key: "positive",
-            render: (value: any, record: HumanEvaluationListTableDataType) => {
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.positive_votes.percentage
                 return (
                     <span>
@@ -193,6 +209,9 @@ const AbTestingEvalOverview = () => {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
             render: (value: any, record: HumanEvaluationListTableDataType) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
@@ -214,34 +233,99 @@ const AbTestingEvalOverview = () => {
             title: "User",
             dataIndex: ["user", "username"],
             key: "username",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record: any) => {
+                return (
+                    <Space>
+                        <Avatar
+                            size={"small"}
+                            style={{
+                                backgroundColor: getColorFromStr(record.user.id),
+                                color: "#fff",
+                            }}
+                        >
+                            {getInitials(record.user.username)}
+                        </Avatar>
+                        <Typography.Text>{record.user.username}</Typography.Text>
+                    </Space>
+                )
+            },
         })
     }
 
     columns.push(
-        ...[
+        ...([
             {
-                title: "Created at",
+                title: "Created on",
                 dataIndex: "createdAt",
                 key: "createdAt",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
             },
             {
                 title: <GearSix size={16} />,
-                key: "settings",
-                width: 50,
-                render: () => {
+                key: "key",
+                width: 56,
+                fixed: "right",
+                render: (_: any, record: HumanEvaluationListTableDataType) => {
                     return (
                         <Dropdown
-                            trigger={["hover"]}
+                            trigger={["click"]}
                             menu={{
                                 items: [
                                     {
-                                        key: "change_variant",
-                                        label: "Change Variant",
+                                        key: "details",
+                                        label: "Open details",
+                                        icon: <Note size={16} />,
+                                        onClick: () =>
+                                            router.push(
+                                                `/apps/${appId}/annotations/single_model_test/${record.key}`,
+                                            ),
                                     },
-
                                     {
-                                        key: "open_playground",
-                                        label: "Open in playground",
+                                        key: "variant1",
+                                        label: "View variant 1",
+                                        icon: <Rocket size={16} />,
+                                        onClick: () =>
+                                            handleNavigation(
+                                                record.variantNames[0],
+                                                record.revisions[0],
+                                            ),
+                                    },
+                                    {
+                                        key: "variant2",
+                                        label: "View variant 2",
+                                        icon: <Rocket size={16} />,
+                                        onClick: () =>
+                                            handleNavigation(
+                                                record.variantNames[1],
+                                                record.revisions[1],
+                                            ),
+                                    },
+                                    {
+                                        key: "view_testset",
+                                        label: "View test set",
+                                        icon: <Database size={16} />,
+                                        onClick: () =>
+                                            router.push(
+                                                `/apps/${appId}/testsets/${record.testset._id}`,
+                                            ),
+                                    },
+                                    {type: "divider"},
+                                    {
+                                        key: "rerun_eval",
+                                        label: "Re-run evaluation",
+                                        icon: <ArrowsClockwise size={16} />,
+                                    },
+                                    {
+                                        key: "delete_eval",
+                                        label: "Delete",
+                                        icon: <Trash size={16} />,
+                                        danger: true,
+                                        onClick: () => handleDeleteEvaluation(record),
                                     },
                                 ],
                             }}
@@ -251,7 +335,7 @@ const AbTestingEvalOverview = () => {
                     )
                 },
             },
-        ],
+        ] as any),
     )
 
     return (
@@ -278,7 +362,12 @@ const AbTestingEvalOverview = () => {
             </div>
 
             <Spin spinning={fetchingEvaluations}>
-                <Table className="ph-no-capture" columns={columns} dataSource={evaluationsList} />
+                <Table
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                    scroll={{x: true}}
+                />
             </Spin>
         </div>
     )
