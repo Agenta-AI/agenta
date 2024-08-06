@@ -1,10 +1,13 @@
 import os
+import asyncio
 import logging
+import traceback
 
 import click
 import asyncpg
 from sqlalchemy.exc import ProgrammingError
 
+from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect, text
 from alembic.script import ScriptDirectory
@@ -48,11 +51,6 @@ def is_initial_setup(engine) -> bool:
 
     # Check if all required tables exist in the database
     all_tables_exist = all(table in existing_tables for table in required_tables)
-
-    # Log the status of the tables
-    logger.info(f"Required tables: {required_tables}")
-    logger.info(f"Existing tables: {existing_tables}")
-    logger.info(f"All tables exist: {all_tables_exist}")
 
     return not all_tables_exist
 
@@ -105,6 +103,44 @@ async def get_pending_migrations():
     return pending_migrations
 
 
+def run_alembic_migration():
+    """
+    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
+    """
+
+    try:
+        pending_migrations = asyncio.run(get_pending_migrations())
+        APPLY_AUTO_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
+        FIRST_TIME_USER = True if "alembic_version" in pending_migrations else False
+
+        if FIRST_TIME_USER or APPLY_AUTO_MIGRATIONS == "true":
+            command.upgrade(alembic_cfg, "head")
+            click.echo(
+                click.style(
+                    "\nMigration applied successfully. The container will now exit.",
+                    fg="green",
+                ),
+                color=True,
+            )
+        else:
+            click.echo(
+                click.style(
+                    "\nAll migrations are up-to-date. The container will now exit.",
+                    fg="yellow",
+                ),
+                color=True,
+            )
+    except Exception as e:
+        click.echo(
+            click.style(
+                f"\nAn ERROR occured while applying migration: {traceback.format_exc()}\nThe container will now exit.",
+                fg="red",
+            ),
+            color=True,
+        )
+        raise e
+
+
 async def check_for_new_migrations():
     """
     Checks for new migrations and notify the user.
@@ -114,7 +150,7 @@ async def check_for_new_migrations():
     if len(pending_migrations) >= 1:
         click.echo(
             click.style(
-                f"\nWe have detected that there are pending database migrations {pending_migrations} that need to be applied to keep your system up to date. \nTo ensure your application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
+                f"\nWe have detected that there are pending database migrations {pending_migrations} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
                 fg="yellow",
             ),
             color=True,
