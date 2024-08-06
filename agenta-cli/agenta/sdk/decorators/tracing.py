@@ -65,7 +65,22 @@ class instrument(BaseDecorator):
                 ):
                     result = await func(*args, **kwargs)
 
-                    ag.tracing.store_outputs(result)
+                    outputs = result
+
+                    # EVENTUALLY THIS PATCH SHOULD BE REMOVED
+                    # PATCH : if result is not a dict, make it a dict, in span
+                    DEFAULT_KEY = "default"
+
+                    if not isinstance(result, dict):
+                        value = result
+
+                        if result.__class__.__module__ != "__builtin__":
+                            value = repr(value)
+
+                        outputs = {DEFAULT_KEY: result}
+                    # END OF PATH
+
+                    ag.tracing.store_outputs(outputs)
 
                     return result
 
@@ -82,7 +97,22 @@ class instrument(BaseDecorator):
                 ):
                     result = func(*args, **kwargs)
 
-                    ag.tracing.store_outputs(result)
+                    outputs = result
+
+                    # EVENTUALLY THIS PATCH SHOULD BE REMOVED
+                    # PATCH : if result is not a dict, make it a dict, in span
+                    DEFAULT_KEY = "default"
+
+                    if not isinstance(result, dict):
+                        value = result
+
+                        if result.__class__.__module__ != "__builtin__":
+                            value = repr(value)
+
+                        outputs = {DEFAULT_KEY: result}
+                    # END OF PATH
+
+                    ag.tracing.store_outputs(outputs)
 
                     return result
 

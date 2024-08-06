@@ -226,6 +226,8 @@ class entrypoint(BaseDecorator):
             )
         ### ---------------------- #
 
+        print(entrypoint.routes)
+
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
@@ -315,12 +317,24 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Context):
                 save_context(result)
 
+            DEFAULT_KEY = "message"
+
             if isinstance(result, Dict):
                 data = result
+
+                # EVENTUALLY THIS PATCH SHOULD BE REMOVED
+                # PATCH: if message in result then only keep message key/value
+                # DEFAULT_KEY = "message"
+
+                if "message" in result.keys():
+                    if "cost" in result.keys() or "usage" in result.keys():
+                        data = {DEFAULT_KEY: result["message"]}
+                # END OF PATH
+
             elif isinstance(result, str):
-                data = {"message": result}
+                data = {DEFAULT_KEY: result}
             elif isinstance(result, int) or isinstance(result, float):
-                data = {"message": str(result)}
+                data = {DEFAULT_KEY: str(result)}
 
             if data is None:
                 warning = (
@@ -537,7 +551,7 @@ class entrypoint(BaseDecorator):
         print("-> data")
         print(json.dumps(result.data, indent=2))
         print("-> trace")
-        print(json.dumps(result.trace, indent=2))
+        # print(json.dumps(result.trace, indent=2))
 
     def override_schema(
         self, openapi_schema: dict, func: str, endpoint: str, params: dict
