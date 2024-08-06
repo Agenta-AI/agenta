@@ -141,7 +141,11 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func,
+                True,  # inline trace: True
+                *args,
+                params=func_params,
+                config_params=config_params,
             )
 
             return entrypoint_result
@@ -194,7 +198,11 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func,
+                False,  # inline trace: False
+                *args,
+                params=func_params,
+                config_params=config_params,
             )
 
             return entrypoint_result
@@ -274,7 +282,9 @@ class entrypoint(BaseDecorator):
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
-    async def execute_function(self, func: Callable[..., Any], *args, **func_params):
+    async def execute_function(
+        self, func: Callable[..., Any], inline_trace, *args, **func_params
+    ):
         """Execute the function and handle any exceptions."""
 
         try:
@@ -311,6 +321,10 @@ class entrypoint(BaseDecorator):
                         remaining_steps -= 1
 
                 trace = ag.tracing.dump_trace()
+
+                if not inline_trace:
+                    trace = {"trace_id": trace["trace_id"]}
+
                 ag.tracing.flush_spans()
                 tracing_context.reset(token)
 
@@ -327,9 +341,8 @@ class entrypoint(BaseDecorator):
                 # DEFAULT_KEY = "message"
 
                 if "message" in result.keys():
-                    if "cost" in result.keys() or "usage" in result.keys():
-                        data = {DEFAULT_KEY: result["message"]}
-                # END OF PATH
+                    data = {DEFAULT_KEY: result["message"]}
+                # END OF PATCH
 
             elif isinstance(result, str):
                 data = {DEFAULT_KEY: result}
@@ -542,6 +555,7 @@ class entrypoint(BaseDecorator):
         result = loop.run_until_complete(
             self.execute_function(
                 func,
+                True,  # inline trace: True
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
