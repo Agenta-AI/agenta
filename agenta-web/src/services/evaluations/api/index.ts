@@ -14,6 +14,7 @@ import {
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
 import {stringToNumberInRange} from "@/lib/helpers/utils"
+import {v4 as uuidv4} from "uuid"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"
@@ -21,9 +22,7 @@ import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
-import dayjs from "dayjs"
-import {loadTestset} from "@/lib/services/api"
-import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
+import {fetchTestset} from "@/services/testsets/api"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
 import _ from "lodash"
 
@@ -42,6 +41,8 @@ const evaluatorIconsMap = {
     auto_webhook_test: webhookImg,
     auto_ai_critique: aiImg,
     auto_custom_code_run: codeImg,
+    auto_json_diff: bracketCurlyImg,
+    auto_semantic_similarity: similarityImg,
     auto_contains_json: bracketCurlyImg,
 }
 
@@ -213,7 +214,7 @@ export const updateAnnotationScenario = async (
 // Comparison
 export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
-    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation?.testset?.id)
+    const testset: TestSet = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
     scenarioGroups.forEach((group) => {
@@ -241,6 +242,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
 
         rows.push({
             id: inputValuesStr,
+            rowId: uuidv4(),
             inputs: inputNames
                 .map((name) => ({name, value: data[name]}))
                 .filter((ip) => ip.value !== undefined),

@@ -26,16 +26,6 @@ class AgentaSingleton:
             cls._instance = super(AgentaSingleton, cls).__new__(cls)
         return cls._instance
 
-    @property
-    def client(self):
-        """API Backend client.
-
-        Returns:
-            AgentaAPI: instance of agenta api backend
-        """
-
-        return AgentaApi(base_url=self.host + "/api", api_key=self.api_key)
-
     def init(
         self,
         app_id: Optional[str] = None,
@@ -91,11 +81,11 @@ class AgentaSingleton:
                 "Warning: Your configuration will not be saved permanently since base_id is not provided."
             )
 
-        self.config = Config(base_id=self.base_id, host=self.host)  # type: ignore
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: str = ""):
+    def __init__(self, base_id: str, host: str, api_key: Optional[str] = ""):
         self.base_id = base_id
         self.host = host
 
@@ -103,7 +93,9 @@ class Config:
             self.persist = False
         else:
             self.persist = True
-            self.client = AgentaApi(base_url=self.host + "/api", api_key=api_key)
+            self.client = AgentaApi(
+                base_url=self.host + "/api", api_key=api_key if api_key else ""
+            )
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
@@ -247,6 +239,7 @@ def init(
     singleton = AgentaSingleton()
 
     singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
+
     tracing = Tracing(
         host=singleton.host,  # type: ignore
         app_id=singleton.app_id,  # type: ignore

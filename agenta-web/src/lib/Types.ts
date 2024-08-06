@@ -377,6 +377,7 @@ export enum EvaluationStatus {
     FINISHED = "EVALUATION_FINISHED",
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
+    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
 }
 
 export enum EvaluationStatusType {
@@ -487,4 +488,8 @@ export type WithPagination<T> = {
 export type PaginationQuery = {
     page: number
     pageSize: number
+}
+
+export type StyleProps = {
+    themeMode: "dark" | "light"
 }

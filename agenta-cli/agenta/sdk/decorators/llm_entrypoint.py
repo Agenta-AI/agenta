@@ -18,6 +18,7 @@ from fastapi import Body, FastAPI, UploadFile, HTTPException
 import agenta
 from agenta.sdk.context import save_context
 from agenta.sdk.router import router as router
+from agenta.sdk.tracing.logger import llm_logger as logging
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.sdk.decorators.base import BaseDecorator
 from agenta.sdk.types import (
@@ -52,6 +53,12 @@ app.add_middleware(
 app.include_router(router, prefix="")
 
 
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
+
+
+logging.setLevel("DEBUG")
+
+
 class entrypoint(BaseDecorator):
     """Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
@@ -72,6 +79,7 @@ class entrypoint(BaseDecorator):
         config_params = agenta.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
@@ -79,15 +87,18 @@ class entrypoint(BaseDecorator):
             agenta.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
 
+            # Exceptions are all handled inside self.execute_function()
             llm_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
+
             return llm_result
 
+        @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
@@ -102,13 +113,14 @@ class entrypoint(BaseDecorator):
                 agenta.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
-            agenta.tracing.set_span_attribute(
+            agenta.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
 
             llm_result = await self.execute_function(
                 func, *args, params=func_params, config_params=config_params
             )
+
             return llm_result
 
         self.update_function_signature(
@@ -188,6 +200,7 @@ class entrypoint(BaseDecorator):
             """
             is_coroutine_function = inspect.iscoroutinefunction(func)
             start_time = time.perf_counter()
+
             if is_coroutine_function:
                 result = await func(*args, **func_params["params"])
             else:
@@ -201,17 +214,26 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Dict):
                 return FuncResponse(**result, latency=round(latency, 4))
             if isinstance(result, str):
-                return FuncResponse(message=result, latency=round(latency, 4))  # type: ignore
+                return FuncResponse(
+                    message=result, usage=None, cost=None, latency=round(latency, 4)
+                )
             if isinstance(result, int) or isinstance(result, float):
-                return FuncResponse(message=str(result), latency=round(latency, 4))
+                return FuncResponse(
+                    message=str(result),
+                    usage=None,
+                    cost=None,
+                    latency=round(latency, 4),
+                )
             if result is None:
                 return FuncResponse(
                     message="Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
+                    usage=None,
+                    cost=None,
                     latency=round(latency, 4),
                 )
         except Exception as e:
             self.handle_exception(e)
-        return FuncResponse(message="Unexpected error occurred when calling the @entrypoing decorated function", latency=0)  # type: ignore
+        return FuncResponse(message="Unexpected error occurred when calling the @entrypoint decorated function", latency=0)  # type: ignore
 
     def handle_exception(self, e: Exception):
         """Handle exceptions."""
@@ -237,7 +259,7 @@ class entrypoint(BaseDecorator):
 
         wrapper_signature = inspect.signature(wrapper)
         wrapper_signature = wrapper_signature.replace(parameters=updated_params)
-        wrapper.__signature__ = wrapper_signature
+        wrapper.__signature__ = wrapper_signature  # type: ignore
 
     def update_function_signature(
         self,
@@ -248,7 +270,7 @@ class entrypoint(BaseDecorator):
     ) -> None:
         """Update the function signature to include new parameters."""
 
-        updated_params = []
+        updated_params: List[inspect.Parameter] = []
         self.add_config_params_to_parser(updated_params, config_params)
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
@@ -260,7 +282,8 @@ class entrypoint(BaseDecorator):
         ingestible_files: Dict[str, inspect.Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
-        updated_params = []
+
+        updated_params: List[inspect.Parameter] = []
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         for param in [
             "config",
@@ -281,12 +304,19 @@ class entrypoint(BaseDecorator):
     ) -> None:
         """Add configuration parameters to function signature."""
         for name, param in config_params.items():
+            assert (
+                len(param.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.__class__} needs to be one."
             updated_params.append(
                 inspect.Parameter(
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=Body(param),
-                    annotation=Optional[type(param)],
+                    annotation=param.__class__.__bases__[
+                        0
+                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                    # thus, why we are accessing the first item.
                 )
             )
 
@@ -303,12 +333,19 @@ class entrypoint(BaseDecorator):
                     inspect.Parameter(name, param.kind, annotation=UploadFile)
                 )
             else:
+                assert (
+                    len(param.default.__class__.__bases__) == 1
+                ), f"Inherited standard type of {param.default.__class__} needs to be one."
                 updated_params.append(
                     inspect.Parameter(
                         name,
                         inspect.Parameter.KEYWORD_ONLY,
                         default=Body(..., embed=True),
-                        annotation=param.annotation,
+                        annotation=param.default.__class__.__bases__[
+                            0
+                        ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                        # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                        # thus, why we are accessing the first item.
                     )
                 )
 
@@ -358,7 +395,7 @@ class entrypoint(BaseDecorator):
                     f"--{name}",
                     type=str,
                     default=param.default,
-                    choices=param.choices,
+                    choices=param.choices,  # type: ignore
                 )
             else:
                 parser.add_argument(
@@ -384,7 +421,7 @@ class entrypoint(BaseDecorator):
         agenta.config.set(**args_config_params)
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        agenta.tracing.set_span_attribute(
+        agenta.tracing.update_baggage(
             {"config": agenta.config.all(), "environment": "bash"}
         )
 
@@ -420,7 +457,9 @@ class entrypoint(BaseDecorator):
             params (dict(param_name, param_val)): The dictionary of the parameters for the function
         """
 
-        def find_in_schema(schema: dict, param_name: str, xparam: str):
+        def find_in_schema(
+            schema_type_properties: dict, schema: dict, param_name: str, xparam: str
+        ):
             """Finds a parameter in the schema based on its name and x-parameter value"""
             for _, value in schema.items():
                 value_title_lower = str(value.get("title")).lower()
@@ -432,9 +471,17 @@ class entrypoint(BaseDecorator):
 
                 if (
                     isinstance(value, dict)
-                    and value.get("x-parameter") == xparam
+                    and schema_type_properties.get("x-parameter") == xparam
                     and value_title == param_name
                 ):
+                    # this will update the default type schema with the properties gotten
+                    # from the schema type (param_val) __schema_properties__ classmethod
+                    for type_key, type_value in schema_type_properties.items():
+                        # BEFORE:
+                        # value = {'temperature': {'title': 'Temperature'}}
+                        value[type_key] = type_value
+                        # AFTER:
+                        # value = {'temperature': { "type": "number", "title": "Temperature", "x-parameter": "float" }}
                     return value
 
         schema_to_override = openapi_schema["components"]["schemas"][
@@ -443,17 +490,26 @@ class entrypoint(BaseDecorator):
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):
                 subschema = find_in_schema(
-                    schema_to_override, param_name, "grouped_choice"
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "grouped_choice",
                 )
                 assert (
                     subschema
                 ), f"GroupedMultipleChoiceParam '{param_name}' is in the parameters but could not be found in the openapi.json"
-                subschema["choices"] = param_val.choices
-                subschema["default"] = param_val.default
+                subschema["choices"] = param_val.choices  # type: ignore
+                subschema["default"] = param_val.default  # type: ignore
+
             if isinstance(param_val, MultipleChoiceParam):
-                subschema = find_in_schema(schema_to_override, param_name, "choice")
+                subschema = find_in_schema(
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "choice",
+                )
                 default = str(param_val)
-                param_choices = param_val.choices
+                param_choices = param_val.choices  # type: ignore
                 choices = (
                     [default] + param_choices
                     if param_val not in param_choices
@@ -463,37 +519,79 @@ class entrypoint(BaseDecorator):
                 subschema["default"] = (
                     default if default in param_choices else choices[0]
                 )
+
             if isinstance(param_val, FloatParam):
-                subschema = find_in_schema(schema_to_override, param_name, "float")
-                subschema["minimum"] = param_val.minval
-                subschema["maximum"] = param_val.maxval
+                subschema = find_in_schema(
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "float",
+                )
+                subschema["minimum"] = param_val.minval  # type: ignore
+                subschema["maximum"] = param_val.maxval  # type: ignore
                 subschema["default"] = param_val
+
             if isinstance(param_val, IntParam):
-                subschema = find_in_schema(schema_to_override, param_name, "int")
-                subschema["minimum"] = param_val.minval
-                subschema["maximum"] = param_val.maxval
+                subschema = find_in_schema(
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "int",
+                )
+                subschema["minimum"] = param_val.minval  # type: ignore
+                subschema["maximum"] = param_val.maxval  # type: ignore
                 subschema["default"] = param_val
+
             if (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is DictInput
             ):
-                subschema = find_in_schema(schema_to_override, param_name, "dict")
+                subschema = find_in_schema(
+                    param_val.annotation.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "dict",
+                )
                 subschema["default"] = param_val.default["default_keys"]
+
             if isinstance(param_val, TextParam):
-                subschema = find_in_schema(schema_to_override, param_name, "text")
+                subschema = find_in_schema(
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "text",
+                )
                 subschema["default"] = param_val
+
             if (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is MessagesInput
             ):
-                subschema = find_in_schema(schema_to_override, param_name, "messages")
+                subschema = find_in_schema(
+                    param_val.annotation.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "messages",
+                )
                 subschema["default"] = param_val.default
+
             if (
                 isinstance(param_val, inspect.Parameter)
                 and param_val.annotation is FileInputURL
             ):
-                subschema = find_in_schema(schema_to_override, param_name, "file_url")
+                subschema = find_in_schema(
+                    param_val.annotation.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "file_url",
+                )
                 subschema["default"] = "https://example.com"
+
             if isinstance(param_val, BinaryParam):
-                subschema = find_in_schema(schema_to_override, param_name, "bool")
-                subschema["default"] = param_val.default
+                subschema = find_in_schema(
+                    param_val.__schema_type_properties__(),
+                    schema_to_override,
+                    param_name,
+                    "bool",
+                )
+                subschema["default"] = param_val.default  # type: ignore

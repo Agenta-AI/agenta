@@ -15,11 +15,11 @@ services:
         container_name: agenta-backend-1
         image: ghcr.io/agenta-ai/agenta-backend
         environment:
-            - MONGODB_URI=mongodb://username:password@mongo:27017
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
-            - ENVIRONMENT=production
             - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - BARE_DOMAIN_NAME=${BARE_DOMAIN_NAME:-localhost}
@@ -41,7 +41,7 @@ services:
                 "--log-level",
                 "info",
                 "--root-path",
-                "/api"
+                "/api",
             ]
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -58,9 +58,27 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         depends_on:
-            mongo:
+            postgres:
                 condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
         restart: always
+
+    apply_alembic_migration:
+        build: ghcr.io/agenta-ai/agenta-backend
+        command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
+        environment:
+            - FEATURE_FLAG=oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
+            - AGENTA_AUTO_MIGRATIONS=false
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        depends_on:
+          postgres:
+            condition: service_healthy
+        networks:
+            - agenta-network
 
     agenta-web:
         container_name: agenta-web-1
@@ -78,39 +96,6 @@ services:
             - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}
             - NEXT_PUBLIC_FF=oss
             - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
-        restart: always
-
-    mongo:
-        image: mongo:5.0
-        environment:
-            MONGO_INITDB_ROOT_USERNAME: username
-            MONGO_INITDB_ROOT_PASSWORD: password
-        volumes:
-            - mongodb_data:/data/db
-        ports:
-            - "27017:27017"
-        networks:
-            - agenta-network
-        healthcheck:
-            test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
-            interval: 10s
-            timeout: 10s
-            retries: 20
-        restart: always
-
-    mongo_express:
-        image: mongo-express
-        environment:
-            ME_CONFIG_MONGODB_ADMINUSERNAME: username
-            ME_CONFIG_MONGODB_ADMINPASSWORD: password
-            ME_CONFIG_MONGODB_SERVER: mongo
-        ports:
-            - "8081:8081"
-        networks:
-            - agenta-network
-        depends_on:
-            mongo:
-                condition: service_healthy
         restart: always
 
     redis:
@@ -140,16 +125,16 @@ services:
         command: >
             celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - MONGODB_URI=mongodb://username:password@mongo:27017
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - REDIS_URL=redis://redis:6379/0
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
         volumes:
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock
         depends_on:
-            - mongo
+            - postgres
             - rabbitmq
             - redis
         extra_hosts:
@@ -157,10 +142,53 @@ services:
         networks:
             - agenta-network
 
+    postgres:
+        image: postgres:16.2
+        container_name: postgres
+        restart: always
+        environment:
+            POSTGRES_USER: username
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: agenta_oss
+        ports:
+            - "5432:5432"
+        networks:
+            - agenta-network
+        volumes:
+            - postgresdb-data:/var/lib/postgresql/data/
+            - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    pgadmin:
+        image: dpage/pgadmin4
+        restart: always
+        environment:
+            PGADMIN_DEFAULT_EMAIL: "admin@example.com"
+            PGADMIN_DEFAULT_PASSWORD: "password"
+            PGADMIN_SERVER_HOST: "postgres"
+            PGADMIN_SERVER_PORT: 5432
+            PGADMIN_SERVER_USER: "username"
+            PGADMIN_SERVER_PASSWORD: "password"
+            PGADMIN_SERVER_DB: agenta_oss
+        ports:
+            - "5050:80"
+        networks:
+            - agenta-network
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+        depends_on:
+            postgres:
+                condition: service_healthy
+
 networks:
     agenta-network:
         name: agenta-network
 
 volumes:
-    mongodb_data:
     redis_data:
+    postgresdb-data:
+    pgadmin-data:
