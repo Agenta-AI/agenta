@@ -6,10 +6,14 @@ import {
     singleModelTestEvaluationTransformer,
 } from "@/lib/transformers"
 import {Evaluation, JSSTheme, SingleModelEvaluationListTableDataType} from "@/lib/Types"
-import {fetchAllLoadEvaluations, fetchEvaluationResults} from "@/services/human-evaluations/api"
+import {
+    deleteEvaluations,
+    fetchAllLoadEvaluations,
+    fetchEvaluationResults,
+} from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {GearSix} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Statistic, Table, Typography} from "antd"
+import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
@@ -73,7 +77,6 @@ const SingleModelEvalOverview = () => {
                             !(Object.keys(item.scoresData || {}).length === 0) ||
                             item.avgScore !== undefined,
                     )
-                    .slice(0, 5)
 
                 setEvaluationsList(newEvalResults as any)
             } catch (error) {
@@ -90,40 +93,56 @@ const SingleModelEvalOverview = () => {
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
+    const handleDeleteEvaluation = async (record: SingleModelEvaluationListTableDataType) => {
+        try {
+            await deleteEvaluations([record.key])
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => ![record.key].includes(evaluation.key)),
+            )
+            message.success("Evaluation Deleted")
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
     const columns: ColumnsType<SingleModelEvaluationListTableDataType> = [
-        {
-            title: "Test set",
-            dataIndex: "testsetName",
-            key: "testsetName",
-            render: (value: any, record: SingleModelEvaluationListTableDataType, index: number) => {
-                return <span>{record.testset.name}</span>
-            },
-        },
         {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
             render: (value, record: SingleModelEvaluationListTableDataType) => {
                 return (
-                    <div
-                        onClick={() => handleNavigation(value[0].variantName, record.revisions[0])}
-                        style={{cursor: "pointer"}}
-                    >
-                        <span>
-                            {variantNameWithRev({
-                                variant_name: value[0].variantName,
-                                revision: record.revisions[0],
-                            })}
-                        </span>
-                    </div>
+                    <span>
+                        {variantNameWithRev({
+                            variant_name: value[0].variantName,
+                            revision: record.revisions[0],
+                        })}
+                    </span>
                 )
+            },
+        },
+        {
+            title: "Test set",
+            dataIndex: "testsetName",
+            key: "testsetName",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
+                return <span>{record.testset.name}</span>
             },
         },
         {
             title: "Average score",
             dataIndex: "averageScore",
             key: "averageScore",
-            render: (value: any, record: SingleModelEvaluationListTableDataType, index: number) => {
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
                 let score = 0
                 if (record.scoresData) {
                     score =
@@ -159,29 +178,64 @@ const SingleModelEvalOverview = () => {
             },
         },
         {
-            title: "Created at",
+            title: "Created on",
             dataIndex: "createdAt",
             key: "createdAt",
-            width: "300",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
         },
         {
             title: <GearSix size={16} />,
-            key: "settings",
-            width: 50,
-            render: () => {
+            key: "key",
+            width: 56,
+            fixed: "right",
+            render: (_, record) => {
                 return (
                     <Dropdown
-                        trigger={["hover"]}
+                        trigger={["click"]}
                         menu={{
                             items: [
                                 {
-                                    key: "change_variant",
-                                    label: "Change Variant",
+                                    key: "details",
+                                    label: "Open details",
+                                    icon: <Note size={16} />,
+                                    onClick: () =>
+                                        router.push(
+                                            `/apps/${appId}/annotations/single_model_test/${record.key}`,
+                                        ),
                                 },
-
                                 {
-                                    key: "open_playground",
-                                    label: "Open in playground",
+                                    key: "variant",
+                                    label: "View variant",
+                                    icon: <Rocket size={16} />,
+                                    onClick: () =>
+                                        handleNavigation(
+                                            record.variants[0].variantName,
+                                            record.revisions[0],
+                                        ),
+                                },
+                                {
+                                    key: "view_testset",
+                                    label: "View test set",
+                                    icon: <Database size={16} />,
+                                    onClick: () =>
+                                        router.push(
+                                            `/apps/${appId}/testsets/${record.testset._id}`,
+                                        ),
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "rerun_eval",
+                                    label: "Re-run evaluation",
+                                    icon: <ArrowsClockwise size={16} />,
+                                },
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: () => handleDeleteEvaluation(record),
                                 },
                             ],
                         }}
@@ -217,7 +271,12 @@ const SingleModelEvalOverview = () => {
             </div>
 
             <Spin spinning={fetchingEvaluations}>
-                <Table className="ph-no-capture" columns={columns} dataSource={evaluationsList} />
+                <Table
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                    scroll={{x: true}}
+                />
             </Spin>
         </div>
     )
