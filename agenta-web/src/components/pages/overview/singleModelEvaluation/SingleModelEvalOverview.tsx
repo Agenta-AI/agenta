@@ -77,6 +77,10 @@ const SingleModelEvalOverview = () => {
                             !(Object.keys(item.scoresData || {}).length === 0) ||
                             item.avgScore !== undefined,
                     )
+                    // shortend array to have 5 items (length 5)
+                    .slice(0, 5)
+                    // reverse array to have from new to old
+                    .reverse()
 
                 setEvaluationsList(newEvalResults as any)
             } catch (error) {
@@ -95,6 +99,7 @@ const SingleModelEvalOverview = () => {
 
     const handleDeleteEvaluation = async (record: SingleModelEvaluationListTableDataType) => {
         try {
+            setFetchingEvaluations(true)
             await deleteEvaluations([record.key])
             setEvaluationsList((prevEvaluationsList) =>
                 prevEvaluationsList.filter((evaluation) => ![record.key].includes(evaluation.key)),
@@ -102,6 +107,8 @@ const SingleModelEvalOverview = () => {
             message.success("Evaluation Deleted")
         } catch (error) {
             console.error(error)
+        } finally {
+            setFetchingEvaluations(false)
         }
     }
 
@@ -250,24 +257,21 @@ const SingleModelEvalOverview = () => {
     return (
         <div className={classes.container}>
             <div className="flex items-center justify-between">
-                <Title>Single Model Evaluations</Title>
-
                 <Space>
-                    <Button
-                        icon={<PlusOutlined />}
-                        size="small"
-                        onClick={() => router.push(`/apps/${appId}/annotations/single_model_test`)}
-                    >
-                        Start New
-                    </Button>
-                    <Button
-                        type="text"
-                        size="small"
-                        href={`/apps/${appId}/annotations/single_model_test`}
-                    >
-                        View All
+                    <Title>Single Model Evaluations</Title>
+
+                    <Button size="small" href={`/apps/${appId}/annotations/single_model_test`}>
+                        View all
                     </Button>
                 </Space>
+
+                <Button
+                    icon={<PlusOutlined />}
+                    size="small"
+                    onClick={() => router.push(`/apps/${appId}/annotations/single_model_test`)}
+                >
+                    Create new
+                </Button>
             </div>
 
             <Spin spinning={fetchingEvaluations}>

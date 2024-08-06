@@ -1,15 +1,16 @@
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {_Evaluation, JSSTheme} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
 import {fetchAllEvaluations} from "@/services/evaluations/api"
-import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {MoreOutlined, PlusOutlined, SwapOutlined} from "@ant-design/icons"
 import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Space, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React, {useEffect, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import StatusRenderer from "./StatusRenderer"
 
 const {Title} = Typography
 
@@ -38,12 +39,26 @@ const AutomaticEvalOverview = () => {
         },
     }
 
+    const compareDisabled = useMemo(() => {
+        const evalList = evaluationList.filter((e) => selectedRowKeys.includes(e.id))
+        return (
+            evalList.length < 2 ||
+            evalList.some(
+                (item) =>
+                    item.status.value === EvaluationStatus.STARTED ||
+                    item.status.value === EvaluationStatus.INITIALIZED ||
+                    item.testset.id !== evalList[0].testset.id,
+            )
+        )
+    }, [selectedRowKeys])
+
     useEffect(() => {
         const fetchEvaluations = async () => {
             try {
                 setIsEvalLoading(true)
                 const data = await fetchAllEvaluations(appId)
-                setEvaluationList(data)
+                const result = data.slice(0, 5).reverse()
+                setEvaluationList(result)
             } catch (error) {
                 console.error(error)
             } finally {
@@ -98,7 +113,7 @@ const AutomaticEvalOverview = () => {
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return getTypedValue(record.status as any)
+                return <StatusRenderer {...record} />
             },
         },
         {
@@ -218,9 +233,22 @@ const AutomaticEvalOverview = () => {
     return (
         <div className={classes.container}>
             <div className="flex items-center justify-between">
-                <Title>Automatic Evaluations</Title>
+                <Space>
+                    <Title>Automatic Evaluations</Title>
+                    <Button size="small" href={`/apps/${appId}/evaluations/results`}>
+                        View all
+                    </Button>
+                </Space>
 
                 <Space>
+                    <Button
+                        disabled={compareDisabled}
+                        size="small"
+                        type="link"
+                        icon={<SwapOutlined />}
+                    >
+                        Compare evaluations
+                    </Button>
                     <Button
                         icon={<PlusOutlined />}
                         size="small"
@@ -230,10 +258,7 @@ const AutomaticEvalOverview = () => {
                             )
                         }
                     >
-                        Start New
-                    </Button>
-                    <Button type="text" size="small" href={`/apps/${appId}/evaluations/results`}>
-                        View All
+                        Create new
                     </Button>
                 </Space>
             </div>
@@ -247,6 +272,7 @@ const AutomaticEvalOverview = () => {
                     }}
                     className="ph-no-capture"
                     columns={columns}
+                    rowKey={"id"}
                     dataSource={evaluationList}
                     scroll={{x: true}}
                 />
