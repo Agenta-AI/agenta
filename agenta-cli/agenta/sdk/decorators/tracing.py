@@ -69,7 +69,7 @@ class instrument(BaseDecorator):
 
                     # EVENTUALLY THIS PATCH SHOULD BE REMOVED
                     # PATCH : if result is not a dict, make it a dict, in span
-                    DEFAULT_KEY = "default"
+                    DEFAULT_KEY = "message"
 
                     if not isinstance(result, dict):
                         value = result
@@ -101,7 +101,7 @@ class instrument(BaseDecorator):
 
                     # EVENTUALLY THIS PATCH SHOULD BE REMOVED
                     # PATCH : if result is not a dict, make it a dict, in span
-                    DEFAULT_KEY = "default"
+                    DEFAULT_KEY = "message"
 
                     if not isinstance(result, dict):
                         value = result
