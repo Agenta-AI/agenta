@@ -65,7 +65,7 @@ services:
         restart: always
 
     apply_alembic_migration:
-        build: ghcr.io/agenta-ai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
             - FEATURE_FLAG=oss
