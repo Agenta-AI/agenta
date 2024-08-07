@@ -13,7 +13,11 @@ import toml
 from agenta.cli import helper
 from agenta.cli.telemetry import event_track
 from agenta.client.backend.client import AgentaApi
-from agenta.client.api import add_variant_to_server
+from agenta.client.api import (
+    add_variant_to_server,
+    create_variant_from_url,
+    update_variant_url,
+)
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 from agenta.client.backend.types.variant_action import VariantActionEnum, VariantAction
@@ -28,7 +32,125 @@ def variant():
     pass
 
 
-def add_variant(
+def add_variant_from_url(
+    url: str,
+    variant_slug: str,
+    config_path: str,
+    config_file: str,
+    overwrite: bool,
+) -> None:
+    """
+    ...
+    """
+
+    config_path = Path(config_path)
+    config_file = config_path / config_file
+    config = toml.load(config_file)
+
+    app_name = config["app_name"].lower()
+    app_id = config["app_id"]
+
+    api_key = config.get("api_key", "")
+    host = config.get("backend_host", "http://localhost")
+    base_url = f"{host}/{BACKEND_URL_SUFFIX}"
+
+    # Validate app name
+    if not re.match("^[a-zA-Z0-9_]+$", app_name):
+        click.echo(
+            click.style(
+                "Invalid app name. Please use only alphanumeric characters without spaces.",
+                fg="red",
+            )
+        )
+        sys.exit(0)
+
+    # Validate variant slug
+    if not re.match("^[a-zA-Z0-9_]+$", variant_slug):
+        click.echo(
+            click.style(
+                "Invalid variant slug. Please use only alphanumeric characters without spaces.",
+                fg="red",
+            )
+        )
+        sys.exit(0)
+
+    variant_name = f"{app_name}.{variant_slug}"
+
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
+    op_prefix = ""
+
+    try:
+        if variant_name not in config["variants"]:
+            click.echo(click.style(f"Creating {variant_name}...", fg="yellow"))
+            op_prefix = "creat"
+
+            response = create_variant_from_url(
+                base_url, api_key, app_id, app_name, variant_slug, url
+            )
+            variant_id = response["variant_id"]
+            variant_name = response["variant_name"]
+
+            config["variants"].append(variant_name)
+            config["variant_ids"].append(variant_id)
+
+            click.echo(click.style(f"Created {variant_name}!", fg="green"))
+        else:
+            if not overwrite:
+                overwrite = questionary.confirm(
+                    "This variant already exists. Do you want to overwrite it?"
+                ).ask()
+                if not overwrite:
+                    click.echo("Operation cancelled.")
+                    sys.exit(0)
+
+            click.echo(
+                click.style(
+                    f"Updating {variant_name}...",
+                    fg="bright_black",
+                )
+            )
+            op_prefix = "updat"
+
+            variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+
+            update_variant_url(base_url, api_key, variant_id, url)
+    except Exception as ex:
+        click.echo(click.style(f"Error while {op_prefix}ing variant: {ex}", fg="red"))
+
+    agenta_dir = Path.home() / ".agenta"
+    global_toml_file = toml.load(agenta_dir / "config.toml")
+    tracking_enabled: bool = global_toml_file["telemetry_tracking_enabled"]
+
+    if tracking_enabled:
+        get_user_id = client.user_profile()
+        user_id = get_user_id["id"]
+
+        event_track.capture_event(
+            "app_deployment",
+            body={
+                "app_id": app_id,
+                "deployed_by": user_id,
+                "environment": "CLI",
+                "version": "cloud" if api_key else "oss",
+            },
+        )
+
+        click.echo(
+            click.style(
+                f"Variant {variant_slug} for App {app_name} {op_prefix}ed successfully 🎉",
+                bold=True,
+                fg="green",
+            )
+        )
+
+    toml.dump(config, config_file.open("w"))
+
+
+def add_variant_from_code(
     app_folder: str, file_name: str, host: str, overwrite: bool, config_name="default"
 ) -> str:
     """
@@ -383,7 +505,7 @@ def list_variants(app_folder: str, host: str):
         click.echo(click.style(f"No variants found for app {app_name}", fg="red"))
 
 
-def config_check(app_folder: str):
+def config_check(app_folder: str, config_file: str = "config.toml"):
     """Check the config file and update it from the backend
 
     Arguments:
@@ -391,8 +513,10 @@ def config_check(app_folder: str):
     """
 
     click.echo(click.style("\nChecking and updating config file...", fg="bright_black"))
+
     app_folder = Path(app_folder)
-    config_file = app_folder / "config.toml"
+    config_file = app_folder / config_file
+
     if not config_file.exists():
         click.echo(
             click.style(
@@ -401,14 +525,16 @@ def config_check(app_folder: str):
             )
         )
         return
+
     host = get_host(app_folder)  # TODO: Refactor the whole config thing
+
     helper.update_config_from_backend(config_file, host=host)
 
 
-def get_host(app_folder: str) -> str:
+def get_host(app_folder: str, config_file: str = "config.toml") -> str:
     """Fetches the host from the config"""
     app_folder = Path(app_folder)
-    config_file = app_folder / "config.toml"
+    config_file = app_folder / config_file
     config = toml.load(config_file)
     if "backend_host" not in config:
         host = "http://localhost"
@@ -485,7 +611,7 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
         sys.exit(1)
 
     try:
-        variant_id = add_variant(
+        variant_id = add_variant_from_code(
             app_folder=app_folder, file_name=file_name, host=host, overwrite=overwrite
         )
     except Exception as e:
@@ -508,6 +634,89 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
             click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
             sys.exit(1)
+
+
+@variant.command(
+    name="hook",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
+@click.option("--url")
+@click.option("--app_name", default="app")
+@click.option("--variant_slug", default="default")
+@click.option("--config_path", default=".")
+@click.option("--config_file", default="config.toml")
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite the existing hook if it exists",
+)
+def hook_cli(
+    ctx,
+    url: str,
+    variant_slug: str,
+    config_path: str,
+    config_file: str,
+    overwrite: bool,
+):
+    """Adds a variant to the web UI and hook the API to a URL."""
+
+    if not url:
+        if ctx.args:
+            url = ctx.args[0]
+        else:
+            error_msg = "To hook a variant, kindly provide a URL and run:\n"
+            error_msg += ">>> agenta variant hook --url <URL>\n"
+            error_msg += "or\n"
+            error_msg += ">>> agenta variant hook <URL>"
+            click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(1)
+
+    try:
+        config_check(config_path, config_file)
+    except Exception as e:
+        click.echo(click.style("Failed during configuration check.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        sys.exit(1)
+
+    try:
+        get_host(config_path, config_file)
+    except Exception as e:
+        click.echo(click.style("Failed to retrieve the host.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        sys.exit(1)
+
+    try:
+        helper.get_global_config("api_key")
+    except Exception as e:
+        click.echo(click.style("Failed to retrieve the api key.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        sys.exit(1)
+
+    try:
+        add_variant_from_url(
+            url=url,
+            variant_slug=variant_slug,
+            config_path=config_path,
+            config_file=config_file,
+            overwrite=overwrite,
+        )
+    except ConnectionError:
+        error_msg = (
+            "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
+        )
+        error_msg += "- First, please ensure that the backend service is running and accessible.\n"
+        error_msg += (
+            "- Second, try restarting the containers (if using Docker Compose)."
+        )
+        click.echo(click.style(f"{error_msg}", fg="red"))
+        sys.exit(1)
+    except Exception as e:
+        click.echo(click.style("Failed to add variant.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        sys.exit(1)
 
 
 @variant.command(name="list")

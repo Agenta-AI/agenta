@@ -11,6 +11,92 @@ from agenta.client.backend.client import AgentaApi
 from agenta.client.exceptions import APIRequestError
 
 
+def create_variant_from_url(
+    base_url: str,
+    api_key: str,
+    app_id: str,
+    app_name: str,
+    variant_slug: str,
+    url: str,
+    retries=10,
+    backoff_factor=1,
+):
+    click.echo(
+        click.style("Waiting for the variant to be ready", fg="yellow"), nl=False
+    )
+
+    client = AgentaApi(base_url=base_url, api_key=api_key)
+
+    for attempt in range(retries):
+        try:
+            response = client.apps.create_variant_from_url(
+                app_id=app_id,
+                app_name=app_name,
+                variant_name=f"{app_name}.{variant_slug}",
+                url=url,
+            )
+
+            click.echo(click.style("\nVariant created successfully.", fg="green"))
+
+            return response
+        except RequestException as e:
+            if attempt < retries - 1:
+                click.echo(click.style(".", fg="yellow"), nl=False)
+                time.sleep(backoff_factor * (2**attempt))
+            else:
+                raise APIRequestError(
+                    click.style(
+                        f"\nRequest to variant endpoint failed with status code {response.status_code} and error message: {e}.",
+                        fg="red",
+                    )
+                )
+        except Exception as e:
+            raise APIRequestError(
+                click.style(f"\nAn unexpected error occurred: {e}", fg="red")
+            )
+
+
+def update_variant_url(
+    base_url: str,
+    api_key: str,
+    variant_id: str,
+    url: str,
+    retries=10,
+    backoff_factor=1,
+):
+    click.echo(
+        click.style("Waiting for the variant to be ready", fg="yellow"), nl=False
+    )
+
+    client = AgentaApi(base_url=base_url, api_key=api_key)
+
+    for attempt in range(retries):
+        try:
+            response = client.variants.update_variant_url(
+                variant_id=variant_id,
+                url=url,
+            )
+
+            click.echo(click.style("\nVariant updated successfully.", fg="green"))
+
+            return response
+        except RequestException as e:
+            if attempt < retries - 1:
+                click.echo(click.style(".", fg="yellow"), nl=False)
+                time.sleep(backoff_factor * (2**attempt))
+            else:
+                raise APIRequestError(
+                    click.style(
+                        f"\nRequest to variant endpoint failed with status code {response.status_code} and error message: {e}.",
+                        fg="red",
+                    )
+                )
+        except Exception as e:
+            raise APIRequestError(
+                click.style(f"\nAn unexpected error occurred: {e}", fg="red")
+            )
+
+
 def add_variant_to_server(
     app_id: str,
     base_name: str,
