@@ -110,46 +110,15 @@ export const fromBaseResponseToTraceSpanType = (
                 (new Date(span.end_time).getTime() - new Date(span.start_time).getTime()) / 1000,
             usage: span.tokens,
         },
-        content: spans.reduce(
-            (acc) => {
-                if (span.inputs) {
-                    let inputArr = Object.entries(span.inputs).map(([key, value]) => ({
-                        input_name: key,
-                        input_value: value,
-                    }))
-
-                    acc["inputs"] = inputArr
-                }
-                if (span.internals) {
-                    let internalArr = Object.entries(span.internals).map(([key, value]) => ({
-                        internal_name: key,
-                        internal_value: value,
-                    }))
-
-                    acc["internals"] = internalArr
-                }
-                if (span.outputs) {
-                    if (typeof span.outputs === "string") {
-                        acc["outputs"] = [span.outputs]
-                    } else {
-                        let outputArr = Object.values(span.outputs).map((value) =>
-                            getStringOrJson(value),
-                        )
-
-                        acc["outputs"] = outputArr
-                    }
-                }
-                acc["role"] = null
-
-                return acc
-            },
-            {} as {
-                inputs: {input_name: string; input_value: string}[] | null
-                internals: {internal_name: string; internal_value: string}[] | null
-                outputs: string[] | null
-                role: string | null
-            },
-        ),
+        content: {
+            inputs: span.inputs,
+            internals: span.internals,
+            outputs: span.outputs,
+        } as {
+            inputs: Record<string, any> | null
+            internals: Record<string, any> | null
+            outputs: string[] | Record<string, any> | null
+        },
         user_id: span.user,
         trace_id: traceId,
         parent_span_id: span.parent_span_id,
