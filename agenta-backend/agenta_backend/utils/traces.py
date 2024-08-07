@@ -119,25 +119,22 @@ SPECIAL_KEYS = [
     "outputs",
 ]
 
-SPANS_SEPARATOR = "spans"
+SPANS_KEY = "spans"
 
 
-def is_indexed(field):
-    return "[" in field and "]" in field
-
-
-def parse(field):
-    key = field
+def _parse_field_part(part):
+    key = part
     idx = None
 
-    if is_indexed(field):
-        key = field.split("[")[0]
-        idx = int(field.split("[")[1].split("]")[0])
+    # Check if part is indexed, if so split it
+    if "[" in part and "]" in part:
+        key = part.split("[")[0]
+        idx = int(part.split("[")[1].split("]")[0])
 
     return key, idx
 
 
-def get_field_value_from_trace_tree(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
+def get_field_value_from_trace_tree(tree: Dict[str, Any], field: str) -> Dict[str, Any]:
     """
     Retrieve the value of the key from the trace tree.
 
@@ -151,24 +148,24 @@ def get_field_value_from_trace_tree(tree: Dict[str, Any], key: str) -> Dict[str,
     Returns:
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
-    spans_flag = True
+    separate_by_spans_key = True
 
-    fields = key.split(".")
+    parts = field.split(".")
 
     try:
-        for field in fields:
+        for part in parts:
             # by default, expects something like 'retriever'
-            key, idx = parse(field)
+            key, idx = _parse_field_part(part)
 
             # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
             # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
             if key in SPECIAL_KEYS:
-                spans_flag = False
+                separate_by_spans_key = False
 
             # after 'SPECIAL_KEYS', it is a normal dict.
             # e.g. trace[...]["internals"]["prompt"]
-            if spans_flag:
-                tree = tree[SPANS_SEPARATOR]
+            if separate_by_spans_key:
+                tree = tree[SPANS_KEY]
 
             tree = tree[key]
 
