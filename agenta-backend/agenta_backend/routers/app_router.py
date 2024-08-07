@@ -393,6 +393,21 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{app_id}/variant/from-url/", operation_id="create_variant_from_url")
+async def create_variant_from_url(
+    app_id: str,
+    app_name: str,
+    variant_name: str,
+    url: str,
+    request: Request,
+):
+    """
+    ...
+    """
+
+    pass
+
+
 @router.delete("/{app_id}/", operation_id="remove_app")
 async def remove_app(app_id: str, request: Request):
     """Remove app, all its variant, containers and images
