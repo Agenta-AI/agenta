@@ -45,6 +45,9 @@ def _make_spans_id_tree(trace):
     return tree
 
 
+INCLUDED_KEYS = ["start_time", "end_time", "inputs", "internals", "outputs"]
+
+
 def _make_spans_tree(spans_id_tree, spans_index):
     """
     Recursively collects and organizes span information into a dictionary.
@@ -73,13 +76,7 @@ def _make_spans_tree(spans_id_tree, spans_index):
 
             key = spans_index[id]["name"]
 
-            span = {
-                "start_time": spans_index[id]["start_time"],
-                "end_time": spans_index[id]["end_time"],
-                "inputs": spans_index[id]["inputs"],
-                "internals": spans_index[id]["internals"],
-                "outputs": spans_index[id]["outputs"],
-            }
+            span = {k: spans_index[id][k] for k in INCLUDED_KEYS}
 
             span.update({"spans": _make_spans_tree(children, spans_index)})
 
@@ -116,6 +113,30 @@ def process_distributed_trace_into_trace_tree(trace):
     return trace
 
 
+SPECIAL_KEYS = [
+    "inputs",
+    "internals",
+    "outputs",
+]
+
+SPANS_SEPARATOR = "spans"
+
+
+def is_indexed(field):
+    return "[" in field and "]" in field
+
+
+def parse(field):
+    key = field
+    idx = None
+
+    if is_indexed(field):
+        key = field.split("[")[0]
+        idx = int(field.split("[")[1].split("]")[0])
+
+    return key, idx
+
+
 def get_field_value_from_trace_tree(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
     """
     Retrieve the value of the key from the trace tree.
@@ -130,28 +151,6 @@ def get_field_value_from_trace_tree(tree: Dict[str, Any], key: str) -> Dict[str,
     Returns:
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
-
-    def is_indexed(field):
-        return "[" in field and "]" in field
-
-    def parse(field):
-        key = field
-        idx = None
-
-        if is_indexed(field):
-            key = field.split("[")[0]
-            idx = int(field.split("[")[1].split("]")[0])
-
-        return key, idx
-
-    SPECIAL_KEYS = [
-        "inputs",
-        "internals",
-        "outputs",
-    ]
-
-    SPANS_SEPARATOR = "spans"
-
     spans_flag = True
 
     fields = key.split(".")
