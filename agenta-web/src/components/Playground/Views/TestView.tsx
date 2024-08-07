@@ -344,7 +344,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             className={classes.viewTracesBtn}
                             onClick={() => setActiveSpan(traceSpans.trace_id)}
                         >
-                            View Traces
+                            View Trace
                         </Button>
                     )}
                 </Space>
