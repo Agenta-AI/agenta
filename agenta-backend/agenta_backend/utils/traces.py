@@ -3,6 +3,8 @@ import traceback
 from collections import OrderedDict
 from copy import deepcopy
 
+from typing import Any, Dict
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -112,3 +114,71 @@ def process_distributed_trace_into_trace_tree(trace):
     }
 
     return trace
+
+
+def get_field_value_from_trace_tree(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """
+    Retrieve the value of the key from the trace tree.
+
+    Args:
+        tree (Dict[str, Any]): The nested dictionary to retrieve the value from.
+            i.e. inline trace
+            e.g. tree["spans"]["rag"]["spans"]["retriever"]["internals"]["prompt"]
+        key (str): The dot-separated key to access the value.
+            e.g. rag.summarizer[0].outputs.report
+
+    Returns:
+        Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
+    """
+
+    def is_indexed(field):
+        return "[" in field and "]" in field
+
+    def parse(field):
+        key = field
+        idx = None
+
+        if is_indexed(field):
+            key = field.split("[")[0]
+            idx = int(field.split("[")[1].split("]")[0])
+
+        return key, idx
+
+    SPECIAL_KEYS = [
+        "inputs",
+        "internals",
+        "outputs",
+    ]
+
+    SPANS_SEPARATOR = "spans"
+
+    spans_flag = True
+
+    fields = key.split(".")
+
+    try:
+        for field in fields:
+            # by default, expects something like 'retriever'
+            key, idx = parse(field)
+
+            # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
+            # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
+            if key in SPECIAL_KEYS:
+                spans_flag = False
+
+            # after 'SPECIAL_KEYS', it is a normal dict.
+            # e.g. trace[...]["internals"]["prompt"]
+            if spans_flag:
+                tree = tree[SPANS_SEPARATOR]
+
+            tree = tree[key]
+
+            if idx is not None:
+                tree = tree[idx]
+
+        return tree
+
+    # Suppress all Exception and leave Exception management to the caller.
+    except Exception as e:
+        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
+        return None
