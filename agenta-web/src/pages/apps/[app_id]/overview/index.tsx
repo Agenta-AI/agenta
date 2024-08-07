@@ -7,7 +7,9 @@ import {useAppsData} from "@/contexts/app.context"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
-import {Typography} from "antd"
+import {MoreOutlined} from "@ant-design/icons"
+import {PencilLine, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 const ObservabilityOverview = dynamicComponent("pages/overview/observability/ObservabilityOverview")
@@ -34,7 +36,31 @@ export default function Overview() {
 
     return (
         <div className={classes.container}>
-            <Title>{capitalizedAppName}</Title>
+            <Space className="justify-between">
+                <Title>{capitalizedAppName}</Title>
+
+                <Dropdown
+                    trigger={["click"]}
+                    overlayStyle={{width: 180}}
+                    menu={{
+                        items: [
+                            {
+                                key: "rename_app",
+                                label: "Rename",
+                                icon: <PencilLine size={16} />,
+                            },
+                            {
+                                key: "delete_app",
+                                label: "Delete",
+                                icon: <Trash size={16} />,
+                                danger: true,
+                            },
+                        ],
+                    }}
+                >
+                    <Button type="text" icon={<MoreOutlined />} size="small" />
+                </Dropdown>
+            </Space>
 
             <ObservabilityOverview />
 

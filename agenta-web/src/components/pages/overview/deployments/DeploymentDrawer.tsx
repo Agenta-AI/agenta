@@ -17,6 +17,11 @@ import {useRouter} from "next/router"
 import {fetchAppContainerURL, fetchVariants} from "@/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const DeploymentHistoryModal: any = dynamicComponent(
+    "pages/overview/deployments/DeploymentHistoryModal",
+)
 
 interface DeploymentDrawerProps {
     selectedEnvironment: Environment
@@ -101,6 +106,7 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
     const [uri, setURI] = useState<string | null>(null)
     const [variants, setVariants] = useState<Variant[]>([])
     const [variant, setVariant] = useState<Variant | null>(null)
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
     useEffect(() => {
         const fetchData = async () => {
@@ -156,113 +162,123 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
     }
 
     return (
-        <Drawer
-            width={560}
-            {...props}
-            destroyOnClose
-            closeIcon={null}
-            title={
-                <Space className={classes.drawerTitleContainer}>
-                    <Space className="gap-3">
-                        <CloseOutlined onClick={() => props.onClose?.({} as any)} />
-                        <Title>{selectedEnvironment?.name} environment</Title>
-                    </Space>
+        <>
+            <Drawer
+                width={560}
+                {...props}
+                destroyOnClose
+                closeIcon={null}
+                title={
+                    <Space className={classes.drawerTitleContainer}>
+                        <Space className="gap-3">
+                            <CloseOutlined onClick={() => props.onClose?.({} as any)} />
+                            <Title>{selectedEnvironment?.name} environment</Title>
+                        </Space>
 
-                    <Space direction="horizontal">
-                        <Tooltip
-                            title={
-                                isDemo()
-                                    ? ""
-                                    : "History available in Cloud/Enterprise editions only"
-                            }
-                        >
-                            <Button
-                                size="small"
-                                className="flex items-center gap-2"
-                                disabled={!isDemo()}
+                        <Space direction="horizontal">
+                            <Tooltip
+                                title={
+                                    isDemo()
+                                        ? ""
+                                        : "History available in Cloud/Enterprise editions only"
+                                }
                             >
-                                <ClockClockwise size={16} />
-                                View history
-                            </Button>
-                        </Tooltip>
-                        <Dropdown
-                            trigger={["hover"]}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "change_variant",
-                                        label: "Change Variant",
-                                        icon: <Swap size={16} />,
-                                    },
-                                    {
-                                        key: "open_playground",
-                                        label: "Open in playground",
-                                        icon: <Rocket size={16} />,
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button type="text" icon={<MoreOutlined />} size="small" />
-                        </Dropdown>
+                                <Button
+                                    size="small"
+                                    className="flex items-center gap-2"
+                                    disabled={!isDemo()}
+                                    onClick={() => setIsHistoryModalOpen(true)}
+                                >
+                                    <ClockClockwise size={16} />
+                                    View history
+                                </Button>
+                            </Tooltip>
+                            <Dropdown
+                                trigger={["hover"]}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "change_variant",
+                                            label: "Change Variant",
+                                            icon: <Swap size={16} />,
+                                        },
+                                        {
+                                            key: "open_playground",
+                                            label: "Open in playground",
+                                            icon: <Rocket size={16} />,
+                                        },
+                                    ],
+                                }}
+                            >
+                                <Button type="text" icon={<MoreOutlined />} size="small" />
+                            </Dropdown>
+                        </Space>
                     </Space>
-                </Space>
-            }
-        >
-            <div className="flex flex-col gap-6">
-                <div className="flex justify-between">
-                    <Text className="font-[500]">Variant Deployed</Text>
+                }
+            >
+                <div className="flex flex-col gap-6">
+                    <div className="flex justify-between">
+                        <Text className="font-[500]">Variant Deployed</Text>
 
-                    <Tag>{selectedEnvironment?.deployed_variant_name}</Tag>
-                </div>
+                        <Tag>{selectedEnvironment?.deployed_variant_name}</Tag>
+                    </div>
 
-                <div>
-                    <Tabs
-                        destroyInactiveTabPane
-                        defaultActiveKey={selectedLang}
-                        className={classes.drawerTabs}
-                        items={[
-                            {
-                                key: "python",
-                                label: "Python",
-                                children: (
-                                    <LanguageCodeBlock
-                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <PythonOutlined />,
-                            },
-                            {
-                                key: "typescript",
-                                label: "TypeScript",
-                                children: (
-                                    <LanguageCodeBlock
-                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <FileTs size={14} />,
-                            },
-                            {
-                                key: "bash",
-                                label: "cURL",
-                                children: (
-                                    <LanguageCodeBlock
-                                        fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                        invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                        selectedLang={selectedLang}
-                                    />
-                                ),
-                                icon: <FileCode size={14} />,
-                            },
-                        ]}
-                        onChange={setSelectedLang}
-                    />
+                    <div>
+                        <Tabs
+                            destroyInactiveTabPane
+                            defaultActiveKey={selectedLang}
+                            className={classes.drawerTabs}
+                            items={[
+                                {
+                                    key: "python",
+                                    label: "Python",
+                                    children: (
+                                        <LanguageCodeBlock
+                                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                            selectedLang={selectedLang}
+                                        />
+                                    ),
+                                    icon: <PythonOutlined />,
+                                },
+                                {
+                                    key: "typescript",
+                                    label: "TypeScript",
+                                    children: (
+                                        <LanguageCodeBlock
+                                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                            selectedLang={selectedLang}
+                                        />
+                                    ),
+                                    icon: <FileTs size={14} />,
+                                },
+                                {
+                                    key: "bash",
+                                    label: "cURL",
+                                    children: (
+                                        <LanguageCodeBlock
+                                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                            selectedLang={selectedLang}
+                                        />
+                                    ),
+                                    icon: <FileCode size={14} />,
+                                },
+                            ]}
+                            onChange={setSelectedLang}
+                        />
+                    </div>
                 </div>
-            </div>
-        </Drawer>
+            </Drawer>
+
+            <DeploymentHistoryModal
+                open={isHistoryModalOpen}
+                onCancel={() => setIsHistoryModalOpen(false)}
+                setIsHistoryModalOpen={setIsHistoryModalOpen}
+                selectedEnvironment={selectedEnvironment}
+            />
+        </>
     )
 }
 

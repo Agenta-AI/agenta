@@ -1,3 +1,4 @@
+import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
@@ -51,6 +52,7 @@ const SingleModelEvalOverview = () => {
         SingleModelEvaluationListTableDataType[]
     >([])
     const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
+    const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
 
     useEffect(() => {
         if (!appId) return
@@ -268,7 +270,7 @@ const SingleModelEvalOverview = () => {
                 <Button
                     icon={<PlusOutlined />}
                     size="small"
-                    onClick={() => router.push(`/apps/${appId}/annotations/single_model_test`)}
+                    onClick={() => setIsEvalModalOpen(true)}
                 >
                     Create new
                 </Button>
@@ -282,6 +284,12 @@ const SingleModelEvalOverview = () => {
                     scroll={{x: true}}
                 />
             </Spin>
+
+            <HumanEvaluationModal
+                evaluationType={"single_model_test"}
+                isEvalModalOpen={isEvalModalOpen}
+                setIsEvalModalOpen={setIsEvalModalOpen}
+            />
         </div>
     )
 }

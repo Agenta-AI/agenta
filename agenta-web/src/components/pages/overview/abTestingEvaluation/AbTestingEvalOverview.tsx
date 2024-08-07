@@ -1,4 +1,5 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
 import {getColorFromStr} from "@/lib/helpers/colors"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
@@ -69,6 +70,7 @@ const AbTestingEvalOverview = () => {
 
     const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
+    const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
 
     useEffect(() => {
         if (!appId) return
@@ -371,7 +373,7 @@ const AbTestingEvalOverview = () => {
                 <Button
                     icon={<PlusOutlined />}
                     size="small"
-                    onClick={() => router.push(`/apps/${appId}/annotations/human_a_b_testing`)}
+                    onClick={() => setIsEvalModalOpen(true)}
                 >
                     Create new
                 </Button>
@@ -385,6 +387,12 @@ const AbTestingEvalOverview = () => {
                     scroll={{x: true}}
                 />
             </Spin>
+
+            <HumanEvaluationModal
+                evaluationType={"human_a_b_testing"}
+                isEvalModalOpen={isEvalModalOpen}
+                setIsEvalModalOpen={setIsEvalModalOpen}
+            />
         </div>
     )
 }
