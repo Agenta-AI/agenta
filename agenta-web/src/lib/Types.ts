@@ -560,9 +560,9 @@ export interface TraceSpan {
     parent_span_id?: string | null
     name?: string
     content: {
-        inputs: {input_name: string; input_value: string}[] | null
-        internals: {internal_name: string; internal_value: string}[] | null
-        outputs: string[] | null
+        inputs: Record<string, any> | null
+        internals: Record<string, any> | null
+        outputs: string[] | Record<string, any> | null
         role?: string | null
     }
 }
