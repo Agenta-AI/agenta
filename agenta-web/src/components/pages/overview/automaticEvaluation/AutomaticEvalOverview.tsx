@@ -55,6 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             flex: 1,
             minWidth: 100,
             borderRight: `1px solid ${theme.colorBorder}`,
+            padding: "0 7px",
         },
         "& > div:nth-child(2)": {
             padding: "0 7px",
