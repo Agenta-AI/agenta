@@ -1,9 +1,9 @@
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {createParams} from "@/pages/apps/[app_id]/endpoints"
-import {MoreOutlined, PythonOutlined} from "@ant-design/icons"
-import {FileCode, FileTs} from "@phosphor-icons/react"
-import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Typography} from "antd"
+import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
+import {ClockClockwise, FileCode, FileTs, Rocket, Swap} from "@phosphor-icons/react"
+import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
@@ -16,6 +16,7 @@ import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {useRouter} from "next/router"
 import {fetchAppContainerURL, fetchVariants} from "@/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface DeploymentDrawerProps {
     selectedEnvironment: Environment
@@ -35,7 +36,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         justifyContent: "space-between",
         "& h1.ant-typography": {
-            fontSize: 22,
+            fontSize: theme.fontSizeHeading5,
             fontWeight: 500,
             textTransform: "capitalize",
         },
@@ -162,42 +163,56 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
             closeIcon={null}
             title={
                 <Space className={classes.drawerTitleContainer}>
-                    <Title>{selectedEnvironment?.name} environment</Title>
+                    <Space className="gap-3">
+                        <CloseOutlined onClick={() => props.onClose?.({} as any)} />
+                        <Title>{selectedEnvironment?.name} environment</Title>
+                    </Space>
 
                     <Space direction="horizontal">
-                        <Button>Button1</Button>
-                        <Button type="primary">Button2</Button>
+                        <Tooltip
+                            title={
+                                isDemo()
+                                    ? ""
+                                    : "History available in Cloud/Enterprise editions only"
+                            }
+                        >
+                            <Button
+                                size="small"
+                                className="flex items-center gap-2"
+                                disabled={!isDemo()}
+                            >
+                                <ClockClockwise size={16} />
+                                View history
+                            </Button>
+                        </Tooltip>
+                        <Dropdown
+                            trigger={["hover"]}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "change_variant",
+                                        label: "Change Variant",
+                                        icon: <Swap size={16} />,
+                                    },
+                                    {
+                                        key: "open_playground",
+                                        label: "Open in playground",
+                                        icon: <Rocket size={16} />,
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button type="text" icon={<MoreOutlined />} size="small" />
+                        </Dropdown>
                     </Space>
                 </Space>
             }
         >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-6">
                 <div className="flex justify-between">
-                    <div className="flex flex-col gap-1">
-                        <Text className="font-[500]">Variant Deployed</Text>
-                        <Tag color="blue" className="w-fit">
-                            {selectedEnvironment?.deployed_variant_name}
-                        </Tag>
-                    </div>
+                    <Text className="font-[500]">Variant Deployed</Text>
 
-                    <Dropdown
-                        trigger={["click"]}
-                        menu={{
-                            items: [
-                                {
-                                    key: "change_variant",
-                                    label: "Change Variant",
-                                },
-
-                                {
-                                    key: "open_playground",
-                                    label: "Open in playground",
-                                },
-                            ],
-                        }}
-                    >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
-                    </Dropdown>
+                    <Tag>{selectedEnvironment?.deployed_variant_name}</Tag>
                 </div>
 
                 <div>

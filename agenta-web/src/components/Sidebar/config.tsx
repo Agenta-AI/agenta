@@ -1,25 +1,9 @@
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
-import {JSSTheme} from "@/lib/Types"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
-import {
-    ApiOutlined,
-    AppstoreOutlined,
-    DashboardOutlined,
-    DatabaseOutlined,
-    PartitionOutlined,
-    PlayCircleOutlined,
-    RocketOutlined,
-    SlidersOutlined,
-    SwapOutlined,
-    GithubFilled,
-} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
 import {useEffect, useState} from "react"
-import Image from "next/image"
-import abTesting from "@/media/testing.png"
-import singleModel from "@/media/score.png"
-import {createUseStyles} from "react-jss"
 import {
     ChartDonut,
     ChartLineUp,
@@ -36,14 +20,6 @@ import {
     Dot,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    evaluationImg: {
-        width: 20,
-        height: 20,
-        filter: theme.isDark ? "invert(1)" : "none",
-    },
-}))
 
 export type SidebarConfig = {
     key: string
@@ -63,7 +39,6 @@ export type SidebarConfig = {
 }
 
 export const useSidebarConfig = () => {
-    const classes = useStyles()
     const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp} = useAppsData()

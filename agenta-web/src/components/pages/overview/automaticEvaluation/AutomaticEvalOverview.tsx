@@ -1,11 +1,17 @@
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
-import {fetchAllEvaluations} from "@/services/evaluations/api"
-import {MoreOutlined, PlusOutlined, SwapOutlined} from "@ant-design/icons"
+import {_Evaluation, EvaluationStatus, Evaluator, JSSTheme} from "@/lib/Types"
+import {fetchAllEvaluations, fetchAllEvaluators} from "@/services/evaluations/api"
+import {
+    EditOutlined,
+    InfoCircleOutlined,
+    MoreOutlined,
+    PlusOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
 import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Space, Spin, Table, Typography} from "antd"
+import {Button, Dropdown, Popover, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useState} from "react"
@@ -23,6 +29,25 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             fontSize: theme.fontSize,
         },
     },
+    resultTag: {
+        minWidth: 150,
+        display: "flex",
+        cursor: "pointer",
+        alignItems: "stretch",
+        borderRadius: theme.borderRadiusSM,
+        border: `1px solid ${theme.colorBorder}`,
+        textAlign: "center",
+        "& > div:nth-child(1)": {
+            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            lineHeight: theme.lineHeight,
+            flex: 1,
+            minWidth: 100,
+            borderRight: `1px solid ${theme.colorBorder}`,
+        },
+        "& > div:nth-child(2)": {
+            padding: "0 7px",
+        },
+    },
 }))
 
 const AutomaticEvalOverview = () => {
@@ -30,6 +55,7 @@ const AutomaticEvalOverview = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
+    const [evaluators, setEvaluators] = useState<Evaluator[]>()
     const [isEvalLoading, setIsEvalLoading] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
@@ -56,9 +82,13 @@ const AutomaticEvalOverview = () => {
         const fetchEvaluations = async () => {
             try {
                 setIsEvalLoading(true)
-                const data = await fetchAllEvaluations(appId)
-                const result = data.slice(0, 5).reverse()
+                const [allEvaluations, allEvaluators] = await Promise.all([
+                    fetchAllEvaluations(appId),
+                    fetchAllEvaluators(),
+                ])
+                const result = allEvaluations.reverse().slice(0, 5)
                 setEvaluationList(result)
+                setEvaluators(allEvaluators)
             } catch (error) {
                 console.error(error)
             } finally {
@@ -110,7 +140,7 @@ const AutomaticEvalOverview = () => {
             dataIndex: "status",
             key: "status",
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 240},
             }),
             render: (_, record) => {
                 return <StatusRenderer {...record} />
@@ -124,15 +154,58 @@ const AutomaticEvalOverview = () => {
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
+                if (!evaluators?.length) return
                 return (
                     <Space>
-                        {record.aggregated_results.map((result, index) => (
-                            <Input
-                                key={index}
-                                addonBefore={result.evaluator_config.name}
-                                defaultValue={getTypedValue(result.result)}
-                            />
-                        ))}
+                        {record.aggregated_results.map((result, index) => {
+                            const evaluator = evaluators.find(
+                                (item) => item.key === result.evaluator_config.evaluator_key,
+                            )
+
+                            return result.result.error ? (
+                                <Popover
+                                    placement="bottom"
+                                    arrow={false}
+                                    key={index}
+                                    content={
+                                        <div className="w-[256px]">
+                                            {result.result.error.stacktrace}
+                                        </div>
+                                    }
+                                    title={result.result.error.message}
+                                >
+                                    <Button icon={<InfoCircleOutlined />} type="link">
+                                        Read more
+                                    </Button>
+                                </Popover>
+                            ) : (
+                                <Popover
+                                    placement="bottom"
+                                    arrow={false}
+                                    key={index}
+                                    content={
+                                        <div className="w-[256px] flex flex-col gap-1">
+                                            <div className="font-[500]">
+                                                {result.evaluator_config.name}
+                                            </div>
+                                            <div>{getTypedValue(result.result)}</div>
+                                        </div>
+                                    }
+                                    title={
+                                        <div className="flex items-center justify-between">
+                                            <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
+
+                                            <Button icon={<EditOutlined />} size="small" />
+                                        </div>
+                                    }
+                                >
+                                    <div className={classes.resultTag}>
+                                        <div>{result.evaluator_config.name}</div>
+                                        <div>{getTypedValue(result.result)}</div>
+                                    </div>
+                                </Popover>
+                            )
+                        })}
                     </Space>
                 )
             },
@@ -246,6 +319,11 @@ const AutomaticEvalOverview = () => {
                         size="small"
                         type="link"
                         icon={<SwapOutlined />}
+                        onClick={() =>
+                            router.push(
+                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,
+                            )
+                        }
                     >
                         Compare evaluations
                     </Button>

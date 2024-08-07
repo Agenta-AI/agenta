@@ -7,6 +7,7 @@ import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentDrawer from "./DeploymentDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
+import {Code, Rocket, Swap} from "@phosphor-icons/react"
 
 const {Title, Text} = Typography
 
@@ -77,8 +78,9 @@ const DeploymentOverview = () => {
                             menu={{
                                 items: [
                                     {
-                                        key: "view-details",
-                                        label: "View Details",
+                                        key: "use_api",
+                                        label: "Use API",
+                                        icon: <Code size={16} />,
                                         onClick: () => {
                                             setQueryEnv(env.name)
                                             setSelectedEnvironment(env)
@@ -88,11 +90,13 @@ const DeploymentOverview = () => {
                                     {
                                         key: "change_variant",
                                         label: "Change Variant",
+                                        icon: <Swap size={16} />,
                                     },
                                     {type: "divider"},
                                     {
                                         key: "open_playground",
                                         label: "Open in playground",
+                                        icon: <Rocket size={16} />,
                                     },
                                 ],
                             }}
