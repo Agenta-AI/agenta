@@ -333,5 +333,5 @@ export const getInitials = (str: string, limit = 2) => {
 }
 
 export const getStringOrJson = (value: any) => {
-    return typeof value === "string" ? value : JSON.stringify(value)
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2)
 }
