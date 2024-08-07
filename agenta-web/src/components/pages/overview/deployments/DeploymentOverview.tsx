@@ -85,7 +85,6 @@ const DeploymentOverview = () => {
                                             setQueryEnv(env.name)
                                             setSelectedEnvironment(env)
                                         },
-                                        disabled: !env.deployed_app_variant_id,
                                     },
                                     {
                                         key: "change_variant",

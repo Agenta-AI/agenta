@@ -1,8 +1,14 @@
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
-import {getTypedValue} from "@/lib/helpers/evaluate"
+import {calcEvalDuration, getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {_Evaluation, EvaluationStatus, Evaluator, JSSTheme} from "@/lib/Types"
-import {fetchAllEvaluations, fetchAllEvaluators} from "@/services/evaluations/api"
+import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
+import {
+    deleteEvaluations,
+    fetchAllEvaluations,
+    fetchAllEvaluatorConfigs,
+    fetchAllEvaluators,
+    fetchEvaluationStatus,
+} from "@/services/evaluations/api"
 import {
     EditOutlined,
     InfoCircleOutlined,
@@ -11,12 +17,18 @@ import {
     SwapOutlined,
 } from "@ant-design/icons"
 import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Space, Spin, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, message, Popover, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import StatusRenderer from "./StatusRenderer"
+import NewEvaluationModal from "../../evaluations/evaluationResults/NewEvaluationModal"
+import {useAtom} from "jotai"
+import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
+import {useUpdateEffect} from "usehooks-ts"
+import {shortPoll} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -55,9 +67,54 @@ const AutomaticEvalOverview = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
-    const [evaluators, setEvaluators] = useState<Evaluator[]>()
+    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
+    const stoppers = useRef<Function>()
+
+    const runningEvaluationIds = useMemo(
+        () =>
+            evaluationList
+                .filter((item) => runningStatuses.includes(item.status.value))
+                .map((item) => item.id),
+        [evaluationList],
+    )
+
+    useUpdateEffect(() => {
+        stoppers.current?.()
+
+        if (runningEvaluationIds.length) {
+            stoppers.current = shortPoll(
+                () =>
+                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(id)))
+                        .then((res) => {
+                            setEvaluationList((prev) => {
+                                const newEvals = [...prev]
+                                runningEvaluationIds.forEach((id, ix) => {
+                                    const index = newEvals.findIndex((e) => e.id === id)
+                                    if (index !== -1) {
+                                        newEvals[index].status = res[ix].status
+                                        newEvals[index].duration = calcEvalDuration(newEvals[index])
+                                    }
+                                })
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                )
+                                    fetchEvaluations()
+                                return newEvals
+                            })
+                        })
+                        .catch(console.error),
+                {delayMs: 2000, timeoutMs: Infinity},
+            ).stopper
+        }
+
+        return () => {
+            stoppers.current?.()
+        }
+    }, [JSON.stringify(runningEvaluationIds)])
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -78,23 +135,27 @@ const AutomaticEvalOverview = () => {
         )
     }, [selectedRowKeys])
 
-    useEffect(() => {
-        const fetchEvaluations = async () => {
-            try {
-                setIsEvalLoading(true)
-                const [allEvaluations, allEvaluators] = await Promise.all([
-                    fetchAllEvaluations(appId),
-                    fetchAllEvaluators(),
-                ])
-                const result = allEvaluations.reverse().slice(0, 5)
-                setEvaluationList(result)
-                setEvaluators(allEvaluators)
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setIsEvalLoading(false)
-            }
+    const fetchEvaluations = async () => {
+        try {
+            setIsEvalLoading(true)
+            const [allEvaluations, allEvaluators, allEvaluatorConfigs] = await Promise.all([
+                fetchAllEvaluations(appId),
+                fetchAllEvaluators(),
+                fetchAllEvaluatorConfigs(appId),
+            ])
+            const result = allEvaluations
+            setEvaluationList(result)
+            setEvaluators(allEvaluators)
+            setEvaluatorConfigs(allEvaluatorConfigs)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsEvalLoading(false)
         }
+    }
+
+    useEffect(() => {
+        if (!appId) return
 
         fetchEvaluations()
     }, [appId])
@@ -103,7 +164,20 @@ const AutomaticEvalOverview = () => {
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
-    const handleDeleteEvaluation = async (record: _Evaluation) => {}
+    const handleDeleteEvaluation = async (record: _Evaluation) => {
+        try {
+            setIsEvalLoading(true)
+            await deleteEvaluations([record.id])
+            setEvaluationList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => ![record.id].includes(evaluation.id)),
+            )
+            message.success("Evaluation Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsEvalLoading(false)
+        }
+    }
 
     const columns: ColumnsType<_Evaluation> = [
         {
@@ -164,15 +238,16 @@ const AutomaticEvalOverview = () => {
 
                             return result.result.error ? (
                                 <Popover
-                                    placement="bottom"
-                                    arrow={false}
                                     key={index}
+                                    placement="bottom"
+                                    trigger={"click"}
+                                    arrow={false}
                                     content={
                                         <div className="w-[256px]">
-                                            {result.result.error.stacktrace}
+                                            {result.result.error?.stacktrace}
                                         </div>
                                     }
-                                    title={result.result.error.message}
+                                    title={result.result.error?.message}
                                 >
                                     <Button icon={<InfoCircleOutlined />} type="link">
                                         Read more
@@ -180,9 +255,10 @@ const AutomaticEvalOverview = () => {
                                 </Popover>
                             ) : (
                                 <Popover
-                                    placement="bottom"
-                                    arrow={false}
                                     key={index}
+                                    placement="bottom"
+                                    trigger={"click"}
+                                    arrow={false}
                                     content={
                                         <div className="w-[256px] flex flex-col gap-1">
                                             <div className="font-[500]">
@@ -330,11 +406,7 @@ const AutomaticEvalOverview = () => {
                     <Button
                         icon={<PlusOutlined />}
                         size="small"
-                        onClick={() =>
-                            router.push(
-                                `/apps/${appId}/evaluations/results?openNewEvaluationModal=open`,
-                            )
-                        }
+                        onClick={() => setNewEvalModalOpen(true)}
                     >
                         Create new
                     </Button>
@@ -355,6 +427,17 @@ const AutomaticEvalOverview = () => {
                     scroll={{x: true}}
                 />
             </Spin>
+
+            <NewEvaluationModal
+                open={newEvalModalOpen}
+                onCancel={() => {
+                    setNewEvalModalOpen(false)
+                }}
+                onSuccess={() => {
+                    setNewEvalModalOpen(false)
+                    fetchEvaluations()
+                }}
+            />
         </div>
     )
 }
