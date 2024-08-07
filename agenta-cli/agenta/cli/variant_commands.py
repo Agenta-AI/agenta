@@ -32,10 +32,10 @@ def variant():
     pass
 
 
-def add_variant_from_url(
+def hook_variant_to_url(
     url: str,
     variant_slug: str,
-    config_path: str,
+    app_folder: str,
     config_file: str,
     overwrite: bool,
 ) -> None:
@@ -43,7 +43,7 @@ def add_variant_from_url(
     ...
     """
 
-    config_path = Path(config_path)
+    config_path = Path(app_folder)
     config_file = config_path / config_file
     config = toml.load(config_file)
 
@@ -644,20 +644,20 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
     ),
 )
 @click.option("--url")
-@click.option("--app_name", default="app")
 @click.option("--variant_slug", default="default")
-@click.option("--config_path", default=".")
+@click.option("--app_folder", default=".")
 @click.option("--config_file", default="config.toml")
 @click.option(
     "--overwrite",
     is_flag=True,
-    help="Overwrite the existing hook if it exists",
+    help="Overwrite the existing hook, if it exists",
 )
+@click.pass_context
 def hook_cli(
     ctx,
     url: str,
     variant_slug: str,
-    config_path: str,
+    app_folder: str,
     config_file: str,
     overwrite: bool,
 ):
@@ -675,14 +675,14 @@ def hook_cli(
             sys.exit(1)
 
     try:
-        config_check(config_path, config_file)
+        config_check(app_folder, config_file)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         sys.exit(1)
 
     try:
-        get_host(config_path, config_file)
+        get_host(app_folder, config_file)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
@@ -696,10 +696,10 @@ def hook_cli(
         sys.exit(1)
 
     try:
-        add_variant_from_url(
+        hook_variant_to_url(
             url=url,
             variant_slug=variant_slug,
-            config_path=config_path,
+            app_folder=app_folder,
             config_file=config_file,
             overwrite=overwrite,
         )
