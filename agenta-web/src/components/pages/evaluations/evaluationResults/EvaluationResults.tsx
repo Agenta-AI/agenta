@@ -529,6 +529,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 }}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
+                    setQueryNewEvalModalOpen("")
                     fetcher()
                 }}
             />
