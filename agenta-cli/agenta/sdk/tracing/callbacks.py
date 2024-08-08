@@ -5,6 +5,8 @@ from agenta.sdk.tracing.logger import llm_logger as logging
 
 from agenta.sdk.utils.debug import debug
 
+TRACE_DEFAULT_KEY = "__default__"
+
 
 def litellm_handler():
     try:
@@ -70,7 +72,7 @@ def litellm_handler():
             )
             ag.tracing.store_outputs(
                 # the complete streamed response (only set if `completion(..stream=True)`
-                outputs={"message": kwargs.get("complete_streaming_response")},
+                outputs={TRACE_DEFAULT_KEY: kwargs.get("complete_streaming_response")},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -84,7 +86,7 @@ def litellm_handler():
                 response_obj.usage.dict() if hasattr(response_obj, "usage") else None
             )
             ag.tracing.store_outputs(
-                outputs={"message": response_obj.choices[0].message.content},
+                outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -110,7 +112,7 @@ def litellm_handler():
             )
             ag.tracing.store_outputs(
                 # the Exception raised
-                outputs={"message": repr(kwargs["exception"])},
+                outputs={TRACE_DEFAULT_KEY: repr(kwargs["exception"])},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -127,7 +129,7 @@ def litellm_handler():
             )
             ag.tracing.store_outputs(
                 # the complete streamed response (only set if `completion(..stream=True)`)
-                outputs={"message": kwargs.get("complete_streaming_response")},
+                outputs={TRACE_DEFAULT_KEY: kwargs.get("complete_streaming_response")},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -143,7 +145,7 @@ def litellm_handler():
                 response_obj.usage.dict() if hasattr(response_obj, "usage") else None
             )
             ag.tracing.store_outputs(
-                outputs={"message": response_obj.choices[0].message.content},
+                outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -171,7 +173,7 @@ def litellm_handler():
             )
             ag.tracing.store_outputs(
                 # the Exception raised
-                outputs={"message": repr(kwargs["exception"])},
+                outputs={TRACE_DEFAULT_KEY: repr(kwargs["exception"])},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
