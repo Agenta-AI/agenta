@@ -331,30 +331,26 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Context):
                 save_context(result)
 
-            DEFAULT_KEY = "message"
+            data = result
 
-            if isinstance(result, Dict):
-                data = result
-
-                # EVENTUALLY THIS PATCH SHOULD BE REMOVED
-                # PATCH: if message in result then only keep message key/value
-                # DEFAULT_KEY = "message"
-
-                if "message" in result.keys():
-                    data = {DEFAULT_KEY: result["message"]}
-                # END OF PATCH
-
-            elif isinstance(result, str):
-                data = {DEFAULT_KEY: result}
-            elif isinstance(result, int) or isinstance(result, float):
-                data = {DEFAULT_KEY: str(result)}
+            # PATCH : if result is not a dict, make it a dict
+            if not isinstance(result, dict):
+                if result.__class__.__module__ != "__builtin__":
+                    data = repr(result)
+            else:
+                # PATCH : if result is a legacy dict, clean it up
+                if (
+                    "message" in result.keys()
+                    and "cost" in result.keys()
+                    and "usage" in result.keys()
+                ):
+                    data = {"message": result["message"]}
+            # END OF PATH
 
             if data is None:
-                warning = (
+                data = (
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
-
-                data = {"message": warning}
 
             return BaseResponse(data=data, trace=trace)
 

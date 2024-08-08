@@ -415,6 +415,30 @@ class Tracing(metaclass=SingletonMeta):
         span.outputs = outputs
 
     @debug()
+    def store_cost(self, cost: float = 0.0, span_id: Optional[str] = None) -> None:
+        """
+        ...
+        """
+        span = self._get_target_span(span_id)
+
+        logging.info(f"Setting span  {span.id} {span.spankind.upper()} cost={cost}")
+
+        self._update_span_cost(span, cost)
+
+    @debug()
+    def store_usage(self, tokens: dict = {}, span_id: Optional[str] = None) -> None:
+        """
+        ...
+        """
+        span = self._get_target_span(span_id)
+
+        logging.info(
+            f"Setting span  {span.id} {span.spankind.upper()} tokens={repr(tokens)}"
+        )
+
+        self._update_span_tokens(span, tokens)
+
+    @debug()
     def dump_trace(self):
         """
         Collects and organizes tracing information into a dictionary.

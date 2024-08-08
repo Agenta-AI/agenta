@@ -51,7 +51,7 @@ def get_correct_answer(
 
 def auto_exact_match(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
@@ -71,6 +71,8 @@ def auto_exact_match(
     Returns:
         Result: A Result object containing the evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         exact_match = True if output == correct_answer else False
@@ -97,12 +99,14 @@ def auto_exact_match(
 
 def auto_regex_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
         result = (
@@ -122,12 +126,14 @@ def auto_regex_test(
 
 def field_match_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         output_json = json.loads(output)
@@ -148,12 +154,14 @@ def field_match_test(
 
 def auto_webhook_test(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
 
@@ -215,12 +223,14 @@ def auto_webhook_test(
 
 def auto_custom_code_run(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         result = sandbox.execute_code_safely(
             app_params=app_params,
@@ -246,7 +256,7 @@ def auto_custom_code_run(
 
 def auto_ai_critique(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
@@ -266,6 +276,8 @@ def auto_ai_critique(
     Returns:
         Result: Evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
@@ -305,12 +317,14 @@ def auto_ai_critique(
 
 def auto_starts_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         prefix = settings_values.get("prefix", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -334,12 +348,14 @@ def auto_starts_with(
 
 def auto_ends_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         suffix = settings_values.get("suffix", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -363,12 +379,14 @@ def auto_ends_with(
 
 def auto_contains(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substring = settings_values.get("substring", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -392,12 +410,14 @@ def auto_contains(
 
 def auto_contains_any(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substrings_str = settings_values.get("substrings", "")
         substrings = [substring.strip() for substring in substrings_str.split(",")]
@@ -424,12 +444,14 @@ def auto_contains_any(
 
 def auto_contains_all(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substrings_str = settings_values.get("substrings", "")
         substrings = [substring.strip() for substring in substrings_str.split(",")]
@@ -456,12 +478,14 @@ def auto_contains_all(
 
 def auto_contains_json(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         try:
             start_index = output.index("{")
@@ -615,7 +639,7 @@ def auto_json_diff(
 
 def rag_faithfulness(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -700,7 +724,7 @@ def rag_faithfulness(
 
 def rag_context_relevancy(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -804,12 +828,14 @@ def levenshtein_distance(s1, s2):
 
 def auto_levenshtein_distance(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
 
@@ -821,7 +847,6 @@ def auto_levenshtein_distance(
             return Result(type="bool", value=is_within_threshold)
 
         return Result(type="number", value=distance)
-
     except ValueError as e:
         return Result(
             type="error",
@@ -843,12 +868,14 @@ def auto_levenshtein_distance(
 
 def auto_similarity_match(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         set1 = set(output.split())
@@ -882,8 +909,13 @@ def auto_similarity_match(
         )
 
 
-async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
-    """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
+async def semantic_similarity(
+    output: Union[str, Dict[str, Any]],
+    correct_answer: str,
+    api_key: str,
+) -> float:
+    """
+    Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
 
     Args:
         output (str): the output text
@@ -892,6 +924,8 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
     Returns:
         float: the semantic similarity score
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
 
     openai = AsyncOpenAI(api_key=api_key)
 
@@ -912,12 +946,14 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
 
 def auto_semantic_similarity(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         loop = asyncio.get_event_loop()
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
