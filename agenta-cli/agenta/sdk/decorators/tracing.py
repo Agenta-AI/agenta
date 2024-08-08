@@ -83,7 +83,7 @@ class instrument(BaseDecorator):
                             outputs = {"message": result["message"]}
 
                             ag.tracing.store_cost(result["cost"])
-                            ag.tracing.store_usage(result["tokens"])
+                            ag.tracing.store_usage(result["usage"])
                     # END OF PATH
 
                     ag.tracing.store_outputs(outputs)
@@ -122,7 +122,7 @@ class instrument(BaseDecorator):
                             outputs = {"message": result["message"]}
 
                             ag.tracing.store_cost(result["cost"])
-                            ag.tracing.store_usage(result["tokens"])
+                            ag.tracing.store_usage(result["usage"])
                     # END OF PATH
 
                     ag.tracing.store_outputs(outputs)
