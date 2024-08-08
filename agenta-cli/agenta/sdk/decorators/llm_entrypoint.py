@@ -120,7 +120,7 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
-        print(f"Using Agenta Python SDK version {version('agenta')}")
+        logging.info(f"Using Agenta Python SDK version {version('agenta')}")
 
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
@@ -293,11 +293,11 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
-            print(f"Using Agenta Python SDK version {version('agenta')}")
+            logging.info(f"Using Agenta Python SDK version {version('agenta')}")
 
             WAIT_FOR_SPANS = True
-            TIMEOUT = 10
-            TIMESTEP = 0.01
+            TIMEOUT = 1
+            TIMESTEP = 0.1
             NOFSTEPS = TIMEOUT / TIMESTEP
 
             data = None
@@ -319,7 +319,7 @@ class entrypoint(BaseDecorator):
                     remaining_steps = NOFSTEPS
 
                     while not ag.tracing.is_trace_ready() and remaining_steps > 0:
-                        await asyncio.sleep(0.01)
+                        await asyncio.sleep(TIMESTEP)
                         remaining_steps -= 1
 
                 trace = ag.tracing.dump_trace()
@@ -355,7 +355,7 @@ class entrypoint(BaseDecorator):
 
             response = BaseResponse(data=data, trace=trace)
 
-            logging.debug(response)
+            # logging.debug(response)
 
             return response
 
