@@ -12,6 +12,7 @@ import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
+from importlib.metadata import version
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
@@ -119,6 +120,8 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
+        print(f"Using Agenta Python SDK version {version("agenta")}")
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -233,9 +236,6 @@ class entrypoint(BaseDecorator):
                 params=route["params"],
             )
         ### ---------------------- #
-
-        print(entrypoint.routes)
-
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
@@ -293,6 +293,8 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            print(f"Using Agenta Python SDK version {version("agenta")}")
+
             WAIT_FOR_SPANS = True
             TIMEOUT = 10
             TIMESTEP = 0.01
