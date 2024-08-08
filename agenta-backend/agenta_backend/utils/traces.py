@@ -47,6 +47,8 @@ def _make_spans_id_tree(trace):
 
 INCLUDED_KEYS = ["start_time", "end_time", "inputs", "internals", "outputs"]
 
+TRACE_DEFAULT_KEY = "__default__"
+
 
 def _make_spans_tree(spans_id_tree, spans_index):
     """
@@ -77,6 +79,9 @@ def _make_spans_tree(spans_id_tree, spans_index):
             key = spans_index[id]["name"]
 
             span = {k: spans_index[id][k] for k in INCLUDED_KEYS}
+
+            if TRACE_DEFAULT_KEY in span["outputs"]:
+                span["outputs"] = span["outputs"][TRACE_DEFAULT_KEY]
 
             span.update({"spans": _make_spans_tree(children, spans_index)})
 

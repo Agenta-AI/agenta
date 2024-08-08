@@ -86,6 +86,8 @@ export const fromBaseResponseToTraceSpanType = (
     spans: BaseResponseSpans[],
     traceId: string,
 ): [TraceSpan[], Record<string, TraceSpan>] => {
+    const TRACE_DEFAULT_KEY = "__default__"
+
     const all_spans = spans.map((span) => ({
         id: span.id,
         name: span.name,
@@ -113,7 +115,12 @@ export const fromBaseResponseToTraceSpanType = (
         content: {
             inputs: span.inputs,
             internals: span.internals,
-            outputs: span.outputs,
+            outputs:
+                Array.isArray(span.outputs) ||
+                span.outputs == undefined ||
+                !span.outputs.hasOwnProperty(TRACE_DEFAULT_KEY)
+                    ? span.outputs
+                    : span.outputs[TRACE_DEFAULT_KEY],
         } as {
             inputs: Record<string, any> | null
             internals: Record<string, any> | null
