@@ -21,8 +21,18 @@ class ConfigManager:
     client = None
     @staticmethod
     def get_from_route(schema: Type[T]) -> T:
-        config_param = route_context.get()
-        return schema(**config_param)
+        context = route_context.get()
+        if ("config" in context and context["config"]) and (("environment" in context and context["environment"]) or ("variant" in context and context["variant"])):
+            raise ValueError("Either config, environment or variant must be provided. Not both.")
+        if( "config" in context and context["config"]):
+            return schema(**context["config"])
+        elif ("environment" in context and context["environment"]):
+            return ConfigManager.get_from_backend(schema, environment=context["environment"])
+        elif ("variant" in context and context["variant"]):
+            return ConfigManager.get_from_backend(schema, variant=context["variant"])
+        else:
+            raise ValueError("Either config, environment or variant must be provided")
+        
 
     @staticmethod
     def get_from_backend(schema: Type[T], environment: Optional[str] = None, version: Optional[str] = None, variant: Optional[str]=None) -> T:
