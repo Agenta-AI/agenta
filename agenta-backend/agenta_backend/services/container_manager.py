@@ -107,7 +107,7 @@ def build_image_job(
         else:
             dockerfile = "Dockerfile.oss.agenta"
             if not Path(dockerfile).exists():
-                dockerfile = "Dockerfile"  # For backward compatibility
+                dockerfile = "Dockerfile.oss"  # For backward compatibility
 
         image, build_log = client.images.build(
             path=str(temp_dir),
