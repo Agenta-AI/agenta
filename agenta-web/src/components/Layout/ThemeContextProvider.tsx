@@ -8,6 +8,7 @@ export const AntdThemeConfig: ThemeConfig = {
         // Seed Token
         ...antdTokens.token,
     },
+    // @ts-ignore
     components: {
         ...antdTokens.components,
     },
