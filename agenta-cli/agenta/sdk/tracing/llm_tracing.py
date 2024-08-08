@@ -267,7 +267,7 @@ class Tracing(metaclass=SingletonMeta):
             outputs=None,
             tags=None,
             user=None,
-            end_time=datetime.now(timezone.utc),
+            end_time=None,
             tokens=None,
             cost=None,
             token_consumption=None,
@@ -372,7 +372,7 @@ class Tracing(metaclass=SingletonMeta):
                 tracing.active_span = parent_span
         ### --- TO BE CLEANED --- <<<
 
-        logging.info(f"Closed  span  {span_id} {spankind}")
+        logging.info(f"Closed  span  {span.id} {spankind}")
 
     @debug()
     def store_internals(
@@ -457,6 +457,9 @@ class Tracing(metaclass=SingletonMeta):
             trace["trace_id"] = tracing.trace_id
 
             for span in tracing.spans.values():
+                if span.end_time is None:
+                    span.end_time = span.start_time
+
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
                     trace["usage"] = (
