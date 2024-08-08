@@ -1,7 +1,9 @@
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Union
+
+from pydantic import BaseModel, Field, model_validator
+
 from agenta_backend.models.api.api_models import Result
 
 
@@ -80,13 +82,39 @@ class Evaluation(BaseModel):
     updated_at: datetime
 
 
-class VariantEvaluation(BaseModel):
-    output: Any
-    data_point: Any
-    settings_values: Dict[str, Any]
-    variant_parameters: Dict[str, Any]
-    data_point: Dict[str, Any]
-    llm_provider_keys: Dict[str, Any]
+class SimpleEvaluatorMappingInterface(BaseModel):
+    ground_truth: Any
+    prediction: Any
+
+
+class RagEvaluatorMappingInterface(BaseModel):
+    question: Any
+    contexts: Any
+    answer: Any
+
+
+class EvaluationSettingsInterface(BaseModel):
+    llm_provider: str
+    llm_api_key: str
+
+
+class EvaluatorInputInterface(BaseModel):
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    settings: Optional[Dict[str, Any]] = None
+    credentials: Optional[Dict[str, Any]] = None
+
+
+class EvaluatorOutputInterface(BaseModel):
+    outputs: Dict[str, Any]
+
+
+class EvaluatorMappingInputInterface(BaseModel):
+    inputs: Dict[str, Any]
+    mapping: Dict[str, Any]
+
+
+class EvaluatorMappingOutputInterface(BaseModel):
+    outputs: Dict[str, Any]
 
 
 class SimpleEvaluationOutput(BaseModel):
