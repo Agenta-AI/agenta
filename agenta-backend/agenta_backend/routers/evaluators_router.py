@@ -1,19 +1,26 @@
 import logging
+import traceback
 
 from typing import List
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluator_manager, db_manager, evaluators_service
+from agenta_backend.services import (
+    evaluator_manager,
+    db_manager,
+    evaluators_service,
+)
 
 from agenta_backend.models.api.evaluation_model import (
-    Result,
     Evaluator,
     EvaluatorConfig,
-    VariantEvaluation,
     NewEvaluatorConfig,
     UpdateEvaluatorConfig,
+    EvaluatorInputInterface,
+    EvaluatorOutputInterface,
+    EvaluatorMappingInputInterface,
+    EvaluatorMappingOutputInterface,
 )
 
 if isCloudEE():
@@ -49,31 +56,63 @@ async def get_evaluators_endpoint():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{evaluator_key}/evaluate/", response_model=Result)
-def evaluator_evaluate(
-    request: Request, evaluator_key: str, payload: VariantEvaluation
+@router.post("/map/", response_model=EvaluatorMappingOutputInterface)
+async def evaluator_data_map(
+    request: Request, payload: EvaluatorMappingInputInterface
+):
+    """Endpoint to map the experiment data tree to evaluator interface.
+
+    Args:
+        request (Request): The request object.
+        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+
+    Returns:
+        EvaluatorMappingOutputInterface: the evaluator mapping output object
+    """
+
+    try:
+        mapped_outputs = evaluators_service.map(mapping_input=payload)
+        return mapped_outputs
+    except Exception as e:
+        logger.error(f"Error mapping data tree: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Error mapping data tree",
+                "stacktrace": traceback.format_exc(),
+            },
+        )
+
+
+@router.post("/{evaluator_key}/run/", response_model=EvaluatorOutputInterface)
+def evaluator_run(
+    request: Request, evaluator_key: str, payload: EvaluatorInputInterface
 ):
     """Endpoint to evaluate LLM app run
 
     Args:
         request (Request): The request object.
         evaluator_key (str): The key of the evaluator.
-        payload (VariantEvaluation): The payload containing request data.
+        payload (EvaluatorInputInterface): The payload containing the request data.
 
     Returns:
-        result: Result object containing the type, value, or error.
+        result: EvaluatorOutputInterface object containing the outputs.
     """
 
-    result = evaluators_service.evaluate(
-        evaluator_key=evaluator_key,
-        output=payload.output,
-        data_point=payload.data_point,
-        settings_values=payload.settings_values,
-        app_params=payload.variant_parameters,
-        inputs=payload.data_point,
-        lm_providers_keys=payload.llm_provider_keys,
-    )
-    return result
+    try:
+        result = evaluators_service.run(
+            evaluator_key=evaluator_key, evaluator_input=payload
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error while running evaluator: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Error while running evaluator",
+                "stacktrace": traceback.format_exc(),
+            },
+        )
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
