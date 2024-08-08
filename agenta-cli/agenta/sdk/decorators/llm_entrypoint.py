@@ -351,7 +351,11 @@ class entrypoint(BaseDecorator):
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
 
-            return BaseResponse(data=data, trace=trace)
+            response = BaseResponse(data=data, trace=trace)
+
+            logging.debug(response)
+
+            return response
 
         except Exception as e:
             self.handle_exception(e)
