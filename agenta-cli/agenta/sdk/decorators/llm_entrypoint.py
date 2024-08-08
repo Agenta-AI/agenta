@@ -72,8 +72,14 @@ route_context = contextvars.ContextVar('route_context', default={})
 
 
 @contextmanager
-def route_context_manager(config):
-    token = route_context.set(config)
+def route_context_manager(config: Optional[Dict[str, Any]] = None, environment: Optional[str] = None, version: Optional[str] = None, variant: Optional[str] = None):
+    context = {
+        'config': config,
+        'environment': environment,
+        'version': version,
+        'variant': variant
+    }
+    token = route_context.set(context)
     try:
         yield
     finally:
@@ -165,7 +171,7 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
-            with route_context_manager(api_config_params):
+            with route_context_manager(config=api_config_params):
                 entrypoint_result = await self.execute_function(
                     func, *args, params=func_params, config_params=config_params
                 )
@@ -224,10 +230,10 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
-
-            entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
-            )
+            with route_context_manager(variant=kwargs["config"], environment=kwargs["environment"]):
+                entrypoint_result = await self.execute_function(
+                    func, *args, params=func_params, config_params=config_params
+                )
 
             return entrypoint_result
 
