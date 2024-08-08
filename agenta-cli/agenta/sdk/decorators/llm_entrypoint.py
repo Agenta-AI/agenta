@@ -345,7 +345,7 @@ class entrypoint(BaseDecorator):
                     and "cost" in result.keys()
                     and "usage" in result.keys()
                 ):
-                    data = {"message": result["message"]}
+                    data = result["message"]
             # END OF PATH
 
             if data is None:
