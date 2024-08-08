@@ -79,7 +79,7 @@ class instrument(BaseDecorator):
                             and "cost" in result.keys()
                             and "usage" in result.keys()
                         ):
-                            outputs = {"message": result["message"]}
+                            outputs = {TRACE_DEFAULT_KEY: result["message"]}
 
                             ag.tracing.store_cost(result["cost"])
                             ag.tracing.store_usage(result["usage"])
