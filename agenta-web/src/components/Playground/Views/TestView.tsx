@@ -567,13 +567,13 @@ const App: React.FC<TestViewProps> = ({
             // Check result type
             // String, FuncResponse or BaseResponse
             if (typeof result === "string") {
-                res = { "version": "2.0", "data": result } as BaseResponse
+                res = {version: "2.0", data: result} as BaseResponse
                 setResultForIndex(getStringOrJson(res), index)
             } else if (isFuncResponse(result)) {
-                res = { "version": "2.0", "data": result.message } as BaseResponse
+                res = {version: "2.0", data: result.message} as BaseResponse
                 setResultForIndex(getStringOrJson(res), index)
-                
-                const { message, cost, latency, usage } = result
+
+                const {message, cost, latency, usage} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {cost, latency, usage}

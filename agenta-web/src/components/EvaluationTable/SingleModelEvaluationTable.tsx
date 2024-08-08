@@ -25,8 +25,20 @@ import {exportSingleModelEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
-import {Evaluation, EvaluationScenario, KeyValuePair, Variant, FuncResponse, BaseResponse} from "@/lib/Types"
-import {EvaluationTypeLabels, batchExecute, camelToSnake, getStringOrJson} from "@/lib/helpers/utils"
+import {
+    Evaluation,
+    EvaluationScenario,
+    KeyValuePair,
+    Variant,
+    FuncResponse,
+    BaseResponse,
+} from "@/lib/Types"
+import {
+    EvaluationTypeLabels,
+    batchExecute,
+    camelToSnake,
+    getStringOrJson,
+} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {debounce} from "lodash"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
@@ -333,11 +345,11 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let res: BaseResponse | undefined
 
                     if (isFuncResponse(result)) {
-                        res = { "version": "2.0", "data": result.message } as BaseResponse
+                        res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
                     } else {
-                        res = { "version": "2.0", "data": result } as BaseResponse
+                        res = {version: "2.0", data: result} as BaseResponse
                     }
 
                     let _result = getStringOrJson(res)
