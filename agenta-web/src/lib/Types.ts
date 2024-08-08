@@ -503,7 +503,7 @@ export type FuncResponse = {
 }
 
 export type BaseResponse = {
-    type: string
+    version: string
     data: string | Record<string, any>
     trace?: {
         trace_id: string

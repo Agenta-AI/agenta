@@ -11,8 +11,9 @@ import {
     Variant,
     StyleProps,
     BaseResponseSpans,
+    BaseResponse,
 } from "@/lib/Types"
-import {batchExecute, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, getStringOrJson, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -550,7 +551,7 @@ const App: React.FC<TestViewProps> = ({
             }
             setResultForIndex(LOADING_TEXT, index)
 
-            const res = await callVariant(
+            const result = await callVariant(
                 isChatVariant ? removeKeys(testItem, ["chat"]) : testItem,
                 inputParams || [],
                 optParams || [],
@@ -561,24 +562,28 @@ const App: React.FC<TestViewProps> = ({
                 true,
             )
 
-            // Check res type
+            let res: BaseResponse | undefined
+
+            // Check result type
             // String, FuncResponse or BaseResponse
-            if (typeof res === "string") {
-                setResultForIndex(res, index)
-            } else if (isFuncResponse(res)) {
-                const {message, cost, latency, usage} = res
-                setResultForIndex(message, index)
+            if (typeof result === "string") {
+                res = { "version": "2.0", "data": result } as BaseResponse
+                setResultForIndex(getStringOrJson(res), index)
+            } else if (isFuncResponse(result)) {
+                res = { "version": "2.0", "data": result.message } as BaseResponse
+                setResultForIndex(getStringOrJson(res), index)
+                
+                const { message, cost, latency, usage } = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {cost, latency, usage}
                     return newDataList
                 })
-            } else if (isBaseResponse(res)) {
-                const {data, trace} = res
-                setResultForIndex(
-                    data.message ? (data.message as string) : JSON.stringify(data),
-                    index,
-                )
+            } else if (isBaseResponse(result)) {
+                res = result as BaseResponse
+                setResultForIndex(getStringOrJson(res), index)
+
+                const {data, trace} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {
@@ -592,7 +597,7 @@ const App: React.FC<TestViewProps> = ({
                     setTraceSpans(trace)
                 }
             } else {
-                console.error("Unknown response type:", res)
+                console.error("Unknown response type:", result)
             }
         } catch (e: any) {
             if (!controller.signal.aborted) {
