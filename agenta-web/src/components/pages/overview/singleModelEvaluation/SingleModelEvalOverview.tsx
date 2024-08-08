@@ -13,7 +13,7 @@ import {
     fetchEvaluationResults,
 } from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
@@ -234,11 +234,6 @@ const SingleModelEvalOverview = () => {
                                         ),
                                 },
                                 {type: "divider"},
-                                {
-                                    key: "rerun_eval",
-                                    label: "Re-run evaluation",
-                                    icon: <ArrowsClockwise size={16} />,
-                                },
                                 {
                                     key: "delete_eval",
                                     label: "Delete",

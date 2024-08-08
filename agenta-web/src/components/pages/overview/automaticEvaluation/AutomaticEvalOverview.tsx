@@ -16,7 +16,7 @@ import {
     PlusOutlined,
     SwapOutlined,
 } from "@ant-design/icons"
-import {ArrowsClockwise, Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Popover, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
@@ -53,7 +53,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             backgroundColor: "rgba(0, 0, 0, 0.02)",
             lineHeight: theme.lineHeight,
             flex: 1,
-            minWidth: 100,
             borderRight: `1px solid ${theme.colorBorder}`,
             padding: "0 7px",
         },
@@ -358,11 +357,6 @@ const AutomaticEvalOverview = () => {
                                         router.push(`/apps/${appId}/testsets/${record.testset.id}`),
                                 },
                                 {type: "divider"},
-                                {
-                                    key: "rerun_eval",
-                                    label: "Re-run evaluation",
-                                    icon: <ArrowsClockwise size={16} />,
-                                },
                                 {
                                     key: "delete_eval",
                                     label: "Delete",
