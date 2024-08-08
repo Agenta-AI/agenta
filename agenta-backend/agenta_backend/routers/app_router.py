@@ -405,7 +405,42 @@ async def create_variant_from_url(
     ...
     """
 
-    pass
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(
+                f"User has Permission to create app from image: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        variant_db = await app_manager.create_variant_based_on_url(
+            app=app,
+            app_name=app_name,
+            variant_name=variant_name,
+            url=url,
+            user_uid=request.state.user_id,
+        )
+
+        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+
+        return await converters.app_variant_db_to_output(app_variant_db)
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{app_id}/", operation_id="remove_app")

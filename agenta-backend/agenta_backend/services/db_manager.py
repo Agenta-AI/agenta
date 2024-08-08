@@ -354,14 +354,14 @@ async def create_new_variant_base(
     app: AppDB,
     user: UserDB,
     base_name: str,
-    image: ImageDB,
+    # image: Optional[ImageDB],
     organization=None,
     workspace=None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
         base_name (str): The name of the base.
-        image (ImageDB): The image of the base.
+        # image (ImageDB): The image of the base.
         user (UserDB): The User Object creating the variant.
         app (AppDB): The associated App Object.
         organization (OrganizationDB): The Organization the variant belongs to.
@@ -370,13 +370,14 @@ async def create_new_variant_base(
         VariantBaseDB: The created base.
     """
 
-    logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    # logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    logger.debug(f"Creating new base: {base_name} for app: {app}")
     async with db_engine.get_session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             user_id=user.id,
             base_name=base_name,
-            image_id=image.id,
+            # image_id=image.id,
         )
 
         if isCloudEE():
@@ -419,7 +420,8 @@ async def create_new_app_variant(
     app: AppDB,
     user: UserDB,
     variant_name: str,
-    image: ImageDB,
+    image: Optional[ImageDB],
+    url: Optional[str],
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
@@ -441,18 +443,32 @@ async def create_new_app_variant(
     ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
 
     async with db_engine.get_session() as session:
-        variant = AppVariantDB(
-            app_id=app.id,
-            user_id=user.id,
-            modified_by_id=user.id,
-            revision=0,
-            variant_name=variant_name,
-            image_id=image.id,
-            base_id=base.id,
-            base_name=base_name,
-            config_name=config.config_name,
-            config_parameters=config.parameters,
-        )
+        if image is not None: 
+            variant = AppVariantDB(
+                app_id=app.id,
+                user_id=user.id,
+                modified_by_id=user.id,
+                revision=0,
+                variant_name=variant_name,
+                image_id=image.id,
+                base_id=base.id,
+                base_name=base_name,
+                config_name=config.config_name,
+                config_parameters=config.parameters,
+            )
+        elif url is not None: 
+            variant = AppVariantDB(
+                app_id=app.id,
+                user_id=user.id,
+                modified_by_id=user.id,
+                revision=0,
+                variant_name=variant_name,
+                url=url,
+                base_id=base.id,
+                base_name=base_name,
+                config_name=config.config_name,
+                config_parameters=config.parameters,
+            )
 
         if isCloudEE():
             # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -468,6 +484,7 @@ async def create_new_app_variant(
         attributes_to_refresh = [
             "app",
             "image",
+            "url",
             "user",
             "base",
         ]
@@ -478,7 +495,7 @@ async def create_new_app_variant(
         await session.refresh(
             variant,
             attribute_names=attributes_to_refresh,
-        )  # Ensures the app, image, user and base relationship are loaded
+        )  # Ensures the app, image, url, user and base relationship are loaded
 
         variant_revision = AppVariantRevisionsDB(
             variant_id=variant.id,
