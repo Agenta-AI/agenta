@@ -14,11 +14,74 @@ from autoevals.ragas import Faithfulness, ContextRelevancy
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
 from agenta_backend.utils.event_loop_utils import ensure_event_loop
+from agenta_backend.models.api.evaluation_model import (
+    EvaluatorInputInterface,
+    EvaluatorOutputInterface,
+    EvaluatorMappingInputInterface,
+    EvaluatorMappingOutputInterface,
+)
 from agenta_backend.utils.traces import process_distributed_trace_into_trace_tree
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def map(
+    mapping_input: EvaluatorMappingInputInterface,
+) -> EvaluatorMappingOutputInterface:
+    """
+    Maps the evaluator inputs based on the provided mapping and data tree.
+
+    Returns:
+        EvaluatorMappingOutputInterface: A dictionary containing the mapped evaluator inputs.
+    """
+
+    def get_nested_value(data: Dict[str, Any], key: str) -> Any:
+        """
+        Retrieves the nested value from a dictionary based on a dotted key path,
+        where list indices can be included in square brackets.
+
+        Args:
+            data (Dict[str, Any]): The data dictionary to retrieve the value from.
+            key (str): The key path to the desired value, with possible list indices.
+
+        Returns:
+            Any: The value found at the specified key path, or None if not found.
+
+        Example:
+            >>> data = {
+            ...     'rag': {
+            ...         'summarizer': [{'outputs': {'report': 'The answer is 42'}}]
+            ...     }
+            ... }
+            >>> key = 'rag.summarizer[0].outputs.report'
+            >>> get_nested_value(data, key)
+            'The answer is 42'
+        """
+
+        pattern = re.compile(r"([^\[\].]+|\[\d+\])")
+        keys = pattern.findall(key)
+
+        for k in keys:
+            if k.startswith("[") and k.endswith("]"):
+                # Convert list index from '[index]' to integer
+                k = int(k[1:-1])
+                if isinstance(data, list):
+                    data = data[k] if 0 <= k < len(data) else None
+                else:
+                    return None
+            else:
+                if isinstance(data, dict):
+                    data = data.get(k, None)
+                else:
+                    return None
+        return data
+
+    mapping_outputs = {}
+    for to_key, from_key in mapping_input.mapping.items():
+        mapping_outputs[to_key] = get_nested_value(mapping_input.inputs, from_key)
+    return {"outputs": mapping_outputs}
 
 
 def get_correct_answer(
@@ -139,8 +202,9 @@ def auto_exact_match(
     """
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        exact_match = True if output == correct_answer else False
-        result = Result(type="bool", value=exact_match)
+        inputs = {"ground_truth": correct_answer, "prediction": output}
+        response = exact_match(input=EvaluatorInputInterface(**{"inputs": inputs}))
+        result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except ValueError as e:
         return Result(
@@ -161,6 +225,13 @@ def auto_exact_match(
         )
 
 
+def exact_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    prediction = input.inputs.get("prediction", "")
+    ground_truth = input.inputs.get("ground_truth", "")
+    success = True if prediction == ground_truth else False
+    return {"outputs": {"success": success}}
+
+
 def auto_regex_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -170,11 +241,13 @@ def auto_regex_test(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
-        result = (
-            bool(re_pattern.search(output)) == settings_values["regex_should_match"]
+        inputs = {"ground_truth": data_point, "prediction": output}
+        response = regex_test(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
         )
-        return Result(type="bool", value=result)
+        return Result(type="bool", value=response["outputs"]["success"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -186,7 +259,16 @@ def auto_regex_test(
         )
 
 
-def field_match_test(
+def regex_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    pattern = re.compile(input.settings["regex_pattern"], re.IGNORECASE)
+    result = (
+        bool(pattern.search(input.inputs["prediction"]))
+        == input.settings["regex_should_match"]
+    )
+    return {"outputs": {"success": result}}
+
+
+def auto_field_match_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
     data_point: Dict[str, Any],
@@ -196,9 +278,9 @@ def field_match_test(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        output_json = json.loads(output)
-        result = output_json[settings_values["json_field"]] == correct_answer
-        return Result(type="bool", value=result)
+        inputs = {"ground_truth": correct_answer, "prediction": output}
+        response = field_match_test(input=EvaluatorInputInterface(**{"inputs": inputs}))
+        return Result(type="bool", value=response["outputs"]["success"])
     except ValueError as e:
         return Result(
             type="error",
@@ -212,6 +294,12 @@ def field_match_test(
         return Result(type="bool", value=False)
 
 
+def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    prediction_json = json.loads(input.inputs["prediction"])
+    result = prediction_json == input.inputs["ground_truth"]
+    return {"outputs": {"success": result}}
+
+
 def auto_webhook_test(
     inputs: Dict[str, Any],
     output: str,
@@ -222,34 +310,13 @@ def auto_webhook_test(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-
-        with httpx.Client() as client:
-            payload = {
-                "correct_answer": correct_answer,
-                "output": output,
-                "inputs": inputs,
-            }
-            response = client.post(url=settings_values["webhook_url"], json=payload)
-            response.raise_for_status()
-            response_data = response.json()
-            score = response_data.get("score", None)
-            if score is None and not isinstance(score, (int, float)):
-                return Result(
-                    type="error",
-                    value=None,
-                    error=Error(
-                        message="Error during Auto Webhook evaluation; Webhook did not return a score",
-                    ),
-                )
-            if score < 0 or score > 1:
-                return Result(
-                    type="error",
-                    value=None,
-                    error=Error(
-                        message="Error during Auto Webhook evaluation; Webhook returned an invalid score. Score must be between 0 and 1",
-                    ),
-                )
-            return Result(type="number", value=score)
+        inputs = {"prediction": output, "ground_truth": correct_answer}
+        response = webhook_test(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
+        )
+        return Result(type="number", value=response["outputs"]["score"])
     except httpx.HTTPError as e:
         return Result(
             type="error",
@@ -279,6 +346,20 @@ def auto_webhook_test(
         )
 
 
+def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    with httpx.Client() as client:
+        payload = {
+            "correct_answer": input.inputs["ground_truth"],
+            "output": input.inputs["prediction"],
+            "inputs": input.inputs,
+        }
+        response = client.post(url=input.settings["webhook_url"], json=payload)
+        response.raise_for_status()
+        response_data = response.json()
+        score = response_data.get("score", None)
+        return {"outputs": {"score": score}}
+
+
 def auto_custom_code_run(
     inputs: Dict[str, Any],
     output: str,
@@ -288,17 +369,18 @@ def auto_custom_code_run(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        result = sandbox.execute_code_safely(
-            app_params=app_params,
-            inputs=inputs,
-            output=output,
-            correct_answer=data_point.get(
-                "correct_answer", None
-            ),  # for backward compatibility
-            code=settings_values["code"],
-            datapoint=data_point,
+        correct_answer = get_correct_answer(data_point, settings_values)
+        inputs = {
+            "app_config": app_params,
+            "prediction": output,
+            "ground_truth": correct_answer,
+        }
+        response = custom_code_run(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": {"code": settings_values["code"]}}
+            )
         )
-        return Result(type="number", value=result)
+        return Result(type="number", value=response["outputs"]["score"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -308,6 +390,18 @@ def auto_custom_code_run(
                 stacktrace=str(traceback.format_exc()),
             ),
         )
+
+
+def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    result = sandbox.execute_code_safely(
+        app_params=input.inputs["app_config"],
+        inputs=input.inputs,
+        output=input.inputs["prediction"],
+        correct_answer=input.inputs["ground_truth"],
+        code=input.settings["code"],
+        datapoint=input.inputs["ground_truth"],
+    )
+    return {"outputs": {"score": result}}
 
 
 def auto_ai_critique(
@@ -334,30 +428,17 @@ def auto_ai_critique(
     """
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
-
-        chain_run_args = {
-            "llm_app_prompt_template": app_params.get("prompt_user", ""),
-            "variant_output": output,
-            "correct_answer": correct_answer,
+        inputs = {
+            "prompt_user": app_params.get("prompt_user", ""),
+            "prediction": output,
+            "ground_truth": correct_answer,
         }
-
-        for key, value in inputs.items():
-            chain_run_args[key] = value
-
-        prompt_template = settings_values["prompt_template"]
-        messages = [
-            {"role": "system", "content": prompt_template},
-            {"role": "user", "content": str(chain_run_args)},
-        ]
-
-        client = OpenAI(api_key=openai_api_key)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo", messages=messages, temperature=0.8
+        response = ai_critique(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "credentials": lm_providers_keys}
+            )
         )
-
-        evaluation_output = response.choices[0].message.content.strip()
-        return Result(type="text", value=evaluation_output)
+        return Result(type="text", value=response["outputs"]["score"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -369,6 +450,32 @@ def auto_ai_critique(
         )
 
 
+def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    openai_api_key = input.credentials["OPENAI_API_KEY"]
+
+    chain_run_args = {
+        "llm_app_prompt_template": input.inputs.get("prompt_user", ""),
+        "variant_output": input.inputs["prediction"],
+        "correct_answer": input.inputs["ground_truth"],
+    }
+
+    for key, value in input.inputs.items():
+        chain_run_args[key] = value
+
+    prompt_template = input.settings["prompt_template"]
+    messages = [
+        {"role": "system", "content": prompt_template},
+        {"role": "user", "content": str(chain_run_args)},
+    ]
+
+    client = OpenAI(api_key=openai_api_key)
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=messages, temperature=0.8
+    )
+    evaluation_output = response.choices[0].message.content.strip()
+    return {"outputs": {"score": evaluation_output}}
+
+
 def auto_starts_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -378,15 +485,13 @@ def auto_starts_with(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        prefix = settings_values.get("prefix", "")
-        case_sensitive = settings_values.get("case_sensitive", True)
-
-        if not case_sensitive:
-            output = output.lower()
-            prefix = prefix.lower()
-
-        result = Result(type="bool", value=output.startswith(prefix))
-        return result
+        inputs = {"prediction": output}
+        response = starts_with(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
+        )
+        return Result(type="text", value=response["outputs"]["success"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -398,6 +503,18 @@ def auto_starts_with(
         )
 
 
+def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    prefix = input.settings.get("prefix", "")
+    case_sensitive = input.settings.get("case_sensitive", True)
+
+    if not case_sensitive:
+        output = str(input.inputs["prediction"]).lower()
+        prefix = prefix.lower()
+
+    result = output.startswith(prefix)
+    return {"outputs": {"success": result}}
+
+
 def auto_ends_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -407,14 +524,13 @@ def auto_ends_with(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        suffix = settings_values.get("suffix", "")
-        case_sensitive = settings_values.get("case_sensitive", True)
-
-        if not case_sensitive:
-            output = output.lower()
-            suffix = suffix.lower()
-
-        result = Result(type="bool", value=output.endswith(suffix))
+        inputs = {"prediction": output}
+        response = ends_with(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
+        )
+        result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except Exception as e:  # pylint: disable=broad-except
         return Result(
@@ -427,6 +543,18 @@ def auto_ends_with(
         )
 
 
+def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    suffix = input.settings.get("suffix", "")
+    case_sensitive = input.settings.get("case_sensitive", True)
+
+    if not case_sensitive:
+        output = str(input.inputs["prediction"]).lower()
+        suffix = suffix.lower()
+
+    result = output.endswith(suffix)
+    return {"outputs": {"success": result}}
+
+
 def auto_contains(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -436,14 +564,13 @@ def auto_contains(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        substring = settings_values.get("substring", "")
-        case_sensitive = settings_values.get("case_sensitive", True)
-
-        if not case_sensitive:
-            output = output.lower()
-            substring = substring.lower()
-
-        result = Result(type="bool", value=substring in output)
+        inputs = {"prediction": output}
+        response = contains(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
+        )
+        result = Result(type="bool", value=response["outputs"["success"]])
         return result
     except Exception as e:  # pylint: disable=broad-except
         return Result(
@@ -456,6 +583,18 @@ def auto_contains(
         )
 
 
+def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    substring = input.settings.get("substring", "")
+    case_sensitive = input.settings.get("case_sensitive", True)
+
+    if not case_sensitive:
+        output = str(input.inputs["prediction"]).lower()
+        substring = substring.lower()
+
+    result = substring in output
+    return {"outputs": {"success": result}}
+
+
 def auto_contains_any(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -465,17 +604,13 @@ def auto_contains_any(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        substrings_str = settings_values.get("substrings", "")
-        substrings = [substring.strip() for substring in substrings_str.split(",")]
-        case_sensitive = settings_values.get("case_sensitive", True)
-
-        if not case_sensitive:
-            output = output.lower()
-            substrings = [substring.lower() for substring in substrings]
-
-        result = Result(
-            type="bool", value=any(substring in output for substring in substrings)
+        inputs = {"prediction": output}
+        response = contains_any(
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
         )
+        result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except Exception as e:  # pylint: disable=broad-except
         return Result(
@@ -488,6 +623,20 @@ def auto_contains_any(
         )
 
 
+def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    substrings_str = input.settings.get("substrings", "")
+    substrings = [substring.strip() for substring in substrings_str.split(",")]
+    case_sensitive = input.settings.get("case_sensitive", True)
+
+    if not case_sensitive:
+        output = str(input.inputs["prediction"]).lower()
+        substrings = [substring.lower() for substring in substrings]
+
+    return {
+        "outputs": {"success": any(substring in output for substring in substrings)}
+    }
+
+
 def auto_contains_all(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -497,17 +646,12 @@ def auto_contains_all(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        substrings_str = settings_values.get("substrings", "")
-        substrings = [substring.strip() for substring in substrings_str.split(",")]
-        case_sensitive = settings_values.get("case_sensitive", True)
-
-        if not case_sensitive:
-            output = output.lower()
-            substrings = [substring.lower() for substring in substrings]
-
-        result = Result(
-            type="bool", value=all(substring in output for substring in substrings)
+        response = contains_all(
+            input=EvaluatorInputInterface(
+                **{"inputs": {"prediction": output}, "settings": settings_values}
+            )
         )
+        result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except Exception as e:  # pylint: disable=broad-except
         return Result(
@@ -520,6 +664,19 @@ def auto_contains_all(
         )
 
 
+def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    substrings_str = input.settings.get("substrings", "")
+    substrings = [substring.strip() for substring in substrings_str.split(",")]
+    case_sensitive = input.settings.get("case_sensitive", True)
+
+    if not case_sensitive:
+        output = str(input.inputs["prediction"]).lower()
+        substrings = [substring.lower() for substring in substrings]
+
+    result = all(substring in output for substring in substrings)
+    return {"outputs": {"success": result}}
+
+
 def auto_contains_json(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: str,
@@ -529,16 +686,9 @@ def auto_contains_json(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        try:
-            start_index = output.index("{")
-            end_index = output.rindex("}") + 1
-            potential_json = output[start_index:end_index]
-
-            json.loads(potential_json)
-            contains_json = True
-        except (ValueError, json.JSONDecodeError):
-            contains_json = False
-
+        response = contains_json(
+            input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
+        )
         return Result(type="bool", value=contains_json)
     except Exception as e:  # pylint: disable=broad-except
         return Result(
@@ -549,6 +699,20 @@ def auto_contains_json(
                 stacktrace=str(traceback.format_exc()),
             ),
         )
+
+
+def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    start_index = str(input.inputs["prediction"]).index("{")
+    end_index = str(input.inputs["prediction"]).rindex("}") + 1
+    potential_json = str(input.inputs["prediction"])[start_index:end_index]
+
+    try:
+        json.loads(potential_json)
+        contains_json = True
+    except (ValueError, json.JSONDecodeError):
+        contains_json = False
+
+    return {"outputs": {"success": contains_json}}
 
 
 def flatten_json(json_obj: Union[list, dict]) -> Dict[str, Any]:
@@ -662,12 +826,15 @@ def auto_json_diff(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        average_score = compare_jsons(
-            ground_truth=correct_answer,
-            app_output=json.loads(output),
-            settings_values=settings_values,
+        response = json_diff(
+            input=EvaluatorInputInterface(
+                **{
+                    "inputs": {"prediction": output, "ground_truth": correct_answer},
+                    "settings": settings_values,
+                }
+            )
         )
-        return Result(type="number", value=average_score)
+        return Result(type="number", value=response["outputs"]["score"])
     except (ValueError, json.JSONDecodeError, Exception):
         return Result(
             type="error",
@@ -677,6 +844,15 @@ def auto_json_diff(
                 stacktrace=traceback.format_exc(),
             ),
         )
+
+
+def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    average_score = compare_jsons(
+        ground_truth=input.inputs["ground_truth"],
+        app_output=json.loads(input.inputs["prediction"]),
+        settings_values=input.settings,
+    )
+    return {"outputs": {"score": average_score}}
 
 
 def rag_faithfulness(
@@ -848,24 +1024,36 @@ def rag_context_relevancy(
         )
 
 
-def levenshtein_distance(s1, s2):
-    if len(s1) < len(s2):
-        return levenshtein_distance(s2, s1)  # pylint: disable=arguments-out-of-order
+def levenshtein_distance(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    prediction = input.inputs["prediction"]
+    ground_truth = input.inputs["ground_truth"]
+    if len(prediction) < len(ground_truth):
+        return levenshtein_distance(
+            input=EvaluatorInputInterface(
+                **{"inputs": {"prediction": prediction, "ground_truth": ground_truth}}
+            )
+        )  # pylint: disable=arguments-out-of-order
 
-    if len(s2) == 0:
+    if len(ground_truth) == 0:
         return len(s1)
 
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
+    previous_row = range(len(ground_truth) + 1)
+    for i, c1 in enumerate(prediction):
         current_row = [i + 1]
-        for j, c2 in enumerate(s2):
+        for j, c2 in enumerate(ground_truth):
             insertions = previous_row[j + 1] + 1
             deletions = current_row[j] + 1
             substitutions = previous_row[j] + (c1 != c2)
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row
 
-    return previous_row[-1]
+    result = previous_row[-1]
+    if "threshold" in input.settings:
+        threshold = input.settings["threshold"]
+        is_within_threshold = distance <= threshold
+        return {"outputs": {"success": is_within_threshold}}
+
+    return {"outputs": {"score": distance}}
 
 
 def auto_levenshtein_distance(
@@ -878,15 +1066,12 @@ def auto_levenshtein_distance(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-
-        distance = levenshtein_distance(output, correct_answer)
-
-        if "threshold" in settings_values:
-            threshold = settings_values["threshold"]
-            is_within_threshold = distance <= threshold
-            return Result(type="bool", value=is_within_threshold)
-
-        return Result(type="number", value=distance)
+        response = levenshtein_distance(
+            input=EvaluatorInputInterface(
+                **{"inputs": {"prediction": output, "ground_truth": correct_answer}}
+            )
+        )
+        return Result(type="number", value=response["outputs"].get("score", "success"))
 
     except ValueError as e:
         return Result(
@@ -917,17 +1102,15 @@ def auto_similarity_match(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        set1 = set(output.split())
-        set2 = set(correct_answer.split())
-        intersect = set1.intersection(set2)
-        union = set1.union(set2)
-
-        similarity = len(intersect) / len(union)
-
-        is_similar = (
-            True if similarity > settings_values["similarity_threshold"] else False
+        response = similarity_match(
+            input=EvaluatorInputInterface(
+                **{
+                    "inputs": {"prediction": output, "ground_truth": correct_answer},
+                    "settings": settings_values,
+                }
+            )
         )
-        result = Result(type="bool", value=is_similar)
+        result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except ValueError as e:
         return Result(
@@ -948,7 +1131,20 @@ def auto_similarity_match(
         )
 
 
-async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
+def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+    set1 = set(input.inputs["prediction"].split())
+    set2 = set(input.inputs["ground_truth"].split())
+    intersect = set1.intersection(set2)
+    union = set1.union(set2)
+
+    similarity = len(intersect) / len(union)
+    is_similar = True if similarity > input.settings["similarity_threshold"] else False
+    return {"outputs": {"success": is_similar}}
+
+
+async def semantic_similarity(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
     """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
 
     Args:
@@ -959,6 +1155,7 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
         float: the semantic similarity score
     """
 
+    api_key = input.credentials["OPENAI_API_KEY"]
     openai = AsyncOpenAI(api_key=api_key)
 
     async def encode(text: str):
@@ -970,10 +1167,10 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
     def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
         return np.dot(output_vector, correct_answer_vector)
 
-    output_vector = await encode(output)
-    correct_answer_vector = await encode(correct_answer)
+    output_vector = await encode(input.inputs["prediction"])
+    correct_answer_vector = await encode(input.inputs["ground_truth"])
     similarity_score = cosine_similarity(output_vector, correct_answer_vector)
-    return similarity_score
+    return {"outputs": {"score": similarity_score}}
 
 
 def auto_semantic_similarity(
@@ -986,15 +1183,20 @@ def auto_semantic_similarity(
 ) -> Result:
     try:
         loop = ensure_event_loop()
-        openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
-        correct_answer = get_correct_answer(data_point, settings_values)
 
-        score = loop.run_until_complete(
+        correct_answer = get_correct_answer(data_point, settings_values)
+        inputs = {"prediction": output, "ground_truth": correct_answer}
+        response = loop.run_until_complete(
             semantic_similarity(
-                output=output, correct_answer=correct_answer, api_key=openai_api_key
+                input=EvaluatorInputInterface(
+                    **{
+                        "inputs": inputs,
+                        "credentials": lm_providers_keys,
+                    }
+                )
             )
         )
-        return Result(type="number", value=score)
+        return Result(type="number", value=response["outputs"]["score"])
     except Exception:
         return Result(
             type="error",
@@ -1009,7 +1211,7 @@ def auto_semantic_similarity(
 EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
-    "field_match_test": field_match_test,
+    "field_match_test": auto_field_match_test,
     "auto_webhook_test": auto_webhook_test,
     "auto_custom_code_run": auto_custom_code_run,
     "auto_ai_critique": auto_ai_critique,
@@ -1025,6 +1227,25 @@ EVALUATOR_FUNCTIONS = {
     "auto_similarity_match": auto_similarity_match,
     "rag_faithfulness": rag_faithfulness,
     "rag_context_relevancy": rag_context_relevancy,
+}
+
+NEW_EVALUATOR_FUNCTIONS = {
+    "auto_exact_match": exact_match,
+    "auto_regex_test": regex_test,
+    "auto_field_match_test": field_match_test,
+    "auto_webhook_test": webhook_test,
+    "auto_custom_code_run": custom_code_run,
+    "auto_ai_critique": ai_critique,
+    "auto_starts_with": starts_with,
+    "auto_ends_with": ends_with,
+    "auto_contains": contains,
+    "auto_contains_any": contains_any,
+    "auto_contains_all": contains_all,
+    "auto_contains_json": contains_json,
+    "auto_json_diff": json_diff,
+    "auto_levenshtein_distance": levenshtein_distance,
+    "auto_similarity_match": similarity_match,
+    "auto_semantic_similarity": semantic_similarity,
 }
 
 
@@ -1064,3 +1285,14 @@ def evaluate(
                 stacktrace=str(exc),
             ),
         )
+
+
+def run(
+    evaluator_key: str, evaluator_input: EvaluatorInputInterface
+) -> EvaluatorOutputInterface:
+    evaluator_function = NEW_EVALUATOR_FUNCTIONS.get(evaluator_key, None)
+    if not evaluator_function:
+        raise NotImplementedError(f"Evaluator {evaluator_key} not found")
+
+    output = evaluator_function(evaluator_input)
+    return output
