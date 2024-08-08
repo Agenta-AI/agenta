@@ -504,7 +504,7 @@ export type FuncResponse = {
 
 export type BaseResponse = {
     type: string
-    data: Record<string, any>
+    data: string | Record<string, any>
     trace?: {
         trace_id: string
         cost?: number
