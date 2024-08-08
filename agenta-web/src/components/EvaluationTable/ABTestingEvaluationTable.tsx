@@ -27,8 +27,21 @@ import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
-import {BaseResponse, Evaluation, EvaluationResult, EvaluationScenario, FuncResponse, KeyValuePair, Variant} from "@/lib/Types"
-import {EvaluationTypeLabels, batchExecute, camelToSnake, getStringOrJson} from "@/lib/helpers/utils"
+import {
+    BaseResponse,
+    Evaluation,
+    EvaluationResult,
+    EvaluationScenario,
+    FuncResponse,
+    KeyValuePair,
+    Variant,
+} from "@/lib/Types"
+import {
+    EvaluationTypeLabels,
+    batchExecute,
+    camelToSnake,
+    getStringOrJson,
+} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
@@ -299,11 +312,11 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let res: BaseResponse | undefined
 
                     if (isFuncResponse(result)) {
-                        res = { "version": "2.0", "data": result.message } as BaseResponse
+                        res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
                     } else {
-                        res = { "version": "2.0", "data": result } as BaseResponse
+                        res = {version: "2.0", data: result} as BaseResponse
                     }
 
                     let _result = getStringOrJson(res)
