@@ -120,7 +120,7 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
-        print(f"Using Agenta Python SDK version {version("agenta")}")
+        print(f"Using Agenta Python SDK version {version('agenta')}")
 
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
@@ -293,7 +293,7 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
-            print(f"Using Agenta Python SDK version {version("agenta")}")
+            print(f"Using Agenta Python SDK version {version('agenta')}")
 
             WAIT_FOR_SPANS = True
             TIMEOUT = 10
