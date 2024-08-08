@@ -71,8 +71,7 @@ class instrument(BaseDecorator):
 
                     # PATCH : if result is not a dict, make it a dict
                     if not isinstance(result, dict):
-                        if result.__class__.__module__ != "__builtin__":
-                            outputs = {TRACE_DEFAULT_KEY: repr(result)}
+                        outputs = {TRACE_DEFAULT_KEY: result}
                     else:
                         # PATCH : if result is a legacy dict, clean it up
                         if (
@@ -103,15 +102,13 @@ class instrument(BaseDecorator):
                 ):
                     result = func(*args, **kwargs)
 
-                    # EVENTUALLY THIS PATCH SHOULD BE REMOVED
                     TRACE_DEFAULT_KEY = "__default__"
 
                     outputs = result
 
                     # PATCH : if result is not a dict, make it a dict
                     if not isinstance(result, dict):
-                        if result.__class__.__module__ != "__builtin__":
-                            outputs = {TRACE_DEFAULT_KEY: repr(result)}
+                        outputs = {TRACE_DEFAULT_KEY: result}
                     else:
                         # PATCH : if result is a legacy dict, clean it up
                         if (

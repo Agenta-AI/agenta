@@ -335,8 +335,7 @@ class entrypoint(BaseDecorator):
 
             # PATCH : if result is not a dict, make it a dict
             if not isinstance(result, dict):
-                if result.__class__.__module__ != "__builtin__":
-                    data = repr(result)
+                data = result
             else:
                 # PATCH : if result is a legacy dict, clean it up
                 if (
