@@ -145,7 +145,7 @@ evaluators = [
         },
     },
     {
-        "name": "AI Critique",
+        "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
         "settings_template": {
