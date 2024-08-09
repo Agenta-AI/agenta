@@ -115,7 +115,7 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get(`[data-node-key="app.${app_v2}"]`).contains(`app.${app_v2}`).click()
             cy.url().should("include", `/playground?variant=app.${app_v2}`)
             cy.get('[data-cy="playground-delete-variant-button"]').eq(1).click()
-            cy.get('[data-cy="variant-delete-modal"]').within(() => {
+            cy.get(".ant-modal-content").within(() => {
                 cy.get(".ant-modal-confirm-btns > .ant-btn-primary").contains(/yes/i).click()
             })
         })
