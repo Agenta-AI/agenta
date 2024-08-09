@@ -73,6 +73,10 @@ class UpdateVariantParameterPayload(BaseModel):
     parameters: Dict[str, Any]
 
 
+class UpdateVariantURL(BaseModel):
+    url: str
+
+
 class AppVariant(BaseModel):
     app_id: str
     app_name: str
@@ -181,6 +185,13 @@ class AddVariantFromImagePayload(BaseModel):
     tags: str
     base_name: Optional[str]
     config_name: Optional[str]
+
+
+class AddVariantFromURLPayload(BaseModel):
+    app_name: str
+    variant_slug: str
+    variant_name: str
+    url: str
 
 
 class ImageExtended(Image):

@@ -605,9 +605,11 @@ def compare_jsons(
             )
 
         cumulated_score += key_score
-
-    average_score = cumulated_score / no_of_keys
-    return average_score
+    try:
+        average_score = cumulated_score / no_of_keys
+        return average_score
+    except ZeroDivisionError:
+        return 0.0
 
 
 def auto_json_diff(

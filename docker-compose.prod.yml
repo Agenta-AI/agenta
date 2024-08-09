@@ -79,8 +79,8 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
-          postgres:
-            condition: service_healthy
+            postgres:
+                condition: service_healthy
         networks:
             - agenta-network
 
@@ -161,7 +161,7 @@ services:
             - postgresdb-data:/var/lib/postgresql/data/
             - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5
