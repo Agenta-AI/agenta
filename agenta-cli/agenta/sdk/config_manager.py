@@ -21,10 +21,33 @@ class ConfigManager:
     client = None
     @staticmethod
     def get_from_route(schema: Type[T]) -> T:
+        """
+        Retrieves the configuration from the route context and returns a config object.
+
+        This method checks the route context for configuration information and returns
+        an instance of the specified schema based on the available context data.
+
+        Args:
+            schema (Type[T]): A Pydantic model class that defines the structure of the configuration.
+
+        Returns:
+            T: An instance of the specified schema populated with the configuration data.
+
+        Raises:
+            ValueError: If conflicting configuration sources are provided or if no valid
+                        configuration source is found in the context.
+
+        Note:
+            The method prioritizes the inputs in the following way:
+            1. 'config' (i.e. when called explicitly from the playground) 
+            2. 'environment' 
+            3. 'variant'
+            Only one of these should be provided.
+        """
         context = route_context.get()
         if ("config" in context and context["config"]) and (("environment" in context and context["environment"]) or ("variant" in context and context["variant"])):
             raise ValueError("Either config, environment or variant must be provided. Not both.")
-        if( "config" in context and context["config"]):
+        if ("config" in context and context["config"]):
             return schema(**context["config"])
         elif ("environment" in context and context["environment"]):
             return ConfigManager.get_from_backend(schema, environment=context["environment"])
@@ -32,7 +55,6 @@ class ConfigManager:
             return ConfigManager.get_from_backend(schema, variant=context["variant"])
         else:
             raise ValueError("Either config, environment or variant must be provided")
-        
 
     @staticmethod
     def get_from_backend(schema: Type[T], environment: Optional[str] = None, version: Optional[str] = None, variant: Optional[str]=None) -> T:
