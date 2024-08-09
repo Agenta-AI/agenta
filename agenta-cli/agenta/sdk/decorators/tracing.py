@@ -65,19 +65,24 @@ class instrument(BaseDecorator):
                 ):
                     result = await func(*args, **kwargs)
 
+                    TRACE_DEFAULT_KEY = "__default__"
+
                     outputs = result
 
-                    # EVENTUALLY THIS PATCH SHOULD BE REMOVED
-                    # PATCH : if result is not a dict, make it a dict, in span
-                    DEFAULT_KEY = "message"
-
+                    # PATCH : if result is not a dict, make it a dict
                     if not isinstance(result, dict):
-                        value = result
+                        outputs = {TRACE_DEFAULT_KEY: result}
+                    else:
+                        # PATCH : if result is a legacy dict, clean it up
+                        if (
+                            "message" in result.keys()
+                            and "cost" in result.keys()
+                            and "usage" in result.keys()
+                        ):
+                            outputs = {TRACE_DEFAULT_KEY: result["message"]}
 
-                        if result.__class__.__module__ != "__builtin__":
-                            value = repr(value)
-
-                        outputs = {DEFAULT_KEY: result}
+                            ag.tracing.store_cost(result["cost"])
+                            ag.tracing.store_usage(result["usage"])
                     # END OF PATH
 
                     ag.tracing.store_outputs(outputs)
@@ -97,19 +102,24 @@ class instrument(BaseDecorator):
                 ):
                     result = func(*args, **kwargs)
 
+                    TRACE_DEFAULT_KEY = "__default__"
+
                     outputs = result
 
-                    # EVENTUALLY THIS PATCH SHOULD BE REMOVED
-                    # PATCH : if result is not a dict, make it a dict, in span
-                    DEFAULT_KEY = "message"
-
+                    # PATCH : if result is not a dict, make it a dict
                     if not isinstance(result, dict):
-                        value = result
+                        outputs = {TRACE_DEFAULT_KEY: result}
+                    else:
+                        # PATCH : if result is a legacy dict, clean it up
+                        if (
+                            "message" in result.keys()
+                            and "cost" in result.keys()
+                            and "usage" in result.keys()
+                        ):
+                            outputs = {"message": result["message"]}
 
-                        if result.__class__.__module__ != "__builtin__":
-                            value = repr(value)
-
-                        outputs = {DEFAULT_KEY: result}
+                            ag.tracing.store_cost(result["cost"])
+                            ag.tracing.store_usage(result["usage"])
                     # END OF PATH
 
                     ag.tracing.store_outputs(outputs)
