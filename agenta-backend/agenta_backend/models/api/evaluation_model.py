@@ -82,22 +82,6 @@ class Evaluation(BaseModel):
     updated_at: datetime
 
 
-class SimpleEvaluatorMappingInterface(BaseModel):
-    ground_truth: Any
-    prediction: Any
-
-
-class RagEvaluatorMappingInterface(BaseModel):
-    question: Any
-    contexts: Any
-    answer: Any
-
-
-class EvaluationSettingsInterface(BaseModel):
-    llm_provider: str
-    llm_api_key: str
-
-
 class EvaluatorInputInterface(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     settings: Optional[Dict[str, Any]] = None
