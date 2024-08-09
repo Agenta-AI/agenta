@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
 from dataclasses import dataclass
@@ -25,7 +25,7 @@ class LLMTokenUsage(BaseModel):
 
 class BaseResponse(BaseModel):
     version: Optional[str] = "2.0"
-    data: Optional[Dict[str, Any]]
+    data: Optional[Union[str, Dict[str, Any]]]
     trace: Optional[Dict[str, Any]]
 
 
