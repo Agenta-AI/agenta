@@ -354,7 +354,7 @@ async def create_new_variant_base(
     app: AppDB,
     user: UserDB,
     base_name: str,
-    image: Optional[ImageDB],
+    image: Optional[ImageDB] = None,
     organization=None,
     workspace=None,
 ) -> VariantBaseDB:
