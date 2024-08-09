@@ -24,16 +24,20 @@ export const updateInputParams = (
     if (!optParams) {
         return currentInputParams
     }
+
     const additionalInputs: InputParameter[] = optParams
         .filter((param) => param.type === "object" && param.default)
         .flatMap((param) => param.default)
     // Convert them to InputParameters
+
     const newParams = inputParamsToParameters(additionalInputs)
 
     // Filter out the existing inputParams which have input=true
     const existingParams = currentInputParams.filter((param) => param.input)
 
-    return [...existingParams, ...newParams]
+    const params = [...existingParams, ...newParams]
+
+    return params
 }
 
 /**
@@ -47,6 +51,7 @@ export const updateInputParams = (
 export const getAllVariantParameters = async (appId: string, variant: Variant) => {
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
+
     try {
         const {initOptParams, inputParams, isChatVariant} = await fetchVariantParametersFromOpenAPI(
             appId,
@@ -54,6 +59,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
             variant.baseId,
             true,
         )
+
         if (variant.parameters) {
             const updatedInitOptParams = initOptParams.map((param) => {
                 return variant.parameters && variant.parameters.hasOwnProperty(param.name)
@@ -64,11 +70,13 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
         } else {
             parameters = [...initOptParams]
         }
+
         inputs = updateInputParams(parameters, inputParams)
+
         const URIPath = `${appId}/${variant.baseId}`
         return {parameters, inputs, URIPath, isChatVariant}
     } catch (err) {
-        console.log("getAllVariantParameters Error: ", err)
+        console.error("getAllVariantParameters Error: ", err)
         throw err
     }
 }

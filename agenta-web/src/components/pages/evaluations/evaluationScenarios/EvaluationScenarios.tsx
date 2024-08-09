@@ -29,6 +29,7 @@ import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -165,15 +166,15 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
-                                  variantOutput={result?.value}
+                                  variantOutput={getStringOrJson(result.value)}
                                   expectedOutput={correctAnswer?.value || ""}
                               />,
                           )
                         : LongTextCellRenderer(params)
                 },
-                valueGetter: (params) => {
-                    const result = params.data?.outputs[index].result
-                    return result?.value
+                valueGetter: (params: any) => {
+                    const result = params.data?.outputs[index].result.value
+                    return getStringOrJson(result)
                 },
             })
         })

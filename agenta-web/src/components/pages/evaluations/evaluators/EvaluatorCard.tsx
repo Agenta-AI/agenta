@@ -10,6 +10,7 @@ import {deleteEvaluatorConfig} from "@/services/evaluations/api"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import ResultComponent from "@/components/ResultComponent/ResultComponent"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
@@ -79,6 +80,10 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
                 } catch (error) {}
             },
         })
+    }
+
+    if (!evaluator) {
+        return null
     }
 
     return (

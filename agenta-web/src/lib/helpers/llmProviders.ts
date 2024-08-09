@@ -70,7 +70,7 @@ export const getAllProviderLlmKeys = () => {
             }
         }
     } catch (error) {
-        console.log(error)
+        console.error(error)
     }
     return providers
 }

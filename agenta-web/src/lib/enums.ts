@@ -17,6 +17,8 @@ export enum EvaluationType {
     auto_webhook_test = "auto_webhook_test",
     single_model_test = "single_model_test",
     field_match_test = "field_match_test",
+    rag_faithfulness = "rag_faithfulness",
+    rag_context_relevancy = "rag_context_relevancy",
     auto_json_diff = "auto_json_diff",
     auto_semantic_similarity = "auto_semantic_similarity",
 }

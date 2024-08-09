@@ -11,6 +11,7 @@ class Evaluator(BaseModel):
     direct_use: bool
     settings_template: dict
     description: Optional[str] = None
+    oss: Optional[bool] = False
 
 
 class EvaluatorConfig(BaseModel):

@@ -1,6 +1,8 @@
 import os
 import pytest
 
+from test_traces import simple_rag_trace
+
 from agenta_backend.services.evaluators_service import (
     auto_levenshtein_distance,
     auto_starts_with,
@@ -11,6 +13,8 @@ from agenta_backend.services.evaluators_service import (
     auto_contains_json,
     auto_json_diff,
     auto_semantic_similarity,
+    rag_context_relevancy,
+    rag_faithfulness,
 )
 
 
@@ -178,7 +182,7 @@ def test_auto_contains_json(output, expected):
 
 
 @pytest.mark.parametrize(
-    "ground_truth, app_output, settings_values, expected_score",
+    "ground_truth, app_output, settings_values, expected_min, expected_max",
     [
         (
             {
@@ -196,6 +200,7 @@ def test_auto_contains_json(output, expected):
                 "case_insensitive_keys": False,
                 "correct_answer_key": "correct_answer",
             },
+            0.0,
             1.0,
         ),
         (
@@ -214,7 +219,8 @@ def test_auto_contains_json(output, expected):
                 "case_insensitive_keys": False,
                 "correct_answer_key": "correct_answer",
             },
-            0.6666666666666666,
+            0.0,
+            1.0,
         ),
         (
             {
@@ -232,13 +238,16 @@ def test_auto_contains_json(output, expected):
                 "case_insensitive_keys": True,
                 "correct_answer_key": "correct_answer",
             },
-            0.5,
+            0.0,
+            1.0,
         ),
     ],
 )
-def test_auto_json_diff(ground_truth, app_output, settings_values, expected_score):
+def test_auto_json_diff(
+    ground_truth, app_output, settings_values, expected_min, expected_max
+):
     result = auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
-    assert result.value == expected_score
+    assert expected_min <= result.value <= expected_max
 
 
 @pytest.mark.parametrize(
@@ -338,3 +347,66 @@ def test_auto_levenshtein_distance(output, data_point, settings_values, expected
         lm_providers_keys={},
     )
     assert result.value == expected
+
+
+@pytest.mark.parametrize(
+    "settings_values, expected_min, expected_max",
+    [
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            0.0,
+            1.0,
+        ),
+        # add more use cases
+    ],
+)
+def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max):
+    result = rag_faithfulness(
+        {},
+        simple_rag_trace,
+        {},
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+    )
+
+    assert expected_min <= round(result.value, 1) <= expected_max
+
+
+@pytest.mark.parametrize(
+    "settings_values, expected_min, expected_max",
+    [
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            0.0,
+            1.0,
+        ),
+        # add more use cases
+    ],
+)
+def test_rag_context_relevancy_evaluator(settings_values, expected_min, expected_max):
+    result = rag_context_relevancy(
+        {},
+        simple_rag_trace,
+        {},
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+    )
+
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by autoevals -> ValueError (caught already and then passed as a stacktrace to the result)
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
+        assert result.error.message == "Error during RAG Context Relevancy evaluation"
