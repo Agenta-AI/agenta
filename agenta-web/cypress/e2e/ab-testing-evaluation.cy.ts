@@ -117,6 +117,7 @@ describe("A/B Testing Evaluation workflow", () => {
 
             cy.get('[data-cy="playground-delete-variant-button"]')
                 .contains(/delete/i)
+                .should("be.visible")
                 .click()
             cy.get('[data-cy="variant-delete-modal"]').within(() => {
                 cy.get(".ant-modal-confirm-btns > .ant-btn-primary").contains(/yes/i).click()
