@@ -218,13 +218,13 @@ class entrypoint(BaseDecorator):
             func_params = {
                 k: v for k, v in kwargs.items() if k not in ["config", "environment"]
             }
-
-            if "environment" in kwargs and kwargs["environment"] is not None:
-                ag.config.pull(environment_name=kwargs["environment"])
-            elif "config" in kwargs and kwargs["config"] is not None:
-                ag.config.pull(config_name=kwargs["config"])
-            else:
-                ag.config.pull(config_name="default")
+            if not config_schema:
+                if "environment" in kwargs and kwargs["environment"] is not None:
+                    ag.config.pull(environment_name=kwargs["environment"])
+                elif "config" in kwargs and kwargs["config"] is not None:
+                    ag.config.pull(config_name=kwargs["config"])
+                else:
+                    ag.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
             ag.tracing.update_baggage(
@@ -460,8 +460,12 @@ class entrypoint(BaseDecorator):
                 inspect.Parameter(
                     name=name,
                     kind=inspect.Parameter.KEYWORD_ONLY,
-                    annotation=field.annotation.__name__,
-                    default=Body(field.default)
+                    default=Body(param),
+                    annotation=param.__class__.__bases__[
+                        0
+                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                    # thus, why we are accessing the first item.
                 )
             )
 
