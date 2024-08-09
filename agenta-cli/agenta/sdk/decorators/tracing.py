@@ -65,7 +65,27 @@ class instrument(BaseDecorator):
                 ):
                     result = await func(*args, **kwargs)
 
-                    ag.tracing.store_outputs(result)
+                    TRACE_DEFAULT_KEY = "__default__"
+
+                    outputs = result
+
+                    # PATCH : if result is not a dict, make it a dict
+                    if not isinstance(result, dict):
+                        outputs = {TRACE_DEFAULT_KEY: result}
+                    else:
+                        # PATCH : if result is a legacy dict, clean it up
+                        if (
+                            "message" in result.keys()
+                            and "cost" in result.keys()
+                            and "usage" in result.keys()
+                        ):
+                            outputs = {TRACE_DEFAULT_KEY: result["message"]}
+
+                            ag.tracing.store_cost(result["cost"])
+                            ag.tracing.store_usage(result["usage"])
+                    # END OF PATH
+
+                    ag.tracing.store_outputs(outputs)
 
                     return result
 
@@ -82,7 +102,27 @@ class instrument(BaseDecorator):
                 ):
                     result = func(*args, **kwargs)
 
-                    ag.tracing.store_outputs(result)
+                    TRACE_DEFAULT_KEY = "__default__"
+
+                    outputs = result
+
+                    # PATCH : if result is not a dict, make it a dict
+                    if not isinstance(result, dict):
+                        outputs = {TRACE_DEFAULT_KEY: result}
+                    else:
+                        # PATCH : if result is a legacy dict, clean it up
+                        if (
+                            "message" in result.keys()
+                            and "cost" in result.keys()
+                            and "usage" in result.keys()
+                        ):
+                            outputs = {"message": result["message"]}
+
+                            ag.tracing.store_cost(result["cost"])
+                            ag.tracing.store_usage(result["usage"])
+                    # END OF PATH
+
+                    ag.tracing.store_outputs(outputs)
 
                     return result
 

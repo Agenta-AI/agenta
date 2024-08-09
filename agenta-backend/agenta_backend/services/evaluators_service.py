@@ -14,7 +14,10 @@ from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
-from agenta_backend.utils.traces import process_distributed_trace_into_trace_tree
+from agenta_backend.utils.traces import (
+    process_distributed_trace_into_trace_tree,
+    get_field_value_from_trace_tree,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -46,77 +49,9 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def get_field_value_from_trace(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
-    """
-    Retrieve the value of the key from the trace tree.
-
-    Args:
-        tree (Dict[str, Any]): The nested dictionary to retrieve the value from.
-            i.e. inline trace
-            e.g. tree["spans"]["rag"]["spans"]["retriever"]["internals"]["prompt"]
-        key (str): The dot-separated key to access the value.
-            e.g. rag.summarizer[0].outputs.report
-
-    Returns:
-        Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
-    """
-
-    def is_indexed(field):
-        return "[" in field and "]" in field
-
-    def parse(field):
-        key = field
-        idx = None
-
-        if is_indexed(field):
-            key = field.split("[")[0]
-            idx = int(field.split("[")[1].split("]")[0])
-
-        return key, idx
-
-    SPECIAL_KEYS = [
-        "inputs",
-        "internals",
-        "outputs",
-    ]
-
-    SPANS_SEPARATOR = "spans"
-
-    spans_flag = True
-
-    fields = key.split(".")
-
-    try:
-        for field in fields:
-            # by default, expects something like 'retriever'
-            key, idx = parse(field)
-
-            # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
-            # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
-            if key in SPECIAL_KEYS:
-                spans_flag = False
-
-            # after 'SPECIAL_KEYS', it is a normal dict.
-            # e.g. trace[...]["internals"]["prompt"]
-            if spans_flag:
-                tree = tree[SPANS_SEPARATOR]
-
-            tree = tree[key]
-
-            if idx is not None:
-                tree = tree[idx]
-
-        return tree
-
-    # Suppress all Exception and leave Exception management to the caller.
-    except Exception as e:
-        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
-        return None
-
-
 def auto_exact_match(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
@@ -136,6 +71,8 @@ def auto_exact_match(
     Returns:
         Result: A Result object containing the evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         exact_match = True if output == correct_answer else False
@@ -162,12 +99,14 @@ def auto_exact_match(
 
 def auto_regex_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
         result = (
@@ -187,12 +126,14 @@ def auto_regex_test(
 
 def field_match_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         output_json = json.loads(output)
@@ -213,12 +154,14 @@ def field_match_test(
 
 def auto_webhook_test(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
 
@@ -280,12 +223,14 @@ def auto_webhook_test(
 
 def auto_custom_code_run(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         result = sandbox.execute_code_safely(
             app_params=app_params,
@@ -311,7 +256,7 @@ def auto_custom_code_run(
 
 def auto_ai_critique(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
@@ -331,6 +276,8 @@ def auto_ai_critique(
     Returns:
         Result: Evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]
@@ -370,12 +317,14 @@ def auto_ai_critique(
 
 def auto_starts_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         prefix = settings_values.get("prefix", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -399,12 +348,14 @@ def auto_starts_with(
 
 def auto_ends_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         suffix = settings_values.get("suffix", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -428,12 +379,14 @@ def auto_ends_with(
 
 def auto_contains(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substring = settings_values.get("substring", "")
         case_sensitive = settings_values.get("case_sensitive", True)
@@ -457,12 +410,14 @@ def auto_contains(
 
 def auto_contains_any(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substrings_str = settings_values.get("substrings", "")
         substrings = [substring.strip() for substring in substrings_str.split(",")]
@@ -489,12 +444,14 @@ def auto_contains_any(
 
 def auto_contains_all(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         substrings_str = settings_values.get("substrings", "")
         substrings = [substring.strip() for substring in substrings_str.split(",")]
@@ -521,12 +478,14 @@ def auto_contains_all(
 
 def auto_contains_json(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         try:
             start_index = output.index("{")
@@ -680,7 +639,7 @@ def auto_json_diff(
 
 def rag_faithfulness(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -710,9 +669,9 @@ def rag_faithfulness(
         trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace(trace, question_key)
-        answer_val: Any = get_field_value_from_trace(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -765,7 +724,7 @@ def rag_faithfulness(
 
 def rag_context_relevancy(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -795,9 +754,9 @@ def rag_context_relevancy(
         trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace(trace, question_key)
-        answer_val: Any = get_field_value_from_trace(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -869,12 +828,14 @@ def levenshtein_distance(s1, s2):
 
 def auto_levenshtein_distance(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
 
@@ -886,7 +847,6 @@ def auto_levenshtein_distance(
             return Result(type="bool", value=is_within_threshold)
 
         return Result(type="number", value=distance)
-
     except ValueError as e:
         return Result(
             type="error",
@@ -908,12 +868,14 @@ def auto_levenshtein_distance(
 
 def auto_similarity_match(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         set1 = set(output.split())
@@ -947,8 +909,13 @@ def auto_similarity_match(
         )
 
 
-async def semantic_similarity(output: str, correct_answer: str, api_key: str) -> float:
-    """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
+async def semantic_similarity(
+    output: Union[str, Dict[str, Any]],
+    correct_answer: str,
+    api_key: str,
+) -> float:
+    """
+    Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
 
     Args:
         output (str): the output text
@@ -957,6 +924,8 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
     Returns:
         float: the semantic similarity score
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
 
     openai = AsyncOpenAI(api_key=api_key)
 
@@ -977,12 +946,14 @@ async def semantic_similarity(output: str, correct_answer: str, api_key: str) ->
 
 def auto_semantic_similarity(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         loop = asyncio.get_event_loop()
         openai_api_key = lm_providers_keys["OPENAI_API_KEY"]

@@ -64,7 +64,27 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
         restart: always
+
+    apply_alembic_migration:
+        build: ./agenta-backend
+        command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
+        environment:
+            - FEATURE_FLAG=oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
+            - AGENTA_AUTO_MIGRATIONS=false
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/migrations:/app/migrations
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+        depends_on:
+          postgres:
+            condition: service_healthy
+        networks:
+            - agenta-network
 
     agenta-web:
         build:
