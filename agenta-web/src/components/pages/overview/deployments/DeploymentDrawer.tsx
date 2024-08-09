@@ -14,7 +14,7 @@ import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/pyt
 import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {useRouter} from "next/router"
-import {fetchAppContainerURL, fetchVariants} from "@/services/api"
+import {fetchAppContainerURL} from "@/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
@@ -25,6 +25,7 @@ const DeploymentHistoryModal: any = dynamicComponent(
 
 interface DeploymentDrawerProps {
     selectedEnvironment: Environment
+    variants: Variant[]
 }
 
 interface LanguageCodeBlockProps {
@@ -98,27 +99,19 @@ const LanguageCodeBlock = ({
     )
 }
 
-const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps & DrawerProps) => {
+const DeploymentDrawer = ({
+    variants,
+
+    selectedEnvironment,
+    ...props
+}: DeploymentDrawerProps & DrawerProps) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [selectedLang, setSelectedLang] = useState("python")
     const [uri, setURI] = useState<string | null>(null)
-    const [variants, setVariants] = useState<Variant[]>([])
     const [variant, setVariant] = useState<Variant | null>(null)
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const backendVariants = await fetchVariants(appId)
-                setVariants(backendVariants)
-            } catch (error) {
-                console.error(error)
-            }
-        }
-        fetchData()
-    }, [appId])
 
     useEffect(() => {
         loadURL(selectedEnvironment)

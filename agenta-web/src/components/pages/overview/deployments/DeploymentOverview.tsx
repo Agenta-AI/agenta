@@ -1,4 +1,4 @@
-import {Environment, JSSTheme} from "@/lib/Types"
+import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
 import {Button, Card, Dropdown, Skeleton, Tag, Typography} from "antd"
@@ -8,8 +8,14 @@ import {createUseStyles} from "react-jss"
 import DeploymentDrawer from "./DeploymentDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
 import {Code, Rocket, Swap} from "@phosphor-icons/react"
+import ChangeVariantModal from "./ChangeVariantModal"
+import {fetchVariants} from "@/services/api"
 
 const {Title, Text} = Typography
+
+interface DeploymentOverviewProps {
+    variants: Variant[]
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -39,7 +45,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const DeploymentOverview = () => {
+const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
     const [queryEnv, setQueryEnv] = useQueryParam("environment")
@@ -47,6 +53,7 @@ const DeploymentOverview = () => {
     const [environments, setEnvironments] = useState<Environment[]>([])
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>()
     const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
+    const [openChangeVariantModal, setOpenChangeVariantModal] = useState(false)
 
     useEffect(() => {
         if (!appId) return
@@ -97,6 +104,7 @@ const DeploymentOverview = () => {
                                             key: "change_variant",
                                             label: "Change Variant",
                                             icon: <Swap size={16} />,
+                                            onClick: () => setOpenChangeVariantModal(true),
                                         },
                                         {type: "divider"},
                                         {
@@ -132,8 +140,15 @@ const DeploymentOverview = () => {
                     selectedEnvironment={selectedEnvironment}
                     open={!!queryEnv}
                     onClose={() => setQueryEnv("")}
+                    variants={variants}
                 />
             )}
+
+            <ChangeVariantModal
+                open={openChangeVariantModal}
+                onCancel={() => setOpenChangeVariantModal(false)}
+                variants={variants}
+            />
         </div>
     )
 }
