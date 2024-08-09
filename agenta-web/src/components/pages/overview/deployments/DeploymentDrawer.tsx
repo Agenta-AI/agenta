@@ -171,7 +171,11 @@ const DeploymentDrawer = ({selectedEnvironment, ...props}: DeploymentDrawerProps
                 title={
                     <Space className={classes.drawerTitleContainer}>
                         <Space className="gap-3">
-                            <CloseOutlined onClick={() => props.onClose?.({} as any)} />
+                            <Button
+                                onClick={() => props.onClose?.({} as any)}
+                                type="text"
+                                icon={<CloseOutlined />}
+                            />
                             <Title>{selectedEnvironment?.name} environment</Title>
                         </Space>
 
