@@ -253,7 +253,7 @@ class entrypoint(BaseDecorator):
             func_signature,
             ingestible_files,
         )
-        if route_path == "/" or "":
+        if route_path == "" or route_path == "/":
             route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
