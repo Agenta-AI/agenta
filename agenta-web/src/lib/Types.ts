@@ -39,6 +39,7 @@ export interface Variant {
     baseId: string
     baseName: string
     configName: string
+    revision: number
 }
 
 // Define the interface for the tabs item in playground page

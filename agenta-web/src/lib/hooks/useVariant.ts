@@ -119,6 +119,7 @@ export function useVariant(appId: string, variant: Variant) {
         isLoading,
         isError,
         error,
+        setIsLoading,
         isParamSaveLoading,
         saveOptParams,
         refetch: fetchParameters,
