@@ -3,12 +3,13 @@ import shutil
 import tarfile
 import tempfile
 from pathlib import Path
+import os
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-DEBUG = False
+DEBUG = os.environ.get("AGENTA_CLI_DEBUG", False)
 
 
 def create_dockerfile(out_folder: Path) -> Path:
