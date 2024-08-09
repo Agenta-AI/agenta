@@ -331,16 +331,12 @@ class AppsClient:
         ...
         """
 
-        print()
-        print("----")
         _request: typing.Dict[str, typing.Any] = {
             "app_name": app_name,
             "variant_slug": variant_slug,
             "variant_name": variant_name,
             "url": url,
         }
-        print(_request)
-        print(jsonable_encoder(_request))
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
@@ -351,7 +347,6 @@ class AppsClient:
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
-        print(_response)
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:

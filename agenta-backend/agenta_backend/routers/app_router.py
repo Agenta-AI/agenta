@@ -403,14 +403,9 @@ async def add_variant_from_url(
     """
     ...
     """
-    print("-------------")
 
-    print(f"--- app_id {app_id}")
-    print(f"--- payload {payload}")
     try:
         app = await db_manager.fetch_app_by_id(app_id)
-
-        print(f"--- app {app}")
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -437,17 +432,11 @@ async def add_variant_from_url(
             user_uid=request.state.user_id,
         )
 
-        print(f"--- variant_db {variant_db}")
-
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
-
-        print(f"--- app_variant_db {app_variant_db}")
 
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         app_variant_dto = await converters.app_variant_db_to_output(app_variant_db)
-
-        print(f"--- app_variant_dto {app_variant_dto}")
 
         return app_variant_dto
 
