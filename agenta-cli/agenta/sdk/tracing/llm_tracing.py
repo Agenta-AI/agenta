@@ -372,7 +372,7 @@ class Tracing(metaclass=SingletonMeta):
                 tracing.active_span = parent_span
         ### --- TO BE CLEANED --- <<<
 
-        logging.info(f"Closed  span  {span_id} {spankind}")
+        logging.info(f"Closed  span  {span.id} {spankind}")
 
     @debug()
     def store_internals(
@@ -415,6 +415,30 @@ class Tracing(metaclass=SingletonMeta):
         span.outputs = outputs
 
     @debug()
+    def store_cost(self, cost: float = 0.0, span_id: Optional[str] = None) -> None:
+        """
+        ...
+        """
+        span = self._get_target_span(span_id)
+
+        logging.info(f"Setting span  {span.id} {span.spankind.upper()} cost={cost}")
+
+        self._update_span_cost(span, cost)
+
+    @debug()
+    def store_usage(self, tokens: dict = {}, span_id: Optional[str] = None) -> None:
+        """
+        ...
+        """
+        span = self._get_target_span(span_id)
+
+        logging.info(
+            f"Setting span  {span.id} {span.spankind.upper()} tokens={repr(tokens)}"
+        )
+
+        self._update_span_tokens(span, tokens)
+
+    @debug()
     def dump_trace(self):
         """
         Collects and organizes tracing information into a dictionary.
@@ -433,6 +457,9 @@ class Tracing(metaclass=SingletonMeta):
             trace["trace_id"] = tracing.trace_id
 
             for span in tracing.spans.values():
+                if span.end_time is None:
+                    span.end_time = span.start_time
+
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
                     trace["usage"] = (

@@ -27,8 +27,21 @@ import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
-import {Evaluation, EvaluationResult, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
-import {EvaluationTypeLabels, batchExecute, camelToSnake} from "@/lib/helpers/utils"
+import {
+    BaseResponse,
+    Evaluation,
+    EvaluationResult,
+    EvaluationScenario,
+    FuncResponse,
+    KeyValuePair,
+    Variant,
+} from "@/lib/Types"
+import {
+    EvaluationTypeLabels,
+    batchExecute,
+    camelToSnake,
+    getStringOrJson,
+} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
@@ -295,16 +308,21 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
+
+                    let res: BaseResponse | undefined
+
                     if (isFuncResponse(result)) {
-                        result = result.message
+                        res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
-                        result = result.data.message
-                            ? (result.data.message as string)
-                            : JSON.stringify(result.data)
+                        res = result as BaseResponse
+                    } else {
+                        res = {version: "2.0", data: result} as BaseResponse
                     }
 
-                    setRowValue(rowIndex, variant.variantId, result)
-                    ;(outputs as KeyValuePair)[variant.variantId] = result
+                    let _result = getStringOrJson(res)
+
+                    setRowValue(rowIndex, variant.variantId, _result)
+                    ;(outputs as KeyValuePair)[variant.variantId] = _result
                     setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                     if (idx === variants.length - 1) {
                         if (count === 1 || count === rowIndex) {

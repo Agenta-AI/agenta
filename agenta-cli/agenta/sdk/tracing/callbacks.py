@@ -1,8 +1,11 @@
 import agenta as ag
 
 from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
+from agenta.sdk.tracing.logger import llm_logger as logging
 
 from agenta.sdk.utils.debug import debug
+
+TRACE_DEFAULT_KEY = "__default__"
 
 
 def litellm_handler():
@@ -47,6 +50,7 @@ def litellm_handler():
                 spankind=span_kind,
                 active=False,
             )
+            logging.info(f"log_pre_api_call({self.span.id})")
             ag.tracing.set_attributes(
                 {
                     "model_config": {
@@ -60,50 +64,36 @@ def litellm_handler():
 
         @debug()
         def log_stream_event(self, kwargs, response_obj, start_time, end_time):
+            logging.info(f"log_stream_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": kwargs.get(
-                        "complete_streaming_response"
-                    ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                # the complete streamed response (only set if `completion(..stream=True)`
+                outputs={TRACE_DEFAULT_KEY: kwargs.get("complete_streaming_response")},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
 
         @debug()
-        def log_success_event(
-            self, kwargs, response_obj: ModelResponse, start_time, end_time
-        ):
+        def log_success_event(self, kwargs, response_obj, start_time, end_time):
+            logging.info(f"log_success_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": response_obj.choices[0].message.content,
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
 
         @debug()
-        def log_failure_event(
-            self, kwargs, response_obj: ModelResponse, start_time, end_time
-        ):
+        def log_failure_event(self, kwargs, response_obj, start_time, end_time):
+            logging.info("log_failure_event()", self.span)
             ag.tracing.set_status(status="ERROR", span_id=self.span.id)
             ag.tracing.set_attributes(
                 {
@@ -116,18 +106,13 @@ def litellm_handler():
                 },
                 span_id=self.span.id,
             )
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": repr(kwargs["exception"]),  # the Exception raised
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                # the Exception raised
+                outputs={TRACE_DEFAULT_KEY: repr(kwargs["exception"])},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -136,21 +121,15 @@ def litellm_handler():
         async def async_log_stream_event(
             self, kwargs, response_obj, start_time, end_time
         ):
+            logging.info(f"async_log_stream_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": kwargs.get(
-                        "complete_streaming_response"
-                    ),  # the complete streamed response (only set if `completion(..stream=True)`)
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                # the complete streamed response (only set if `completion(..stream=True)`)
+                outputs={TRACE_DEFAULT_KEY: kwargs.get("complete_streaming_response")},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -159,19 +138,14 @@ def litellm_handler():
         async def async_log_success_event(
             self, kwargs, response_obj, start_time, end_time
         ):
+            logging.info(f"async_log_success_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": response_obj.choices[0].message.content,
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)
@@ -180,6 +154,7 @@ def litellm_handler():
         async def async_log_failure_event(
             self, kwargs, response_obj, start_time, end_time
         ):
+            logging.info(f"async_log_failure_event({self.span.id})")
             ag.tracing.set_status(status="ERROR", span_id=self.span.id)
             ag.tracing.set_attributes(
                 {
@@ -192,18 +167,13 @@ def litellm_handler():
                 },
                 span_id=self.span.id,
             )
+            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_usage(
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+            )
             ag.tracing.store_outputs(
-                outputs={
-                    "message": repr(kwargs["exception"]),  # the Exception raised
-                    "usage": (
-                        response_obj.usage.dict()
-                        if hasattr(response_obj, "usage")
-                        else None
-                    ),  # litellm calculates usage
-                    "cost": kwargs.get(
-                        "response_cost"
-                    ),  # litellm calculates response cost
-                },
+                # the Exception raised
+                outputs={TRACE_DEFAULT_KEY: repr(kwargs["exception"])},
                 span_id=self.span.id,
             )
             ag.tracing.close_span(span_id=self.span.id)

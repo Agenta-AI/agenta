@@ -12,6 +12,7 @@ import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
+from importlib.metadata import version
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
@@ -119,6 +120,8 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
+        logging.info(f"Using Agenta Python SDK version {version('agenta')}")
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -233,9 +236,6 @@ class entrypoint(BaseDecorator):
                 params=route["params"],
             )
         ### ---------------------- #
-
-        print(entrypoint.routes)
-
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
@@ -293,9 +293,11 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            logging.info(f"Using Agenta Python SDK version {version('agenta')}")
+
             WAIT_FOR_SPANS = True
-            TIMEOUT = 10
-            TIMESTEP = 0.01
+            TIMEOUT = 1
+            TIMESTEP = 0.1
             NOFSTEPS = TIMEOUT / TIMESTEP
 
             data = None
@@ -317,7 +319,7 @@ class entrypoint(BaseDecorator):
                     remaining_steps = NOFSTEPS
 
                     while not ag.tracing.is_trace_ready() and remaining_steps > 0:
-                        await asyncio.sleep(0.01)
+                        await asyncio.sleep(TIMESTEP)
                         remaining_steps -= 1
 
                 trace = ag.tracing.dump_trace()
@@ -331,32 +333,31 @@ class entrypoint(BaseDecorator):
             if isinstance(result, Context):
                 save_context(result)
 
-            DEFAULT_KEY = "message"
+            data = result
 
-            if isinstance(result, Dict):
+            # PATCH : if result is not a dict, make it a dict
+            if not isinstance(result, dict):
                 data = result
-
-                # EVENTUALLY THIS PATCH SHOULD BE REMOVED
-                # PATCH: if message in result then only keep message key/value
-                # DEFAULT_KEY = "message"
-
-                if "message" in result.keys():
-                    data = {DEFAULT_KEY: result["message"]}
-                # END OF PATCH
-
-            elif isinstance(result, str):
-                data = {DEFAULT_KEY: result}
-            elif isinstance(result, int) or isinstance(result, float):
-                data = {DEFAULT_KEY: str(result)}
+            else:
+                # PATCH : if result is a legacy dict, clean it up
+                if (
+                    "message" in result.keys()
+                    and "cost" in result.keys()
+                    and "usage" in result.keys()
+                ):
+                    data = result["message"]
+            # END OF PATH
 
             if data is None:
-                warning = (
+                data = (
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
 
-                data = {"message": warning}
+            response = BaseResponse(data=data, trace=trace)
 
-            return BaseResponse(data=data, trace=trace)
+            # logging.debug(response)
+
+            return response
 
         except Exception as e:
             self.handle_exception(e)

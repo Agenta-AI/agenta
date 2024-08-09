@@ -21,11 +21,15 @@ def extract_result_from_response(response):
 
     if response.get("version", None) == "2.0":
         value = response
+
+        if not isinstance(value["data"], dict):
+            value["data"] = str(value["data"])
+
         if "trace" in response:
             latency = response["trace"].get("latency", None)
             cost = response["trace"].get("cost", None)
     else:
-        value = response["message"]
+        value = {"data": str(response["message"])}
         latency = response.get("latency", None)
         cost = response.get("cost", None)
 
