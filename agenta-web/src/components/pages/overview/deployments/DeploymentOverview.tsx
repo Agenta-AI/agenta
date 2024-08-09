@@ -1,7 +1,7 @@
 import {Environment, JSSTheme} from "@/lib/Types"
 import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
-import {Button, Card, Dropdown, Tag, Typography} from "antd"
+import {Button, Card, Dropdown, Skeleton, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -46,7 +46,7 @@ const DeploymentOverview = () => {
     const appId = router.query.app_id as string
     const [environments, setEnvironments] = useState<Environment[]>([])
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>()
-    const [isDeploymentLoading, setIsDeploymentLoading] = useState(false)
+    const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
 
     useEffect(() => {
         if (!appId) return
@@ -70,54 +70,62 @@ const DeploymentOverview = () => {
         <div className={classes.container}>
             <Title>Deployment</Title>
 
-            <div className={classes.cardContainer}>
-                {environments.map((env, index) => (
-                    <Card key={index} loading={isDeploymentLoading}>
-                        <Dropdown
-                            trigger={["click"]}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "use_api",
-                                        label: "Use API",
-                                        icon: <Code size={16} />,
-                                        onClick: () => {
-                                            setQueryEnv(env.name)
-                                            setSelectedEnvironment(env)
+            {isDeploymentLoading ? (
+                <div className="flex gap-2">
+                    {Array.from({length: 3}).map((_, index) => (
+                        <Skeleton key={index} />
+                    ))}
+                </div>
+            ) : (
+                <div className={classes.cardContainer}>
+                    {environments.map((env, index) => (
+                        <Card key={index}>
+                            <Dropdown
+                                trigger={["click"]}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "use_api",
+                                            label: "Use API",
+                                            icon: <Code size={16} />,
+                                            onClick: () => {
+                                                setQueryEnv(env.name)
+                                                setSelectedEnvironment(env)
+                                            },
                                         },
-                                    },
-                                    {
-                                        key: "change_variant",
-                                        label: "Change Variant",
-                                        icon: <Swap size={16} />,
-                                    },
-                                    {type: "divider"},
-                                    {
-                                        key: "open_playground",
-                                        label: "Open in playground",
-                                        icon: <Rocket size={16} />,
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                type="text"
-                                icon={<MoreOutlined />}
-                                size="small"
-                                className="absolute right-2"
-                            />
-                        </Dropdown>
-                        <Text>{env.name}</Text>
-                        {env.deployed_variant_name ? (
-                            <Tag className="w-fit" color="green">
-                                {env.deployed_variant_name}
-                            </Tag>
-                        ) : (
-                            <Tag className="w-fit">No deployment</Tag>
-                        )}
-                    </Card>
-                ))}
-            </div>
+                                        {
+                                            key: "change_variant",
+                                            label: "Change Variant",
+                                            icon: <Swap size={16} />,
+                                        },
+                                        {type: "divider"},
+                                        {
+                                            key: "open_playground",
+                                            label: "Open in playground",
+                                            icon: <Rocket size={16} />,
+                                        },
+                                    ],
+                                }}
+                            >
+                                <Button
+                                    type="text"
+                                    icon={<MoreOutlined />}
+                                    size="small"
+                                    className="absolute right-2"
+                                />
+                            </Dropdown>
+                            <Text>{env.name}</Text>
+                            {env.deployed_variant_name ? (
+                                <Tag className="w-fit" color="green">
+                                    {env.deployed_variant_name}
+                                </Tag>
+                            ) : (
+                                <Tag className="w-fit">No deployment</Tag>
+                            )}
+                        </Card>
+                    ))}
+                </div>
+            )}
 
             {selectedEnvironment && (
                 <DeploymentDrawer
