@@ -682,6 +682,7 @@ class entrypoint(BaseDecorator):
     def override_config_in_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, config: Type[BaseModel]
     ):
+        endpoint = endpoint[1:].replace("/", "_")
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func_name}_{endpoint}_post"
         ]["properties"]
