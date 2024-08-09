@@ -100,9 +100,8 @@ describe("A/B Testing Evaluation workflow", () => {
         it("Should successfully delete the evalueation", () => {
             cy.url().should("include", "/annotations/human_a_b_testing")
             cy.get('[type="checkbox"]').eq(1).check().should("be.checked")
-            cy.get('[data-cy="annotation-delete-button"]')
-                .contains(/delete/i)
-                .click()
+            cy.get('[data-cy="annotation-delete-button"]').click()
+            cy.get('[data-cy="annotation-table"] > .ant-table-tbody').should("not.exist")
         })
     })
 

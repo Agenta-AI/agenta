@@ -387,6 +387,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={evaluationsList}
+                    data-cy="annotation-table"
                 />
             </Spin>
         </div>
