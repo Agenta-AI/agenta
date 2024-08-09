@@ -42,6 +42,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
 
     return (
         <Modal
+            data-cy="variant-delete-modal"
             title="Delete Variant"
             open={isModalOpen}
             onCancel={handleDismiss}
