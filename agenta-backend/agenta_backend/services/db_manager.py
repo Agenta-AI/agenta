@@ -354,14 +354,14 @@ async def create_new_variant_base(
     app: AppDB,
     user: UserDB,
     base_name: str,
-    # image: Optional[ImageDB],
+    image: Optional[ImageDB],
     organization=None,
     workspace=None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
         base_name (str): The name of the base.
-        # image (ImageDB): The image of the base.
+        image (ImageDB): The image of the base.
         user (UserDB): The User Object creating the variant.
         app (AppDB): The associated App Object.
         organization (OrganizationDB): The Organization the variant belongs to.
@@ -370,14 +370,14 @@ async def create_new_variant_base(
         VariantBaseDB: The created base.
     """
 
-    # logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
-    logger.debug(f"Creating new base: {base_name} for app: {app}")
+    logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    # logger.debug(f"Creating new base: {base_name} for app: {app}")
     async with db_engine.get_session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             user_id=user.id,
             base_name=base_name,
-            # image_id=image.id,
+            image_id=image.id if image is not None else None,
         )
 
         if isCloudEE():
@@ -783,8 +783,6 @@ async def get_user(user_uid: str) -> UserDB:
         UserDB: instance of user
     """
 
-    print(f"--- user_uid {user_uid}")
-
     async with db_engine.get_session() as session:
         # NOTE: Backward Compatibility
         # ---------------------------
@@ -797,8 +795,6 @@ async def get_user(user_uid: str) -> UserDB:
 
         if isCloudEE():
             conditions.append(UserDB.id == uuid.UUID(user_uid))
-
-        print(f"--- conditions {conditions}")
 
         result = await session.execute(select(UserDB).where(or_(*conditions)))
         user = result.scalars().first()
@@ -1246,17 +1242,11 @@ async def deploy_to_environment(
         None
     """
 
-    print(f"--- user_org_data {user_org_data}")
-
     app_variant_db = await fetch_app_variant_by_id(variant_id)
-
-    print(f"--- app_variant_db {app_variant_db}")
 
     app_variant_revision_db = await fetch_app_variant_revision_by_variant(
         app_variant_id=variant_id, revision=app_variant_db.revision  # type: ignore
     )
-
-    print(f"--- app_variant_revision_db {app_variant_revision_db}")
 
     if app_variant_db is None:
         raise ValueError("App variant not found")
@@ -1264,13 +1254,9 @@ async def deploy_to_environment(
     # Retrieve app deployment
     deployment = await get_deployment_by_appid(str(app_variant_db.app_id))
 
-    print(f"--- deployment {deployment}")
-
     # Retrieve user
     assert "user_uid" in user_org_data, "User uid is required"
     user = await get_user(user_uid=user_org_data["user_uid"])
-
-    print(f"--- user {user}")
 
     async with db_engine.get_session() as session:
         # Find the environment for the given app name and user

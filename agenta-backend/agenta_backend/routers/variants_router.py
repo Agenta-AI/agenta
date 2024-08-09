@@ -284,17 +284,10 @@ async def update_variant_url(
     ...
     """
 
-    print("-------------")
-
-    print(f"--- variant_id {variant_id}")
-    print(f"--- payload {payload}")
-
     try:
         db_app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
-
-        print(f"--- db_app_variant {db_app_variant}")
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -317,7 +310,6 @@ async def update_variant_url(
             db_app_variant, payload.url, request.state.user_id
         )
 
-        print(f"--- done")
     except ValueError as e:
         import traceback
 
