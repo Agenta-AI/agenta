@@ -20,7 +20,10 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluatorMappingInputInterface,
     EvaluatorMappingOutputInterface,
 )
-from agenta_backend.utils.traces import process_distributed_trace_into_trace_tree
+from agenta_backend.utils.traces import (
+    process_distributed_trace_into_trace_tree,
+    get_field_value_from_trace_tree,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -110,77 +113,9 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def get_field_value_from_trace(tree: Dict[str, Any], key: str) -> Dict[str, Any]:
-    """
-    Retrieve the value of the key from the trace tree.
-
-    Args:
-        tree (Dict[str, Any]): The nested dictionary to retrieve the value from.
-            i.e. inline trace
-            e.g. tree["spans"]["rag"]["spans"]["retriever"]["internals"]["prompt"]
-        key (str): The dot-separated key to access the value.
-            e.g. rag.summarizer[0].outputs.report
-
-    Returns:
-        Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
-    """
-
-    def is_indexed(field):
-        return "[" in field and "]" in field
-
-    def parse(field):
-        key = field
-        idx = None
-
-        if is_indexed(field):
-            key = field.split("[")[0]
-            idx = int(field.split("[")[1].split("]")[0])
-
-        return key, idx
-
-    SPECIAL_KEYS = [
-        "inputs",
-        "internals",
-        "outputs",
-    ]
-
-    SPANS_SEPARATOR = "spans"
-
-    spans_flag = True
-
-    fields = key.split(".")
-
-    try:
-        for field in fields:
-            # by default, expects something like 'retriever'
-            key, idx = parse(field)
-
-            # before 'SPECIAL_KEYS', spans are nested within a 'spans' key
-            # e.g. trace["spans"]["rag"]["spans"]["retriever"]...
-            if key in SPECIAL_KEYS:
-                spans_flag = False
-
-            # after 'SPECIAL_KEYS', it is a normal dict.
-            # e.g. trace[...]["internals"]["prompt"]
-            if spans_flag:
-                tree = tree[SPANS_SEPARATOR]
-
-            tree = tree[key]
-
-            if idx is not None:
-                tree = tree[idx]
-
-        return tree
-
-    # Suppress all Exception and leave Exception management to the caller.
-    except Exception as e:
-        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
-        return None
-
-
 def auto_exact_match(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
@@ -200,6 +135,8 @@ def auto_exact_match(
     Returns:
         Result: A Result object containing the evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
@@ -234,12 +171,14 @@ def exact_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_regex_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         inputs = {"ground_truth": data_point, "prediction": output}
         response = regex_test(
@@ -270,12 +209,14 @@ def regex_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_field_match_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
@@ -302,12 +243,14 @@ def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface
 
 def auto_webhook_test(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
@@ -362,12 +305,14 @@ def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_custom_code_run(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
@@ -406,7 +351,7 @@ def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_ai_critique(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
@@ -426,6 +371,8 @@ def auto_ai_critique(
     Returns:
         Result: Evaluation result.
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
@@ -478,12 +425,14 @@ def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_starts_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         inputs = {"prediction": output}
         response = starts_with(
@@ -517,12 +466,14 @@ def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_ends_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         inputs = {"prediction": output}
         response = ends_with(
@@ -557,12 +508,14 @@ def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_contains(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         inputs = {"prediction": output}
         response = contains(
@@ -597,12 +550,14 @@ def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_contains_any(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         inputs = {"prediction": output}
         response = contains_any(
@@ -639,12 +594,14 @@ def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_contains_all(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         response = contains_all(
             input=EvaluatorInputInterface(
@@ -679,12 +636,14 @@ def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def auto_contains_json(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         response = contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
@@ -857,7 +816,7 @@ def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
 def rag_faithfulness(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -887,9 +846,9 @@ def rag_faithfulness(
         trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace(trace, question_key)
-        answer_val: Any = get_field_value_from_trace(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -942,7 +901,7 @@ def rag_faithfulness(
 
 def rag_context_relevancy(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: Dict[str, Any],
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
@@ -972,9 +931,9 @@ def rag_context_relevancy(
         trace = process_distributed_trace_into_trace_tree(output["trace"])
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace(trace, question_key)
-        answer_val: Any = get_field_value_from_trace(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -1058,12 +1017,14 @@ def levenshtein_distance(input: EvaluatorInputInterface) -> EvaluatorOutputInter
 
 def auto_levenshtein_distance(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],  # pylint: disable=unused-argument
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         response = levenshtein_distance(
@@ -1094,12 +1055,14 @@ def auto_levenshtein_distance(
 
 def auto_similarity_match(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         response = similarity_match(
@@ -1154,6 +1117,8 @@ async def semantic_similarity(
     Returns:
         float: the semantic similarity score
     """
+    if not isinstance(output, str):
+        output = output.get("data", "")
 
     api_key = input.credentials["OPENAI_API_KEY"]
     openai = AsyncOpenAI(api_key=api_key)
@@ -1175,12 +1140,14 @@ async def semantic_similarity(
 
 def auto_semantic_similarity(
     inputs: Dict[str, Any],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
     app_params: Dict[str, Any],
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
     try:
         loop = ensure_event_loop()
 

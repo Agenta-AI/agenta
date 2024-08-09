@@ -12,6 +12,7 @@ import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
+from importlib.metadata import version
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
@@ -119,6 +120,8 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(self, func: Callable[..., Any], route_path=""):
+        logging.info(f"Using Agenta Python SDK version {version('agenta')}")
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -141,7 +144,11 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func,
+                True,  # inline trace: True
+                *args,
+                params=func_params,
+                config_params=config_params,
             )
 
             return entrypoint_result
@@ -157,7 +164,7 @@ class entrypoint(BaseDecorator):
             entrypoint.routes.append(
                 {
                     "func": func.__name__,
-                    "endpoint": DEFAULT_PATH,
+                    "endpoint": route,
                     "params": {**config_params, **func_signature.parameters},
                 }
             )
@@ -167,7 +174,7 @@ class entrypoint(BaseDecorator):
         entrypoint.routes.append(
             {
                 "func": func.__name__,
-                "endpoint": route[1:].replace("/", "_"),
+                "endpoint": route,
                 "params": {**config_params, **func_signature.parameters},
             }
         )
@@ -194,7 +201,11 @@ class entrypoint(BaseDecorator):
             )
 
             entrypoint_result = await self.execute_function(
-                func, *args, params=func_params, config_params=config_params
+                func,
+                False,  # inline trace: False
+                *args,
+                params=func_params,
+                config_params=config_params,
             )
 
             return entrypoint_result
@@ -205,7 +216,7 @@ class entrypoint(BaseDecorator):
             ingestible_files,
         )
 
-        if route_path == "/":
+        if route_path == "":
             route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
@@ -225,7 +236,6 @@ class entrypoint(BaseDecorator):
                 params=route["params"],
             )
         ### ---------------------- #
-
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
@@ -272,7 +282,9 @@ class entrypoint(BaseDecorator):
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
-    async def execute_function(self, func: Callable[..., Any], *args, **func_params):
+    async def execute_function(
+        self, func: Callable[..., Any], inline_trace, *args, **func_params
+    ):
         """Execute the function and handle any exceptions."""
 
         try:
@@ -281,6 +293,13 @@ class entrypoint(BaseDecorator):
             For synchronous functions, it calls them directly, while for asynchronous functions,
             it awaits their execution.
             """
+            logging.info(f"Using Agenta Python SDK version {version('agenta')}")
+
+            WAIT_FOR_SPANS = True
+            TIMEOUT = 1
+            TIMESTEP = 0.1
+            NOFSTEPS = TIMEOUT / TIMESTEP
+
             data = None
             trace = None
 
@@ -296,27 +315,49 @@ class entrypoint(BaseDecorator):
                 result = func(*args, **func_params["params"])
 
             if token is not None:
+                if WAIT_FOR_SPANS:
+                    remaining_steps = NOFSTEPS
+
+                    while not ag.tracing.is_trace_ready() and remaining_steps > 0:
+                        await asyncio.sleep(TIMESTEP)
+                        remaining_steps -= 1
+
                 trace = ag.tracing.dump_trace()
+
+                if not inline_trace:
+                    trace = {"trace_id": trace["trace_id"]}
+
+                ag.tracing.flush_spans()
                 tracing_context.reset(token)
 
             if isinstance(result, Context):
                 save_context(result)
 
-            if isinstance(result, Dict):
+            data = result
+
+            # PATCH : if result is not a dict, make it a dict
+            if not isinstance(result, dict):
                 data = result
-            elif isinstance(result, str):
-                data = {"message": result}
-            elif isinstance(result, int) or isinstance(result, float):
-                data = {"message": str(result)}
+            else:
+                # PATCH : if result is a legacy dict, clean it up
+                if (
+                    "message" in result.keys()
+                    and "cost" in result.keys()
+                    and "usage" in result.keys()
+                ):
+                    data = result["message"]
+            # END OF PATH
 
             if data is None:
-                warning = (
+                data = (
                     "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
                 )
 
-                data = {"message": warning}
+            response = BaseResponse(data=data, trace=trace)
 
-            return BaseResponse(data=data, trace=trace)
+            # logging.debug(response)
+
+            return response
 
         except Exception as e:
             self.handle_exception(e)
@@ -515,6 +556,7 @@ class entrypoint(BaseDecorator):
         result = loop.run_until_complete(
             self.execute_function(
                 func,
+                True,  # inline trace: True
                 **{"params": args_func_params, "config_params": args_config_params},
             )
         )
@@ -595,9 +637,13 @@ class entrypoint(BaseDecorator):
 
             return param_type
 
+        # Goes from '/some/path' to 'some_path'
+        endpoint = endpoint[1:].replace("/", "_")
+
         schema_to_override = openapi_schema["components"]["schemas"][
             f"Body_{func}_{endpoint}_post"
         ]["properties"]
+
         for param_name, param_val in params.items():
             if isinstance(param_val, GroupedMultipleChoiceParam):
                 subschema = find_in_schema(

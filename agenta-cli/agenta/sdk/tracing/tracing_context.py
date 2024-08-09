@@ -23,9 +23,5 @@ class TracingContext:
     def __str__(self) -> str:
         return self.__repr__()
 
-    def push(self, span) -> None:
-        self.active_span = span
-        self.spans[span.id] = span
-
 
 tracing_context = ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)
