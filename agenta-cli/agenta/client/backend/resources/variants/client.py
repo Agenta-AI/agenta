@@ -339,6 +339,7 @@ class VariantsClient:
     def update_variant_url(
         self,
         variant_id: str,
+        *,
         url: str,
     ):
         """
@@ -756,6 +757,7 @@ class AsyncVariantsClient:
     async def update_variant_url(
         self,
         variant_id: str,
+        *,
         url: str,
     ):
         """
