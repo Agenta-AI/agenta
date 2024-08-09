@@ -503,8 +503,8 @@ export type FuncResponse = {
 }
 
 export type BaseResponse = {
-    type: string
-    data: Record<string, any>
+    version: string
+    data: string | Record<string, any>
     trace?: {
         trace_id: string
         cost?: number
@@ -560,9 +560,9 @@ export interface TraceSpan {
     parent_span_id?: string | null
     name?: string
     content: {
-        inputs: {input_name: string; input_value: string}[] | null
-        internals: {internal_name: string; internal_value: string}[] | null
-        outputs: string[] | null
+        inputs: Record<string, any> | null
+        internals: Record<string, any> | null
+        outputs: string[] | Record<string, any> | null
         role?: string | null
     }
 }
