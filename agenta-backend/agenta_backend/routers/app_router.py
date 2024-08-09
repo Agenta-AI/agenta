@@ -25,6 +25,7 @@ from agenta_backend.models.api.api_models import (
     App,
     CreateAppOutput,
     AddVariantFromImagePayload,
+    AddVariantFromURLPayload,
 )
 
 if isCloudEE():
@@ -393,20 +394,23 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{app_id}/variant/from-url/", operation_id="create_variant_from_url")
-async def create_variant_from_url(
+@router.post("/{app_id}/variant/from-url/", operation_id="add_variant_from_url")
+async def add_variant_from_url(
     app_id: str,
-    app_name: str,
-    variant_name: str,
-    url: str,
+    payload: AddVariantFromURLPayload,
     request: Request,
 ):
     """
     ...
     """
+    print("-------------")
 
+    print(f"--- app_id {app_id}")
+    print(f"--- payload {payload}")
     try:
         app = await db_manager.fetch_app_by_id(app_id)
+
+        print(f"--- app {app}")
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -415,7 +419,7 @@ async def create_variant_from_url(
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
-                f"User has Permission to create app from image: {has_permission}"
+                f"User has Permission to create app from url: {has_permission}"
             )
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
@@ -424,19 +428,28 @@ async def create_variant_from_url(
                     status_code=403,
                 )
 
-        variant_db = await app_manager.create_variant_based_on_url(
+        variant_db = await app_manager.add_variant_based_on_url(
             app=app,
-            app_name=app_name,
-            variant_name=variant_name,
-            url=url,
+            app_name=payload.app_name,
+            variant_slug=payload.variant_slug,
+            variant_name=payload.variant_name,
+            url=payload.url,
             user_uid=request.state.user_id,
         )
 
+        print(f"--- variant_db {variant_db}")
+
         app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+
+        print(f"--- app_variant_db {app_variant_db}")
 
         await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
-        return await converters.app_variant_db_to_output(app_variant_db)
+        app_variant_dto = await converters.app_variant_db_to_output(app_variant_db)
+
+        print(f"--- app_variant_dto {app_variant_dto}")
+
+        return app_variant_dto
 
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")

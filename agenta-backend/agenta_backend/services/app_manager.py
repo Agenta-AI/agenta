@@ -188,11 +188,22 @@ async def update_variant_url(app_variant_db: AppVariantDB, url: str, user_uid: s
     ...
     """
 
-    parsed_url = urlparse(url)
+    print(f"--- app_variant_db {app_variant_db}")
+    print(f"--- app_variant_db {app_variant_db}")
+    print(f"--- user_uid {user_uid}")
+
+    parsed_url = urlparse(url).geturl()
+
+    print(f"--- parsed_url {parsed_url}")
 
     base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
 
+    print(f"--- base {base}")
+    print(f"--- str(base.deployment_id) {str(base.deployment_id)}")
+
     deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
+
+    print(f"--- deployment {deployment}")
 
     await db_manager.remove_deployment(str(deployment.id))
 
@@ -204,6 +215,8 @@ async def update_variant_url(app_variant_db: AppVariantDB, url: str, user_uid: s
         app_variant_id=str(app_variant_db.id), url=parsed_url
     )
 
+    print(f"--- app_variant_db {app_variant_db}")
+
     deployment = await db_manager.create_deployment(
         app_id=str(app_variant_db.app.id),
         user_id=str(app_variant_db.user.id),
@@ -212,6 +225,8 @@ async def update_variant_url(app_variant_db: AppVariantDB, url: str, user_uid: s
         organization=str(app_variant_db.organization_id) if isCloudEE() else None,
         workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,
     )
+
+    print(f"--- deployment {deployment}")
 
     await db_manager.update_base(
         str(app_variant_db.base_id),
@@ -523,6 +538,7 @@ async def add_variant_based_on_image(
 
     # Create app variant
     logger.debug("Step 7: Creating app variant")
+    logger.debug("...")
     db_app_variant = await db_manager.create_new_app_variant(
         app=app,
         variant_name=variant_name,
@@ -538,12 +554,12 @@ async def add_variant_based_on_image(
     return db_app_variant
 
 
-async def create_variant_based_on_url(
+async def add_variant_based_on_url(
     app: AppDB,
     app_name: str,
+    variant_slug: str,
     variant_name: str,
     url: str,
-    config_name: str,
     user_uid: str,
 ) -> AppVariantDB:
     """
@@ -556,17 +572,23 @@ async def create_variant_based_on_url(
     if (
         app in [None, ""]
         or app_name in [None, ""]
+        or variant_slug in [None, ""]
         or variant_name in [None, ""]
         or url in [None, ""]
-        or variant_name in [None, ""]
     ):
         raise ValueError("App variant, app name, variant name, or URL is None")
 
     logger.debug("Parsing URL")
-    parsed_url = urlparse(url)
+    parsed_url = urlparse(url).geturl()
+
+    print(f"--- url {url}")
+    print(f"--- parsed_url {parsed_url}")
 
     logger.debug("Checking if app variant already exists")
     variants = await db_manager.list_app_variants_for_app_id(app_id=str(app.id))
+
+    print(f"--- variants {variants}")
+
     already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
         logger.error("App variant with the same name already exists")
@@ -575,11 +597,15 @@ async def create_variant_based_on_url(
     logger.debug("Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid)
 
+    print(f"--- user_instance {user_instance}")
+
     # Create config
     logger.debug("Creating config")
     config_db = await db_manager.create_new_config(
-        config_name=config_name, parameters={}
+        config_name=variant_slug, parameters={}
     )
+
+    print(f"--- config_db {config_db}")
 
     # Create base
     logger.debug("Creating app")
@@ -591,19 +617,22 @@ async def create_variant_based_on_url(
         workspace=str(app.workspace_id) if isCloudEE() else None,  # noqa
     )
 
+    print(f"--- db_base {db_base}")
+
     # Create app variant
     logger.debug("Creating app variant")
     db_app_variant = await db_manager.create_new_app_variant(
         app=app,
         base_name=app_name,
         variant_name=variant_name,
-        url=url,
         config=config_db,
         base=db_base,
         user=user_instance,
         organization=str(app.organization_id) if isCloudEE() else None,  # noqa
         workspace=str(app.workspace_id) if isCloudEE() else None,  # noqa
     )
+
+    print(f"--- db_app_variant {db_app_variant}")
 
     deployment = await db_manager.create_deployment(
         app_id=str(db_app_variant.app.id),
@@ -614,10 +643,27 @@ async def create_variant_based_on_url(
         workspace=str(db_app_variant.workspace_id) if isCloudEE() else None,
     )
 
+    print(f"--- deployment {deployment}")
+
+    print(f"--- str(db_app_variant.base_id) {str(db_app_variant.base_id)}")
+    print(f"--- deployment.id {deployment.id}")
+
     await db_manager.update_base(
         str(db_app_variant.base_id),
         deployment_id=deployment.id,
     )
+
+    print(f"--- environment_name {'production'}")
+    print(f"--- variant_id {str(db_app_variant.id)}")
+    print(f"--- user_uid {user_uid}")
+
+    await db_manager.deploy_to_environment(
+        environment_name="production",
+        variant_id=str(db_app_variant.id),
+        user_uid=user_uid,
+    )
+
+    print(f"--- done")
 
     logger.debug("End: Successfully created variant: %s", db_app_variant)
 

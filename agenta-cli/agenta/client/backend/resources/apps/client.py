@@ -321,7 +321,9 @@ class AppsClient:
     def create_variant_from_url(
         self,
         app_id: str,
+        *,
         app_name: str,
+        variant_slug: str,
         variant_name: str,
         url: str,
     ):
@@ -329,12 +331,16 @@ class AppsClient:
         ...
         """
 
+        print()
+        print("----")
         _request: typing.Dict[str, typing.Any] = {
             "app_name": app_name,
+            "variant_slug": variant_slug,
             "variant_name": variant_name,
             "url": url,
         }
-
+        print(_request)
+        print(jsonable_encoder(_request))
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
@@ -345,43 +351,7 @@ class AppsClient:
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def update_variant_from_url(
-        self,
-        app_id: str,
-        app_name: str,
-        variant_name: str,
-        url: str,
-    ):
-        """
-        ...
-        """
-
-        _request: typing.Dict[str, typing.Any] = {
-            "app_name": app_name,
-            "variant_name": variant_name,
-            "url": url,
-        }
-
-        _response = self._client_wrapper.httpx_client.request(
-            "PATCH",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"apps/{app_id}/variant/from-url",
-            ),
-            json=jsonable_encoder(_request),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
+        print(_response)
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:
@@ -871,7 +841,9 @@ class AsyncAppsClient:
     async def create_variant_from_url(
         self,
         app_id: str,
+        *,
         app_name: str,
+        variant_slug: str,
         variant_name: str,
         url: str,
     ):
@@ -881,6 +853,7 @@ class AsyncAppsClient:
 
         _request: typing.Dict[str, typing.Any] = {
             "app_name": app_name,
+            "variant_slug": variant_slug,
             "variant_name": variant_name,
             "url": url,
         }

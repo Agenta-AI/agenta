@@ -134,6 +134,7 @@ class Config:
                 overwrite=overwrite,
             )
         except Exception as ex:
+            logger.warning("Aloha")
             logger.warning(
                 "Failed to push the configuration to the server with error: %s", ex
             )

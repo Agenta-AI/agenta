@@ -112,6 +112,9 @@ export async function callVariant(
         .post(`${appContainerURI}/generate`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
+            headers: {
+                "ngrok-skip-browser-warning": true,
+            },
         } as any)
         .then((res) => {
             return res.data
@@ -132,7 +135,12 @@ export const fetchVariantParametersFromOpenAPI = async (
 ) => {
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const url = `${appContainerURI}/openapi.json`
-    const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
+    const response = await axios.get(url, {
+        _ignoreError: ignoreAxiosError,
+        headers: {
+            "ngrok-skip-browser-warning": true,
+        },
+    } as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
     let APIParams = openAISchemaToParameters(response.data)
 
@@ -181,7 +189,9 @@ export const fetchAppContainerURL = async (
 
         // Retrieve container URL from backend
         const url = `${getAgentaApiUrl()}/api/containers/container_url/`
-        const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
+        const response = await axios.get(url, {
+            params: {variant_id: variantId, base_id: baseId},
+        })
         if (response.status === 200 && response.data && response.data.uri) {
             return response.data.uri
         } else {

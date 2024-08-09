@@ -8,7 +8,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-DEBUG = False
+DEBUG = True
 
 
 def create_dockerfile(out_folder: Path) -> Path:

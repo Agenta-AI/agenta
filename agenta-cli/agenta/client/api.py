@@ -30,8 +30,9 @@ def create_variant_from_url(
     for attempt in range(retries):
         try:
             response = client.apps.create_variant_from_url(
-                app_id=app_id,
+                app_id,
                 app_name=app_name,
+                variant_slug=variant_slug,
                 variant_name=f"{app_name}.{variant_slug}",
                 url=url,
             )
@@ -134,7 +135,7 @@ def add_variant_to_server(
     for attempt in range(retries):
         try:
             response = client.apps.add_variant_from_image(
-                app_id=app_id,
+                app_id,
                 variant_name=f"{base_name.lower()}.default",
                 base_name=base_name,
                 config_name="default",

@@ -47,7 +47,7 @@ def hook_variant_to_url(
     config_file = config_path / config_file
     config = toml.load(config_file)
 
-    app_name = config["app_name"].lower()
+    app_name = config["app_name"]
     app_id = config["app_id"]
 
     api_key = config.get("api_key", "")
@@ -55,7 +55,7 @@ def hook_variant_to_url(
     base_url = f"{host}/{BACKEND_URL_SUFFIX}"
 
     # Validate app name
-    if not re.match("^[a-zA-Z0-9_]+$", app_name):
+    if not re.match("^[a-zA-Z0-9_-]+$", app_name):
         click.echo(
             click.style(
                 "Invalid app name. Please use only alphanumeric characters without spaces.",
