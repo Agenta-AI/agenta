@@ -447,6 +447,16 @@
         "code",
         "bug"
       ]
+    },
+    {
+      "login": "mrunhap",
+      "name": "Mr Unhappy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24653356?v=4",
+      "profile": "https://mrunhap.github.io",
+      "contributions": [
+        "bug",
+        "infra"
+      ]
     }
   ],
   "contributorsPerLine": 7,
