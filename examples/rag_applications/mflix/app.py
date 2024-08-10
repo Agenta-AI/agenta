@@ -165,7 +165,6 @@ async def summarizer(topic: str, genre: str, report: dict) -> dict:
 @ag.entrypoint
 @ag.instrument(spankind="WORKFLOW")
 async def rag(topic: str, genre: str, count: int = 5):
-
     count = int(count)
 
     result = await retriever(topic, genre, count)

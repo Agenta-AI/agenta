@@ -66,7 +66,9 @@ class instrument(BaseDecorator):
                 not in (
                     blacklist
                     if isinstance(blacklist, list)
-                    else [] if blacklist is False else io.keys()
+                    else []
+                    if blacklist is False
+                    else io.keys()
                 )
             }
 
