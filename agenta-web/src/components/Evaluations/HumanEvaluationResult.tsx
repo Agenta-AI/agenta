@@ -357,7 +357,11 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
     return (
         <div>
             <div className={classes.btnContainer}>
-                <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
+                <Button
+                    onClick={onDelete}
+                    disabled={selectedRowKeys.length == 0}
+                    data-cy="annotation-delete-button"
+                >
                     <DeleteOutlined key="delete" />
                     Delete
                 </Button>
@@ -383,6 +387,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={evaluationsList}
+                    data-cy="annotation-table"
                 />
             </Spin>
         </div>

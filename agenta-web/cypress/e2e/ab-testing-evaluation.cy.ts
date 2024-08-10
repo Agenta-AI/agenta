@@ -42,8 +42,11 @@ describe("A/B Testing Evaluation workflow", () => {
     })
 
     context("When executing the evaluation", () => {
-        it("Should successfully execute the evaluation process", () => {
+        beforeEach(() => {
             cy.visit(`/apps/${app_id}/annotations/human_a_b_testing`)
+        })
+
+        it("Should successfully execute the evaluation process", () => {
             cy.url().should("include", "/annotations/human_a_b_testing")
             cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
 
@@ -92,6 +95,34 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get(
                 '[data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"]',
             ).click()
+        })
+
+        it("Should successfully delete the evalueation", () => {
+            cy.url().should("include", "/annotations/human_a_b_testing")
+            cy.get('[type="checkbox"]').eq(1).check().should("be.checked")
+            cy.get('[data-cy="annotation-delete-button"]').click()
+            cy.get('[data-cy="annotation-table"] > .ant-table-tbody').should("not.exist")
+        })
+    })
+
+    context("When deleting the app variant", () => {
+        beforeEach(() => {
+            cy.visit(`/apps/${app_id}/playground`)
+        })
+
+        it("Should delete the created app variant", () => {
+            cy.get(`[data-node-key="app.${app_v2}"]`).contains(`app.${app_v2}`).click()
+            cy.url().should("include", `/playground?variant=app.${app_v2}`)
+            cy.get('[data-cy="playground-delete-variant-button"]').eq(1).click()
+            cy.get(".ant-modal-content").within(() => {
+                cy.get(".ant-modal-confirm-btns > .ant-btn-primary").contains(/yes/i).click()
+            })
+        })
+
+        it("Should verify there is only one variant present", () => {
+            cy.get(".ant-tabs-nav-list").within(() => {
+                cy.get(".ant-tabs-tab").should("have.length.lte", 1)
+            })
         })
     })
 
