@@ -550,6 +550,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 size="large"
                                 onClick={() => setIsTestsetModalOpen(true)}
                                 disabled={false}
+                                data-cy="single-model-save-testset-button"
                             >
                                 Save Testset
                             </Button>
