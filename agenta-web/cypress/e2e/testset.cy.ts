@@ -56,6 +56,31 @@ describe("Testsets crud and UI functionality", () => {
         })
     })
 
+    context("When uploading testset", () => {
+        const testset_name = randString(8)
+        beforeEach(() => {
+            cy.visit(`/apps/${app_id}/testsets`)
+        })
+
+        it("Shloud successfully upload a testset", () => {
+            cy.url().should("include", "/testsets")
+            cy.clickLinkAndWait('[data-cy="testset-new-upload-link"]')
+            cy.url().should("include", "/testsets/new/upload")
+            cy.get('[data-cy="upload-testset-file-name"]').type(testset_name)
+            cy.get('[type="file"]').selectFile("cypress/data/countries-genders.csv", {force: true})
+            cy.wait(1000)
+            cy.contains("countries-genders.csv").should("be.visible")
+            cy.get('[data-cy="testset-upload-button"]').click()
+        })
+
+        it("Shloud check the uploaded testset is present", () => {
+            cy.url().should("include", "/testsets")
+            cy.get('[data-cy="app-testset-list"]').as("table")
+            cy.get("@table").get(".ant-table-pagination li a").last().click()
+            cy.get("@table").contains(testset_name).as("tempTestSet").should("be.visible")
+        })
+    })
+
     after(() => {
         cy.cleanupVariantAndTestset()
     })
