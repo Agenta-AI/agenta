@@ -9,7 +9,7 @@ declare global {
             clickLinkAndWait(selector: string): Chainable<void>
             createVariantsAndTestsets(): Chainable<void>
             cleanupVariantAndTestset(): Chainable<void>
-            createVariant(): Chainable<void>
+            createVariant(appType?: "chat" | "single"): Chainable<void>
             saveOpenAiKey(): Chainable<void>
             removeLlmProviderKey(): Chainable<void>
             addingOpenaiKey(): Chainable<void>

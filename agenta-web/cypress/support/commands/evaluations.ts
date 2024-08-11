@@ -11,7 +11,7 @@ const countries = [
 
 const apiKey = Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY")
 
-Cypress.Commands.add("createVariant", () => {
+Cypress.Commands.add("createVariant", (appType = "single") => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
 
@@ -28,7 +28,7 @@ Cypress.Commands.add("createVariant", () => {
         }
     })
 
-    cy.contains("Single Prompt")
+    cy.contains(appType === "chat" ? "Chat Application" : "Single Prompt")
         .parentsUntil('[data-cy^="app-template-card"]')
         .last()
         .contains("create app", {matchCase: false})

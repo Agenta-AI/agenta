@@ -169,6 +169,7 @@ const ChatInputs: React.FC<Props> = ({
                             value={msg.content}
                             onChange={(e) => handleInputChange(ix, e)}
                             readOnly={readonly}
+                            data-cy="chatview-input-parameters"
                         />
                         {lastAssistantMsg[lastAssistantMsg.length - 1]?.id === msg.id && (
                             <CopyButton
