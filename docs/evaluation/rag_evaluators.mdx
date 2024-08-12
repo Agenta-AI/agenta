@@ -21,7 +21,7 @@ async def rag(topic: str, genre: str, count: int = 5):
     result = await summarizer(topic, genre, result["report"])
     result = await summarizer(topic, genre, result["report"])
 
-    return result
+    return result["report"]
 ```
 
 The retriever simply performs semantic search on the formatted prompt fetched from Agenta.
