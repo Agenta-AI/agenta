@@ -69,7 +69,7 @@ async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInt
     """
 
     try:
-        mapped_outputs = evaluators_service.map(mapping_input=payload)
+        mapped_outputs = await evaluators_service.map(mapping_input=payload)
         return mapped_outputs
     except Exception as e:
         logger.error(f"Error mapping data tree: {str(e)}")
