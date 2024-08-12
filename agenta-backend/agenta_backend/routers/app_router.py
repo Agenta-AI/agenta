@@ -278,6 +278,9 @@ async def create_app(
             organization_id if isCloudEE() else None,
             str(workspace.id) if isCloudEE() else None,
         )
+
+        await evaluator_manager.create_ready_to_use_evaluators(app=app_db)
+
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
