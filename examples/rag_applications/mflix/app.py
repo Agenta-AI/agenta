@@ -77,7 +77,11 @@ ag.config.default(
 )
 
 
-@ag.instrument(spankind="EMBEDDING")
+@ag.instrument(
+    spankind="EMBEDDING",
+    ignore_inputs=["description"],
+    ignore_outputs=["embedding", "cost", "usage"],
+)
 def embed(description: str):
     response = openai.embeddings.create(
         input=description, model="text-embedding-ada-002"
@@ -91,7 +95,7 @@ def embed(description: str):
     }
 
 
-@ag.instrument(spankind="SEARCH")
+@ag.instrument(spankind="SEARCH", ignore_inputs=True, ignore_outputs=True)
 def search(query: list, topk: int):
     embeddings = db["embedded_movies"]
 
@@ -130,7 +134,7 @@ async def chat(prompts: str, opts: dict):
     }
 
 
-@ag.instrument(spankind="RETRIEVER")
+@ag.instrument(spankind="RETRIEVER", ignore_inputs=True)
 async def retriever(topic: str, genre: str, count: int) -> dict:
     prompt = ag.config.retriever_prompt.format(topic=topic, genre=genre)
     topk = count * ag.config.retriever_multiplier
@@ -149,7 +153,7 @@ async def retriever(topic: str, genre: str, count: int) -> dict:
     return {"movies": movies}
 
 
-@ag.instrument(spankind="GENERATOR")
+@ag.instrument(spankind="GENERATOR", ignore_inputs=True)
 async def reporter(topic: str, genre: str, count: int, movies: dict) -> dict:
     context = ag.config.generator_context_prompt.format(movies="\n".join(movies))
     instructions = ag.config.generator_instructions_prompt.format(
@@ -169,7 +173,7 @@ async def reporter(topic: str, genre: str, count: int, movies: dict) -> dict:
     return {"report": report}
 
 
-@ag.instrument(spankind="GENERATOR")
+@ag.instrument(spankind="GENERATOR", ignore_inputs=True)
 async def summarizer(topic: str, genre: str, report: dict) -> dict:
     context = ag.config.summarizer_context_prompt
     instructions = ag.config.summarizer_instructions_prompt.format(
