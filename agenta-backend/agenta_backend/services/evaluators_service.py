@@ -81,8 +81,9 @@ async def map(
         return data
 
     mapping_outputs = {}
+    trace = process_distributed_trace_into_trace_tree(mapping_input.inputs["trace"])
     for to_key, from_key in mapping_input.mapping.items():
-        mapping_outputs[to_key] = get_nested_value(mapping_input.inputs, from_key)
+        mapping_outputs[to_key] = get_field_value_from_trace_tree(trace, from_key)
     return {"outputs": mapping_outputs}
 
 
@@ -1080,7 +1081,6 @@ async def auto_levenshtein_distance(
         return Result(type="number", value=response["outputs"]["score"])
 
     except ValueError as e:
-        print("Exception: ", traceback.format_exc())
         return Result(
             type="error",
             value=None,
@@ -1089,7 +1089,6 @@ async def auto_levenshtein_distance(
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
-        print("Exception: ", traceback.format_exc())
         return Result(
             type="error",
             value=None,
@@ -1164,9 +1163,6 @@ async def semantic_similarity(
         float: the semantic similarity score
     """
 
-    if not isinstance(input.inputs["prediction"], str):
-        output = input.inputs["prediction"].get("data", "")
-
     api_key = input.credentials["OPENAI_API_KEY"]
     openai = AsyncOpenAI(api_key=api_key)
 
@@ -1195,6 +1191,7 @@ async def auto_semantic_similarity(
 ) -> Result:
     if not isinstance(output, str):
         output = output.get("data", "")
+
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
@@ -1242,7 +1239,7 @@ EVALUATOR_FUNCTIONS = {
 RUN_EVALUATOR_FUNCTIONS = {
     "auto_exact_match": exact_match,
     "auto_regex_test": regex_test,
-    "auto_field_match_test": field_match_test,
+    "field_match_test": field_match_test,
     "auto_webhook_test": webhook_test,
     "auto_custom_code_run": custom_code_run,
     "auto_ai_critique": ai_critique,
