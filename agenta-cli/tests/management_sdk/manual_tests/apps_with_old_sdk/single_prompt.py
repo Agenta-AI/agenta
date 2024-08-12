@@ -15,6 +15,7 @@ ag.config.default(
     ),
     max_tokens=ag.IntParam(-1, -1, 4000),
     prompt_system=ag.TextParam(SYSTEM_PROMPT),
+    multiselect=ag.MultipleChoiceParam(choices=["a", "b", "c"]),
 )
 
 

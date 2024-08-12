@@ -1,20 +1,24 @@
 import agenta as ag
 from agenta import FloatParam, TextParam
 from openai import OpenAI
+from pydantic import BaseModel, Field
 
 client = OpenAI()
+import os
 
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
 ag.init()
-ag.config.default(
-    temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
-)
 
 
-@ag.entrypoint
+class BabyConfig(BaseModel):
+    temperature: float = Field(default=0.2)
+    prompt_template: str = Field(default=default_prompt)
+
+
+@ag.route("/", config_schema=BabyConfig)
 def generate(country: str, gender: str) -> str:
     """
     Generate a baby name based on the given country and gender.
@@ -26,10 +30,13 @@ def generate(country: str, gender: str) -> str:
     Returns:
         str: The generated baby name.
     """
-    prompt = ag.config.prompt_template.format(country=country, gender=gender)
+    config = ag.ConfigManager.get_from_route(schema=BabyConfig)
+    prompt = config.prompt_template.format(country=country, gender=gender)
 
     chat_completion = client.chat.completions.create(
-        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=config.temperature,
     )
     token_usage = chat_completion.usage.dict()
     return {
