@@ -39,6 +39,7 @@ export async function fetchVariants(
                 baseId: variant.base_id,
                 baseName: variant.base_name,
                 configName: variant.config_name,
+                revision: variant.revision,
             }
             return v
         })

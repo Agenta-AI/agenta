@@ -1,9 +1,8 @@
-import React, {useEffect, useRef} from "react"
+import React, {Dispatch, MutableRefObject, SetStateAction, useEffect, useRef} from "react"
 import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
-import {useVariant} from "@/lib/hooks/useVariant"
-import {Environment, Variant} from "@/lib/Types"
+import {Environment, Parameter, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
@@ -12,11 +11,7 @@ import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"
-import {
-    deleteSingleVariant,
-    fetchVariantLogs,
-    restartAppVariantContainer,
-} from "@/services/playground/api"
+import {deleteSingleVariant, restartAppVariantContainer} from "@/services/playground/api"
 
 const {Text} = Typography
 
@@ -29,6 +24,39 @@ interface Props {
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
     tabID: React.MutableRefObject<string>
+    setRevisionNumber: (val: string) => void
+    variantProps: {
+        inputParams: Parameter[] | null
+        promptOptParams: Parameter[] | null
+        URIPath: string | null
+        refetch: () => Promise<void>
+        isError: boolean
+        error: Error | null
+        isParamSaveLoading: boolean
+        isChatVariant: boolean | null
+        isLoading: boolean
+        historyStatus: {
+            loading: boolean
+            error: boolean
+        }
+        setHistoryStatus: Dispatch<
+            SetStateAction<{
+                loading: boolean
+                error: boolean
+            }>
+        >
+        saveOptParams: (
+            updatedOptParams: Parameter[],
+            persist: boolean,
+            updateVariant: boolean,
+            onSuccess?: ((isNew: boolean) => void) | undefined,
+        ) => Promise<void>
+        getVariantLogs: () => Promise<void>
+        isLogsLoading: boolean
+        variantErrorLogs: string
+        setIsLogsLoading: Dispatch<SetStateAction<boolean>>
+        onClickShowLogs: MutableRefObject<boolean>
+    }
 }
 
 const useStyles = createUseStyles({
@@ -52,6 +80,8 @@ const ViewNavigation: React.FC<Props> = ({
     onStateChange,
     compareMode,
     tabID,
+    setRevisionNumber,
+    variantProps,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -67,14 +97,13 @@ const ViewNavigation: React.FC<Props> = ({
         isLoading,
         isChatVariant,
         historyStatus,
-        setPromptOptParams,
         setHistoryStatus,
         getVariantLogs,
         isLogsLoading,
         variantErrorLogs,
         setIsLogsLoading,
         onClickShowLogs,
-    } = useVariant(appId, variant)
+    } = variantProps
 
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
@@ -321,6 +350,7 @@ const ViewNavigation: React.FC<Props> = ({
                         setIsDrawerOpen={setIsDrawerOpen}
                         isDrawerOpen={isDrawerOpen}
                         historyStatus={historyStatus}
+                        setRevisionNumber={setRevisionNumber}
                     />
                 </Col>
             </Row>
@@ -334,9 +364,6 @@ const ViewNavigation: React.FC<Props> = ({
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        onStateChange={onStateChange}
-                        setPromptOptParams={setPromptOptParams}
-                        promptOptParams={promptOptParams}
                     />
                 </Col>
             </Row>

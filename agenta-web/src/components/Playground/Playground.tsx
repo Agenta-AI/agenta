@@ -19,6 +19,8 @@ import TestContextProvider from "./TestContextProvider"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {createNewVariant} from "@/services/playground/api"
+import {useVariant} from "@/lib/hooks/useVariant"
+import {dynamicHook} from "@/lib/helpers/dynamic"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -36,7 +38,29 @@ const Playground: React.FC = () => {
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
     const [tabIndex, setTabIndex] = useLocalStorage(`tabIndex_${appId}`, [] as string[])
+    const [revisionNumber, setRevisionNumber] = useQueryParam("revision")
+    const activeVariant = variants.find((v) => v.variantName === activeKey)
     const tabID = useRef("")
+    const variantProps = useVariant(appId, activeVariant!)
+    const {setIsLoading: setIsVariantLoading, setPromptOptParams} = variantProps
+    const activeVariantKey = activeVariant?.variantId
+
+    useEffect(() => {
+        if (activeVariantKey) {
+            dynamicHook("usePromptRevision").then((module: any) => {
+                if (!revisionNumber || !Boolean(module.default)) return
+
+                const {fetchPromptRevision} = module.default({
+                    setIsVariantLoading,
+                    setPromptOptParams,
+                    activeVariantKey,
+                    revisionNumber,
+                })
+
+                fetchPromptRevision()
+            })
+        }
+    }, [revisionNumber])
 
     const addTab = async () => {
         // Find the template variant
@@ -283,7 +307,7 @@ const Playground: React.FC = () => {
     }
 
     // Map the variants array to create the items array conforming to the Tab interface
-    const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
+    const tabItems: PlaygroundTabsItem[] = variants.map((variant) => ({
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
@@ -298,6 +322,8 @@ const Playground: React.FC = () => {
                 }
                 getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
                 tabID={tabID}
+                setRevisionNumber={setRevisionNumber}
+                variantProps={variantProps}
             />
         ),
         closable: !variant.persistent,
