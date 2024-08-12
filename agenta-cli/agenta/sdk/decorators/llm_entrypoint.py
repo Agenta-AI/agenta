@@ -69,16 +69,21 @@ app.include_router(router, prefix="")
 
 logging.setLevel("DEBUG")
 
-route_context = contextvars.ContextVar('route_context', default={})
+route_context = contextvars.ContextVar("route_context", default={})
 
 
 @contextmanager
-def route_context_manager(config: Optional[Dict[str, Any]] = None, environment: Optional[str] = None, version: Optional[str] = None, variant: Optional[str] = None):
+def route_context_manager(
+    config: Optional[Dict[str, Any]] = None,
+    environment: Optional[str] = None,
+    version: Optional[str] = None,
+    variant: Optional[str] = None,
+):
     context = {
-        'config': config,
-        'environment': environment,
-        'version': version,
-        'variant': variant
+        "config": config,
+        "environment": environment,
+        "version": version,
+        "variant": variant,
     }
     token = route_context.set(context)
     try:
@@ -106,7 +111,9 @@ class route(BaseDecorator):
         self.route_path = path
 
     def __call__(self, f):
-        self.e = entrypoint(f, route_path=self.route_path, config_schema=self.config_schema)
+        self.e = entrypoint(
+            f, route_path=self.route_path, config_schema=self.config_schema
+        )
 
         return f
 
@@ -144,7 +151,9 @@ class entrypoint(BaseDecorator):
 
     routes = list()
 
-    def __init__(self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None):
+    def __init__(
+        self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None
+    ):
         logging.info(f"Using Agenta Python SDK version {version('agenta')}")
 
         DEFAULT_PATH = "generate"
@@ -152,11 +161,17 @@ class entrypoint(BaseDecorator):
         RUN_PATH = "/run"
         func_signature = inspect.signature(func)
         try:
-            config = config_schema() if config_schema else None  # we initialize the config object to be able to use it
+            config = (
+                config_schema() if config_schema else None
+            )  # we initialize the config object to be able to use it
         except pydantic.ValidationError as e:
-            raise ValueError(f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}") from e
+            raise ValueError(
+                f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
+            ) from e
         except Exception as e:
-            raise ValueError(f"Unexpected error initializing config_schema: {str(e)}") from e
+            raise ValueError(
+                f"Unexpected error initializing config_schema: {str(e)}"
+            ) from e
 
         config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
@@ -190,7 +205,7 @@ class entrypoint(BaseDecorator):
             func_signature=func_signature,
             config_class=config,
             config_dict=config_params,
-            ingestible_files=ingestible_files
+            ingestible_files=ingestible_files,
         )
 
         #
@@ -201,7 +216,9 @@ class entrypoint(BaseDecorator):
                 {
                     "func": func.__name__,
                     "endpoint": route,
-                    "params": {**config_params, **func_signature.parameters} if not config else func_signature.parameters,
+                    "params": {**config_params, **func_signature.parameters}
+                    if not config
+                    else func_signature.parameters,
                     "config": config,
                 }
             )
@@ -212,7 +229,9 @@ class entrypoint(BaseDecorator):
             {
                 "func": func.__name__,
                 "endpoint": route,
-                "params": {**config_params, **func_signature.parameters} if not config else func_signature.parameters,
+                "params": {**config_params, **func_signature.parameters}
+                if not config
+                else func_signature.parameters,
                 "config": config,
             }
         )
@@ -237,14 +256,16 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
-            with route_context_manager(variant=kwargs["config"], environment=kwargs["environment"]):
+            with route_context_manager(
+                variant=kwargs["config"], environment=kwargs["environment"]
+            ):
                 entrypoint_result = await self.execute_function(
-                func,
-                False,  # inline trace: False
-                *args,
-                params=func_params,
-                config_params=config_params,
-            )
+                    func,
+                    False,  # inline trace: False
+                    *args,
+                    params=func_params,
+                    config_params=config_params,
+                )
 
             return entrypoint_result
 
@@ -486,7 +507,7 @@ class entrypoint(BaseDecorator):
                     name=name,
                     kind=inspect.Parameter.KEYWORD_ONLY,
                     annotation=field.annotation.__name__,
-                    default=Body(field.default)
+                    default=Body(field.default),
                 )
             )
 
@@ -610,12 +631,16 @@ class entrypoint(BaseDecorator):
             )
 
         # Update args_config_params with default values from config_params if not provided in command line arguments
-        args_config_params.update({key: value for key, value in config_params.items() if key not in args_config_params})
+        args_config_params.update(
+            {
+                key: value
+                for key, value in config_params.items()
+                if key not in args_config_params
+            }
+        )
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage(
-            {"config": args_config_params, "environment": "bash"}
-        )
+        ag.tracing.update_baggage({"config": args_config_params, "environment": "bash"})
 
         loop = asyncio.get_event_loop()
 
@@ -638,49 +663,11 @@ class entrypoint(BaseDecorator):
             json.dump(result.trace, trace_file, indent=4)
 
     def override_config_in_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, config: Type[BaseModel]
-    ):
-        schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_{endpoint}_post"
-        ]["properties"]
-        # New logic
-        for param_name, param_val in config.__fields__.items():
-            if param_val.annotation is str:
-                if any(isinstance(constraint, MultipleChoice) for constraint in param_val.metadata):
-                    choices = next(constraint.choices for constraint in param_val.metadata if isinstance(constraint, MultipleChoice))
-                    if isinstance(choices, dict):
-                        schema_to_override[param_name]["x-parameter"] = "grouped_choice"
-                        schema_to_override[param_name]["choices"] = choices
-                    elif isinstance(choices, list):
-                        schema_to_override[param_name]["x-parameter"] = "choice"
-                        schema_to_override[param_name]["choices"] = choices
-                else:
-                    schema_to_override[param_name]["x-parameter"] = "text"
-            if param_val.annotation is bool:
-                schema_to_override[param_name]["x-parameter"] = "bool"
-            if param_val.annotation is int:
-                schema_to_override[param_name]["x-parameter"] = "int"
-                # Check for greater than or equal to constraint
-                if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
-                    min_value = next(constraint.ge for constraint in param_val.metadata if isinstance(constraint, Ge))
-                    schema_to_override[param_name]["minimum"] = min_value
-                # Check for less than or equal to constraint
-                if any(isinstance(constraint, Le) for constraint in param_val.metadata):
-                    max_value = next(constraint.le for constraint in param_val.metadata if isinstance(constraint, Le))
-                    schema_to_override[param_name]["maximum"] = max_value
-            if param_val.annotation is float:
-                schema_to_override[param_name]["x-parameter"] = "float"
-                # Check for greater than constraint
-                if any(isinstance(constraint, Gt) for constraint in param_val.metadata):
-                    min_value = next(constraint.gt for constraint in param_val.metadata if isinstance(constraint, Gt))
-                    schema_to_override[param_name]["minimum"] = min_value
-                # Check for less than constraint
-                if any(isinstance(constraint, Lt) for constraint in param_val.metadata):
-                    max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
-                    schema_to_override[param_name]["maximum"] = max_value
-
-    def override_config_in_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, config: Type[BaseModel]
+        self,
+        openapi_schema: dict,
+        func_name: str,
+        endpoint: str,
+        config: Type[BaseModel],
     ):
         endpoint = endpoint[1:].replace("/", "_")
         schema_to_override = openapi_schema["components"]["schemas"][
@@ -689,8 +676,15 @@ class entrypoint(BaseDecorator):
         # New logic
         for param_name, param_val in config.__fields__.items():
             if param_val.annotation is str:
-                if any(isinstance(constraint, MultipleChoice) for constraint in param_val.metadata):
-                    choices = next(constraint.choices for constraint in param_val.metadata if isinstance(constraint, MultipleChoice))
+                if any(
+                    isinstance(constraint, MultipleChoice)
+                    for constraint in param_val.metadata
+                ):
+                    choices = next(
+                        constraint.choices
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, MultipleChoice)
+                    )
                     if isinstance(choices, dict):
                         schema_to_override[param_name]["x-parameter"] = "grouped_choice"
                         schema_to_override[param_name]["choices"] = choices
@@ -701,26 +695,46 @@ class entrypoint(BaseDecorator):
                     schema_to_override[param_name]["x-parameter"] = "text"
             if param_val.annotation is bool:
                 schema_to_override[param_name]["x-parameter"] = "bool"
-            if param_val.annotation is int:
-                schema_to_override[param_name]["x-parameter"] = "int"
+            if param_val.annotation in (int, float):
+                schema_to_override[param_name]["x-parameter"] = (
+                    "int" if param_val.annotation is int else "float"
+                )
                 # Check for greater than or equal to constraint
                 if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
-                    min_value = next(constraint.ge for constraint in param_val.metadata if isinstance(constraint, Ge))
+                    min_value = next(
+                        constraint.ge
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Ge)
+                    )
                     schema_to_override[param_name]["minimum"] = min_value
+                # Check for greater than constraint
+                elif any(
+                    isinstance(constraint, Gt) for constraint in param_val.metadata
+                ):
+                    min_value = next(
+                        constraint.gt
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Gt)
+                    )
+                    schema_to_override[param_name]["exclusiveMinimum"] = min_value
                 # Check for less than or equal to constraint
                 if any(isinstance(constraint, Le) for constraint in param_val.metadata):
-                    max_value = next(constraint.le for constraint in param_val.metadata if isinstance(constraint, Le))
+                    max_value = next(
+                        constraint.le
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Le)
+                    )
                     schema_to_override[param_name]["maximum"] = max_value
-            if param_val.annotation is float:
-                schema_to_override[param_name]["x-parameter"] = "float"
-                # Check for greater than constraint
-                if any(isinstance(constraint, Gt) for constraint in param_val.metadata):
-                    min_value = next(constraint.gt for constraint in param_val.metadata if isinstance(constraint, Gt))
-                    schema_to_override[param_name]["minimum"] = min_value
                 # Check for less than constraint
-                if any(isinstance(constraint, Lt) for constraint in param_val.metadata):
-                    max_value = next(constraint.lt for constraint in param_val.metadata if isinstance(constraint, Lt))
-                    schema_to_override[param_name]["maximum"] = max_value
+                elif any(
+                    isinstance(constraint, Lt) for constraint in param_val.metadata
+                ):
+                    max_value = next(
+                        constraint.lt
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Lt)
+                    )
+                    schema_to_override[param_name]["exclusiveMaximum"] = max_value
 
     def override_schema(
         self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
@@ -742,7 +756,10 @@ class entrypoint(BaseDecorator):
             endpoint (str): The name of the endpoint to override
             params (dict(param_name, param_val)): The dictionary of the parameters for the function
         """
-        def find_in_schema(schema_type_properties: dict, schema: dict, param_name: str, xparam: str):
+
+        def find_in_schema(
+            schema_type_properties: dict, schema: dict, param_name: str, xparam: str
+        ):
             """Finds a parameter in the schema based on its name and x-parameter value"""
             for _, value in schema.items():
                 value_title_lower = str(value.get("title")).lower()
