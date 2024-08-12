@@ -88,9 +88,9 @@ export default function Overview() {
 
             <ObservabilityOverview variants={variants} />
 
-            <DeploymentOverview variants={variants} />
+            {/* <DeploymentOverview variants={variants} /> */}
 
-            <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
+            {/* <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} /> */}
 
             <AutomaticEvalOverview />
 
