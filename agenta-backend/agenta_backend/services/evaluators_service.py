@@ -86,7 +86,7 @@ async def map(
     return {"outputs": mapping_outputs}
 
 
-async def get_correct_answer(
+def get_correct_answer(
     data_point: Dict[str, Any], settings_values: Dict[str, Any]
 ) -> Any:
     """
@@ -456,8 +456,9 @@ async def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     prefix = input.settings.get("prefix", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
+    output = str(input.inputs["prediction"])
     if not case_sensitive:
-        output = str(input.inputs["prediction"]).lower()
+        output = output.lower()
         prefix = prefix.lower()
 
     result = output.startswith(prefix)
@@ -498,8 +499,9 @@ async def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     suffix = input.settings.get("suffix", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
+    output = str(input.inputs["prediction"])
     if not case_sensitive:
-        output = str(input.inputs["prediction"]).lower()
+        output = output.lower()
         suffix = suffix.lower()
 
     result = output.endswith(suffix)
@@ -540,8 +542,9 @@ async def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     substring = input.settings.get("substring", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
+    output = str(input.inputs["prediction"])
     if not case_sensitive:
-        output = str(input.inputs["prediction"]).lower()
+        output = output.lower()
         substring = substring.lower()
 
     result = substring in output
@@ -583,8 +586,9 @@ async def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterfa
     substrings = [substring.strip() for substring in substrings_str.split(",")]
     case_sensitive = input.settings.get("case_sensitive", True)
 
+    output = str(input.inputs["prediction"])
     if not case_sensitive:
-        output = str(input.inputs["prediction"]).lower()
+        output = output.lower()
         substrings = [substring.lower() for substring in substrings]
 
     return {
@@ -626,8 +630,9 @@ async def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterfa
     substrings = [substring.strip() for substring in substrings_str.split(",")]
     case_sensitive = input.settings.get("case_sensitive", True)
 
+    output = str(input.inputs["prediction"])
     if not case_sensitive:
-        output = str(input.inputs["prediction"]).lower()
+        output = output.lower()
         substrings = [substring.lower() for substring in substrings]
 
     result = all(substring in output for substring in substrings)
@@ -648,7 +653,7 @@ async def auto_contains_json(
         response = await contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
-        return Result(type="bool", value=contains_json)
+        return Result(type="bool", value=response["outputs"]["success"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -661,11 +666,10 @@ async def auto_contains_json(
 
 
 async def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    start_index = str(input.inputs["prediction"]).index("{")
-    end_index = str(input.inputs["prediction"]).rindex("}") + 1
-    potential_json = str(input.inputs["prediction"])[start_index:end_index]
-
     try:
+        start_index = str(input.inputs["prediction"]).index("{")
+        end_index = str(input.inputs["prediction"]).rindex("}") + 1
+        potential_json = str(input.inputs["prediction"])[start_index:end_index]
         json.loads(potential_json)
         contains_json = True
     except (ValueError, json.JSONDecodeError):
@@ -817,51 +821,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 async def measure_rag_consistency(
     input: EvaluatorInputInterface,
 ) -> EvaluatorOutputInterface:
-    if "prediction" in input.inputs and isinstance(input.inputs["prediction"], str):
-        logging.error("'prediction' is most likely not BaseResponse.")
-        raise NotImplementedError(
-            "Please update the SDK to the latest version, which supports RAG evaluators."
-        )
-
-    # Get required keys for rag evaluator
-    question_key: Union[str, None] = input.settings.get("question_key", None)
-    answer_key: Union[str, None] = input.settings.get("answer_key", None)
-    contexts_key: Union[str, None] = input.settings.get("contexts_key", None)
-
-    if None in [question_key, answer_key, contexts_key]:
-        logging.error(
-            f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
-        )
-        raise ValueError(
-            "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
-        )
-
-    # Turn distributed trace into trace tree
-    trace = process_distributed_trace_into_trace_tree(input.inputs["trace"])
-
-    # Get value of required keys for rag evaluator
-    question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-    answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-    contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
-
-    if None in [question_val, answer_val, contexts_val]:
-        logging.error(
-            f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
-        )
-
-        message = ""
-        if question_val is None:
-            message += f"'question_key' is set to {question_key} which can't be found. "
-        if answer_val is None:
-            message += f"'answer_key' is set to {answer_key} which can't be found. "
-        if contexts_val is None:
-            message += f"'contexts_key' is set to {contexts_key} which can't be found. "
-        message += "Please check your evaluator settings and try again."
-
-        raise ValueError(message)
-
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-
     if not openai_api_key:
         raise Exception(
             "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
@@ -870,7 +830,9 @@ async def measure_rag_consistency(
     # Initialize RAG evaluator to calculate faithfulness score
     faithfulness = Faithfulness(api_key=openai_api_key)
     eval_score = await faithfulness._run_eval_async(
-        output=answer_val, input=question_val, context=contexts_val
+        output=input.inputs["answer"],
+        input=input.inputs["question"],
+        context=input.inputs["context"],
     )
     return {"outputs": {"score": eval_score.score}}
 
@@ -884,16 +846,67 @@ async def rag_faithfulness(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        faithfulness_score = await measure_rag_consistency(
+        if isinstance(output, str):
+            logging.error("'output' is most likely not BaseResponse.")
+            raise NotImplementedError(
+                "Please update the SDK to the latest version, which supports RAG evaluators."
+            )
+
+        # Get required keys for rag evaluator
+        question_key: Union[str, None] = settings_values.get("question_key", None)
+        answer_key: Union[str, None] = settings_values.get("answer_key", None)
+        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+
+        if None in [question_key, answer_key, contexts_key]:
+            logging.error(
+                f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
+            )
+            raise ValueError(
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
+            )
+
+        # Turn distributed trace into trace tree
+        trace = process_distributed_trace_into_trace_tree(output["trace"])
+
+        # Get value of required keys for rag evaluator
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+
+        if None in [question_val, answer_val, contexts_val]:
+            logging.error(
+                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
+            )
+
+            message = ""
+            if question_val is None:
+                message += (
+                    f"'question_key' is set to {question_key} which can't be found. "
+                )
+            if answer_val is None:
+                message += f"'answer_key' is set to {answer_key} which can't be found. "
+            if contexts_val is None:
+                message += (
+                    f"'contexts_key' is set to {contexts_key} which can't be found. "
+                )
+            message += "Please check your evaluator settings and try again."
+
+            raise ValueError(message)
+
+        measurement = await measure_rag_consistency(
             input=EvaluatorInputInterface(
                 **{
-                    "inputs": {"prediction": output},
+                    "inputs": {
+                        "question": question_val,
+                        "context": contexts_val,
+                        "answer": answer_val,
+                    },
                     "settings": settings_values,
                     "credentials": lm_providers_keys,
                 }
             )
         )
-        return Result(type="number", value=faithfulness_score)
+        return Result(type="number", value=measurement["outputs"]["score"])
 
     except Exception:
         return Result(
@@ -909,49 +922,6 @@ async def rag_faithfulness(
 async def measure_context_coherence(
     input: EvaluatorInputInterface,
 ) -> EvaluatorOutputInterface:
-    if "prediction" in input.inputs and isinstance(input.inputs["prediction"], str):
-        logging.error("'prediction' is most likely not BaseResponse.")
-        raise NotImplementedError(
-            "Please update the SDK to the latest version, which supports RAG evaluators."
-        )
-
-    # Get required keys for rag evaluator
-    question_key: Union[str, None] = input.settings.get("question_key", None)
-    answer_key: Union[str, None] = input.settings.get("answer_key", None)
-    contexts_key: Union[str, None] = input.settings.get("contexts_key", None)
-
-    if None in [question_key, answer_key, contexts_key]:
-        logging.error(
-            f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
-        )
-        raise ValueError(
-            "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
-        )
-
-    # Turn distributed trace into trace tree
-    trace = process_distributed_trace_into_trace_tree(input.inputs["trace"])
-
-    # Get value of required keys for rag evaluator
-    question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-    answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-    contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
-
-    if None in [question_val, answer_val, contexts_val]:
-        logging.error(
-            f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
-        )
-
-        message = ""
-        if question_val is None:
-            message += f"'question_key' is set to {question_key} which can't be found. "
-        if answer_val is None:
-            message += f"'answer_key' is set to {answer_key} which can't be found. "
-        if contexts_val is None:
-            message += f"'contexts_key' is set to {contexts_key} which can't be found. "
-        message += "Please check your evaluator settings and try again."
-
-        raise ValueError(message)
-
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
 
     if not openai_api_key:
@@ -959,15 +929,14 @@ async def measure_context_coherence(
             "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
         )
 
-    print("QV: ", question_val)
-    print("AV: ", answer_val)
-    print("CV: ", contexts_val)
     # Initialize RAG evaluator to calculate context relevancy score
     context_rel = ContextRelevancy(api_key=openai_api_key)
     eval_score = await context_rel._run_eval_async(
-        output=answer_val, input=question_val, context=contexts_val
+        output=input.inputs["answer"],
+        input=input.inputs["question"],
+        context=input.inputs["context"],
     )
-    return eval_score.score
+    return {"outputs": {"score": eval_score.score}}
 
 
 async def rag_context_relevancy(
@@ -979,16 +948,67 @@ async def rag_context_relevancy(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        context_relevancy_score = await measure_context_coherence(
+        if isinstance(output, str):
+            logging.error("'output' is most likely not BaseResponse.")
+            raise NotImplementedError(
+                "Please update the SDK to the latest version, which supports RAG evaluators."
+            )
+
+        # Get required keys for rag evaluator
+        question_key: Union[str, None] = settings_values.get("question_key", None)
+        answer_key: Union[str, None] = settings_values.get("answer_key", None)
+        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+
+        if None in [question_key, answer_key, contexts_key]:
+            logging.error(
+                f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
+            )
+            raise ValueError(
+                "Missing required configuration keys: 'question_key', 'answer_key', or 'contexts_key'. Please check your evaluator settings and try again."
+            )
+
+        # Turn distributed trace into trace tree
+        trace = process_distributed_trace_into_trace_tree(output["trace"])
+
+        # Get value of required keys for rag evaluator
+        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
+        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+
+        if None in [question_val, answer_val, contexts_val]:
+            logging.error(
+                f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
+            )
+
+            message = ""
+            if question_val is None:
+                message += (
+                    f"'question_key' is set to {question_key} which can't be found. "
+                )
+            if answer_val is None:
+                message += f"'answer_key' is set to {answer_key} which can't be found. "
+            if contexts_val is None:
+                message += (
+                    f"'contexts_key' is set to {contexts_key} which can't be found. "
+                )
+            message += "Please check your evaluator settings and try again."
+
+            raise ValueError(message)
+
+        measurement = await measure_context_coherence(
             input=EvaluatorInputInterface(
                 **{
-                    "inputs": {"prediction": output},
+                    "inputs": {
+                        "question": question_val,
+                        "context": contexts_val,
+                        "answer": answer_val,
+                    },
                     "settings": settings_values,
                     "credentials": lm_providers_keys,
                 }
             )
         )
-        return Result(type="number", value=context_relevancy_score.score)
+        return Result(type="number", value=measurement["outputs"]["score"])
 
     except Exception:
         return Result(
@@ -1049,12 +1069,18 @@ async def auto_levenshtein_distance(
         correct_answer = get_correct_answer(data_point, settings_values)
         response = await levenshtein_distance(
             input=EvaluatorInputInterface(
-                **{"inputs": {"prediction": output, "ground_truth": correct_answer}}
+                **{
+                    "inputs": {"prediction": output, "ground_truth": correct_answer},
+                    "settings": settings_values,
+                }
             )
         )
-        return Result(type="number", value=response["outputs"].get("score", "success"))
+        if "success" in response["outputs"]:
+            return Result(type="number", value=response["outputs"]["success"])
+        return Result(type="number", value=response["outputs"]["score"])
 
     except ValueError as e:
+        print("Exception: ", traceback.format_exc())
         return Result(
             type="error",
             value=None,
@@ -1063,6 +1089,7 @@ async def auto_levenshtein_distance(
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
+        print("Exception: ", traceback.format_exc())
         return Result(
             type="error",
             value=None,
@@ -1230,7 +1257,7 @@ RUN_EVALUATOR_FUNCTIONS = {
     "auto_similarity_match": similarity_match,
     "auto_semantic_similarity": semantic_similarity,
     "rag_faithfulness": measure_rag_consistency,
-    "rag_context_relevancy": measure_context_coherence
+    "rag_context_relevancy": measure_context_coherence,
 }
 
 
