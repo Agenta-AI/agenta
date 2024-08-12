@@ -8,7 +8,7 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init()
+ag.init(config_fname="config.toml")
 ag.config.default(
     temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
 )

@@ -17,6 +17,23 @@ db = mongodb[config["MONGODB_DATABASE_NAME"]]
 
 ag.init()
 
+class SummarizerConfig(BaseModel):
+    summarizer_context_prompt: str = Field(default="Act as a professional cinema critic.\nBe concise and factual.\nUse one intro sentence, and one sentence per movie.")
+    summarizer_instructions_prompt: str = Field(default="Summarize the following recommendations about {topic} in the genre of {genre}:\n\n{report}")
+    summarizer_model: str = Field(default="gpt-4o-mini")
+    summarizer_temperature: float = Field(default=0.2, minval=0, maxval=1)
+class GeneratorConfig(BaseModel):
+    generator_context_prompt: str = Field(default="Given the following list of suggested movies:\n\n{movies}")
+    generator_instructions_prompt: str = Field(default="Provide a list of {count} movies about {topic} in the genre of {genre}.")
+    generator_model: str = Field(default="gpt-3.5-turbo")
+    generator_temperature: float = Field(default=0.8, minval=0, maxval=1)
+
+class MflixConfig(BaseModel):
+    retriever_prompt: str = Field(default="Movies about {topic} in the genre of {genre}.")
+    summarizer_config: SummarizerConfig = Filed(default=SummarizerConfig())
+    generator_config: GeneratorConfig = Field(default=GeneratorConfig())
+    
+
 ag.config.default(
     # RETRIEVER
     retriever_prompt=ag.TextParam("Movies about {topic} in the genre of {genre}."),
