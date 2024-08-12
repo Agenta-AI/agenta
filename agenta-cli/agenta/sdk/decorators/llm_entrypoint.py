@@ -690,7 +690,7 @@ class entrypoint(BaseDecorator):
                         schema_to_override[param_name]["choices"] = choices
                     elif isinstance(choices, list):
                         schema_to_override[param_name]["x-parameter"] = "choice"
-                        schema_to_override[param_name]["choices"] = choices
+                        schema_to_override[param_name]["enum"] = choices
                 else:
                     schema_to_override[param_name]["x-parameter"] = "text"
             if param_val.annotation is bool:
