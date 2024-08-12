@@ -511,26 +511,28 @@ async def create_app_and_variant_from_template(
                 payload.organization_id if isCloudEE() else None,  # type: ignore
                 payload.workspace_id if isCloudEE() else None,  # type: ignore
             )
-            logger.debug(
-                "Step 9: We create ready-to use evaluators"
-                if isCloudEE()
-                else "Step 6: We create ready-to use evaluators"
-            )
+
+        logger.debug(
+            "Step 6: Creating ready-to-use evaluators"
+            if isCloudEE()
+            else "Step 3: Creating ready-to-use evaluators"
+        )
+        if app is None:
             await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
-            "Step 6: Retrieve template from db"
+            "Step 7: Retrieve template from db"
             if isCloudEE()
-            else "Step 3: Retrieve template from db"
+            else "Step 4: Retrieve template from db"
         )
         template_db = await db_manager.get_template(payload.template_id)
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
-            "Step 7: Creating image instance and adding variant based on image"
+            "Step 8: Creating image instance and adding variant based on image"
             if isCloudEE()
-            else "Step 4: Creating image instance and adding variant based on image"
+            else "Step 5: Creating image instance and adding variant based on image"
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
@@ -546,9 +548,9 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug(
-            "Step 8: Creating testset for app variant"
+            "Step 9: Creating testset for app variant"
             if isCloudEE()
-            else "Step 5: Creating testset for app variant"
+            else "Step 6: Creating testset for app variant"
         )
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
