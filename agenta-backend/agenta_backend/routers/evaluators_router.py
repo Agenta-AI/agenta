@@ -57,9 +57,7 @@ async def get_evaluators_endpoint():
 
 
 @router.post("/map/", response_model=EvaluatorMappingOutputInterface)
-async def evaluator_data_map(
-    request: Request, payload: EvaluatorMappingInputInterface
-):
+async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInterface):
     """Endpoint to map the experiment data tree to evaluator interface.
 
     Args:
