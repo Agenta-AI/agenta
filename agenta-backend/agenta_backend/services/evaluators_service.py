@@ -13,7 +13,6 @@ from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from agenta_backend.services.security import sandbox
 from agenta_backend.models.shared_models import Error, Result
-from agenta_backend.utils.event_loop_utils import ensure_event_loop
 from agenta_backend.models.api.evaluation_model import (
     EvaluatorInputInterface,
     EvaluatorOutputInterface,
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def map(
+async def map(
     mapping_input: EvaluatorMappingInputInterface,
 ) -> EvaluatorMappingOutputInterface:
     """
@@ -40,7 +39,7 @@ def map(
         EvaluatorMappingOutputInterface: A dictionary containing the mapped evaluator inputs.
     """
 
-    def get_nested_value(data: Dict[str, Any], key: str) -> Any:
+    async def get_nested_value(data: Dict[str, Any], key: str) -> Any:
         """
         Retrieves the nested value from a dictionary based on a dotted key path,
         where list indices can be included in square brackets.
@@ -87,7 +86,7 @@ def map(
     return {"outputs": mapping_outputs}
 
 
-def get_correct_answer(
+async def get_correct_answer(
     data_point: Dict[str, Any], settings_values: Dict[str, Any]
 ) -> Any:
     """
@@ -113,7 +112,7 @@ def get_correct_answer(
     return data_point[correct_answer_key]
 
 
-def auto_exact_match(
+async def auto_exact_match(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -169,7 +168,7 @@ def exact_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": success}}
 
 
-def auto_regex_test(
+async def auto_regex_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -181,7 +180,7 @@ def auto_regex_test(
         output = output.get("data", "")
     try:
         inputs = {"ground_truth": data_point, "prediction": output}
-        response = regex_test(
+        response = await regex_test(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -198,7 +197,7 @@ def auto_regex_test(
         )
 
 
-def regex_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def regex_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     pattern = re.compile(input.settings["regex_pattern"], re.IGNORECASE)
     result = (
         bool(pattern.search(input.inputs["prediction"]))
@@ -207,7 +206,7 @@ def regex_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": result}}
 
 
-def auto_field_match_test(
+async def auto_field_match_test(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -220,7 +219,9 @@ def auto_field_match_test(
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
-        response = field_match_test(input=EvaluatorInputInterface(**{"inputs": inputs}))
+        response = await field_match_test(
+            input=EvaluatorInputInterface(**{"inputs": inputs})
+        )
         return Result(type="bool", value=response["outputs"]["success"])
     except ValueError as e:
         return Result(
@@ -235,13 +236,13 @@ def auto_field_match_test(
         return Result(type="bool", value=False)
 
 
-def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     prediction_json = json.loads(input.inputs["prediction"])
     result = prediction_json == input.inputs["ground_truth"]
     return {"outputs": {"success": result}}
 
 
-def auto_webhook_test(
+async def auto_webhook_test(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -254,7 +255,7 @@ def auto_webhook_test(
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
-        response = webhook_test(
+        response = await webhook_test(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -289,7 +290,7 @@ def auto_webhook_test(
         )
 
 
-def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     with httpx.Client() as client:
         payload = {
             "correct_answer": input.inputs["ground_truth"],
@@ -303,7 +304,7 @@ def webhook_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
         return {"outputs": {"score": score}}
 
 
-def auto_custom_code_run(
+async def auto_custom_code_run(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -320,7 +321,7 @@ def auto_custom_code_run(
             "prediction": output,
             "ground_truth": correct_answer,
         }
-        response = custom_code_run(
+        response = await custom_code_run(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": {"code": settings_values["code"]}}
             )
@@ -337,7 +338,7 @@ def auto_custom_code_run(
         )
 
 
-def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     result = sandbox.execute_code_safely(
         app_params=input.inputs["app_config"],
         inputs=input.inputs,
@@ -349,7 +350,7 @@ def custom_code_run(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"score": result}}
 
 
-def auto_ai_critique(
+async def auto_ai_critique(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -380,7 +381,7 @@ def auto_ai_critique(
             "prediction": output,
             "ground_truth": correct_answer,
         }
-        response = ai_critique(
+        response = await ai_critique(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "credentials": lm_providers_keys}
             )
@@ -397,7 +398,7 @@ def auto_ai_critique(
         )
 
 
-def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials["OPENAI_API_KEY"]
 
     chain_run_args = {
@@ -405,7 +406,6 @@ def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
         "variant_output": input.inputs["prediction"],
         "correct_answer": input.inputs["ground_truth"],
     }
-
     for key, value in input.inputs.items():
         chain_run_args[key] = value
 
@@ -415,15 +415,15 @@ def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
         {"role": "user", "content": str(chain_run_args)},
     ]
 
-    client = OpenAI(api_key=openai_api_key)
-    response = client.chat.completions.create(
+    client = AsyncOpenAI(api_key=openai_api_key)
+    response = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=messages, temperature=0.8
     )
     evaluation_output = response.choices[0].message.content.strip()
-    return {"outputs": {"score": evaluation_output}}
+    return {"outputs": {"score": float(evaluation_output)}}
 
 
-def auto_starts_with(
+async def auto_starts_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -435,7 +435,7 @@ def auto_starts_with(
         output = output.get("data", "")
     try:
         inputs = {"prediction": output}
-        response = starts_with(
+        response = await starts_with(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -452,7 +452,7 @@ def auto_starts_with(
         )
 
 
-def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     prefix = input.settings.get("prefix", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
@@ -464,7 +464,7 @@ def starts_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": result}}
 
 
-def auto_ends_with(
+async def auto_ends_with(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -476,7 +476,7 @@ def auto_ends_with(
         output = output.get("data", "")
     try:
         inputs = {"prediction": output}
-        response = ends_with(
+        response = await ends_with(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -494,7 +494,7 @@ def auto_ends_with(
         )
 
 
-def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     suffix = input.settings.get("suffix", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
@@ -506,7 +506,7 @@ def ends_with(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": result}}
 
 
-def auto_contains(
+async def auto_contains(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -518,7 +518,7 @@ def auto_contains(
         output = output.get("data", "")
     try:
         inputs = {"prediction": output}
-        response = contains(
+        response = await contains(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -536,7 +536,7 @@ def auto_contains(
         )
 
 
-def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     substring = input.settings.get("substring", "")
     case_sensitive = input.settings.get("case_sensitive", True)
 
@@ -548,7 +548,7 @@ def contains(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": result}}
 
 
-def auto_contains_any(
+async def auto_contains_any(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -560,7 +560,7 @@ def auto_contains_any(
         output = output.get("data", "")
     try:
         inputs = {"prediction": output}
-        response = contains_any(
+        response = await contains_any(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
@@ -578,7 +578,7 @@ def auto_contains_any(
         )
 
 
-def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     substrings_str = input.settings.get("substrings", "")
     substrings = [substring.strip() for substring in substrings_str.split(",")]
     case_sensitive = input.settings.get("case_sensitive", True)
@@ -592,7 +592,7 @@ def contains_any(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     }
 
 
-def auto_contains_all(
+async def auto_contains_all(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -603,7 +603,7 @@ def auto_contains_all(
     if not isinstance(output, str):
         output = output.get("data", "")
     try:
-        response = contains_all(
+        response = await contains_all(
             input=EvaluatorInputInterface(
                 **{"inputs": {"prediction": output}, "settings": settings_values}
             )
@@ -621,7 +621,7 @@ def auto_contains_all(
         )
 
 
-def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     substrings_str = input.settings.get("substrings", "")
     substrings = [substring.strip() for substring in substrings_str.split(",")]
     case_sensitive = input.settings.get("case_sensitive", True)
@@ -634,7 +634,7 @@ def contains_all(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"success": result}}
 
 
-def auto_contains_json(
+async def auto_contains_json(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -645,7 +645,7 @@ def auto_contains_json(
     if not isinstance(output, str):
         output = output.get("data", "")
     try:
-        response = contains_json(
+        response = await contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
         return Result(type="bool", value=contains_json)
@@ -660,7 +660,7 @@ def auto_contains_json(
         )
 
 
-def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     start_index = str(input.inputs["prediction"]).index("{")
     end_index = str(input.inputs["prediction"]).rindex("}") + 1
     potential_json = str(input.inputs["prediction"])[start_index:end_index]
@@ -775,7 +775,7 @@ def compare_jsons(
     return average_score
 
 
-def auto_json_diff(
+async def auto_json_diff(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Any,
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -785,7 +785,7 @@ def auto_json_diff(
 ) -> Result:
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        response = json_diff(
+        response = await json_diff(
             input=EvaluatorInputInterface(
                 **{
                     "inputs": {"prediction": output, "ground_truth": correct_answer},
@@ -805,7 +805,7 @@ def auto_json_diff(
         )
 
 
-def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     average_score = compare_jsons(
         ground_truth=input.inputs["ground_truth"],
         app_output=json.loads(input.inputs["prediction"]),
@@ -814,7 +814,7 @@ def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     return {"outputs": {"score": average_score}}
 
 
-def rag_faithfulness(
+async def rag_faithfulness(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -878,12 +878,9 @@ def rag_faithfulness(
             )
 
         # Initialize RAG evaluator to calculate faithfulness score
-        loop = ensure_event_loop()
         faithfulness = Faithfulness(api_key=openai_api_key)
-        eval_score = loop.run_until_complete(
-            faithfulness._run_eval_async(
-                output=answer_val, input=question_val, context=contexts_val
-            )
+        eval_score = await faithfulness._run_eval_async(
+            output=answer_val, input=question_val, context=contexts_val
         )
 
         return Result(type="number", value=eval_score.score)
@@ -899,7 +896,7 @@ def rag_faithfulness(
         )
 
 
-def rag_context_relevancy(
+async def rag_context_relevancy(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],  # pylint: disable=unused-argument
@@ -963,12 +960,9 @@ def rag_context_relevancy(
             )
 
         # Initialize RAG evaluator to calculate context relevancy score
-        loop = ensure_event_loop()
         context_rel = ContextRelevancy(api_key=openai_api_key)
-        eval_score = loop.run_until_complete(
-            context_rel._run_eval_async(
-                output=answer_val, input=question_val, context=contexts_val
-            )
+        eval_score = await context_rel._run_eval_async(
+            output=answer_val, input=question_val, context=contexts_val
         )
         return Result(type="number", value=eval_score.score)
 
@@ -983,15 +977,17 @@ def rag_context_relevancy(
         )
 
 
-def levenshtein_distance(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def levenshtein_distance(
+    input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
     prediction = input.inputs["prediction"]
     ground_truth = input.inputs["ground_truth"]
-    if len(prediction) < len(ground_truth):
-        return levenshtein_distance(
-            input=EvaluatorInputInterface(
-                **{"inputs": {"prediction": prediction, "ground_truth": ground_truth}}
-            )
-        )  # pylint: disable=arguments-out-of-order
+    # if len(prediction) < len(ground_truth):
+    #     return await levenshtein_distance(
+    #         input=EvaluatorInputInterface(
+    #             **{"inputs": {"prediction": prediction, "ground_truth": ground_truth}}
+    #         )
+    #     )  # pylint: disable=arguments-out-of-order
 
     if len(ground_truth) == 0:
         return len(s1)
@@ -1006,7 +1002,7 @@ def levenshtein_distance(input: EvaluatorInputInterface) -> EvaluatorOutputInter
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row
 
-    result = previous_row[-1]
+    distance = previous_row[-1]
     if "threshold" in input.settings:
         threshold = input.settings["threshold"]
         is_within_threshold = distance <= threshold
@@ -1015,7 +1011,7 @@ def levenshtein_distance(input: EvaluatorInputInterface) -> EvaluatorOutputInter
     return {"outputs": {"score": distance}}
 
 
-def auto_levenshtein_distance(
+async def auto_levenshtein_distance(
     inputs: Dict[str, Any],  # pylint: disable=unused-argument
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -1027,7 +1023,7 @@ def auto_levenshtein_distance(
         output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        response = levenshtein_distance(
+        response = await levenshtein_distance(
             input=EvaluatorInputInterface(
                 **{"inputs": {"prediction": output, "ground_truth": correct_answer}}
             )
@@ -1053,7 +1049,7 @@ def auto_levenshtein_distance(
         )
 
 
-def auto_similarity_match(
+async def auto_similarity_match(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -1065,7 +1061,7 @@ def auto_similarity_match(
         output = output.get("data", "")
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
-        response = similarity_match(
+        response = await similarity_match(
             input=EvaluatorInputInterface(
                 **{
                     "inputs": {"prediction": output, "ground_truth": correct_answer},
@@ -1094,7 +1090,7 @@ def auto_similarity_match(
         )
 
 
-def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     set1 = set(input.inputs["prediction"].split())
     set2 = set(input.inputs["ground_truth"].split())
     intersect = set1.intersection(set2)
@@ -1111,14 +1107,14 @@ async def semantic_similarity(
     """Calculate the semantic similarity score of the LLM app using OpenAI's Embeddings API.
 
     Args:
-        output (str): the output text
-        correct_answer (str): the correct answer text
+        input (EvaluatorInputInterface): the evaluator input
 
     Returns:
         float: the semantic similarity score
     """
-    if not isinstance(output, str):
-        output = output.get("data", "")
+
+    if not isinstance(input.inputs["prediction"], str):
+        output = input.inputs["prediction"].get("data", "")
 
     api_key = input.credentials["OPENAI_API_KEY"]
     openai = AsyncOpenAI(api_key=api_key)
@@ -1138,7 +1134,7 @@ async def semantic_similarity(
     return {"outputs": {"score": similarity_score}}
 
 
-def auto_semantic_similarity(
+async def auto_semantic_similarity(
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
     data_point: Dict[str, Any],
@@ -1149,18 +1145,14 @@ def auto_semantic_similarity(
     if not isinstance(output, str):
         output = output.get("data", "")
     try:
-        loop = ensure_event_loop()
-
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
-        response = loop.run_until_complete(
-            semantic_similarity(
-                input=EvaluatorInputInterface(
-                    **{
-                        "inputs": inputs,
-                        "credentials": lm_providers_keys,
-                    }
-                )
+        response = await semantic_similarity(
+            input=EvaluatorInputInterface(
+                **{
+                    "inputs": inputs,
+                    "credentials": lm_providers_keys,
+                }
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
@@ -1175,7 +1167,7 @@ def auto_semantic_similarity(
         )
 
 
-EVALUATOR_FUNCTIONS = {
+RUN_EVALUATOR_FUNCTIONS = {
     "auto_exact_match": auto_exact_match,
     "auto_regex_test": auto_regex_test,
     "field_match_test": auto_field_match_test,
@@ -1216,7 +1208,7 @@ NEW_EVALUATOR_FUNCTIONS = {
 }
 
 
-def evaluate(
+async def evaluate(
     evaluator_key: str,
     inputs: Dict[str, Any],
     output: Union[str, Dict[str, Any]],
@@ -1235,7 +1227,7 @@ def evaluate(
             ),
         )
     try:
-        return evaluation_function(
+        return await evaluation_function(
             inputs,
             output,
             data_point,
@@ -1254,12 +1246,12 @@ def evaluate(
         )
 
 
-def run(
+async def run(
     evaluator_key: str, evaluator_input: EvaluatorInputInterface
 ) -> EvaluatorOutputInterface:
-    evaluator_function = NEW_EVALUATOR_FUNCTIONS.get(evaluator_key, None)
+    evaluator_function = RUN_EVALUATOR_FUNCTIONS.get(evaluator_key, None)
     if not evaluator_function:
         raise NotImplementedError(f"Evaluator {evaluator_key} not found")
 
-    output = evaluator_function(evaluator_input)
+    output = await evaluator_function(evaluator_input)
     return output
