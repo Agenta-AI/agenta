@@ -59,8 +59,9 @@ from agenta_backend.services.evaluators_service import (
         ),
     ],
 )
-def test_auto_starts_with(output, settings_values, expected):
-    result = auto_starts_with(
+@pytest.mark.asyncio
+async def test_auto_starts_with(output, settings_values, expected):
+    result = await auto_starts_with(
         inputs={},
         output=output,
         data_point={},
@@ -83,8 +84,9 @@ def test_auto_starts_with(output, settings_values, expected):
         ("Hello world", "Hello", True, False),
     ],
 )
-def test_auto_ends_with(output, suffix, case_sensitive, expected):
-    result = auto_ends_with(
+@pytest.mark.asyncio
+async def test_auto_ends_with(output, suffix, case_sensitive, expected):
+    result = await auto_ends_with(
         {},
         output,
         {},
@@ -106,8 +108,9 @@ def test_auto_ends_with(output, suffix, case_sensitive, expected):
         ("Hello world", "abc", True, False),
     ],
 )
-def test_auto_contains(output, substring, case_sensitive, expected):
-    result = auto_contains(
+@pytest.mark.asyncio
+async def test_auto_contains(output, substring, case_sensitive, expected):
+    result = await auto_contains(
         {},
         output,
         {},
@@ -130,8 +133,9 @@ def test_auto_contains(output, substring, case_sensitive, expected):
         ("Hello world", "abc,xyz", True, False),
     ],
 )
-def test_auto_contains_any(output, substrings, case_sensitive, expected):
-    result = auto_contains_any(
+@pytest.mark.asyncio
+async def test_auto_contains_any(output, substrings, case_sensitive, expected):
+    result = await auto_contains_any(
         {},
         output,
         {},
@@ -154,8 +158,9 @@ def test_auto_contains_any(output, substrings, case_sensitive, expected):
         ("Hello world", "world,universe", True, False),
     ],
 )
-def test_auto_contains_all(output, substrings, case_sensitive, expected):
-    result = auto_contains_all(
+@pytest.mark.asyncio
+async def test_auto_contains_all(output, substrings, case_sensitive, expected):
+    result = await auto_contains_all(
         {},
         output,
         {},
@@ -176,8 +181,9 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
         ('{"valid": "json", "number": 123}', True),
     ],
 )
-def test_auto_contains_json(output, expected):
-    result = auto_contains_json({}, output, {}, {}, {}, {})
+@pytest.mark.asyncio
+async def test_auto_contains_json(output, expected):
+    result = await auto_contains_json({}, output, {}, {}, {}, {})
     assert result.value == expected
 
 
@@ -243,10 +249,11 @@ def test_auto_contains_json(output, expected):
         ),
     ],
 )
-def test_auto_json_diff(
+@pytest.mark.asyncio
+async def test_auto_json_diff(
     ground_truth, app_output, settings_values, expected_min, expected_max
 ):
-    result = auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
+    result = await auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
     assert expected_min <= result.value <= expected_max
 
 
@@ -282,10 +289,11 @@ def test_auto_json_diff(
         ),
     ],
 )
-def test_auto_semantic_similarity_match(
+@pytest.mark.asyncio
+async def test_auto_semantic_similarity_match(
     ground_truth, app_output, settings_values, expected_min, expected_max
 ):
-    result = auto_semantic_similarity(
+    result = await auto_semantic_similarity(
         {},
         app_output,
         ground_truth,
@@ -337,8 +345,9 @@ def test_auto_semantic_similarity_match(
         ),
     ],
 )
-def test_auto_levenshtein_distance(output, data_point, settings_values, expected):
-    result = auto_levenshtein_distance(
+@pytest.mark.asyncio
+async def test_auto_levenshtein_distance(output, data_point, settings_values, expected):
+    result = await auto_levenshtein_distance(
         inputs={},
         output=output,
         data_point=data_point,
@@ -364,8 +373,9 @@ def test_auto_levenshtein_distance(output, data_point, settings_values, expected
         # add more use cases
     ],
 )
-def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max):
-    result = rag_faithfulness(
+@pytest.mark.asyncio
+async def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max):
+    result = await rag_faithfulness(
         {},
         simple_rag_trace,
         {},
@@ -392,8 +402,11 @@ def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max)
         # add more use cases
     ],
 )
-def test_rag_context_relevancy_evaluator(settings_values, expected_min, expected_max):
-    result = rag_context_relevancy(
+@pytest.mark.asyncio
+async def test_rag_context_relevancy_evaluator(
+    settings_values, expected_min, expected_max
+):
+    result = await rag_context_relevancy(
         {},
         simple_rag_trace,
         {},
