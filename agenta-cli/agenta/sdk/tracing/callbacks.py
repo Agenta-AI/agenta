@@ -66,9 +66,10 @@ def litellm_handler():
         def log_stream_event(self, kwargs, response_obj, start_time, end_time):
             logging.info(f"log_stream_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 # the complete streamed response (only set if `completion(..stream=True)`
@@ -81,9 +82,10 @@ def litellm_handler():
         def log_success_event(self, kwargs, response_obj, start_time, end_time):
             logging.info(f"log_success_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
@@ -106,9 +108,10 @@ def litellm_handler():
                 },
                 span_id=self.span.id,
             )
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 # the Exception raised
@@ -123,9 +126,10 @@ def litellm_handler():
         ):
             logging.info(f"async_log_stream_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 # the complete streamed response (only set if `completion(..stream=True)`)
@@ -140,9 +144,10 @@ def litellm_handler():
         ):
             logging.info(f"async_log_success_event({self.span.id})")
             ag.tracing.set_status(status="OK", span_id=self.span.id)
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 outputs={TRACE_DEFAULT_KEY: response_obj.choices[0].message.content},
@@ -167,9 +172,10 @@ def litellm_handler():
                 },
                 span_id=self.span.id,
             )
-            ag.tracing.store_cost(kwargs.get("response_cost"))
+            ag.tracing.store_cost(kwargs.get("response_cost"), span_id=self.span.id)
             ag.tracing.store_usage(
-                response_obj.usage.dict() if hasattr(response_obj, "usage") else None
+                response_obj.usage.dict() if hasattr(response_obj, "usage") else None,
+                span_id=self.span.id,
             )
             ag.tracing.store_outputs(
                 # the Exception raised

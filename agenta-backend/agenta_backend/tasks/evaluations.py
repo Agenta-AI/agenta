@@ -159,13 +159,14 @@ def evaluate(
                 EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[
+                    value=data_point.get(
                         (
                             input_item["name"]
                             if input_item["type"] != "messages"
                             else "chat"
-                        )
-                    ],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
+                        ),
+                        "",
+                    ),  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
