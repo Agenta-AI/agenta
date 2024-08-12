@@ -1,7 +1,7 @@
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluations,
@@ -29,6 +29,8 @@ import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
+import NewEvaluatorModal from "../../evaluations/evaluators/NewEvaluatorModal"
+import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 
 const {Title} = Typography
 
@@ -72,6 +74,10 @@ const AutomaticEvalOverview = () => {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
+    const [selectedConfigEdit, setSelectedConfigEdit] = useState<EvaluatorConfig>()
+    const [isEditEvalConfigOpen, setIsEditEvalConfigOpen] = useState(false)
+    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
+    const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const stoppers = useRef<Function>()
 
     const runningEvaluationIds = useMemo(
@@ -271,7 +277,14 @@ const AutomaticEvalOverview = () => {
                                         <div className="flex items-center justify-between">
                                             <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
 
-                                            <Button icon={<EditOutlined />} size="small" />
+                                            <Button
+                                                icon={<EditOutlined />}
+                                                size="small"
+                                                onClick={() => {
+                                                    setSelectedConfigEdit(result.evaluator_config)
+                                                    setIsEditEvalConfigOpen(true)
+                                                }}
+                                            />
                                         </div>
                                     }
                                 >
@@ -362,7 +375,10 @@ const AutomaticEvalOverview = () => {
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => handleDeleteEvaluation(record),
+                                    onClick: () => {
+                                        setSelectedEvalRecord(record)
+                                        setIsDeleteEvalModalOpen(true)
+                                    },
                                 },
                             ],
                         }}
@@ -433,6 +449,31 @@ const AutomaticEvalOverview = () => {
                     fetchEvaluations()
                 }}
             />
+
+            <NewEvaluatorModal
+                open={false}
+                onSuccess={() => {
+                    setIsEditEvalConfigOpen(false)
+                    fetchEvaluations()
+                }}
+                newEvalModalConfigOpen={isEditEvalConfigOpen}
+                setNewEvalModalConfigOpen={setIsEditEvalConfigOpen}
+                setNewEvalModalOpen={() => {}}
+                editMode={true}
+                initialValues={selectedConfigEdit}
+            />
+
+            {selectedEvalRecord && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteEvaluation(selectedEvalRecord)
+                        setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"automatic evaluation"}
+                />
+            )}
         </div>
     )
 }

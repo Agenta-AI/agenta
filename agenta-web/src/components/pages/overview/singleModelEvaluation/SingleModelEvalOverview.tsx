@@ -1,3 +1,4 @@
+import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
@@ -53,6 +54,9 @@ const SingleModelEvalOverview = () => {
     >([])
     const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
+    const [selectedEvalRecord, setSelectedEvalRecord] =
+        useState<SingleModelEvaluationListTableDataType>()
+    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
 
     useEffect(() => {
         if (!appId) return
@@ -239,7 +243,10 @@ const SingleModelEvalOverview = () => {
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => handleDeleteEvaluation(record),
+                                    onClick: () => {
+                                        setSelectedEvalRecord(record)
+                                        setIsDeleteEvalModalOpen(true)
+                                    },
                                 },
                             ],
                         }}
@@ -285,6 +292,18 @@ const SingleModelEvalOverview = () => {
                 isEvalModalOpen={isEvalModalOpen}
                 setIsEvalModalOpen={setIsEvalModalOpen}
             />
+
+            {selectedEvalRecord && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteEvaluation(selectedEvalRecord)
+                        setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"single model evaluation"}
+                />
+            )}
         </div>
     )
 }
