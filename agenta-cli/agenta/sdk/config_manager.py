@@ -11,7 +11,7 @@ from agenta.sdk.decorators.llm_entrypoint import route_context
 
 from . import AgentaSingleton
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 singleton = AgentaSingleton()
@@ -19,6 +19,7 @@ singleton = AgentaSingleton()
 
 class ConfigManager:
     client = None
+
     @staticmethod
     def get_from_route(schema: Type[T]) -> T:
         """
@@ -39,25 +40,37 @@ class ConfigManager:
 
         Note:
             The method prioritizes the inputs in the following way:
-            1. 'config' (i.e. when called explicitly from the playground) 
-            2. 'environment' 
+            1. 'config' (i.e. when called explicitly from the playground)
+            2. 'environment'
             3. 'variant'
             Only one of these should be provided.
         """
         context = route_context.get()
-        if ("config" in context and context["config"]) and (("environment" in context and context["environment"]) or ("variant" in context and context["variant"])):
-            raise ValueError("Either config, environment or variant must be provided. Not both.")
-        if ("config" in context and context["config"]):
+        if ("config" in context and context["config"]) and (
+            ("environment" in context and context["environment"])
+            or ("variant" in context and context["variant"])
+        ):
+            raise ValueError(
+                "Either config, environment or variant must be provided. Not both."
+            )
+        if "config" in context and context["config"]:
             return schema(**context["config"])
-        elif ("environment" in context and context["environment"]):
-            return ConfigManager.get_from_backend(schema, environment=context["environment"])
-        elif ("variant" in context and context["variant"]):
+        elif "environment" in context and context["environment"]:
+            return ConfigManager.get_from_backend(
+                schema, environment=context["environment"]
+            )
+        elif "variant" in context and context["variant"]:
             return ConfigManager.get_from_backend(schema, variant=context["variant"])
         else:
             raise ValueError("Either config, environment or variant must be provided")
 
     @staticmethod
-    def get_from_backend(schema: Type[T], environment: Optional[str] = None, version: Optional[str] = None, variant: Optional[str]=None) -> T:
+    def get_from_backend(
+        schema: Type[T],
+        environment: Optional[str] = None,
+        version: Optional[str] = None,
+        variant: Optional[str] = None,
+    ) -> T:
         """
         Pulls the parameters for the app variant from the server and returns a config object.
 
@@ -87,19 +100,28 @@ class ConfigManager:
         if not ConfigManager.client:
             try:
                 ConfigManager.client = AgentaApi(
-                    base_url=singleton.host + "/api", api_key=singleton.api_key if singleton.api_key else ""
+                    base_url=singleton.host + "/api",
+                    api_key=singleton.api_key if singleton.api_key else "",
                 )
             except Exception as ex:
-                logger.error("Failed to initialize Agenta client with error: %s", str(ex))
+                logger.error(
+                    "Failed to initialize Agenta client with error: %s", str(ex)
+                )
                 raise
         if not environment and not variant:
             raise ValueError("Either environment or variant must be provided")
         try:
             if environment:
                 if version:
-                    raise NotImplementedError("Getting config for a specific version is not implemented yet.")
+                    raise NotImplementedError(
+                        "Getting config for a specific version is not implemented yet."
+                    )
                 else:
-                    assert environment in ["development", "production", "staging"], "Environment must be either development, production or staging"
+                    assert environment in [
+                        "development",
+                        "production",
+                        "staging",
+                    ], "Environment must be either development, production or staging"
                     config = ConfigManager.client.configs.get_config(
                         base_id=singleton.base_id, environment_name=environment
                     )
@@ -108,15 +130,17 @@ class ConfigManager:
                     base_id=singleton.base_id, config_name=variant
                 )
         except Exception as ex:
-            logger.error("Failed to pull the configuration from the server with error: %s", str(ex))
-        
+            logger.error(
+                "Failed to pull the configuration from the server with error: %s",
+                str(ex),
+            )
+
         try:
             result = schema(**config.parameters)
         except ValidationError as ex:
             logger.error("Failed to validate the configuration with error: %s", str(ex))
             raise
         return result
-    
 
     @staticmethod
     def get_from_yaml(filename: str, schema: Type[T]) -> T:
@@ -138,13 +162,15 @@ class ConfigManager:
         if not file_path.exists():
             raise FileNotFoundError(f"Config file not found: {filename}")
 
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             config_data = yaml.safe_load(file)
 
         try:
             return schema(**config_data)
         except ValidationError as ex:
-            logger.error(f"Failed to validate the configuration from {filename} with error: {str(ex)}")
+            logger.error(
+                f"Failed to validate the configuration from {filename} with error: {str(ex)}"
+            )
             raise
 
     @staticmethod
@@ -167,11 +193,13 @@ class ConfigManager:
         if not file_path.exists():
             raise FileNotFoundError(f"Config file not found: {filename}")
 
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             config_data = json.load(file)
 
         try:
             return schema(**config_data)
         except ValidationError as ex:
-            logger.error(f"Failed to validate the configuration from {filename} with error: {str(ex)}")
+            logger.error(
+                f"Failed to validate the configuration from {filename} with error: {str(ex)}"
+            )
             raise
