@@ -39,47 +39,6 @@ async def map(
         EvaluatorMappingOutputInterface: A dictionary containing the mapped evaluator inputs.
     """
 
-    async def get_nested_value(data: Dict[str, Any], key: str) -> Any:
-        """
-        Retrieves the nested value from a dictionary based on a dotted key path,
-        where list indices can be included in square brackets.
-
-        Args:
-            data (Dict[str, Any]): The data dictionary to retrieve the value from.
-            key (str): The key path to the desired value, with possible list indices.
-
-        Returns:
-            Any: The value found at the specified key path, or None if not found.
-
-        Example:
-            >>> data = {
-            ...     'rag': {
-            ...         'summarizer': [{'outputs': {'report': 'The answer is 42'}}]
-            ...     }
-            ... }
-            >>> key = 'rag.summarizer[0].outputs.report'
-            >>> get_nested_value(data, key)
-            'The answer is 42'
-        """
-
-        pattern = re.compile(r"([^\[\].]+|\[\d+\])")
-        keys = pattern.findall(key)
-
-        for k in keys:
-            if k.startswith("[") and k.endswith("]"):
-                # Convert list index from '[index]' to integer
-                k = int(k[1:-1])
-                if isinstance(data, list):
-                    data = data[k] if 0 <= k < len(data) else None
-                else:
-                    return None
-            else:
-                if isinstance(data, dict):
-                    data = data.get(k, None)
-                else:
-                    return None
-        return data
-
     mapping_outputs = {}
     trace = process_distributed_trace_into_trace_tree(mapping_input.inputs["trace"])
     for to_key, from_key in mapping_input.mapping.items():
