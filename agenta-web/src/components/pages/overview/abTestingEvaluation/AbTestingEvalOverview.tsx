@@ -1,3 +1,4 @@
+import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
@@ -71,6 +72,8 @@ const AbTestingEvalOverview = () => {
     const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
+    const [selectedEvalRecord, setSelectedEvalRecord] = useState<HumanEvaluationListTableDataType>()
+    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
 
     useEffect(() => {
         if (!appId) return
@@ -342,7 +345,10 @@ const AbTestingEvalOverview = () => {
                                         label: "Delete",
                                         icon: <Trash size={16} />,
                                         danger: true,
-                                        onClick: () => handleDeleteEvaluation(record),
+                                        onClick: () => {
+                                            setSelectedEvalRecord(record)
+                                            setIsDeleteEvalModalOpen(true)
+                                        },
                                     },
                                 ],
                             }}
@@ -388,6 +394,18 @@ const AbTestingEvalOverview = () => {
                 isEvalModalOpen={isEvalModalOpen}
                 setIsEvalModalOpen={setIsEvalModalOpen}
             />
+
+            {selectedEvalRecord && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteEvaluation(selectedEvalRecord)
+                        setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"a/b testing evaluation"}
+                />
+            )}
         </div>
     )
 }
