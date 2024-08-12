@@ -85,7 +85,7 @@ async def evaluator_data_map(
 
 
 @router.post("/{evaluator_key}/run/", response_model=EvaluatorOutputInterface)
-def evaluator_run(
+async def evaluator_run(
     request: Request, evaluator_key: str, payload: EvaluatorInputInterface
 ):
     """Endpoint to evaluate LLM app run
@@ -100,7 +100,7 @@ def evaluator_run(
     """
 
     try:
-        result = evaluators_service.run(
+        result = await evaluators_service.run(
             evaluator_key=evaluator_key, evaluator_input=payload
         )
         return result
