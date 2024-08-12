@@ -23,9 +23,14 @@ class MyConfig(BaseModel):
     bool_param: bool = Field(default=True)
     int_param: int = Field(default=1, ge=1, le=5)
     float_param: float = Field(default=1.0, gt=0, lt=10)
-    multiple: Annotated[str, ag.MultipleChoice(["gpt-3", "gpt-5"])] = Field(default="gpt3")
+    multiple: Annotated[str, ag.MultipleChoice(["gpt-3", "gpt-5"])] = Field(
+        default="gpt3"
+    )
     # multiple: Literal["gpt-3", "gpt-5"] = Field(default="gpt-3")
-    grouped_multiple: Annotated[str, ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]})] = Field(default="gpt3")
+    grouped_multiple: Annotated[
+        str,
+        ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]}),
+    ] = Field(default="gpt3")
 
 
 config = MyConfig(prompt_template=default_prompt)

@@ -11,20 +11,22 @@ default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init(config_fname="config.toml")
+ag.init()
+
+
+class NestConfig(BaseModel):
+    some_param: str = "hello"
 
 
 class MyConfigSchema(BaseModel):  # <- the app
-    prompt_template: str = Field(default=default_prompt)
-    bool_param: bool = Field(default=True)
-    int_param: int = Field(default=1, ge=1, le=5)
-    float_param: float = Field(default=1.0, gt=0, lt=10)
-    multiple: Annotated[str, ag.MultipleChoice(["gpt-3", "gpt-5"])] = Field(default="gpt3")
-    grouped_multiple: Annotated[str, ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]})] = Field(default="gpt3")
+    prompt_1: ag.Prompt = ag.Prompt(prompt_system="hello")
+    prompt_2: ag.Prompt = ag.Prompt(prompt_system="hello")
+    nest_config: NestConfig = NestConfig()
 
 
-
-@ag.route(path="/", config_schema=MyConfigSchema)
+@ag.route(
+    path="/", config_schema=MyConfigSchema, is_active=os.environ.get("AGENTA_MODE")
+)
 def rag(country: str, gender: str) -> str:
     """
     Generate a baby name based on the given country and gender.
@@ -39,7 +41,13 @@ def rag(country: str, gender: str) -> str:
     if os.environ.get("AGENTA_MODE") == "true":
         config = ConfigManager.get_from_route(schema=MyConfigSchema)
     else:
-        config = ConfigManager.get_from_backend(schema=MyConfigSchema, environment="production")
-    prompt = config.prompt_template.format(country=country, gender=gender)
+        config = ConfigManager.get_from_backend(
+            schema=MyConfigSchema, environment="production"
+        )
+    prompt = config.pro.format(country=country, gender=gender)
 
     return f"mock output for {prompt}"
+
+
+if __name__ == "__main__":
+    rag(country="USA", gender="male")

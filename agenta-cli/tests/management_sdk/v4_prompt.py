@@ -34,19 +34,23 @@ ag.init(config_fname="config.toml")
 #     class Settings:
 #         app_name: str = 'myapp'
 
+
 class Prompt(BaseModel):
     prompt_template: str = Field(default=default_prompt)
     bool_param: bool = Field(default=True)
     int_param: int = Field(default=1, ge=1, le=5)
     float_param: float = Field(default=1.0, gt=0, lt=10)
-    grouped_multiple: Annotated[str, ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]})] = Field(default="gpt3")
+    grouped_multiple: Annotated[
+        str,
+        ag.MultipleChoice({"openai": ["gpt-3", "gpt-5"], "azure": ["gpt-5", "gpt-3"]}),
+    ] = Field(default="gpt3")
 
 
 class MyConfigSchema(BaseModel):  # <- the app
     prompt: Prompt = Field(default=Prompt())
 
     class settings:
-        app_name: str = 'myapp'
+        app_name: str = "myapp"
 
 
 @ag.route(path="/", config_schema=MyConfigSchema)
