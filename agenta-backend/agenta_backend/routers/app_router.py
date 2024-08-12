@@ -504,21 +504,19 @@ async def create_app_and_variant_from_template(
             if isCloudEE()
             else "Step 2: Creating new app and initializing environments"
         )
-        if app is None:
-            app = await db_manager.create_app_and_envs(
-                app_name,
-                request.state.user_id,
-                payload.organization_id if isCloudEE() else None,  # type: ignore
-                payload.workspace_id if isCloudEE() else None,  # type: ignore
-            )
+        app = await db_manager.create_app_and_envs(
+            app_name,
+            request.state.user_id,
+            payload.organization_id if isCloudEE() else None,  # type: ignore
+            payload.workspace_id if isCloudEE() else None,  # type: ignore
+        )
 
         logger.debug(
             "Step 6: Creating ready-to-use evaluators"
             if isCloudEE()
             else "Step 3: Creating ready-to-use evaluators"
         )
-        if app is None:
-            await evaluator_manager.create_ready_to_use_evaluators(app=app)
+        await evaluator_manager.create_ready_to_use_evaluators(app=app)
 
         logger.debug(
             "Step 7: Retrieve template from db"
