@@ -607,9 +607,18 @@ async def auto_contains_json(
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        if not isinstance(output, str):
+            # Attempt to retrieve 'data' key from output if it's a dictionary
+            output = output.get("data", "") if isinstance(output, dict) else output
+
+            # If output is still not a string, raise an exception
+            if not isinstance(output, str):
+                raise Exception(
+                    f"Evaluator 'contains_json' requires the output to be a string, but received {type(output).__name__} instead. "
+                    f"Please ensure the output of the application is a valid string, or that the 'data' key in the dictionary contains a string."
+                )
+
         response = await contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
