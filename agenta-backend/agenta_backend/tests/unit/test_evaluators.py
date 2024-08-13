@@ -179,6 +179,9 @@ async def test_auto_contains_all(output, substrings, case_sensitive, expected):
         ("No JSON here!", False),
         ("{Malformed JSON, nope!}", False),
         ('{"valid": "json", "number": 123}', True),
+        ({"data": {"message": "The capital of Azerbaijan is Baku."}}, None),
+        ({"data": '{"message": "The capital of Azerbaijan is Baku."}'}, True),
+        ({"data": "The capital of Azerbaijan is Baku."}, False),
     ],
 )
 @pytest.mark.asyncio
