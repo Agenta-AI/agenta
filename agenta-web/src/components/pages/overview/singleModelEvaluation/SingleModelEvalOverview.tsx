@@ -34,12 +34,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     stat: {
         "& .ant-statistic-content-value": {
-            fontSize: 20,
-            color: "#1677ff",
+            fontSize: 16,
+            color: theme.colorPrimary,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 20,
-            color: "#1677ff",
+            fontSize: 16,
+            color: theme.colorPrimary,
         },
     },
 }))
@@ -203,10 +203,12 @@ const SingleModelEvalOverview = () => {
             key: "key",
             width: 56,
             fixed: "right",
+            align: "center",
             render: (_, record) => {
                 return (
                     <Dropdown
                         trigger={["click"]}
+                        overlayStyle={{width: 180}}
                         menu={{
                             items: [
                                 {
@@ -284,6 +286,8 @@ const SingleModelEvalOverview = () => {
                     columns={columns}
                     dataSource={evaluationsList}
                     scroll={{x: true}}
+                    bordered
+                    pagination={false}
                 />
             </Spin>
 

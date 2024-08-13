@@ -112,10 +112,12 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
             key: "key",
             width: 56,
             fixed: "right",
+            align: "center",
             render: (_, record) => {
                 return (
                     <Dropdown
                         trigger={["click"]}
+                        overlayStyle={{width: 180}}
                         menu={{
                             items: [
                                 {
@@ -186,6 +188,8 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                     columns={columns}
                     dataSource={variantList}
                     scroll={{x: true}}
+                    bordered
+                    pagination={false}
                 />
             </Spin>
         </div>

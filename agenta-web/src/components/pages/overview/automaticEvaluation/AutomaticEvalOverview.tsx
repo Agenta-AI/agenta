@@ -337,10 +337,12 @@ const AutomaticEvalOverview = () => {
             key: "key",
             width: 56,
             fixed: "right",
+            align: "center",
             render: (_, record) => {
                 return (
                     <Dropdown
                         trigger={["click"]}
+                        overlayStyle={{width: 180}}
                         menu={{
                             items: [
                                 {
@@ -436,6 +438,8 @@ const AutomaticEvalOverview = () => {
                     rowKey={"id"}
                     dataSource={evaluationList}
                     scroll={{x: true}}
+                    bordered
+                    pagination={false}
                 />
             </Spin>
 

@@ -24,7 +24,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
         flexDirection: "column",
-        gap: theme.paddingLG,
+        gap: 40,
         "& h1": {
             fontSize: theme.fontSizeHeading4,
             fontWeight: 500,
@@ -67,11 +67,11 @@ export default function Overview() {
                     overlayStyle={{width: 180}}
                     menu={{
                         items: [
-                            {
-                                key: "rename_app",
-                                label: "Rename",
-                                icon: <PencilLine size={16} />,
-                            },
+                            // {
+                            //     key: "rename_app",
+                            //     label: "Rename",
+                            //     icon: <PencilLine size={16} />,
+                            // },
                             {
                                 key: "delete_app",
                                 label: "Delete",
