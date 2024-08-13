@@ -283,7 +283,7 @@ async def auto_custom_code_run(
         }
         response = await custom_code_run(
             input=EvaluatorInputInterface(
-                **{"inputs": inputs, "settings": {"code": settings_values["code"]}}
+                **{"inputs": inputs, "settings": settings_values}
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
