@@ -16,6 +16,8 @@ if (typeof window !== "undefined") {
     }
 }
 
+export const ENABLE_UNFINISHED_FEATURES = false
+
 export const renameVariables = (name: string) => {
     if (name === "inputs") {
         return "Prompt Variables"
