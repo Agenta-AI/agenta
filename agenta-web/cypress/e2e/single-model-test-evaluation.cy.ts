@@ -53,7 +53,7 @@ describe("Single Model Test workflow", () => {
             cy.wait(500)
         })
 
-        it("Shloud check the evaluation testset is successfully saved", () => {
+        it("Should check the evaluation testset is successfully saved", () => {
             cy.visit(`/apps/${app_id}/testsets`)
             cy.url().should("include", "/testsets")
             cy.get('[data-cy="app-testset-list"]').as("table")
