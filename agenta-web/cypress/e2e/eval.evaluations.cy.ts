@@ -64,7 +64,9 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.get('[data-cy="new-evaluator-modal"]').should("exist")
             cy.get('[data-cy^="select-new-evaluator"]').eq(0).click()
             cy.get('[data-cy="configure-new-evaluator-modal"]').should("exist")
-            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName)
+            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName, {
+                force: true,
+            })
             cy.get('[data-cy="new-evaluator-advance-settings"]').click()
             cy.get('[data-cy="new-evaluator-column-name"]').clear()
             cy.get('[data-cy="new-evaluator-column-name"]').type("answer")
