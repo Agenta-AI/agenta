@@ -34,32 +34,32 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     statFlag: {
         "& .ant-statistic-content-value": {
-            fontSize: 20,
-            color: "#cf1322",
+            fontSize: 16,
+            color: theme.colorError,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 20,
-            color: "#cf1322",
+            fontSize: 16,
+            color: theme.colorError,
         },
     },
     stat: {
         "& .ant-statistic-content-value": {
-            fontSize: 20,
-            color: "#1677ff",
+            fontSize: 16,
+            color: theme.colorPrimary,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 20,
-            color: "#1677ff",
+            fontSize: 16,
+            color: theme.colorPrimary,
         },
     },
     statGood: {
         "& .ant-statistic-content-value": {
-            fontSize: 20,
-            color: "#3f8600",
+            fontSize: 16,
+            color: theme.colorSuccess,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 20,
-            color: "#3f8600",
+            fontSize: 16,
+            color: theme.colorSuccess,
         },
     },
 }))
@@ -295,10 +295,12 @@ const AbTestingEvalOverview = () => {
                 key: "key",
                 width: 56,
                 fixed: "right",
+                align: "center",
                 render: (_: any, record: HumanEvaluationListTableDataType) => {
                     return (
                         <Dropdown
                             trigger={["click"]}
+                            overlayStyle={{width: 180}}
                             menu={{
                                 items: [
                                     {
@@ -386,6 +388,8 @@ const AbTestingEvalOverview = () => {
                     columns={columns}
                     dataSource={evaluationsList}
                     scroll={{x: true}}
+                    bordered
+                    pagination={false}
                 />
             </Spin>
 

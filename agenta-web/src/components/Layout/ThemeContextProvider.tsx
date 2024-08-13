@@ -1,18 +1,7 @@
-import {ConfigProvider, theme, ThemeConfig} from "antd"
+import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import antdTokens from "@/styles/tokens/antd-themeConfig.json"
-
-export const AntdThemeConfig: ThemeConfig = {
-    token: {
-        // Seed Token
-        ...antdTokens.token,
-    },
-    // @ts-ignore
-    components: {
-        ...antdTokens.components,
-    },
-}
 
 export enum ThemeMode {
     Light = "light",
@@ -80,7 +69,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 theme={{
                     algorithm:
                         val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                    ...AntdThemeConfig,
+                    ...antdTokens,
                 }}
             >
                 {children}

@@ -2,7 +2,6 @@ import {Modal, Card, Dropdown, Button, Typography, Tag} from "antd"
 import {MoreOutlined} from "@ant-design/icons"
 import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
-import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, ListAppsItem} from "@/lib/Types"
@@ -18,7 +17,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: 300,
         display: "flex",
         flexDirection: "column",
-        transition: "all 0.3s ease-in",
+        transition: "all 0.025s ease-in",
+        cursor: "pointer",
         "& > .ant-card-head": {
             minHeight: 0,
             padding: theme.paddingSM,
@@ -104,6 +104,7 @@ const AppCard: React.FC<{
             <Card
                 className={classes.card}
                 title={renameVariablesCapitalizeAll(app.app_name)}
+                onClick={() => router.push(`/apps/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
                         trigger={["hover"]}
@@ -114,34 +115,43 @@ const AppCard: React.FC<{
                                     key: "open_app",
                                     label: "Open",
                                     icon: <Note size={16} />,
-                                    onClick: () => router.push(`/apps/${app.app_id}/overview`),
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/apps/${app.app_id}/overview`)
+                                    },
                                 },
-
                                 {type: "divider"},
-                                {
-                                    key: "rename_app",
-                                    label: "Rename",
-                                    icon: <PencilLine size={16} />,
-                                },
+                                // {
+                                //     key: "rename_app",
+                                //     label: "Rename",
+                                //     icon: <PencilLine size={16} />,
+                                //     onClick: (e: any) => {
+                                //         e.domEvent.stopPropagation()
+                                //     },
+                                // },
                                 {
                                     key: "delete_app",
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => setVisibleDelete(true),
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        setVisibleDelete(true)
+                                    },
                                 },
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button
+                            type="text"
+                            onClick={(e) => e.stopPropagation()}
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
                     </Dropdown>
                 }
             >
-                <Link
-                    data-cy="app-card-link"
-                    href={`/apps/${app.app_id}/overview`}
-                    className={classes.app_card_link}
-                >
+                <div data-cy="app-card-link" className={classes.app_card_link}>
                     <div>
                         <Text>Type</Text>
                         <Tag className="mr-0">Single Prompt</Tag>
@@ -150,7 +160,7 @@ const AppCard: React.FC<{
                         <Text>Last modified:</Text>
                         <Text>{formatDay("2024-08-05T22:32:19.593503Z")}</Text>
                     </div>
-                </Link>
+                </div>
             </Card>
 
             <DeleteModal
