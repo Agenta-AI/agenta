@@ -1,6 +1,6 @@
-import contextvars
+from contextvars import ContextVar
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 
 from agenta.client.backend.types.create_span import CreateSpan
 
@@ -15,14 +15,13 @@ class TracingContext:
 
         ### --- SPANS --- ###
         self.active_span: Optional[CreateSpan] = None
-        self.tracked_spans: Dict[str, CreateSpan] = {}
-        self.closed_spans: List[CreateSpan] = []
+        self.spans: Dict[str, CreateSpan] = {}
 
     def __repr__(self) -> str:
-        return f"TracingContext(trace_id=[{self.trace_id}], active_span=[{self.active_span.id if self.active_span else None}{' ' + self.active_span.spankind if self.active_span else ''}])"
+        return f"TracingContext(trace='{self.trace_id}', spans={[f'{span.id} {span.spankind}' for span in self.spans.values()]})"
 
     def __str__(self) -> str:
         return self.__repr__()
 
 
-tracing_context = contextvars.ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)
+tracing_context = ContextVar(CURRENT_TRACING_CONTEXT_KEY, default=None)

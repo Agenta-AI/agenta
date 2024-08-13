@@ -41,7 +41,7 @@ class DeleteTestsets(BaseModel):
 # ]
 class NewTestset(BaseModel):
     name: str
-    csvdata: List[Dict[str, str]]
+    csvdata: List[Dict[str, Any]]
 
 
 class TestSetOutputResponse(BaseModel):

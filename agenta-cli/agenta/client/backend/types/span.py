@@ -23,10 +23,12 @@ class Span(pydantic.BaseModel):
     created_at: dt.datetime
     variant: SpanVariant
     environment: typing.Optional[str]
-    spankind: SpanKind
+    spankind: str
     status: SpanStatusCode
     metadata: typing.Dict[str, typing.Any]
+    trace_id: str
     user_id: typing.Optional[str]
+    content: typing.Dict[str, typing.Any]
     children: typing.Optional[typing.List[Span]]
 
     def json(self, **kwargs: typing.Any) -> str:
