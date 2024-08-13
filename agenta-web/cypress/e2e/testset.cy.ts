@@ -21,16 +21,16 @@ describe("Testsets crud and UI functionality", () => {
             cy.visit(`/apps/${app_id}/testsets/new/manual`)
         })
 
-        it("navigates successfully to the new testset page", () => {
+        it("Should navigates successfully to the new testset page", () => {
             cy.url().should("include", "/testsets/new/manual")
         })
 
-        it("don't allow creation of a testset without a name", () => {
+        it("Should not allow creation of a testset without a name", () => {
             cy.get('[data-cy="testset-save-button"]').click()
             cy.get('[data-cy="testset-name-reqd-error"]').should("be.visible")
         })
 
-        it("successfully creates the testset and navigates to the list", () => {
+        it("Should successfully creates the testset and navigates to the list", () => {
             const testsetName = randString(8)
             cy.get('[data-cy="testset-name-input"]').type(testsetName)
             cy.get(".ag-row").should("have.length", 3)
@@ -62,7 +62,7 @@ describe("Testsets crud and UI functionality", () => {
             cy.visit(`/apps/${app_id}/testsets`)
         })
 
-        it("Shloud successfully upload a testset", () => {
+        it("Should successfully upload a testset", () => {
             cy.url().should("include", "/testsets")
             cy.clickLinkAndWait('[data-cy="testset-new-upload-link"]')
             cy.url().should("include", "/testsets/new/upload")
@@ -73,7 +73,7 @@ describe("Testsets crud and UI functionality", () => {
             cy.get('[data-cy="testset-upload-button"]').click()
         })
 
-        it("Shloud check the uploaded testset is present", () => {
+        it("Should check the uploaded testset is present", () => {
             cy.url().should("include", "/testsets")
             cy.get('[data-cy="app-testset-list"]').as("table")
             cy.get("@table").get(".ant-table-pagination li a").last().click()
