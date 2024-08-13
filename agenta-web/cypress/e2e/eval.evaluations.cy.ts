@@ -71,6 +71,8 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.get('[data-cy="new-evaluator-column-name"]').clear()
             cy.get('[data-cy="new-evaluator-column-name"]').type("answer")
             cy.get('[data-cy="configure-new-evaluator-modal-save-btn"]').click()
+            cy.get('[data-cy="evaluator-card"]').should("have.length", 2)
+            cy.wait(1000)
         })
 
         it("Should successfully create an Evaluation", () => {
