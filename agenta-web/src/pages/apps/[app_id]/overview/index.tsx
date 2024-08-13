@@ -1,12 +1,11 @@
 import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
-import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
 import SingleModelEvalOverview from "@/components/pages/overview/singleModelEvaluation/SingleModelEvalOverview"
 import VariantsOverview from "@/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {ENABLE_UNFINISHED_FEATURES, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {JSSTheme, Variant} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
 import {MoreOutlined} from "@ant-design/icons"
@@ -88,9 +87,9 @@ export default function Overview() {
 
             <ObservabilityOverview variants={variants} />
 
-            {/* <DeploymentOverview variants={variants} /> */}
-
-            {/* <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} /> */}
+            {ENABLE_UNFINISHED_FEATURES && (
+                <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
+            )}
 
             <AutomaticEvalOverview />
 
