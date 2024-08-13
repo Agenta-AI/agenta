@@ -4,7 +4,14 @@ import {
     openAISchemaToParameters,
 } from "@/lib/helpers/openapi_parser"
 import {getAgentaApiUrl, removeKeys, shortPoll} from "@/lib/helpers/utils"
-import {Variant, Parameter, ChatMessage, KeyValuePair} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    ChatMessage,
+    KeyValuePair,
+    FuncResponse,
+    BaseResponse,
+} from "@/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -67,7 +74,7 @@ export async function callVariant(
     chatMessages?: ChatMessage[],
     signal?: AbortSignal,
     ignoreAxiosError?: boolean,
-) {
+): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
@@ -129,6 +136,7 @@ export const fetchVariantParametersFromOpenAPI = async (
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
     let APIParams = openAISchemaToParameters(response.data)
+
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
         if (param.type === "object") {
@@ -143,6 +151,7 @@ export const fetchVariantParametersFromOpenAPI = async (
         }
         return param
     })
+
     if (isChatVariant) APIParams = APIParams.filter((param) => param.name !== "inputs")
     const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
     const inputParams = APIParams.filter((param) => param.input) // don't have input values

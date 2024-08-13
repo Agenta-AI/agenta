@@ -258,7 +258,7 @@ const HumanEvaluationModal = ({
             const selectedVariant = variants.find((variant) => variant.variantName === key)
 
             if (!selectedVariant) {
-                console.log("Error: No variant found")
+                console.error("Error: No variant found")
             }
 
             setSelectedVariants((prevState) => {

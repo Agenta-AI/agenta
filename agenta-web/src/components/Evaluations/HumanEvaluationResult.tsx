@@ -154,7 +154,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                     .catch((err) => console.error(err))
                     .finally(() => setFetchingEvaluations(false))
             } catch (error) {
-                console.log(error)
+                console.error(error)
             }
         }
 
