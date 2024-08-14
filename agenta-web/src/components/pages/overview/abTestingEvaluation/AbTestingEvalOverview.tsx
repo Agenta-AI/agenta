@@ -97,10 +97,12 @@ const AbTestingEvalOverview = () => {
 
                 const results = (await Promise.all(fetchPromises))
                     .filter((evaluation) => evaluation !== undefined)
-                    // shortend array to have 5 items (length 5)
+                    .sort(
+                        (a, b) =>
+                            new Date(b.createdAt || 0).getTime() -
+                            new Date(a.createdAt || 0).getTime(),
+                    )
                     .slice(0, 5)
-                    // reverse array to have from new to old
-                    .reverse()
 
                 setEvaluationsList(results)
             } catch (error) {
