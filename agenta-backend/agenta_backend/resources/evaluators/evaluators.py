@@ -43,11 +43,11 @@ evaluators = [
         "oss": True,
     },
     {
-        "name": "Contains Json",
+        "name": "Contains JSON",
         "key": "auto_contains_json",
         "direct_use": True,
         "settings_template": {},
-        "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
+        "description": "Contains JSON evaluator checks if the output contains the a valid JSON.",
         "oss": True,
     },
     {
