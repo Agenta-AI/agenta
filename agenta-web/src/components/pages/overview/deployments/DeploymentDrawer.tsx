@@ -12,7 +12,7 @@ import {
     Swap,
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Tooltip, Typography} from "antd"
-import React, {useEffect, useState} from "react"
+import React, {Dispatch, SetStateAction, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"
@@ -34,6 +34,9 @@ const DeploymentHistoryModal: any = dynamicComponent(
 interface DeploymentDrawerProps {
     selectedEnvironment: Environment
     variants: Variant[]
+    loadEnvironments: () => Promise<void>
+    setQueryEnv: (val: string) => void
+    setOpenChangeVariantModal: Dispatch<SetStateAction<boolean>>
 }
 
 interface LanguageCodeBlockProps {
@@ -117,8 +120,10 @@ const LanguageCodeBlock = ({
 
 const DeploymentDrawer = ({
     variants,
-
     selectedEnvironment,
+    loadEnvironments,
+    setQueryEnv,
+    setOpenChangeVariantModal,
     ...props
 }: DeploymentDrawerProps & DrawerProps) => {
     const classes = useStyles()
@@ -215,11 +220,19 @@ const DeploymentDrawer = ({
                                                 key: "change_variant",
                                                 label: "Change Variant",
                                                 icon: <Swap size={16} />,
+                                                onClick: () => {
+                                                    setOpenChangeVariantModal(true)
+                                                    setQueryEnv("")
+                                                },
                                             },
                                             {
                                                 key: "open_playground",
                                                 label: "Open in playground",
                                                 icon: <Rocket size={16} />,
+                                                onClick: () =>
+                                                    router.push(
+                                                        `/apps/${appId}/playground?variant=${selectedEnvironment.deployed_variant_name}`,
+                                                    ),
                                             },
                                         ],
                                     }}

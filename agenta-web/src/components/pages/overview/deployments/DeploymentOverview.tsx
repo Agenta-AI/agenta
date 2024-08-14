@@ -3,7 +3,7 @@ import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
 import {Button, Card, Dropdown, Skeleton, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentDrawer from "./DeploymentDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -54,25 +54,23 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>()
     const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
     const [openChangeVariantModal, setOpenChangeVariantModal] = useState(false)
-    const [changeVariantEnv, setChangeVariantEnv] = useState<Environment>()
+
+    const loadEnvironments = useCallback(async () => {
+        try {
+            setIsDeploymentLoading(true)
+            const response = await fetchEnvironments(appId)
+            setEnvironments(response)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsDeploymentLoading(false)
+        }
+    }, [appId])
 
     useEffect(() => {
         if (!appId) return
-
-        const loadEnvironments = async () => {
-            try {
-                setIsDeploymentLoading(true)
-                const response = await fetchEnvironments(appId)
-                setEnvironments(response)
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setIsDeploymentLoading(false)
-            }
-        }
-
         loadEnvironments()
-    }, [appId])
+    }, [appId, loadEnvironments])
 
     return (
         <div className={classes.container}>
@@ -106,7 +104,7 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                                             label: "Change Variant",
                                             icon: <Swap size={16} />,
                                             onClick: () => {
-                                                setChangeVariantEnv(env)
+                                                setSelectedEnvironment(env)
                                                 setOpenChangeVariantModal(true)
                                             },
                                         },
@@ -115,6 +113,10 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                                             key: "open_playground",
                                             label: "Open in playground",
                                             icon: <Rocket size={16} />,
+                                            onClick: () =>
+                                                router.push(
+                                                    `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
+                                                ),
                                         },
                                     ],
                                 }}
@@ -145,15 +147,20 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                     open={!!queryEnv}
                     onClose={() => setQueryEnv("")}
                     variants={variants}
+                    loadEnvironments={loadEnvironments}
+                    setQueryEnv={setQueryEnv}
+                    setOpenChangeVariantModal={setOpenChangeVariantModal}
                 />
             )}
 
-            {changeVariantEnv && (
+            {selectedEnvironment && (
                 <ChangeVariantModal
                     open={openChangeVariantModal}
+                    setOpenChangeVariantModal={setOpenChangeVariantModal}
                     onCancel={() => setOpenChangeVariantModal(false)}
                     variants={variants}
-                    selectedEnvironment={changeVariantEnv}
+                    selectedEnvironment={selectedEnvironment}
+                    loadEnvironments={loadEnvironments}
                 />
             )}
         </div>
