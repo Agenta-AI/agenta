@@ -104,8 +104,8 @@ class route(BaseDecorator):
     # and provides flexibility in how we expose different functionalities as APIs.
     def __init__(self, path, config_schema: BaseModel):
         self.config_schema: BaseModel = config_schema
-        if path != "" and path[0] != "/":
-            path = "/" + path
+        path = "/" + path.strip("/").strip()
+        path = "" if path == "/" else path
         PathValidator(url=f"http://example.com{path}")
 
         self.route_path = path
@@ -209,7 +209,7 @@ class entrypoint(BaseDecorator):
         )
 
         #
-        if route_path == "" or route_path == "/":
+        if route_path == "":
             route = f"/{DEFAULT_PATH}"
             app.post(route, response_model=BaseResponse)(wrapper)
             entrypoint.routes.append(
@@ -274,7 +274,7 @@ class entrypoint(BaseDecorator):
             func_signature,
             ingestible_files,
         )
-        if route_path == "" or route_path == "/":
+        if route_path == "":
             route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
 
