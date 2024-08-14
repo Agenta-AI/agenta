@@ -28,7 +28,7 @@ Cypress.Commands.add("createVariant", () => {
         }
     })
 
-    cy.contains("Single Prompt")
+    cy.contains("Single Prompt OpenAI")
         .parentsUntil('[data-cy^="app-template-card"]')
         .last()
         .contains("create app", {matchCase: false})
