@@ -7,7 +7,6 @@ import {useEffect, useState} from "react"
 import {
     ChartDonut,
     ChartLineUp,
-    CloudArrowUp,
     Desktop,
     GithubLogo,
     PaperPlane,
@@ -168,21 +167,6 @@ export const useSidebarConfig = () => {
                     title: "Generations",
                     tooltip: "Generations and their details",
                     link: `/apps/${appId || recentlyVisitedAppId}/observability/generations`,
-                    icon: <Dot size={16} />,
-                },
-            ],
-        },
-        {
-            key: "app-deployment-link",
-            title: "Deployment",
-            icon: <CloudArrowUp size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
-            submenu: [
-                {
-                    key: "app-endpoints-link",
-                    title: "Endpoints",
-                    tooltip: "Deploy your applications to different environments.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/endpoints`,
                     icon: <Dot size={16} />,
                 },
             ],
