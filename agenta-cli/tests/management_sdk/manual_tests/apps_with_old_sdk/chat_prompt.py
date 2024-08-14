@@ -1,6 +1,6 @@
 import agenta as ag
 import litellm
-from supported_llm_models import get_all_supported_llm_models
+from agenta.sdk.assets import supported_llm_models
 
 litellm.drop_params = True
 
@@ -17,7 +17,7 @@ ag.init()
 ag.config.default(
     temperature=ag.FloatParam(default=1, minval=0.0, maxval=2.0),
     model=ag.GroupedMultipleChoiceParam(
-        default="gpt-3.5-turbo", choices=get_all_supported_llm_models()
+        default="gpt-3.5-turbo", choices=supported_llm_models
     ),
     max_tokens=ag.IntParam(-1, -1, 4000),
     prompt_system=ag.TextParam(prompts["system_prompt"]),
