@@ -65,3 +65,9 @@ class HumanEvaluationScenarioOutput(BaseModel):
 class TemplateType(enum.Enum):
     IMAGE = "image"
     ZIP = "zip"
+
+
+class AppType(enum.Enum):
+    CHAT_PROMPT = "chat_prompt"
+    SINGLE_PROMPT = "single_prompt"
+    CUSTOM = "custom"
