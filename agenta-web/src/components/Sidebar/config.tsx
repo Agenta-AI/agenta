@@ -41,7 +41,7 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp, apps} = useAppsData()
+    const {currentApp, recentlyVisitedAppId} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
@@ -53,19 +53,6 @@ export const useSidebarConfig = () => {
     }, [])
 
     const {selectedOrg} = useOrgData()
-
-    const recentlyVisitedAppId = localStorage.getItem("recentlyVisitedApp")
-    const recentlyVisitedApp = apps.find((app) => app.app_id === recentlyVisitedAppId)
-
-    if (!recentlyVisitedApp) {
-        localStorage.removeItem("recentlyVisitedApp")
-    }
-
-    useEffect(() => {
-        if (appId) {
-            localStorage.setItem("recentlyVisitedApp", appId)
-        }
-    }, [appId])
 
     const sidebarConfig: SidebarConfig[] = [
         {

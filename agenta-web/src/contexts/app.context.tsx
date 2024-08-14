@@ -6,6 +6,7 @@ import {PropsWithChildren, createContext, useContext, useEffect, useMemo, useSta
 import useSWR from "swr"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {HookAPI} from "antd/es/modal/useModal"
+import {useLocalStorage} from "usehooks-ts"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -13,7 +14,7 @@ type AppContextType = {
     error: any
     isLoading: boolean
     mutate: () => void
-
+    recentlyVisitedAppId: string | null
     modalInstance?: HookAPI
     setModalInstance: (context: any) => void
 }
@@ -24,7 +25,7 @@ const initialValues: AppContextType = {
     error: null,
     isLoading: false,
     mutate: () => {},
-
+    recentlyVisitedAppId: null,
     setModalInstance: (context) => {},
 }
 
@@ -68,12 +69,15 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {data: apps, error, isLoading, mutate} = useApps()
     const router = useRouter()
     const appId = router.query?.app_id as string
+    const [recentlyVisitedAppId, setRecentlyVisitedAppId] = useLocalStorage<string | null>(
+        "recentlyVisitedApp",
+        null,
+    )
 
-    const recentlyVisitedAppId = useMemo(() => {
-        if (typeof window !== "undefined") {
-            return localStorage.getItem("recentlyVisitedApp")
+    useEffect(() => {
+        if (appId) {
+            setRecentlyVisitedAppId(appId)
         }
-        return null
     }, [appId])
 
     const currentApp = useMemo(() => {
@@ -85,9 +89,16 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         return apps.find((item: ListAppsItem) => item.app_id === appId) || null
     }, [apps, appId, recentlyVisitedAppId])
 
+    useEffect(() => {
+        if (!currentApp) {
+            setRecentlyVisitedAppId(null)
+        }
+    }, [currentApp])
+
     const [modalInstance, setModalInstance] = useState()
 
     appContextValues.currentApp = currentApp
+    appContextValues.recentlyVisitedAppId = recentlyVisitedAppId
     appContextValues.apps = apps
     appContextValues.error = error
     appContextValues.isLoading = isLoading
@@ -97,7 +108,16 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     return (
         <AppContext.Provider
-            value={{currentApp, apps, error, isLoading, mutate, modalInstance, setModalInstance}}
+            value={{
+                currentApp,
+                apps,
+                error,
+                isLoading,
+                mutate,
+                modalInstance,
+                setModalInstance,
+                recentlyVisitedAppId,
+            }}
         >
             {children}
         </AppContext.Provider>
