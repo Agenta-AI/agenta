@@ -21,9 +21,9 @@ ag.init(config_fname="config.toml")
 
 class MyConfig(BaseModel):
     temperature: float = Field(default=1, ge=0.0, le=2.0)
-    model: Annotated[
-        str, ag.MultipleChoice(choices=supported_llm_models)
-    ] = Field(default="gpt-3.5-turbo")
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-3.5-turbo"
+    )
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default=prompts["system_prompt"])
     prompt_user: str = Field(default=prompts["user_prompt"])

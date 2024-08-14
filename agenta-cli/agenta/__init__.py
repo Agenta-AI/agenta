@@ -29,4 +29,3 @@ from .sdk import assets as assets
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
-

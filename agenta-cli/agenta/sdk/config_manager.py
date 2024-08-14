@@ -18,6 +18,7 @@ singleton = AgentaSingleton()
 
 AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
 
+
 class ConfigManager:
     client = None
 
@@ -118,7 +119,9 @@ class ConfigManager:
                         "Getting config for a specific version is not implemented yet."
                     )
                 else:
-                    assert environment in AVAILABLE_ENVIRONMENTS, f"Environment must be in {AVAILABLE_ENVIRONMENTS}"
+                    assert (
+                        environment in AVAILABLE_ENVIRONMENTS
+                    ), f"Environment must be in {AVAILABLE_ENVIRONMENTS}"
                     config = ConfigManager.client.configs.get_config(
                         base_id=singleton.base_id, environment_name=environment
                     )
