@@ -1,4 +1,4 @@
-import {Modal, Card, Dropdown, Button, Typography, Tag} from "antd"
+import {Card, Dropdown, Button, Typography, Tag} from "antd"
 import {MoreOutlined} from "@ant-design/icons"
 import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
@@ -9,6 +9,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {Note, PencilLine, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
+import DeleteAppModal from "./modals/DeleteAppModal"
 
 const {Text} = Typography
 
@@ -48,28 +49,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
 }))
-
-const DeleteModal: React.FC<{
-    open: boolean
-    handleOk: () => Promise<void>
-    handleCancel: () => void
-    appName: string
-    confirmLoading: boolean
-}> = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
-    return (
-        <Modal
-            title="Are you sure?"
-            open={open}
-            onOk={handleOk}
-            confirmLoading={confirmLoading} // add this line
-            onCancel={handleCancel}
-            okText="Yes"
-            cancelText="No"
-        >
-            <p>Are you sure you want to delete {appName}?</p>
-        </Modal>
-    )
-}
 
 const AppCard: React.FC<{
     app: ListAppsItem
@@ -163,10 +142,10 @@ const AppCard: React.FC<{
                 </div>
             </Card>
 
-            <DeleteModal
+            <DeleteAppModal
                 open={visibleDelete}
-                handleOk={handleDeleteOk}
-                handleCancel={handleDeleteCancel}
+                onOk={handleDeleteOk}
+                onCancel={handleDeleteCancel}
                 appName={app.app_name}
                 confirmLoading={confirmLoading}
             />

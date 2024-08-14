@@ -240,8 +240,8 @@ export default function AutomaticEvaluationResult({
             )
 
             setSelectedRowKeys([])
-        } catch {
-        } finally {
+        } catch (error) {
+            console.error(error)
         }
     }
 
