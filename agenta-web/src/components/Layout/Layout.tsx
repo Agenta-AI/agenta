@@ -189,7 +189,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     setStarCount(resp.stargazers_count)
                 })
             } catch (error) {
-                console.log(error)
+                console.error(error)
             }
         }
         githubRepo()
