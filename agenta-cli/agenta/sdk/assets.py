@@ -10,10 +10,12 @@ supported_llm_models = {
         "gpt-3.5-turbo",
         "gpt-4",
         "gpt-4o",
+        "gpt-4o-mini",
         "gpt-4-1106-preview",
     ],
     "Gemini": [
         "gemini/gemini-1.5-pro-latest",
+        "gemini/gemini-1.5-flash"
     ],
     "Cohere": [
         "cohere/command-light",
@@ -21,8 +23,10 @@ supported_llm_models = {
         "cohere/command-nightly",
     ],
     "Anthropic": [
-        "anthropic/claude-3.5",
-        "anthropic/claude-3",
+        "anthropic/claude-3-5-sonnet-20240620",
+        "anthropic/claude-3-opus-20240229",
+        "anthropic/claude-3-sonnet-20240229",
+        "anthropic/claude-3-haiku-20240307",
         "anthropic/claude-2.1",
         "anthropic/claude-2",
         "anthropic/claude-instant-1.2",
@@ -81,13 +85,3 @@ supported_llm_models = {
         "groq/gemma-7b-it",
     ],
 }
-
-
-def get_all_supported_llm_models():
-    """
-    Returns a list of evaluators
-
-    Returns:
-        List[dict]: A list of evaluator dictionaries.
-    """
-    return supported_llm_models

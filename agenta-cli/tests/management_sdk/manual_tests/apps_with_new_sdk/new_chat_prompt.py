@@ -1,8 +1,9 @@
+from typing import Annotated
+
 import agenta as ag
 import litellm
-from supported_llm_models import get_all_supported_llm_models
+from agenta.sdk.assets import supported_llm_models
 from pydantic import BaseModel, Field
-from typing import Annotated
 
 litellm.drop_params = True
 
@@ -21,7 +22,7 @@ ag.init(config_fname="config.toml")
 class MyConfig(BaseModel):
     temperature: float = Field(default=1, ge=0.0, le=2.0)
     model: Annotated[
-        str, ag.MultipleChoice(choices=get_all_supported_llm_models())
+        str, ag.MultipleChoice(choices=supported_llm_models)
     ] = Field(default="gpt-3.5-turbo")
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default=prompts["system_prompt"])
