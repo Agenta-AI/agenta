@@ -15,7 +15,7 @@ from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.models.base import Base
-from agenta_backend.models.shared_models import TemplateType
+from agenta_backend.models.shared_models import TemplateType, AppType
 
 
 class UserDB(Base):
@@ -76,6 +76,7 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
+    app_type = Column(Enum(AppType), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
