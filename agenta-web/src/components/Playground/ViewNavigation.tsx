@@ -334,7 +334,6 @@ const ViewNavigation: React.FC<Props> = ({
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        onStateChange={onStateChange}
                         setPromptOptParams={setPromptOptParams}
                         promptOptParams={promptOptParams}
                     />

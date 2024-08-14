@@ -46,11 +46,21 @@ describe("Single Model Test workflow", () => {
 
             cy.wait("@generateRequest")
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("100")
+        })
+
+        it("Should modify the evaluation vote scores", () => {
+            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
+            cy.url().should("include", "/annotations/single_model_test")
+            cy.wait(1000)
+            cy.clickLinkAndWait('[data-cy="single-model-view-evaluation-button"]')
+            cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
+            cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').clear()
+            cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("85")
             cy.get('[data-cy="single-model-save-testset-button"]').click()
             cy.get(".ant-modal-content").contains("Add new test set").should("be.visible")
             cy.get('[data-cy="single-model-save-testset-modal-input"]').type(saved_testset_name)
             cy.get(".ant-modal-footer > .ant-btn-primary").contains("Submit").click()
-            cy.wait(500)
+            cy.wait(1000)
         })
 
         it("Shloud check the evaluation testset is successfully saved", () => {

@@ -42,7 +42,9 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
                     !param["x-parameter"] || ["messages", "file_url"].includes(param["x-parameter"])
                         ? true
                         : false,
-                type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
+                type: param["x-parameter"]
+                    ? determineType(param["x-parameter"])
+                    : param["type"] || "string",
                 default: param.default,
                 required: !!schema.components.schemas[bodySchemaName]?.required?.includes(name),
             }

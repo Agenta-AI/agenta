@@ -12,9 +12,9 @@ except ImportError:
 
 
 class LlmTokens(pydantic.BaseModel):
-    prompt_tokens: typing.Optional[int]
-    completion_tokens: typing.Optional[int]
-    total_tokens: typing.Optional[int]
+    prompt_tokens: typing.Optional[int] = 0
+    completion_tokens: typing.Optional[int] = 0
+    total_tokens: typing.Optional[int] = 0
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {

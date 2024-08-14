@@ -2,13 +2,12 @@
 import inspect
 import traceback
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List, Union
 
 # Own Imports
 import agenta as ag
 from agenta.sdk.decorators.base import BaseDecorator
 from agenta.sdk.tracing.logger import llm_logger as logging
-from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
 from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 
 
@@ -38,148 +37,94 @@ class instrument(BaseDecorator):
     """
 
     def __init__(
-        self, config: Optional[dict] = None, spankind: str = "workflow"
+        self,
+        config: Optional[dict] = None,
+        spankind: str = "workflow",
+        ignore_inputs: Union[List[str], bool] = False,
+        ignore_outputs: Union[List[str], bool] = False,
     ) -> None:
         self.config = config
         self.spankind = spankind
-        self.tracing = ag.tracing
+        self.ignore_inputs = ignore_inputs
+        self.ignore_outputs = ignore_outputs
 
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = inspect.iscoroutinefunction(func)
 
-        @debug()
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            result = None
+        def get_inputs(*args, **kwargs):
             func_args = inspect.getfullargspec(func).args
             input_dict = {name: value for name, value in zip(func_args, args)}
             input_dict.update(kwargs)
 
+            return input_dict
+
+        def redact(io, blacklist):
+            return {
+                key: io[key]
+                for key in io.keys()
+                if key
+                not in (
+                    blacklist
+                    if isinstance(blacklist, list)
+                    else []
+                    if blacklist is False
+                    else io.keys()
+                )
+            }
+
+        def patch(result):
+            TRACE_DEFAULT_KEY = "__default__"
+
+            outputs = result
+
+            # PATCH : if result is not a dict, make it a dict
+            if not isinstance(result, dict):
+                outputs = {TRACE_DEFAULT_KEY: result}
+            else:
+                # PATCH : if result is a legacy dict, clean it up
+                if (
+                    "message" in result.keys()
+                    and "cost" in result.keys()
+                    and "usage" in result.keys()
+                ):
+                    outputs = {TRACE_DEFAULT_KEY: result["message"]}
+
+                    ag.tracing.store_cost(result["cost"])
+                    ag.tracing.store_usage(result["usage"])
+
+            return outputs
+
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
             async def wrapped_func(*args, **kwargs):
-                # logging.debug(" ".join([">..", str(tracing_context.get())]))
-
-                token = None
-                if tracing_context.get() is None:
-                    token = tracing_context.set(TracingContext())
-
-                # logging.debug(" ".join([">>.", str(tracing_context.get())]))
-
-                self.tracing.start_span(
+                with ag.tracing.Context(
                     name=func.__name__,
-                    input=input_dict,
+                    input=redact(get_inputs(*args, **kwargs), self.ignore_inputs),
                     spankind=self.spankind,
                     config=self.config,
-                )
-
-                try:
+                ):
                     result = await func(*args, **kwargs)
 
-                    self.tracing.set_status(status="OK")
-                    self.tracing.end_span(
-                        outputs=(
-                            {"message": result}
-                            if not isinstance(result, dict)
-                            else result
-                        )
-                    )
-
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
-
-                    if token is not None:
-                        tracing_context.reset(token)
-
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
+                    ag.tracing.store_outputs(redact(patch(result), self.ignore_outputs))
 
                     return result
-
-                except Exception as e:
-                    result = {
-                        "message": str(e),
-                        "stacktrace": traceback.format_exc(),
-                    }
-
-                    self.tracing.set_attributes(
-                        {"traceback_exception": traceback.format_exc()}
-                    )
-                    self.tracing.set_status(status="ERROR")
-                    self.tracing.end_span(outputs=result)
-
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
-
-                    if token is not None:
-                        tracing_context.reset(token)
-
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
-
-                    raise e
 
             return await wrapped_func(*args, **kwargs)
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            result = None
-            func_args = inspect.getfullargspec(func).args
-            input_dict = {name: value for name, value in zip(func_args, args)}
-            input_dict.update(kwargs)
-
             def wrapped_func(*args, **kwargs):
-                # logging.debug(" ".join([">..", str(tracing_context.get())]))
-
-                token = None
-                if tracing_context.get() is None:
-                    token = tracing_context.set(TracingContext())
-
-                # logging.debug(" ".join([">>.", str(tracing_context.get())]))
-
-                span = self.tracing.start_span(
+                with ag.tracing.Context(
                     name=func.__name__,
-                    input=input_dict,
+                    input=redact(get_inputs(*args, **kwargs), self.ignore_inputs),
                     spankind=self.spankind,
                     config=self.config,
-                )
-
-                try:
+                ):
                     result = func(*args, **kwargs)
 
-                    self.tracing.set_status(status="OK")
-                    self.tracing.end_span(
-                        outputs=(
-                            {"message": result}
-                            if not isinstance(result, dict)
-                            else result
-                        )
-                    )
-
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
-
-                    if token is not None:
-                        tracing_context.reset(token)
-
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
+                    ag.tracing.store_outputs(redact(patch(result), self.ignore_outputs))
 
                     return result
-
-                except Exception as e:
-                    result = {
-                        "message": str(e),
-                        "stacktrace": traceback.format_exc(),
-                    }
-
-                    self.tracing.set_attributes(
-                        {"traceback_exception": traceback.format_exc()}
-                    )
-
-                    self.tracing.set_status(status="ERROR")
-                    self.tracing.end_span(outputs=result)
-
-                    # logging.debug(" ".join(["<<.", str(tracing_context.get())]))
-
-                    if token is not None:
-                        tracing_context.reset(token)
-
-                    # logging.debug(" ".join(["<..", str(tracing_context.get())]))
-
-                    raise e
 
             return wrapped_func(*args, **kwargs)
 
