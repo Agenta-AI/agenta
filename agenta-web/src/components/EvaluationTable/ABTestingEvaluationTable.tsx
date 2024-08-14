@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useMemo} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
 import {
     Button,
@@ -154,6 +154,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
             ?.number_of_votes || 0
 
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>, scenarioId) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
+        [evaluationScenarios],
+    )
+
     useEffect(() => {
         if (evaluationScenarios) {
             const obj = [...evaluationScenarios]
@@ -211,14 +218,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 .catch(console.error)
         },
         [evaluation.evaluationType, evaluation.id, evaluationScenarios, setRowValue],
-    )
-
-    const depouncedUpdateEvaluationScenario = useMemo(
-        () =>
-            debounce((data: Partial<EvaluationScenario>, scenarioId) => {
-                updateEvaluationScenarioData(scenarioId, data)
-            }, 800),
-        [updateEvaluationScenarioData],
     )
 
     const handleVoteClick = useCallback(
