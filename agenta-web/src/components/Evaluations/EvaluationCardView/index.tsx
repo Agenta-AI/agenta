@@ -245,11 +245,10 @@ const EvaluationCardView: React.FC<Props> = ({
         })
     }, [])
 
-    const depouncedUpdateEvaluationScenario = useMemo(
-        () =>
-            debounce((data: Partial<EvaluationScenario>) => {
-                updateEvaluationScenarioData(scenarioId, data)
-            }, 800),
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
         [scenarioId],
     )
 
