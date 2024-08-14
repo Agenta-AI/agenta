@@ -69,10 +69,21 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
     const appId = router.query?.app_id as string
 
-    const currentApp = useMemo(
-        () => (!appId ? null : apps.find((item: ListAppsItem) => item.app_id === appId) || null),
-        [apps, appId],
-    )
+    const recentlyVisitedAppId = useMemo(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("recentlyVisitedApp")
+        }
+        return null
+    }, [appId])
+
+    const currentApp = useMemo(() => {
+        if (!appId) {
+            return recentlyVisitedAppId
+                ? apps.find((item: ListAppsItem) => item.app_id === recentlyVisitedAppId) || null
+                : null
+        }
+        return apps.find((item: ListAppsItem) => item.app_id === appId) || null
+    }, [apps, appId, recentlyVisitedAppId])
 
     const [modalInstance, setModalInstance] = useState()
 

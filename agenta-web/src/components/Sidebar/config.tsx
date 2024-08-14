@@ -41,7 +41,7 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp} = useAppsData()
+    const {currentApp, apps} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
@@ -53,6 +53,19 @@ export const useSidebarConfig = () => {
     }, [])
 
     const {selectedOrg} = useOrgData()
+
+    const recentlyVisitedAppId = localStorage.getItem("recentlyVisitedApp")
+    const recentlyVisitedApp = apps.find((app) => app.app_id === recentlyVisitedAppId)
+
+    if (!recentlyVisitedApp) {
+        localStorage.removeItem("recentlyVisitedApp")
+    }
+
+    useEffect(() => {
+        if (appId) {
+            localStorage.setItem("recentlyVisitedApp", appId)
+        }
+    }, [appId])
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -72,46 +85,46 @@ export const useSidebarConfig = () => {
         {
             key: "overview-link",
             title: "Overview",
-            link: `/apps/${appId}/overview`,
+            link: `/apps/${appId || recentlyVisitedAppId}/overview`,
             icon: <Desktop size={16} />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
             tooltip:
                 "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
-            link: `/apps/${appId}/playground`,
+            link: `/apps/${appId || recentlyVisitedAppId}/playground`,
             icon: <RocketOutlined />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
             tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/${appId}/testsets`,
+            link: `/apps/${appId || recentlyVisitedAppId}/testsets`,
             icon: <DatabaseOutlined />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-auto-evaluations-link",
             title: "Automatic Evaluation",
             icon: <ChartDonut size={16} />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
             submenu: [
                 {
                     key: "app-evaluators-link",
                     title: "Evaluators",
                     tooltip:
                         "Select and customize evaluators such as custom code or regex evaluators.",
-                    link: `/apps/${appId}/evaluations/new-evaluator`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/new-evaluator`,
                     icon: <Dot size={16} />,
                 },
                 {
                     key: "app-evaluations-results-link",
                     title: "Results",
                     tooltip: "Choose your variants and evaluators to start the evaluation process.",
-                    link: `/apps/${appId}/evaluations/results`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/results`,
                     icon: <Dot size={16} />,
                 },
             ],
@@ -120,14 +133,14 @@ export const useSidebarConfig = () => {
             key: "app-human-evaluations-link",
             title: "Human Evaluation",
             icon: <PersonSimpleRun size={16} />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
             submenu: [
                 {
                     key: "app-human-ab-testing-link",
                     title: "A/B Evaluation",
                     tooltip:
                         "A/B tests allow you to compare the performance of two different variants manually.",
-                    link: `/apps/${appId}/annotations/human_a_b_testing`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/human_a_b_testing`,
                     icon: <Dot size={16} />,
                 },
                 {
@@ -135,7 +148,7 @@ export const useSidebarConfig = () => {
                     title: "Single Model Eval.",
                     tooltip:
                         "Single model test allows you to score the performance of a single LLM app manually.",
-                    link: `/apps/${appId}/annotations/single_model_test`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/single_model_test`,
                     icon: <Dot size={16} />,
                 },
             ],
@@ -144,7 +157,7 @@ export const useSidebarConfig = () => {
             key: "app-observability-link",
             title: "Observability",
             icon: <ChartLineUp size={16} />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
             isCloudFeature: true && isOss,
             cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
             tag: "beta",
@@ -153,21 +166,21 @@ export const useSidebarConfig = () => {
                     key: "app-observability-dashboard-link",
                     title: "Dashboard",
                     tooltip: "Dashboard view of traces and generations",
-                    link: `/apps/${appId}/observability`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/observability`,
                     icon: <Dot size={16} />,
                 },
                 {
                     key: "app-observability-traces-link",
                     title: "Traces",
                     tooltip: "Traces and their details",
-                    link: `/apps/${appId}/observability/traces`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/observability/traces`,
                     icon: <Dot size={16} />,
                 },
                 {
                     key: "app-observability-generations-link",
                     title: "Generations",
                     tooltip: "Generations and their details",
-                    link: `/apps/${appId}/observability/generations`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/observability/generations`,
                     icon: <Dot size={16} />,
                 },
             ],
@@ -176,13 +189,13 @@ export const useSidebarConfig = () => {
             key: "app-deployment-link",
             title: "Deployment",
             icon: <CloudArrowUp size={16} />,
-            isHidden: !appId,
+            isHidden: !appId && !recentlyVisitedAppId,
             submenu: [
                 {
                     key: "app-endpoints-link",
                     title: "Endpoints",
                     tooltip: "Deploy your applications to different environments.",
-                    link: `/apps/${appId}/endpoints`,
+                    link: `/apps/${appId || recentlyVisitedAppId}/endpoints`,
                     icon: <Dot size={16} />,
                 },
             ],
