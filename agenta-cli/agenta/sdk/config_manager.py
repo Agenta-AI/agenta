@@ -16,6 +16,7 @@ T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger(__name__)
 singleton = AgentaSingleton()
 
+AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
 
 class ConfigManager:
     client = None
@@ -117,11 +118,7 @@ class ConfigManager:
                         "Getting config for a specific version is not implemented yet."
                     )
                 else:
-                    assert environment in [
-                        "development",
-                        "production",
-                        "staging",
-                    ], "Environment must be either development, production or staging"
+                    assert environment in AVAILABLE_ENVIRONMENTS, f"Environment must be in {AVAILABLE_ENVIRONMENTS}"
                     config = ConfigManager.client.configs.get_config(
                         base_id=singleton.base_id, environment_name=environment
                     )
