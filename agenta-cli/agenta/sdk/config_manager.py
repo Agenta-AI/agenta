@@ -56,16 +56,16 @@ class ConfigManager:
         if "config" in context and context["config"]:
             return schema(**context["config"])
         elif "environment" in context and context["environment"]:
-            return ConfigManager.get_from_backend(
+            return ConfigManager.get_from_registry(
                 schema, environment=context["environment"]
             )
         elif "variant" in context and context["variant"]:
-            return ConfigManager.get_from_backend(schema, variant=context["variant"])
+            return ConfigManager.get_from_registry(schema, variant=context["variant"])
         else:
             raise ValueError("Either config, environment or variant must be provided")
 
     @staticmethod
-    def get_from_backend(
+    def get_from_registry(
         schema: Type[T],
         environment: Optional[str] = None,
         version: Optional[str] = None,

@@ -41,7 +41,7 @@ def rag(country: str, gender: str) -> str:
     if os.environ.get("AGENTA_MODE") == "true":
         config = ConfigManager.get_from_route(schema=MyConfigSchema)
     else:
-        config = ConfigManager.get_from_backend(
+        config = ConfigManager.get_from_registry(
             schema=MyConfigSchema, environment="production"
         )
     prompt = config.pro.format(country=country, gender=gender)
