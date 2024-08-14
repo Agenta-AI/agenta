@@ -13,10 +13,7 @@ supported_llm_models = {
         "gpt-4o-mini",
         "gpt-4-1106-preview",
     ],
-    "Gemini": [
-        "gemini/gemini-1.5-pro-latest",
-        "gemini/gemini-1.5-flash"
-    ],
+    "Gemini": ["gemini/gemini-1.5-pro-latest", "gemini/gemini-1.5-flash"],
     "Cohere": [
         "cohere/command-light",
         "cohere/command-r-plus",
