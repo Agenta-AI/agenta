@@ -359,7 +359,12 @@ async def auto_ai_critique(
 
 
 async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    openai_api_key = input.credentials["OPENAI_API_KEY"]
+    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+
+    if not openai_api_key:
+        raise Exception(
+            "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+        )
 
     chain_run_args = {
         "llm_app_prompt_template": input.inputs.get("prompt_user", ""),
@@ -786,7 +791,7 @@ async def measure_rag_consistency(
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     if not openai_api_key:
         raise Exception(
-            "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
 
     # Initialize RAG evaluator to calculate faithfulness score
@@ -885,10 +890,9 @@ async def measure_context_coherence(
     input: EvaluatorInputInterface,
 ) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-
     if not openai_api_key:
         raise Exception(
-            "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
 
     # Initialize RAG evaluator to calculate context relevancy score
@@ -1124,8 +1128,13 @@ async def semantic_similarity(
         float: the semantic similarity score
     """
 
-    api_key = input.credentials["OPENAI_API_KEY"]
-    openai = AsyncOpenAI(api_key=api_key)
+    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+    if not openai_api_key:
+        raise Exception(
+            "No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+        )
+
+    openai = AsyncOpenAI(api_key=openai_api_key)
 
     async def encode(text: str):
         response = await openai.embeddings.create(
