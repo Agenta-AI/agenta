@@ -4592,6 +4592,10 @@
                         "type": "object",
                         "title": "Inputs"
                     },
+                    "internals": {
+                        "type": "object",
+                        "title": "Locals"
+                    },
                     "outputs": {
                         "items": {
                             "type": "string"

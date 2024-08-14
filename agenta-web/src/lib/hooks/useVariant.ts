@@ -53,7 +53,7 @@ export function useVariant(appId: string, variant: Variant) {
             setHistoryStatus({loading: false, error: false})
         } catch (error: any) {
             if (error.message !== PERMISSION_ERR_MSG) {
-                console.log(error)
+                console.error(error)
                 setIsError(true)
                 setError(error)
                 setHistoryStatus({loading: false, error: true})
