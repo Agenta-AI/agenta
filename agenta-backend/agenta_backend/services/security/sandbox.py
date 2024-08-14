@@ -31,7 +31,7 @@ def is_import_safe(python_code: Text) -> bool:
 def execute_code_safely(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
-    output: str,
+    output: Union[str, Dict[str, Any]],
     correct_answer: str,  # for backward compatibility reasons
     code: Text,
     datapoint: Dict[str, str],

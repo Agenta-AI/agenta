@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -52,9 +52,6 @@ from agenta_backend.models.shared_models import (
     HumanEvaluationScenarioOutput,
     Result,
 )
-
-from beanie.operators import In
-from beanie import PydanticObjectId as ObjectId
 
 
 logger = logging.getLogger(__name__)
