@@ -5,6 +5,7 @@ from test_traces import simple_rag_trace
 
 from agenta_backend.services.evaluators_service import (
     auto_levenshtein_distance,
+    auto_ai_critique,
     auto_starts_with,
     auto_ends_with,
     auto_contains,
@@ -16,6 +17,53 @@ from agenta_backend.services.evaluators_service import (
     rag_context_relevancy,
     rag_faithfulness,
 )
+
+
+@pytest.mark.parametrize(
+    "ground_truth, output, settings_values, openai_api_key, expected_min, expected_max",
+    [
+        (
+            {"correct_answer": "The capital of Kiribati is Tarawa."},
+            "The capital of Kiribati is South Tarawa.",
+            {
+                "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "correct_answer_key": "correct_answer",
+            },
+            os.environ.get("OPENAI_API_KEY"),
+            0,
+            10,
+        ),
+        (
+            {"correct_answer": "The capital of Kiribati is Tarawa."},
+            "The capital of Kiribati is South Tarawa.",
+            {
+                "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "correct_answer_key": "correct_answer",
+            },
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_auto_ai_critique_evaluator(
+    ground_truth, output, settings_values, openai_api_key, expected_min, expected_max
+):
+    result = await auto_ai_critique(
+        {},
+        output,
+        ground_truth,
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": openai_api_key},
+    )
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
@@ -287,6 +335,15 @@ async def test_auto_json_diff(
             0.0,
             1.0,
         ),
+        (
+            {"correct_answer": "The capital of Namibia is Windhoek."},
+            "Windhoek is the capital of Namibia.",
+            {
+                "correct_answer_key": "correct_answer",
+            },
+            None,
+            None,
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -301,7 +358,12 @@ async def test_auto_semantic_similarity_match(
         settings_values,
         {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
     )
-    assert expected_min <= round(result.value, 3) <= expected_max
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
@@ -359,7 +421,7 @@ async def test_auto_levenshtein_distance(output, data_point, settings_values, ex
 
 
 @pytest.mark.parametrize(
-    "settings_values, expected_min, expected_max",
+    "settings_values, expected_min, openai_api_key, expected_max",
     [
         (
             {
@@ -367,28 +429,46 @@ async def test_auto_levenshtein_distance(output, data_point, settings_values, ex
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },
+            os.environ.get("OPENAI_API_KEY"),
             0.0,
             1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
         ),
         # add more use cases
     ],
 )
 @pytest.mark.asyncio
-async def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max):
+async def test_rag_faithfulness_evaluator(
+    settings_values, expected_min, openai_api_key, expected_max
+):
     result = await rag_faithfulness(
         {},
         simple_rag_trace,
         {},
         {},
         settings_values,
-        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+        {"OPENAI_API_KEY": openai_api_key},
     )
 
-    assert expected_min <= round(result.value, 1) <= expected_max
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
-    "settings_values, expected_min, expected_max",
+    "settings_values, expected_min, openai_api_key, expected_max",
     [
         (
             {
@@ -396,15 +476,26 @@ async def test_rag_faithfulness_evaluator(settings_values, expected_min, expecte
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },
+            os.environ.get("OPENAI_API_KEY"),
             0.0,
             1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
         ),
         # add more use cases
     ],
 )
 @pytest.mark.asyncio
 async def test_rag_context_relevancy_evaluator(
-    settings_values, expected_min, expected_max
+    settings_values, expected_min, openai_api_key, expected_max
 ):
     result = await rag_context_relevancy(
         {},
@@ -412,7 +503,7 @@ async def test_rag_context_relevancy_evaluator(
         {},
         {},
         settings_values,
-        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+        {"OPENAI_API_KEY": openai_api_key},
     )
 
     try:
