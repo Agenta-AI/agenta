@@ -150,6 +150,12 @@ const AutomaticEvalOverview = () => {
                 fetchAllEvaluatorConfigs(appId),
             ])
             const result = allEvaluations
+                .sort(
+                    (a, b) =>
+                        new Date(b.created_at || 0).getTime() -
+                        new Date(a.created_at || 0).getTime(),
+                )
+                .slice(0, 5)
             setEvaluationList(result)
             setEvaluators(allEvaluators)
             setEvaluatorConfigs(allEvaluatorConfigs)
