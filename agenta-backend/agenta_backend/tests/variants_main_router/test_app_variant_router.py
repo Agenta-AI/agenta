@@ -6,7 +6,7 @@ from bson import ObjectId
 
 from agenta_backend.routers import app_router
 from agenta_backend.services import db_manager
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     AppDB,
