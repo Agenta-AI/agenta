@@ -1,6 +1,7 @@
 import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
 import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
+import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
 import SingleModelEvalOverview from "@/components/pages/overview/singleModelEvaluation/SingleModelEvalOverview"
 import VariantsOverview from "@/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/contexts/app.context"
@@ -110,6 +111,8 @@ export default function Overview() {
                 </Space>
 
                 <ObservabilityOverview variants={variants} />
+
+                <DeploymentOverview variants={variants} />
 
                 {ENABLE_UNFINISHED_FEATURES && (
                     <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
