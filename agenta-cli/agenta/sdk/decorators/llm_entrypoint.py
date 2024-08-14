@@ -468,7 +468,7 @@ class entrypoint(BaseDecorator):
         if config_class:
             self.add_config_params_to_parser(updated_params, config_class)
         else:
-            self.depracated_add_config_params_to_parser(updated_params, config_dict)
+            self.deprecated_add_config_params_to_parser(updated_params, config_dict)
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
 
@@ -511,7 +511,7 @@ class entrypoint(BaseDecorator):
                 )
             )
 
-    def depracated_add_config_params_to_parser(
+    def deprecated_add_config_params_to_parser(
         self, updated_params: list, config_dict: Dict[str, Any]
     ) -> None:
         """Add configuration parameters to function signature."""
