@@ -211,7 +211,11 @@ export default function AutomaticEvaluationResult({
                 }
                 return (
                     <div className="hover-button-wrapper">
-                        <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
+                        <Button
+                            type="primary"
+                            data-cy="single-model-view-evaluation-button"
+                            onClick={() => onCompleteEvaluation(record)}
+                        >
                             {actionText}
                         </Button>
                     </div>
