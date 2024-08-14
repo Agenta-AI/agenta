@@ -47,7 +47,7 @@ evaluators = [
         "key": "auto_contains_json",
         "direct_use": True,
         "settings_template": {},
-        "description": "Contains JSON evaluator checks if the output contains the a valid JSON.",
+        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
         "oss": True,
     },
     {
