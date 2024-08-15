@@ -40,6 +40,13 @@ export interface Variant {
     baseName: string
     configName: string
     revision: number
+    lastModified: string
+    modifiedBy: {
+        id: string
+        uid: string
+        username: string
+        profilePicture: string | null
+    }
 }
 
 // Define the interface for the tabs item in playground page

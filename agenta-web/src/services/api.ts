@@ -1,4 +1,5 @@
 import axios from "@/lib//helpers/axiosConfig"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
@@ -47,6 +48,8 @@ export async function fetchVariants(
                 baseName: variant.base_name,
                 configName: variant.config_name,
                 revision: variant.revision,
+                lastModified: formatDay(variant.date_modified),
+                modifiedBy: variant.modified_by,
             }
             return v
         })
