@@ -78,6 +78,7 @@ from agenta_backend.models.db_models import (
 from agenta_backend.models.api.api_models import (
     App,
     Template,
+    ModifiedBy,
     BaseOutput,
     TestSetOutput,
     TemplateImageInfo,
@@ -331,6 +332,13 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_name=app_variant_db.config_name,  # type: ignore
         uri=uri,
         revision=app_variant_db.revision,  # type: ignore
+        date_modified=str(app_variant_db.updated_at),
+        modified_by=ModifiedBy(
+            id=str(app_variant_db.modified_by.id),
+            uid=app_variant_db.modified_by.uid,
+            username=app_variant_db.modified_by.username,
+            profile_picture=None,
+        ),
     )
 
     if isCloudEE():
