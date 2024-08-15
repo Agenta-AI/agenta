@@ -8,14 +8,15 @@ import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
-import {JSSTheme, Variant} from "@/lib/Types"
+import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
+import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilLine, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const ObservabilityOverview: any = dynamicComponent(
@@ -47,6 +48,20 @@ export default function Overview() {
     const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
+    const [environments, setEnvironments] = useState<Environment[]>([])
+    const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
+
+    const loadEnvironments = useCallback(async () => {
+        try {
+            setIsDeploymentLoading(true)
+            const response = await fetchEnvironments(appId)
+            setEnvironments(response)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsDeploymentLoading(false)
+        }
+    }, [appId])
 
     useEffect(() => {
         const fetchAllVariants = async () => {
@@ -112,9 +127,18 @@ export default function Overview() {
 
                 <ObservabilityOverview variants={variants} />
 
-                <DeploymentOverview variants={variants} />
+                <DeploymentOverview
+                    variants={variants}
+                    isDeploymentLoading={isDeploymentLoading}
+                    loadEnvironments={loadEnvironments}
+                    environments={environments}
+                />
 
-                <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
+                <VariantsOverview
+                    variantList={variants}
+                    isVariantLoading={isVariantLoading}
+                    environments={environments}
+                />
 
                 <AutomaticEvalOverview />
 
