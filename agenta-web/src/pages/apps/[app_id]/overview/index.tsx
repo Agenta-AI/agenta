@@ -7,7 +7,7 @@ import VariantsOverview from "@/components/pages/overview/variants/VariantsOverv
 import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {ENABLE_UNFINISHED_FEATURES, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {JSSTheme, Variant} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
@@ -114,9 +114,7 @@ export default function Overview() {
 
                 <DeploymentOverview variants={variants} />
 
-                {ENABLE_UNFINISHED_FEATURES && (
-                    <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
-                )}
+                <VariantsOverview variantList={variants} isVariantLoading={isVariantLoading} />
 
                 <AutomaticEvalOverview />
 

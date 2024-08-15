@@ -8,6 +8,9 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
+import VariantDrawer from "./VariantDrawer"
+import {useQueryParam} from "@/hooks/useQuery"
+import {filterVariantParameters} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -44,6 +47,7 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
+    const [queryVariant, setQueryVariant] = useQueryParam("variant")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
     const rowSelection = {
@@ -89,17 +93,26 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                 style: {minWidth: 160},
             }),
         },
-        {
-            title: "Tags",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-        },
+        // {
+        //     title: "Tags",
+        //     onHeaderCell: () => ({
+        //         style: {minWidth: 160},
+        //     }),
+        // },
         {
             title: "Model",
+            dataIndex: "parameters",
+            key: "model",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return record.parameters && Object.keys(record.parameters).length
+                    ? Object.values(
+                          filterVariantParameters({record: record.parameters, key: "model"}),
+                      ).map((value, index) => <div key={index}>{value}</div>)
+                    : "-"
+            },
         },
         {
             title: "Created on",
@@ -124,36 +137,57 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                                     key: "details",
                                     label: "Open details",
                                     icon: <Note size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setQueryVariant(record.variantId)
+                                    },
                                 },
                                 {
                                     key: "open_variant",
                                     label: "Open in playground",
                                     icon: <Rocket size={16} />,
-                                    onClick: () =>
-                                        handleNavigation(record.variantName, record.revision),
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        handleNavigation(record.variantName, record.revision)
+                                    },
                                 },
                                 {
                                     key: "deploy",
                                     label: "Deploy",
                                     icon: <CloudArrowUp size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                    },
                                 },
                                 {type: "divider"},
-                                {
-                                    key: "rename",
-                                    label: "Rename",
-                                    icon: <PencilLine size={16} />,
-                                },
+                                // {
+                                //     key: "rename",
+                                //     label: "Rename",
+                                //     icon: <PencilLine size={16} />,
+                                //     onClick: (e) => {
+                                //         e.domEvent.stopPropagation()
+
+                                //     },
+                                // },
                                 {
                                     key: "delete_eval",
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => handleDeleteEvaluation(record),
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        handleDeleteEvaluation(record)
+                                    },
                                 },
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
                     </Dropdown>
                 )
             },
@@ -161,38 +195,47 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
     ]
 
     return (
-        <div className={classes.container}>
-            <div className="flex items-center justify-between">
-                <Title>Variants</Title>
+        <>
+            <div className={classes.container}>
+                <div className="flex items-center justify-between">
+                    <Title>Variants</Title>
 
-                <Space>
-                    <Button size="small" type="link" icon={<SwapOutlined />}>
-                        Compare variants
-                    </Button>
-                    <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
-                        <Rocket size={14} />
-                        Playground
-                    </Link>
-                </Space>
+                    <Space>
+                        <Button size="small" type="link" icon={<SwapOutlined />}>
+                            Compare variants
+                        </Button>
+                        <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
+                            <Rocket size={14} />
+                            Playground
+                        </Link>
+                    </Space>
+                </div>
+
+                <Spin spinning={isVariantLoading}>
+                    <Table
+                        rowSelection={{
+                            type: "checkbox",
+                            columnWidth: 48,
+                            ...rowSelection,
+                        }}
+                        className="ph-no-capture"
+                        rowKey={"variantId"}
+                        columns={columns}
+                        dataSource={variantList}
+                        scroll={{x: true}}
+                        bordered
+                        pagination={false}
+                        onRow={(record) => ({
+                            style: {cursor: "pointer"},
+                            onClick: () => {
+                                setQueryVariant(record.variantId)
+                            },
+                        })}
+                    />
+                </Spin>
             </div>
-
-            <Spin spinning={isVariantLoading}>
-                <Table
-                    rowSelection={{
-                        type: "checkbox",
-                        columnWidth: 48,
-                        ...rowSelection,
-                    }}
-                    className="ph-no-capture"
-                    rowKey={"variantId"}
-                    columns={columns}
-                    dataSource={variantList}
-                    scroll={{x: true}}
-                    bordered
-                    pagination={false}
-                />
-            </Spin>
-        </div>
+            <VariantDrawer open={!!queryVariant} onClose={() => setQueryVariant("")} />
+        </>
     )
 }
 
