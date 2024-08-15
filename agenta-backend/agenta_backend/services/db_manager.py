@@ -1832,7 +1832,13 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
+            .options(
+                joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.app),
+                joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
+                    UserDB.id, UserDB.uid, UserDB.username
+                ),
+            )
             .filter_by(id=uuid.UUID(variant_id))
         )
         app_variant_db = result.scalars().first()
