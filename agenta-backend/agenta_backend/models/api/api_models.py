@@ -107,6 +107,7 @@ class AppVariantResponse(BaseModel):
     uri: Optional[str]
     revision: int
     date_modified: str
+    date_created: str
     modified_by: ModifiedBy
 
 

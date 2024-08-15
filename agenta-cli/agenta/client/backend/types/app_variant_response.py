@@ -34,6 +34,7 @@ class AppVariantResponse(pydantic.BaseModel):
     organization_id: typing.Optional[str]
     workspace_id: typing.Optional[str]
     date_modified: dt.datetime
+    date_created: dt.datetime
     modified_by: ModifiedBy
 
     def json(self, **kwargs: typing.Any) -> str:

@@ -333,6 +333,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         uri=uri,
         revision=app_variant_db.revision,  # type: ignore
         date_modified=str(app_variant_db.updated_at),
+        date_created=str(app_variant_db.created_at),
         modified_by=ModifiedBy(
             id=str(app_variant_db.modified_by.id),
             uid=app_variant_db.modified_by.uid,
