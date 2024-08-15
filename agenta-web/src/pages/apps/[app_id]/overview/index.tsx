@@ -63,19 +63,19 @@ export default function Overview() {
         }
     }, [appId])
 
-    useEffect(() => {
-        const fetchAllVariants = async () => {
-            try {
-                setIsVariantLoading(true)
-                const data = await fetchVariants(appId)
-                setVariants(data)
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setIsVariantLoading(false)
-            }
+    const fetchAllVariants = async () => {
+        try {
+            setIsVariantLoading(true)
+            const data = await fetchVariants(appId)
+            setVariants(data)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsVariantLoading(false)
         }
+    }
 
+    useEffect(() => {
         fetchAllVariants()
     }, [appId])
 
@@ -138,6 +138,7 @@ export default function Overview() {
                     variantList={variants}
                     isVariantLoading={isVariantLoading}
                     environments={environments}
+                    fetchAllVariants={fetchAllVariants}
                 />
 
                 <AutomaticEvalOverview />

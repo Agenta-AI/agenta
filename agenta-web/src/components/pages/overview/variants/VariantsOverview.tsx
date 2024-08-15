@@ -2,7 +2,7 @@ import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUp, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
-import {Badge, Button, Dropdown, Space, Spin, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -10,7 +10,10 @@ import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
-import {filterVariantParameters} from "@/lib/helpers/utils"
+import {filterVariantParameters, isDemo} from "@/lib/helpers/utils"
+import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import {deleteSingleVariant} from "@/services/playground/api"
+import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 
 const {Title} = Typography
 
@@ -18,6 +21,7 @@ interface VariantsOverviewProps {
     isVariantLoading: boolean
     variantList: Variant[]
     environments: Environment[]
+    fetchAllVariants: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -44,13 +48,20 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
 }))
-const VariantsOverview = ({variantList, isVariantLoading, environments}: VariantsOverviewProps) => {
+
+const VariantsOverview = ({
+    variantList,
+    isVariantLoading,
+    environments,
+    fetchAllVariants,
+}: VariantsOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [queryVariant, setQueryVariant] = useQueryParam("variant")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectedVariant, setSelectedVariant] = useState<Variant>()
+    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -62,7 +73,23 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
-    const handleDeleteEvaluation = async (record: Variant) => {}
+    const handleDeleteVariant = async (variantId: string) => {
+        try {
+            if (
+                !(await checkIfResourceValidForDeletion({
+                    resourceType: "variant",
+                    resourceIds: [variantId],
+                }))
+            )
+                return
+
+            await deleteSingleVariant(variantId)
+            message.success("Variant removed successfully!")
+            fetchAllVariants()
+        } catch (error) {
+            console.error(error)
+        }
+    }
 
     const columns: ColumnsType<Variant> = [
         {
@@ -73,14 +100,7 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return (
-                    <span>
-                        {variantNameWithRev({
-                            variant_name: record.variantName,
-                            revision: record.revision,
-                        })}
-                    </span>
-                )
+                return <span>{record.variantName}</span>
             },
         },
         {
@@ -94,7 +114,10 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                 return <div>{record.lastModified}</div>
             },
         },
-        {
+    ]
+
+    if (isDemo()) {
+        columns.push({
             title: "Modified by",
             dataIndex: "modifiedBy",
             key: "modifiedBy",
@@ -104,7 +127,10 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
             render: (_, record) => {
                 return <div>{record.modifiedBy.username}</div>
             },
-        },
+        })
+    }
+
+    columns.push(
         // {
         //     title: "Tags",
         //     onHeaderCell: () => ({
@@ -194,7 +220,8 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                                     danger: true,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        handleDeleteEvaluation(record)
+                                        setSelectedVariant(record)
+                                        setIsDeleteEvalModalOpen(true)
                                     },
                                 },
                             ],
@@ -210,7 +237,7 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                 )
             },
         },
-    ]
+    )
 
     return (
         <>
@@ -247,6 +274,7 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                             style: {cursor: "pointer"},
                             onClick: () => {
                                 setQueryVariant(record.variantId)
+                                setSelectedVariant(record)
                             },
                         })}
                     />
@@ -259,6 +287,23 @@ const VariantsOverview = ({variantList, isVariantLoading, environments}: Variant
                     onClose={() => setQueryVariant("")}
                     selectedVariant={selectedVariant}
                     environments={environments}
+                    setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
+                />
+            )}
+
+            {selectedVariant && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteVariant(selectedVariant.variantId)
+                        setIsDeleteEvalModalOpen(false)
+                        setQueryVariant("")
+                    }}
+                    evaluationType={variantNameWithRev({
+                        variant_name: selectedVariant.variantName,
+                        revision: selectedVariant.revision,
+                    })}
                 />
             )}
         </>

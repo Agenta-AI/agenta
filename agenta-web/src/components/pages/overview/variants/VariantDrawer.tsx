@@ -11,6 +11,7 @@ import {createUseStyles} from "react-jss"
 type VariantDrawerProps = {
     selectedVariant: Variant
     environments: Environment[]
+    setIsDeleteEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
 } & React.ComponentProps<typeof Drawer>
 
 const {Title} = Typography
@@ -57,8 +58,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     noParams: {
         color: theme.colorTextDescription,
         fontWeight: 500,
-        textAlign: "center",
-        marginTop: 48,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        height: 200,
     },
     drawerTabs: {
         "& .ant-tabs-content-holder": {
@@ -68,7 +71,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const VariantDrawer = ({selectedVariant, environments, ...props}: VariantDrawerProps) => {
+const VariantDrawer = ({
+    selectedVariant,
+    environments,
+    setIsDeleteEvalModalOpen,
+    ...props
+}: VariantDrawerProps) => {
     const classes = useStyles()
     const appId = useAppId()
 
@@ -122,7 +130,9 @@ const VariantDrawer = ({selectedVariant, environments, ...props}: VariantDrawerP
                                         key: "delete",
                                         label: "Delete",
                                         icon: <Trash size={16} />,
-                                        onClick: () => {},
+                                        onClick: () => {
+                                            setIsDeleteEvalModalOpen(true)
+                                        },
                                         danger: true,
                                     },
                                 ],
