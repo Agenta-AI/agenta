@@ -276,7 +276,10 @@ const AutomaticEvalOverview = () => {
                                     trigger={"click"}
                                     arrow={false}
                                     content={
-                                        <div className="w-[256px] flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <div
+                                            className="w-[256px] flex flex-col gap-1"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <div className="font-[500]">
                                                 {result.evaluator_config.name}
                                             </div>
