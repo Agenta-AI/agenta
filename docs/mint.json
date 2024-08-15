@@ -95,6 +95,7 @@
         "evaluation/automatic_evaluation",
         "evaluation/custom_evaluator",
         "evaluation/webhook_evaluator",
+        "evaluation/rag_evaluators",
         "evaluation/human_evaluation"
       ]
     },

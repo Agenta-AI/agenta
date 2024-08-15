@@ -26,6 +26,7 @@ from agenta_backend.utils.common import (
     isCloudProd,
     isCloudDev,
     isCloudEE,
+    isOss,
 )
 
 if isCloudProd():
@@ -150,7 +151,8 @@ async def update_variant_image(
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
 
-    await deployment_manager.remove_image(base.image)
+    if isOss():
+        await deployment_manager.remove_image(base.image)
 
     await db_manager.remove_image(base.image)
 
@@ -161,9 +163,9 @@ async def update_variant_image(
         docker_id=image.docker_id,
         user=app_variant_db.user,
         deletable=True,
-        organization=str(app_variant_db.organization_id)
-        if isCloudEE()
-        else None,  # noqa
+        organization=(
+            str(app_variant_db.organization_id) if isCloudEE() else None
+        ),  # noqa
         workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,  # noqa
     )
     # Update base with new image

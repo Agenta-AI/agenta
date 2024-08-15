@@ -14,10 +14,12 @@ services:
     backend:
         build: ./agenta-backend
         environment:
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ALLOW_ORIGINS=${ALLOW_ORIGINS}
             - ENVIRONMENT=production
             - FEATURE_FLAG=oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -26,6 +28,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
@@ -50,6 +53,8 @@ services:
                 "--port",
                 "8000",
                 "--reload",
+                "--log-level",
+                "info",
                 "--root-path",
                 "/api",
             ]
@@ -58,7 +63,26 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
         restart: always
+
+    apply_alembic_migration:
+        build: ./agenta-backend
+        command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
+        environment:
+            - FEATURE_FLAG=oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
+            - AGENTA_AUTO_MIGRATIONS=false
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+        depends_on:
+            postgres:
+                condition: service_healthy
+        networks:
+            - agenta-network
 
     agenta-web:
         build:
@@ -106,6 +130,7 @@ services:
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
             - REDIS_URL=redis://redis:6379/0
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
@@ -136,7 +161,7 @@ services:
             - postgresdb-data:/var/lib/postgresql/data/
             - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5
