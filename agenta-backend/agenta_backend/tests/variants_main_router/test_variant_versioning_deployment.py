@@ -5,7 +5,7 @@ import random
 
 from sqlalchemy.future import select
 
-from agenta_backend.models.db_engine import db_engine
+from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,

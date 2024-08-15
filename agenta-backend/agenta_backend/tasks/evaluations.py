@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
@@ -91,8 +90,6 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        loop.run_until_complete(DBEngine().init_db())
-
         # 0. Update evaluation status to STARTED
         loop.run_until_complete(
             update_evaluation(
@@ -159,13 +156,14 @@ def evaluate(
                 EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[
+                    value=data_point.get(
                         (
                             input_item["name"]
                             if input_item["type"] != "messages"
                             else "chat"
-                        )
-                    ],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
+                        ),
+                        "",
+                    ),  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
@@ -276,7 +274,9 @@ def evaluate(
                     inputs=inputs,
                     outputs=[
                         EvaluationScenarioOutput(
-                            result=Result(type="text", value=app_output.result.value),
+                            result=Result(
+                                type="text", value=app_output.result.value["data"]
+                            ),
                             latency=app_output.latency,
                             cost=app_output.cost,
                         )
@@ -428,6 +428,8 @@ async def aggregate_evaluator_results(
             "auto_json_diff",
             "auto_semantic_similarity",
             "auto_levenshtein_distance",
+            "rag_faithfulness",
+            "rag_context_relevancy",
         ]:
             result = aggregation_service.aggregate_float(results)
 

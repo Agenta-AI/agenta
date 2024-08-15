@@ -24,6 +24,7 @@ services:
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss
             - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
@@ -31,6 +32,7 @@ services:
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
         command:
@@ -58,8 +60,27 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
         extra_hosts:
             - host.docker.internal:host-gateway
+        networks:
+            - agenta-network
+
+    apply_alembic_migration:
+        build: ./agenta-backend
+        command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
+        environment:
+            - FEATURE_FLAG=oss
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
+            - AGENTA_AUTO_MIGRATIONS=true
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+        depends_on:
+            postgres:
+                condition: service_healthy
         networks:
             - agenta-network
 
@@ -113,6 +134,7 @@ services:
         environment:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
             - REDIS_URL=redis://redis:6379/0
+            - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - ENVIRONMENT=${ENVIRONMENT}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -143,7 +165,7 @@ services:
         volumes:
             - postgresdb-data:/var/lib/postgresql/data/
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5
