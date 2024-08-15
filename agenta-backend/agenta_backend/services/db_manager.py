@@ -209,7 +209,11 @@ async def fetch_app_variant_by_id(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with db_engine.get_session() as session:
         base_query = select(AppVariantDB).options(
-            joinedload(AppVariantDB.base), joinedload(AppVariantDB.app)
+            joinedload(AppVariantDB.base),
+            joinedload(AppVariantDB.app),
+            joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
+                UserDB.id, UserDB.uid, UserDB.username
+            ),
         )
         if isCloudEE():
             query = base_query.options(
@@ -470,6 +474,7 @@ async def create_new_app_variant(
             "image",
             "user",
             "base",
+            "modified_by",
         ]
         if isCloudEE():
             attributes_to_refresh.extend(["organization", "workspace"])
@@ -1124,7 +1129,13 @@ async def list_app_variants(app_id: str):
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.app), joinedload(AppVariantDB.base))
+            .options(
+                joinedload(AppVariantDB.app),
+                joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
+                    UserDB.id, UserDB.uid, UserDB.username
+                ),
+            )
             .filter_by(app_id=uuid.UUID(app_uuid))
         )
         app_variants = result.scalars().all()
@@ -1821,7 +1832,13 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
+            .options(
+                joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.app),
+                joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
+                    UserDB.id, UserDB.uid, UserDB.username
+                ),
+            )
             .filter_by(id=uuid.UUID(variant_id))
         )
         app_variant_db = result.scalars().first()
