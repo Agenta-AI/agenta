@@ -466,7 +466,9 @@ def base_db_to_pydantic(base_db: VariantBaseDB) -> BaseOutput:
 
 
 def app_db_to_pydantic(app_db: AppDB) -> App:
-    return App(app_name=app_db.app_name, app_id=str(app_db.id))
+    return App(
+        app_name=app_db.app_name, app_id=str(app_db.id), app_type=app_db.app_type
+    )
 
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
