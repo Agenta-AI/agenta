@@ -309,39 +309,47 @@ const AbTestingEvalOverview = () => {
                                         key: "details",
                                         label: "Open details",
                                         icon: <Note size={16} />,
-                                        onClick: () =>
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
                                             router.push(
-                                                `/apps/${appId}/annotations/single_model_test/${record.key}`,
-                                            ),
+                                                `/apps/${appId}/annotations/human_a_b_testing/${record.key}`,
+                                            )
+                                        },
                                     },
                                     {
                                         key: "variant1",
                                         label: "View variant 1",
                                         icon: <Rocket size={16} />,
-                                        onClick: () =>
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
                                             handleNavigation(
                                                 record.variantNames[0],
                                                 record.revisions[0],
-                                            ),
+                                            )
+                                        },
                                     },
                                     {
                                         key: "variant2",
                                         label: "View variant 2",
                                         icon: <Rocket size={16} />,
-                                        onClick: () =>
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
                                             handleNavigation(
                                                 record.variantNames[1],
                                                 record.revisions[1],
-                                            ),
+                                            )
+                                        },
                                     },
                                     {
                                         key: "view_testset",
                                         label: "View test set",
                                         icon: <Database size={16} />,
-                                        onClick: () =>
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
                                             router.push(
                                                 `/apps/${appId}/testsets/${record.testset._id}`,
-                                            ),
+                                            )
+                                        },
                                     },
                                     {type: "divider"},
                                     {
@@ -349,7 +357,8 @@ const AbTestingEvalOverview = () => {
                                         label: "Delete",
                                         icon: <Trash size={16} />,
                                         danger: true,
-                                        onClick: () => {
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
                                             setSelectedEvalRecord(record)
                                             setIsDeleteEvalModalOpen(true)
                                         },
@@ -357,7 +366,12 @@ const AbTestingEvalOverview = () => {
                                 ],
                             }}
                         >
-                            <Button type="text" icon={<MoreOutlined />} size="small" />
+                            <Button
+                                onClick={(e) => e.stopPropagation()}
+                                type="text"
+                                icon={<MoreOutlined />}
+                                size="small"
+                            />
                         </Dropdown>
                     )
                 },
@@ -392,6 +406,13 @@ const AbTestingEvalOverview = () => {
                     scroll={{x: true}}
                     bordered
                     pagination={false}
+                    onRow={(record) => ({
+                        style: {cursor: "pointer"},
+                        onClick: () =>
+                            router.push(
+                                `/apps/${appId}/annotations/human_a_b_testing/${record.key}`,
+                            ),
+                    })}
                 />
             </Spin>
 

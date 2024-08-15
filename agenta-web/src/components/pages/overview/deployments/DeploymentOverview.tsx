@@ -85,7 +85,14 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
             ) : (
                 <div className={classes.cardContainer}>
                     {environments.map((env, index) => (
-                        <Card key={index}>
+                        <Card
+                            key={index}
+                            onClick={() => {
+                                setQueryEnv(env.name)
+                                setSelectedEnvironment(env)
+                            }}
+                            className="cursor-pointer"
+                        >
                             <Dropdown
                                 trigger={["click"]}
                                 menu={{
@@ -94,7 +101,8 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                                             key: "use_api",
                                             label: "Use API",
                                             icon: <Code size={16} />,
-                                            onClick: () => {
+                                            onClick: (e) => {
+                                                e.domEvent.stopPropagation()
                                                 setQueryEnv(env.name)
                                                 setSelectedEnvironment(env)
                                             },
@@ -103,7 +111,8 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                                             key: "change_variant",
                                             label: "Change Variant",
                                             icon: <Swap size={16} />,
-                                            onClick: () => {
+                                            onClick: (e) => {
+                                                e.domEvent.stopPropagation()
                                                 setSelectedEnvironment(env)
                                                 setOpenChangeVariantModal(true)
                                             },
@@ -113,16 +122,19 @@ const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
                                             key: "open_playground",
                                             label: "Open in playground",
                                             icon: <Rocket size={16} />,
-                                            onClick: () =>
+                                            onClick: (e) => {
+                                                e.domEvent.stopPropagation()
                                                 router.push(
                                                     `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
-                                                ),
+                                                )
+                                            },
                                         },
                                     ],
                                 }}
                             >
                                 <Button
                                     type="text"
+                                    onClick={(e) => e.stopPropagation()}
                                     icon={<MoreOutlined />}
                                     size="small"
                                     className="absolute right-2"

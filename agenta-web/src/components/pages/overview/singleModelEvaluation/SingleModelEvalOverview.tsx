@@ -217,29 +217,33 @@ const SingleModelEvalOverview = () => {
                                     key: "details",
                                     label: "Open details",
                                     icon: <Note size={16} />,
-                                    onClick: () =>
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         router.push(
                                             `/apps/${appId}/annotations/single_model_test/${record.key}`,
-                                        ),
+                                        )
+                                    },
                                 },
                                 {
                                     key: "variant",
                                     label: "View variant",
                                     icon: <Rocket size={16} />,
-                                    onClick: () =>
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         handleNavigation(
                                             record.variants[0].variantName,
                                             record.revisions[0],
-                                        ),
+                                        )
+                                    },
                                 },
                                 {
                                     key: "view_testset",
                                     label: "View test set",
                                     icon: <Database size={16} />,
-                                    onClick: () =>
-                                        router.push(
-                                            `/apps/${appId}/testsets/${record.testset._id}`,
-                                        ),
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/apps/${appId}/testsets/${record.testset._id}`)
+                                    },
                                 },
                                 {type: "divider"},
                                 {
@@ -247,7 +251,8 @@ const SingleModelEvalOverview = () => {
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => {
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         setSelectedEvalRecord(record)
                                         setIsDeleteEvalModalOpen(true)
                                     },
@@ -255,7 +260,12 @@ const SingleModelEvalOverview = () => {
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
                     </Dropdown>
                 )
             },
@@ -290,6 +300,13 @@ const SingleModelEvalOverview = () => {
                     scroll={{x: true}}
                     bordered
                     pagination={false}
+                    onRow={(record) => ({
+                        style: {cursor: "pointer"},
+                        onClick: () =>
+                            router.push(
+                                `/apps/${appId}/annotations/single_model_test/${record.key}`,
+                            ),
+                    })}
                 />
             </Spin>
 

@@ -261,7 +261,11 @@ const AutomaticEvalOverview = () => {
                                     }
                                     title={result.result.error?.message}
                                 >
-                                    <Button icon={<InfoCircleOutlined />} type="link">
+                                    <Button
+                                        onClick={(e) => e.stopPropagation()}
+                                        icon={<InfoCircleOutlined />}
+                                        type="link"
+                                    >
                                         Read more
                                     </Button>
                                 </Popover>
@@ -272,7 +276,7 @@ const AutomaticEvalOverview = () => {
                                     trigger={"click"}
                                     arrow={false}
                                     content={
-                                        <div className="w-[256px] flex flex-col gap-1">
+                                        <div className="w-[256px] flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
                                             <div className="font-[500]">
                                                 {result.evaluator_config.name}
                                             </div>
@@ -280,13 +284,17 @@ const AutomaticEvalOverview = () => {
                                         </div>
                                     }
                                     title={
-                                        <div className="flex items-center justify-between">
+                                        <div
+                                            className="flex items-center justify-between"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <Tag color={evaluator?.color}>{evaluator?.name}</Tag>
 
                                             <Button
                                                 icon={<EditOutlined />}
                                                 size="small"
-                                                onClick={() => {
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
                                                     setSelectedConfigEdit(result.evaluator_config)
                                                     setIsEditEvalConfigOpen(true)
                                                 }}
@@ -294,7 +302,10 @@ const AutomaticEvalOverview = () => {
                                         </div>
                                     }
                                 >
-                                    <div className={classes.resultTag}>
+                                    <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={classes.resultTag}
+                                    >
                                         <div>{result.evaluator_config.name}</div>
                                         <div>{getTypedValue(result.result)}</div>
                                     </div>
@@ -355,27 +366,33 @@ const AutomaticEvalOverview = () => {
                                     key: "details",
                                     label: "Open details",
                                     icon: <Note size={16} />,
-                                    onClick: () =>
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         router.push(
                                             `/apps/${appId}/evaluations/results/${record.id}`,
-                                        ),
+                                        )
+                                    },
                                 },
                                 {
                                     key: "variant",
                                     label: "View variant",
                                     icon: <Rocket size={16} />,
-                                    onClick: () =>
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         handleNavigation(
                                             record.variants[0].variantName,
                                             record.revisions[0],
-                                        ),
+                                        )
+                                    },
                                 },
                                 {
                                     key: "view_testset",
                                     label: "View test set",
                                     icon: <Database size={16} />,
-                                    onClick: () =>
-                                        router.push(`/apps/${appId}/testsets/${record.testset.id}`),
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/apps/${appId}/testsets/${record.testset.id}`)
+                                    },
                                 },
                                 {type: "divider"},
                                 {
@@ -383,7 +400,8 @@ const AutomaticEvalOverview = () => {
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
-                                    onClick: () => {
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                         setSelectedEvalRecord(record)
                                         setIsDeleteEvalModalOpen(true)
                                     },
@@ -391,7 +409,12 @@ const AutomaticEvalOverview = () => {
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
                     </Dropdown>
                 )
             },
@@ -446,6 +469,11 @@ const AutomaticEvalOverview = () => {
                     scroll={{x: true}}
                     bordered
                     pagination={false}
+                    onRow={(record) => ({
+                        style: {cursor: "pointer"},
+                        onClick: () =>
+                            router.push(`/apps/${appId}/evaluations/results/${record.id}`),
+                    })}
                 />
             </Spin>
 
