@@ -35,6 +35,7 @@ const DeleteEvaluationModal = ({evaluationType, ...props}: DeleteAutoEvalModalPr
             okType="danger"
             okButtonProps={{icon: <DeleteOutlined />, type: "primary"}}
             centered
+            zIndex={2000}
         >
             <div className={classes.container}>
                 <Typography.Title>Are you sure you want to delete?</Typography.Title>
