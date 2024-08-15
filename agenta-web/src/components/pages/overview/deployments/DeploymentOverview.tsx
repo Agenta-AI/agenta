@@ -9,12 +9,14 @@ import DeploymentDrawer from "./DeploymentDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
 import {Code, Rocket, Swap} from "@phosphor-icons/react"
 import ChangeVariantModal from "./ChangeVariantModal"
-import {fetchVariants} from "@/services/api"
 
 const {Title, Text} = Typography
 
 interface DeploymentOverviewProps {
     variants: Variant[]
+    isDeploymentLoading: boolean
+    environments: Environment[]
+    loadEnvironments: () => Promise<void>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -45,27 +47,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const DeploymentOverview = ({variants}: DeploymentOverviewProps) => {
+const DeploymentOverview = ({
+    variants,
+    isDeploymentLoading,
+    environments,
+    loadEnvironments,
+}: DeploymentOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
     const [queryEnv, setQueryEnv] = useQueryParam("environment")
     const appId = router.query.app_id as string
-    const [environments, setEnvironments] = useState<Environment[]>([])
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>()
-    const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
     const [openChangeVariantModal, setOpenChangeVariantModal] = useState(false)
-
-    const loadEnvironments = useCallback(async () => {
-        try {
-            setIsDeploymentLoading(true)
-            const response = await fetchEnvironments(appId)
-            setEnvironments(response)
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsDeploymentLoading(false)
-        }
-    }, [appId])
 
     useEffect(() => {
         if (!appId) return
