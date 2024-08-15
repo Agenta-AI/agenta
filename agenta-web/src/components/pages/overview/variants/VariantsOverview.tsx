@@ -1,8 +1,8 @@
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import {JSSTheme, Variant} from "@/lib/Types"
+import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUp, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Table, Typography} from "antd"
+import {Badge, Button, Dropdown, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -17,6 +17,7 @@ const {Title} = Typography
 interface VariantsOverviewProps {
     isVariantLoading: boolean
     variantList: Variant[]
+    environments: Environment[]
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -43,12 +44,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
 }))
-const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps) => {
+const VariantsOverview = ({variantList, isVariantLoading, environments}: VariantsOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [queryVariant, setQueryVariant] = useQueryParam("variant")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedVariant, setSelectedVariant] = useState<Variant>()
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -83,15 +85,25 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
         },
         {
             title: "Last modified",
+            dataIndex: "lastModified",
+            key: "lastModified",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return <div>{record.lastModified}</div>
+            },
         },
         {
             title: "Modified by",
+            dataIndex: "modifiedBy",
+            key: "modifiedBy",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return <div>{record.modifiedBy.username}</div>
+            },
         },
         // {
         //     title: "Tags",
@@ -110,15 +122,20 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                 return record.parameters && Object.keys(record.parameters).length
                     ? Object.values(
                           filterVariantParameters({record: record.parameters, key: "model"}),
-                      ).map((value, index) => <div key={index}>{value}</div>)
+                      ).map((value, index) => <Tag key={index}>{value}</Tag>)
                     : "-"
             },
         },
         {
             title: "Created on",
+            dataIndex: "createdAt",
+            key: "createdAt",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return <div>{record.createdAt}</div>
+            },
         },
         {
             title: <GearSix size={16} />,
@@ -140,6 +157,7 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
                                         setQueryVariant(record.variantId)
+                                        setSelectedVariant(record)
                                     },
                                 },
                                 {
@@ -234,7 +252,15 @@ const VariantsOverview = ({variantList, isVariantLoading}: VariantsOverviewProps
                     />
                 </Spin>
             </div>
-            <VariantDrawer open={!!queryVariant} onClose={() => setQueryVariant("")} />
+
+            {selectedVariant && (
+                <VariantDrawer
+                    open={!!queryVariant}
+                    onClose={() => setQueryVariant("")}
+                    selectedVariant={selectedVariant}
+                    environments={environments}
+                />
+            )}
         </>
     )
 }
