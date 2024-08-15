@@ -11,6 +11,13 @@ except ImportError:
     import pydantic  # type: ignore
 
 
+class ModifiedBy(pydantic.BaseModel):
+    id: str
+    uid: str
+    username: str
+    profile_picture: typing.Optional[str] = None
+
+
 class AppVariantResponse(pydantic.BaseModel):
     app_id: str
     app_name: str
@@ -26,6 +33,8 @@ class AppVariantResponse(pydantic.BaseModel):
     revision: int
     organization_id: typing.Optional[str]
     workspace_id: typing.Optional[str]
+    date_modified: dt.datetime
+    modified_by: ModifiedBy
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
