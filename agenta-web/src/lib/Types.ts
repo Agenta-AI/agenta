@@ -41,6 +41,7 @@ export interface Variant {
     configName: string
     revision: number
     lastModified: string
+    createdAt: string
     modifiedBy: {
         id: string
         uid: string

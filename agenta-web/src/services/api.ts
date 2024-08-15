@@ -50,6 +50,7 @@ export async function fetchVariants(
                 revision: variant.revision,
                 lastModified: formatDay(variant.date_modified),
                 modifiedBy: variant.modified_by,
+                createdAt: formatDay(variant.date_created),
             }
             return v
         })
