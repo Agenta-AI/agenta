@@ -1,12 +1,12 @@
 import agenta as ag
 import replicate
 from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-from langchain.llms import OpenAI
+from langchain_community.chat_models import ChatOpenAI
+from langchain_community.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
 
-ag.init()
+ag.init(config_fname="config.toml")
 
 prompts = {
     "human_prompt": """What is the capital of {text}""",
