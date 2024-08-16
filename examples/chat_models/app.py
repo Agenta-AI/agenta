@@ -7,7 +7,7 @@ from langchain_community.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
 
-ag.init(config_fname="config.toml")
+ag.init()
 prompts = {
     "human_prompt": """What is the capital of {text}""",
     "system_prompt": "You are an expert in geography.",
