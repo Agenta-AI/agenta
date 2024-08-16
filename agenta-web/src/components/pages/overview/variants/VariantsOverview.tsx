@@ -152,7 +152,7 @@ const VariantsOverview = ({
                 return record.parameters && Object.keys(record.parameters).length
                     ? Object.values(
                           filterVariantParameters({record: record.parameters, key: "model"}),
-                      ).map((value, index) => <Tag key={index}>{value}</Tag>)
+                      ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
                     : "-"
             },
         },
