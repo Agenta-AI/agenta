@@ -1,0 +1,68 @@
+---
+title: 'How does Agenta Work?'
+description: 'Understand the main concepts behind agenta'
+---
+
+## What problems does agenta solve?
+
+Building Large Language Model powered applications (LLM apps) is challenging because these models are hard to control. The most effective way to build LLM apps is to continuously iterate on the prompts, models, parameters, and application logic until finding a robust solution.
+
+This process can be difficult to manage, especially when collaborating in teams, due to several factors:
+1. **Version management**: Keeping track of different versions of prompts, models, and application logic is a difficult task. Especially, since **mixing the application logic with the prompt** creates a disoragnized mix.
+
+2. **Collaboration Challenges**:  Non-developers, who often have insights into creating effective prompts and assessing the outputs, cannot contribute due to the technical barrier.
+
+3. **Organization Issues**: It's challenging to organize different versions, evaluations, and test sets, and human labeling. Especially, when dozens of LLM apps and use cases are in production.
+
+<Frame>
+<img className="dark:hidden" width="500" src="/images/problems.light.png" />
+<img className="hidden dark:block" width="500" src="/images/problems.dark.png" />
+</Frame>
+
+## How agenta addresses these problems?
+
+Agenta offers an integrated solution for developing LLM applications. It simplifies the development process by:
+
+1. **Version Control**: It makes managing different application variants easier, enhancing the ability to test, compare, and **optimize accuracy** and **reduce latency**.
+2. **Collaboration**: It facilitates collaboration between developers (working on code) and domain experts (working in the UI).
+3. **Evaluation and Deployment Tools**: It supplies all the tools necessary to evaluate and deploy the LLM application to production.
+
+## How does agenta work?
+
+<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. ">
+<img width="700" src="/images/apps_and_configurations_light.png" />
+</Frame>
+<Tip>For more details about our architecture, you can refer to [System Architecture](/learn/architecture).</Tip>
+Agenta's framework is based on three core concepts:
+
+1. **Application Variant**: Building a robust AI application requires iterating on different prompts, models, and architectures. We refer to each of these different iterations as an `application variant`.
+2. **Separation of Logic and Configuration**: Agenta separates the application logic (one prompt, chain-of-prompts, RAG, ..) from the configuration (the prompt, model..). 
+3. **Microservice-based Applications**: Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container.
+
+
+## How to use agenta?
+
+<Steps>
+  <Step title="Create an application">
+    You can create an application using a pre-built template [directly from the UI](/advanced_guides/custom_applications.mdx) or by writing [custom code](/advanced_guides/custom_applications.mdx) and serving it using the CLI.
+  </Step>
+  <Step title="Experiment and add more variants">
+Next, visit the playground to experiment with different configurations, prompts, and models. Directly observe the effects of changes or compare different variants side by side. 
+You can also experiment with different architectures and application logics by adding more custom applications to the same project using the CLI (for instance, if you want to compare using RAG to single prompts).
+  </Step>
+  <Step title="Create a golden set">
+A golden set is a collection of input for your LLM app with expected outputs. Create a golden set in one of the following ways:
+
+1. Upload a CSV or JSON, or manually fill the set using our UI.
+2. Iteratively work in the playground (by interacting with the LLM application and adding edge cases to the golden set).
+3. (In the future) From the logs of your deployed application.
+  </Step> 
+
+  <Step title="Evaluate">
+Run evaluations on your golden set (or for some evaluators with an unlabeled set) from the UI or the CLI. You can also batch run and compare the results for different variants side by side.
+  </Step> 
+  <Step title="Deploy to Production">
+Finally, deploy the best performing LLM applications to different production environments (staging, production) from the UI in the playground.
+  </Step>
+</Steps>
+

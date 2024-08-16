@@ -1,0 +1,29 @@
+---
+title: "Concepts"
+description: "An overview of the architecture of Agenta"
+---
+
+## LLM App
+
+An LLM app is an application powered by a Large Language Model (LLM) and deployable via Agenta. It consists of code and configurations aimed to accomplish specific tasks. For example, you could create an app to summarize YouTube videos or to translate text.
+
+## App Variant
+
+An app variant is a distinct version of an LLM app, featuring different parameters or code but keeping the same inputs and outputs. This feature enables you to experiment with alternative methods within a single app. For instance, you could have two variants of a translation app, each using a different translation model.
+
+## App Inputs
+
+App inputs are the data needed for an app to operate. They serve as the base upon which the app performs its functions. For a YouTube video summarization app, for instance, the input would be the video's URL.
+
+## App Parameters
+
+App parameters are the settings that influence an app's behavior. These are set before running the app and stay constant during its execution. For example, a text summarization app might have a 'prompt_template' parameter to set the summary style, and a 'method' parameter to specify the summarization algorithm.
+
+## App Outputs
+
+App outputs are the end results the app generates after processing the inputs. For a YouTube video summarization app, this would be a text summary of the video.
+
+
+## Playground
+
+The playground is a user-friendly environment in Agenta where you can create and test new app variants. Here, you can modify parameters, input data, and observe the resulting outputs from your app.
