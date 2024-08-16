@@ -277,6 +277,7 @@ async def create_app(
             request.state.user_id,
             organization_id if isCloudEE() else None,
             str(workspace.id) if isCloudEE() else None,
+            template_id=None
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -503,9 +504,16 @@ async def create_app_and_variant_from_template(
             )
 
         logger.debug(
-            "Step 5: Creating new app and initializing environments"
+            "Step 5: Retrieve template from db"
             if isCloudEE()
-            else "Step 2: Creating new app and initializing environments"
+            else "Step 2: Retrieve template from db"
+        )
+        template_db = await db_manager.get_template(payload.template_id)
+
+        logger.debug(
+            "Step 6: Creating new app and initializing environments"
+            if isCloudEE()
+            else "Step 3: Creating new app and initializing environments"
         )
         if app is None:
             app = await db_manager.create_app_and_envs(
@@ -513,22 +521,16 @@ async def create_app_and_variant_from_template(
                 request.state.user_id,
                 payload.organization_id if isCloudEE() else None,  # type: ignore
                 payload.workspace_id if isCloudEE() else None,  # type: ignore
+                str(template_db.id),
             )
-
-        logger.debug(
-            "Step 6: Retrieve template from db"
-            if isCloudEE()
-            else "Step 3: Retrieve template from db"
-        )
-        template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
-        image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
             "Step 7: Creating image instance and adding variant based on image"
             if isCloudEE()
             else "Step 4: Creating image instance and adding variant based on image"
         )
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+        image_name = f"{repo_name}:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
