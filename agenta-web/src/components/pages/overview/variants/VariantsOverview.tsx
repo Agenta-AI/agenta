@@ -294,6 +294,7 @@ const VariantsOverview = ({
                     selectedVariant={selectedVariant}
                     environments={environments}
                     setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
+                    setIsDeployVariantModalOpen={setIsDeployVariantModalOpen}
                 />
             )}
 

@@ -12,6 +12,7 @@ type VariantDrawerProps = {
     selectedVariant: Variant
     environments: Environment[]
     setIsDeleteEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
+    setIsDeployVariantModalOpen: React.Dispatch<React.SetStateAction<boolean>>
 } & React.ComponentProps<typeof Drawer>
 
 const {Title} = Typography
@@ -75,6 +76,7 @@ const VariantDrawer = ({
     selectedVariant,
     environments,
     setIsDeleteEvalModalOpen,
+    setIsDeployVariantModalOpen,
     ...props
 }: VariantDrawerProps) => {
     const classes = useStyles()
@@ -124,7 +126,10 @@ const VariantDrawer = ({
                                         key: "deploy",
                                         label: "Deploy",
                                         icon: <CloudArrowUp size={16} />,
-                                        onClick: () => {},
+                                        onClick: () => {
+                                            props.onClose?.({} as any)
+                                            setIsDeployVariantModalOpen(true)
+                                        },
                                     },
                                     {
                                         key: "delete",
