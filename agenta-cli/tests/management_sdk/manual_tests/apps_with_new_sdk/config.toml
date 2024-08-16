@@ -1,6 +1,0 @@
-app_name = "test_new_sdk"
-app_id = "01913367-fba3-7b9d-8beb-793718682360"
-backend_host = "https://cloud.agenta.ai"
-api_key = "PgjYKp0z.d0b2b8e46388277dd639d9d8a2afe815effddc2d081e58dc1e3acf24eeef1195"
-variants = [ "v3.default",]
-variant_ids = [ "01913368-e3d8-7aa8-a49a-9168a9a6f349",]
