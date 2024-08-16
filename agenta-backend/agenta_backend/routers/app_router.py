@@ -23,6 +23,8 @@ from agenta_backend.services import (
 )
 from agenta_backend.models.api.api_models import (
     App,
+    UpdateApp,
+    UpdateAppOutput,
     CreateAppOutput,
     AddVariantFromImagePayload,
 )
@@ -279,6 +281,51 @@ async def create_app(
             str(workspace.id) if isCloudEE() else None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
+async def update_app(
+    app_id: str,
+    payload: UpdateApp,
+    request: Request,
+) -> UpdateAppOutput:
+    """
+    Update an app for a user or organization.
+
+    Args:
+        app_id (str): The ID of the app.
+        payload (UpdateApp): The payload containing the app name.
+        stoken_session (SessionContainer): The session container containing the user's session token.
+
+    Returns:
+        UpdateAppOuput: The output containing the newly created app's ID and name.
+
+    Raises:
+        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+    """
+
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.UPDATE_APPLICATION,
+            )
+            logger.debug(f"User has Permission to update app: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+        await db_manager.update_app(
+            app_id=app_id, values_to_update=payload.model_dump()
+        )
+        return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
