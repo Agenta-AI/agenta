@@ -50,7 +50,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        padding: "0 10px",
+        padding: "0 10px 10px",
         "& > div:nth-of-type(1)": {
             margin: `${theme.padding}px 0`,
             display: "flex",
@@ -337,14 +337,7 @@ const Sidebar: React.FC = () => {
 
     return (
         <div className={classes.siderWrapper}>
-            <Sider
-                theme={appTheme}
-                className={classes.sidebar}
-                width={236}
-                collapsible
-                collapsed={collapsed}
-                onCollapse={(value) => setCollapsed(value)}
-            >
+            <Sider theme={appTheme} className={classes.sidebar} width={236}>
                 <div className={classes.sliderContainer}>
                     <div>
                         {!isDemo() && (
