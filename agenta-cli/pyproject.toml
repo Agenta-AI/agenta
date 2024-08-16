@@ -31,6 +31,7 @@ pydantic = ">=2"
 httpx = ">=0.24, <0.28"
 pymongo = "^4.6.3"
 cachetools = "^5.3.3"
+pyyaml = "^6.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3"
