@@ -5,7 +5,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 const config: Config = {
   title: "Agenta Documentation",
   tagline: "Agenta: The LLMOps platform.",
-  favicon: "img/favicon.ico",
+  favicon: "images/favicon.ico",
   // Set the production url of your site here
   url: "https://your-docusaurus-site.example.com",
   // Set the /<baseUrl>/ pathname under which your site is served
@@ -56,7 +56,7 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: "img/simple-img.png",
+    image: "images/simple-img.png",
     docs: {
       sidebar: {
         hideable: true,
@@ -67,7 +67,7 @@ const config: Config = {
       title: "agenta",
       logo: {
         alt: "agenta-ai",
-        src: "img/light-logo.svg",
+        src: "images/light-logo.svg",
       },
       hideOnScroll: false,
       items: [
