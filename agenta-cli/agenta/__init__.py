@@ -3,6 +3,7 @@ from .sdk.context import get_contexts, save_context
 from .sdk.types import (
     Context,
     DictInput,
+    MultipleChoice,
     FloatParam,
     InFile,
     IntParam,
@@ -22,7 +23,8 @@ from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 from .sdk.client import Agenta
 from .sdk.tracing import callbacks
-
+from .sdk.config_manager import ConfigManager
+from .sdk import assets as assets
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
