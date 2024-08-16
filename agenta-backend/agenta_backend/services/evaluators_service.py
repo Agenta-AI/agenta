@@ -299,7 +299,7 @@ def auto_ai_critique(
 
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo", messages=messages, temperature=0.8
+            model="gpt-3.5-turbo", messages=messages, temperature=0.01
         )
 
         evaluation_output = response.choices[0].message.content.strip()
