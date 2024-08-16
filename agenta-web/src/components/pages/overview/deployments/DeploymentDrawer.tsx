@@ -307,7 +307,13 @@ const DeploymentDrawer = ({
                             No deployment has been done on {selectedEnvironment.name} environment
                         </Typography.Text>
 
-                        <Button className="flex items-center gap-2">
+                        <Button
+                            className="flex items-center gap-2"
+                            onClick={() => {
+                                setOpenChangeVariantModal(true)
+                                setQueryEnv("")
+                            }}
+                        >
                             Deploy now <ArrowRight size={14} />
                         </Button>
                     </div>
