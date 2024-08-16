@@ -1,0 +1,46 @@
+---
+title: Compare Different LLM App Variants
+---
+
+This guide will walk you through how to create and compare multiple variants of your LLM app.
+
+# Creating LLM App Variants
+
+## Why Create Multiple Variants?
+
+To build reliable LLM apps, it's essential to test various parameters and strategies systematically. Agenta makes it easy to create and evaluate different **variants** of your LLM app.
+
+## What Are LLM App Variants?
+
+An LLM app variant is a unique version of your app that can differ in architecture or code changes. For more details, check [the concept guide](/conceptual/concepts#app-variant). For example, a Q&A app might have one variant using an embedding workflow and another using a map-reduce workflow.
+
+A variant could also be a different configuration of the same app. You might have two variants that use different prompts or models.
+
+## How to Create Multiple Variants?
+
+You can create variants either through code or via the UI.
+
+### Creating a New Variant Using the UI
+To create a new variant from the UI, click the '+' symbol on the Playground tabs.
+<Frame caption="Click on the '+' button in Playground to create new variants">
+<img height="600" src="/images/add_variant_from_UI.png" />
+</Frame>
+Variants added through the UI can only change parameters that exist in the original variant or have been specified in your code.
+
+<Note>The naming convention for variants created via the UI is **sourceVariantName.newVariantName**. This helps you identify which version of the code corresponds to each variant.</Note>
+
+### Creating a New Variant Using Code
+
+To create a variant via code, add a new Python script in your project folder (the one where you ran `agenta init`). Name the file after your new variant. For example, if your new variant is `variant_1`, create a file called `variant_1.py`. Then run the following command:
+
+```bash
+agenta variant serve --file_name variant_1.py
+```
+
+Navigate to the Playground, and you'll see your new variant `variant_1` available for comparison.
+
+# Comparing Variants
+
+Initially, you can compare variants by running them in the Playground to quickly test different configurations.
+
+For more in-depth comparisons, go to the evaluation section. There, you can use various methods such as manual labeling with the A/B testing feature, or automated evaluation (documentation coming soon).
