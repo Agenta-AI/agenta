@@ -277,7 +277,7 @@ async def create_app(
             request.state.user_id,
             organization_id if isCloudEE() else None,
             str(workspace.id) if isCloudEE() else None,
-            template_id=None
+            template_id=None,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
