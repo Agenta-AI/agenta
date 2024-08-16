@@ -14,6 +14,7 @@ import {filterVariantParameters, isDemo} from "@/lib/helpers/utils"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import {deleteSingleVariant} from "@/services/playground/api"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import DeployVariantModal from "./DeployVariantModal"
 
 const {Title} = Typography
 
@@ -22,6 +23,7 @@ interface VariantsOverviewProps {
     variantList: Variant[]
     environments: Environment[]
     fetchAllVariants: () => void
+    loadEnvironments: () => Promise<void>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -54,6 +56,7 @@ const VariantsOverview = ({
     isVariantLoading,
     environments,
     fetchAllVariants,
+    loadEnvironments,
 }: VariantsOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
@@ -62,6 +65,7 @@ const VariantsOverview = ({
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectedVariant, setSelectedVariant] = useState<Variant>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
+    const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -201,6 +205,8 @@ const VariantsOverview = ({
                                     icon: <CloudArrowUp size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
+                                        setIsDeployVariantModalOpen(true)
+                                        setSelectedVariant(record)
                                     },
                                 },
                                 {type: "divider"},
@@ -304,6 +310,16 @@ const VariantsOverview = ({
                         variant_name: selectedVariant.variantName,
                         revision: selectedVariant.revision,
                     })}
+                />
+            )}
+
+            {selectedVariant && (
+                <DeployVariantModal
+                    open={isDeployVariantModalOpen}
+                    onCancel={() => setIsDeployVariantModalOpen(false)}
+                    environments={environments}
+                    selectedVariant={selectedVariant}
+                    loadEnvironments={loadEnvironments}
                 />
             )}
         </>

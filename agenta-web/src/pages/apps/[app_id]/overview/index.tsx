@@ -139,6 +139,7 @@ export default function Overview() {
                     isVariantLoading={isVariantLoading}
                     environments={environments}
                     fetchAllVariants={fetchAllVariants}
+                    loadEnvironments={loadEnvironments}
                 />
 
                 <AutomaticEvalOverview />
