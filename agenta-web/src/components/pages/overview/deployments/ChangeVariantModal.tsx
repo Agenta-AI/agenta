@@ -1,10 +1,10 @@
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CaretRight} from "@phosphor-icons/react"
 import {Input, Modal, Table, Tag, Typography} from "antd"
-import Link from "next/link"
 import React, {SetStateAction, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentModal from "./DeploymentModal"
+import {splitVariantId} from "@/lib/helpers/utils"
 
 const {Search} = Input
 
@@ -85,7 +85,7 @@ const ChangeVariantModal = ({
                                                 <div>{record.variantName}</div>
 
                                                 <div className="flex items-center">
-                                                    <Tag>{record.variantId}</Tag>
+                                                    <Tag>{splitVariantId(record.variantId)}</Tag>
                                                     <CaretRight />
                                                 </div>
                                             </div>
