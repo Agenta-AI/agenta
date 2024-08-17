@@ -1,14 +1,14 @@
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
-import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
 import {Button, Card, Dropdown, Skeleton, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useCallback, useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentDrawer from "./DeploymentDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
 import {Code, Rocket, Swap} from "@phosphor-icons/react"
 import ChangeVariantModal from "./ChangeVariantModal"
+import VariantPopover from "../variants/VariantPopover"
 
 const {Title, Text} = Typography
 
@@ -45,6 +45,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
+    deploymentCard: {
+        cursor: "pointer",
+        transition: "all 0.025s ease-in",
+        "&:hover": {
+            boxShadow: theme.boxShadowTertiary,
+        },
+    },
 }))
 
 const DeploymentOverview = ({
@@ -77,72 +84,81 @@ const DeploymentOverview = ({
                 </div>
             ) : (
                 <div className={classes.cardContainer}>
-                    {environments.map((env, index) => (
-                        <Card
-                            key={index}
-                            onClick={() => {
-                                setQueryEnv(env.name)
-                                setSelectedEnvironment(env)
-                            }}
-                            className="cursor-pointer"
-                        >
-                            <Dropdown
-                                trigger={["click"]}
-                                menu={{
-                                    items: [
-                                        {
-                                            key: "use_api",
-                                            label: "Use API",
-                                            icon: <Code size={16} />,
-                                            onClick: (e) => {
-                                                e.domEvent.stopPropagation()
-                                                setQueryEnv(env.name)
-                                                setSelectedEnvironment(env)
-                                            },
-                                        },
-                                        {
-                                            key: "change_variant",
-                                            label: "Change Variant",
-                                            icon: <Swap size={16} />,
-                                            onClick: (e) => {
-                                                e.domEvent.stopPropagation()
-                                                setSelectedEnvironment(env)
-                                                setOpenChangeVariantModal(true)
-                                            },
-                                        },
-                                        {type: "divider"},
-                                        {
-                                            key: "open_playground",
-                                            label: "Open in playground",
-                                            icon: <Rocket size={16} />,
-                                            onClick: (e) => {
-                                                e.domEvent.stopPropagation()
-                                                router.push(
-                                                    `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
-                                                )
-                                            },
-                                        },
-                                    ],
+                    {environments.map((env, index) => {
+                        const selectedDeployedVariant = variants.find(
+                            (variant) => variant.variantId === env.deployed_app_variant_id,
+                        )
+
+                        return (
+                            <Card
+                                key={index}
+                                onClick={() => {
+                                    setQueryEnv(env.name)
+                                    setSelectedEnvironment(env)
                                 }}
+                                className={classes.deploymentCard}
                             >
-                                <Button
-                                    type="text"
-                                    onClick={(e) => e.stopPropagation()}
-                                    icon={<MoreOutlined />}
-                                    size="small"
-                                    className="absolute right-2"
-                                />
-                            </Dropdown>
-                            <Text>{env.name}</Text>
-                            {env.deployed_variant_name ? (
-                                <Tag className="w-fit" color="green">
-                                    {env.deployed_variant_name}
-                                </Tag>
-                            ) : (
-                                <Tag className="w-fit">No deployment</Tag>
-                            )}
-                        </Card>
-                    ))}
+                                <Dropdown
+                                    trigger={["click"]}
+                                    menu={{
+                                        items: [
+                                            {
+                                                key: "use_api",
+                                                label: "Use API",
+                                                icon: <Code size={16} />,
+                                                onClick: (e) => {
+                                                    e.domEvent.stopPropagation()
+                                                    setQueryEnv(env.name)
+                                                    setSelectedEnvironment(env)
+                                                },
+                                            },
+                                            {
+                                                key: "change_variant",
+                                                label: "Change Variant",
+                                                icon: <Swap size={16} />,
+                                                onClick: (e) => {
+                                                    e.domEvent.stopPropagation()
+                                                    setSelectedEnvironment(env)
+                                                    setOpenChangeVariantModal(true)
+                                                },
+                                            },
+                                            {type: "divider"},
+                                            {
+                                                key: "open_playground",
+                                                label: "Open in playground",
+                                                icon: <Rocket size={16} />,
+                                                onClick: (e) => {
+                                                    e.domEvent.stopPropagation()
+                                                    router.push(
+                                                        `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
+                                                    )
+                                                },
+                                            },
+                                        ],
+                                    }}
+                                >
+                                    <Button
+                                        type="text"
+                                        onClick={(e) => e.stopPropagation()}
+                                        icon={<MoreOutlined />}
+                                        size="small"
+                                        className="absolute right-2"
+                                    />
+                                </Dropdown>
+                                <Text>{env.name}</Text>
+                                {env.deployed_variant_name ? (
+                                    <VariantPopover
+                                        selectedDeployedVariant={selectedDeployedVariant}
+                                        env={env}
+                                    />
+                                ) : (
+                                    <Tag className="w-fit" onClick={(e) => e.stopPropagation()}>
+                                        No deployment
+                                    </Tag>
+                                )}
+                            </Card>
+                        )
+                    })}
                 </div>
             )}
 
