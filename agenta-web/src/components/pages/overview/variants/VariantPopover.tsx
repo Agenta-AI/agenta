@@ -1,7 +1,7 @@
 import {isDemo, splitVariantId} from "@/lib/helpers/utils"
 import {Environment, Variant} from "@/lib/Types"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Popover, Tag, Typography} from "antd"
+import {Badge, Button, Popover, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
 import React from "react"
 
@@ -40,8 +40,8 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                 </div>
             }
         >
-            <Tag className="w-fit" onClick={(e) => e.stopPropagation()}>
-                {splitVariantId(env.deployed_app_variant_id as string)}
+            <Tag className="w-fit cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                <Badge color="blue" text={splitVariantId(env.deployed_app_variant_id as string)} />
             </Tag>
         </Popover>
     )

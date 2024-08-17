@@ -26,6 +26,7 @@ import {fetchAppContainerURL} from "@/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
+import VariantPopover from "../variants/VariantPopover"
 
 const DeploymentHistoryModal: any = dynamicComponent(
     "pages/overview/deployments/DeploymentHistoryModal",
@@ -249,7 +250,12 @@ const DeploymentDrawer = ({
                         <div className="flex justify-between">
                             <Text className="font-[500]">Variant Deployed</Text>
 
-                            <Tag>{selectedEnvironment?.deployed_variant_name}</Tag>
+                            {variant && (
+                                <VariantPopover
+                                    env={selectedEnvironment}
+                                    selectedDeployedVariant={variant}
+                                />
+                            )}
                         </div>
 
                         <div>
