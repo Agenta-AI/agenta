@@ -365,3 +365,7 @@ export const filterVariantParameters = ({
         {} as Record<string, any>,
     )
 }
+
+export const splitVariantId = (variantId: string) => {
+    return `# ${variantId.split("-")[0]}`
+}
