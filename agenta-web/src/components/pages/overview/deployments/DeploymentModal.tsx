@@ -81,7 +81,7 @@ const DeploymentModal = ({
 
                 <div className="flex flex-col gap-4">
                     <div>
-                        You are about to deploy {selectedEnvironment.deployed_variant_name} to{" "}
+                        You are about to deploy {selectedVariant.variantName} to{" "}
                         {selectedEnvironment.name} environment. This will overwrite the existing
                         configuration. This change will affect all future calls to this environment.
                     </div>
