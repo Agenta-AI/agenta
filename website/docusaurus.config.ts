@@ -24,6 +24,18 @@ const config: Config = {
     locales: ["en"],
   },
 
+  plugins: [
+    async function myPlugin(context, options) {
+      return {
+        name: "docusaurus-tailwindcss",
+        configurePostCss(postcssOptions) {
+          // Appends TailwindCSS
+          postcssOptions.plugins.push(require("tailwindcss"));
+          return postcssOptions;
+        },
+      };
+    },
+  ],
   presets: [
     [
       "classic",
@@ -68,6 +80,7 @@ const config: Config = {
       logo: {
         alt: "agenta-ai",
         src: "images/light-logo.svg",
+        srcDark: "images/dark-logo.svg",
       },
       hideOnScroll: false,
       items: [
