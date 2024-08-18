@@ -358,3 +358,103 @@ async def test_remove_running_template_app_container():
         assert True
     except:
         assert False
+
+
+@pytest.mark.asyncio
+async def test_rag_experiment_tree_maps_correctly(
+    rag_experiment_data_tree, mapper_to_run_rag_faithfulness_evaluation
+):
+    payload = {
+        "inputs": rag_experiment_data_tree,
+        "mapping": mapper_to_run_rag_faithfulness_evaluation,
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/map/",
+        json=payload,
+        timeout=timeout,
+    )
+    response_data = response.json()
+    assert response.status_code == 200
+    assert (
+        "question" in response_data["outputs"]
+        and "contexts" in response_data["outputs"]
+        and "answer" in response_data["outputs"]
+    ) == True
+
+
+@pytest.mark.asyncio
+async def test_simple_experiment_tree_maps_correctly(
+    simple_experiment_data_tree, mapper_to_run_auto_exact_match_evaluation
+):
+    payload = {
+        "inputs": simple_experiment_data_tree,
+        "mapping": mapper_to_run_auto_exact_match_evaluation,
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/map/",
+        json=payload,
+        timeout=timeout,
+    )
+    response_data = response.json()
+    assert response.status_code == 200
+    assert (
+        "prediction" in response_data["outputs"]
+        and isinstance(response_data["outputs"]["prediction"], str)
+    ) == True
+
+
+@pytest.mark.asyncio
+async def test_rag_faithfulness_evaluator_run(
+    rag_faithfulness_evaluator_run_inputs,
+):
+    payload = {
+        "inputs": rag_faithfulness_evaluator_run_inputs,
+        "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run/",
+        json=payload,
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert 0.0 <= response.json()["outputs"]["score"] <= 1.0
+    assert isinstance(response.json()["outputs"]["score"], float)
+
+
+@pytest.mark.asyncio
+async def test_custom_code_evaluator_run(custom_code_snippet):
+    payload = {
+        "inputs": {
+            "ground_truth": "The correct answer is 42",
+            "prediction": "The answer is 42",
+            "app_config": {},
+        },
+        "settings": {
+            "code": custom_code_snippet,
+            "correct_answer_key": "correct_answer",
+        },
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run/",
+        json=payload,
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert 0.0 <= response.json()["outputs"]["score"] <= 1.0
+    assert isinstance(response.json()["outputs"]["score"], float)
+
+
+@pytest.mark.asyncio
+async def test_run_evaluators_via_api(
+    evaluators_payload_data,
+):
+    evaluators_response_status_code = []
+    for evaluator_key, evaluator_payload in evaluators_payload_data.items():
+        response = await test_client.post(
+            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run/",
+            json=evaluator_payload,
+            timeout=timeout,
+        )
+        evaluators_response_status_code.append(response.status_code)
+
+    assert evaluators_response_status_code.count(200) == 14
