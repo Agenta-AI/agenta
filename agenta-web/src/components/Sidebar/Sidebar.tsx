@@ -103,6 +103,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
+    userAvatar: {
+        backgroundColor: theme.colorPrimaryBgHover,
+        color: theme.colorPrimary,
+    },
     menuHeader: {
         padding: `${theme.paddingXS}px ${theme.padding}px`,
         color: theme.colorTextDescription,
@@ -356,12 +360,8 @@ const Sidebar: React.FC = () => {
                                                 <Space>
                                                     <Avatar
                                                         size={"small"}
-                                                        style={{
-                                                            backgroundColor: getColorFromStr(
-                                                                org.id,
-                                                            ),
-                                                            color: "#fff",
-                                                        }}
+                                                        className={classes.userAvatar}
+                                                        shape="square"
                                                     >
                                                         {getInitials(org.name)}
                                                     </Avatar>
@@ -414,10 +414,9 @@ const Sidebar: React.FC = () => {
                                         <Avatar
                                             shape="square"
                                             style={{
-                                                backgroundColor: getColorFromStr(selectedOrg.id),
-                                                color: "#fff",
                                                 fontSize: 18,
                                             }}
+                                            className={classes.userAvatar}
                                         >
                                             {getInitials(selectedOrg.name)}
                                         </Avatar>

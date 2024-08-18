@@ -1,7 +1,7 @@
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
-import {CloudArrowUp, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
+import {CloudArrowUp, Copy, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
@@ -207,6 +207,14 @@ const VariantsOverview = ({
                                         e.domEvent.stopPropagation()
                                         setIsDeployVariantModalOpen(true)
                                         setSelectedVariant(record)
+                                    },
+                                },
+                                {
+                                    key: "clone",
+                                    label: "Clone",
+                                    icon: <Copy size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
                                     },
                                 },
                                 {type: "divider"},
