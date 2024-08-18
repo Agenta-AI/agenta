@@ -19,18 +19,18 @@ To help us diagnose and resolve the issue quickly, please follow these steps:
 1. **Network Logs in the Browser:**
 
    - Open your browser's developer console (usually by pressing F12 or right-clicking and selecting "Inspect").
-   <img height="600" src="/images/creating-issue/inspect-network-1.png" />
+   <img src="/images/creating-issue/inspect-network-1.png" />
 
    - Navigate to the "Network" tab.
-   <img height="600" src="/images/creating-issue/inspect-network-2.png" />
+   <img src="/images/creating-issue/inspect-network-2.png" />
 
    - Reproduce the issue by triggering what caused it before and all the requests made will be logged in the Networks tab.
    - Take a screenshot of the network logs or copy and paste any relevant log entries.
-   <img height="600" src="/images/creating-issue/inspect-network-3.png" />
+   <img src="/images/creating-issue/inspect-network-3.png" />
 
    - In particular you can open a specific request, maybe the one has returned 404 or 400 or 500, then click on response and show take a screenshot of it. 
-   <img height="600" src="/images/creating-issue/inspect-network-4.png" />
-   <img height="600" src="/images/creating-issue/inspect-network-5.png" />
+   <img src="/images/creating-issue/inspect-network-4.png" />
+   <img src="/images/creating-issue/inspect-network-5.png" />
 
 2. **Docker Containers Information:**
 
@@ -41,15 +41,15 @@ To help us diagnose and resolve the issue quickly, please follow these steps:
    ```
 
    - Provide a screenshot showing the list of running and stopped containers.
-   <img height="600" src="/images/creating-issue/docker-log-1.png" />
-   <img height="600" src="/images/creating-issue/docker-log-terminal.png" />
+   <img src="/images/creating-issue/docker-log-1.png" />
+   <img src="/images/creating-issue/docker-log-terminal.png" />
 
    - If your issue is associated with a specific llm app;
 
      - On Docker Desktop, open the container of that llm app and provide a screenshot of it.
        The Container name would start with the name of your llm app, followed by the app variant name (If you've created more than one variant).
 
-       <img height="600" src="/images/creating-issue/docker-log-llm-app.png" />
+       <img src="/images/creating-issue/docker-log-llm-app.png" />
 
      - In terminal/command line, run the command below and provide a screenshot of it;
 
@@ -59,7 +59,7 @@ To help us diagnose and resolve the issue quickly, please follow these steps:
 
    {" "}
    <img
-     height="600"
+    
      src="/images/creating-issue/docker-log-terminal-llm-app.png"
    />
 
@@ -69,7 +69,7 @@ To help us diagnose and resolve the issue quickly, please follow these steps:
      - by running: `docker logs agenta-backend` and include the output, or more importantly provide a screenshot of it.
      - by opening the container in Docker Desktop and providing a screenshot of it.
        <img
-         height="600"
+        
          src="/images/creating-issue/docker-log-agenta-backend.png"
        />
 
