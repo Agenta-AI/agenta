@@ -6,7 +6,7 @@ import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "an
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -15,6 +15,7 @@ import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import {deleteSingleVariant} from "@/services/playground/api"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import DeployVariantModal from "./DeployVariantModal"
+import VariantComparisonModal from "./VariantComparisonModal"
 
 const {Title} = Typography
 
@@ -66,6 +67,17 @@ const VariantsOverview = ({
     const [selectedVariant, setSelectedVariant] = useState<Variant>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
+    const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
+
+    const selectedVariantsToCompare = useMemo(() => {
+        const variants = variantList.filter((variant) =>
+            selectedRowKeys.includes(variant.variantId),
+        )
+        return {
+            isCompareDisabled: variants.length !== 2,
+            compareVariantList: variants,
+        }
+    }, [selectedRowKeys])
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -260,7 +272,13 @@ const VariantsOverview = ({
                     <Title>Variants</Title>
 
                     <Space>
-                        <Button size="small" type="link" icon={<SwapOutlined />}>
+                        <Button
+                            size="small"
+                            type="link"
+                            disabled={selectedVariantsToCompare.isCompareDisabled}
+                            icon={<SwapOutlined />}
+                            onClick={() => setIsComparisonModalOpen(true)}
+                        >
                             Compare variants
                         </Button>
                         <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
@@ -329,6 +347,14 @@ const VariantsOverview = ({
                     environments={environments}
                     selectedVariant={selectedVariant}
                     loadEnvironments={loadEnvironments}
+                />
+            )}
+
+            {!selectedVariantsToCompare.isCompareDisabled && (
+                <VariantComparisonModal
+                    open={isComparisonModalOpen}
+                    onCancel={() => setIsComparisonModalOpen(false)}
+                    compareVariantList={selectedVariantsToCompare.compareVariantList}
                 />
             )}
         </>
