@@ -686,7 +686,7 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
             raise NoResultFound(f"App with {app_id} not found")
 
         for key, value in values_to_update.items():
-            if getattr(app, key):
+            if hasattr(app, key):
                 setattr(app, key, value)
 
         await session.commit()
