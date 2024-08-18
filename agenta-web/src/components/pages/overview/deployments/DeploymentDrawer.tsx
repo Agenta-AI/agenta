@@ -331,6 +331,7 @@ const DeploymentDrawer = ({
                 onCancel={() => setIsHistoryModalOpen(false)}
                 setIsHistoryModalOpen={setIsHistoryModalOpen}
                 selectedEnvironment={selectedEnvironment}
+                variant={variant}
             />
         </>
     )
