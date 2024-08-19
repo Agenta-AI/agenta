@@ -1,6 +1,9 @@
+// @ts-check
 import { themes as prismThemes } from "prism-react-renderer";
-import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
+import type { Config } from "@docusaurus/types";
+import type * as Plugin from "@docusaurus/types/src/plugin";
+import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
 
 const config: Config = {
   title: "Agenta Documentation",
@@ -24,18 +27,6 @@ const config: Config = {
     locales: ["en"],
   },
 
-  plugins: [
-    async function myPlugin(context, options) {
-      return {
-        name: "docusaurus-tailwindcss",
-        configurePostCss(postcssOptions) {
-          // Appends TailwindCSS
-          postcssOptions.plugins.push(require("tailwindcss"));
-          return postcssOptions;
-        },
-      };
-    },
-  ],
   presets: [
     [
       "classic",
@@ -45,19 +36,17 @@ const config: Config = {
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/packages/create-docusaurus/templates/shared/",
+          docItemComponent: "@theme/ApiItem",
         },
         blog: {
           routeBasePath: "/changelog",
           showReadingTime: false,
           feedOptions: {
             type: ["rss", "atom"],
-            xslt: true,
           },
           blogSidebarCount: 0,
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/packages/create-docusaurus/templates/shared/",
           onInlineTags: "ignore",
-          onInlineAuthors: "ignore",
-          onUntruncatedBlogPosts: "ignore",
         },
         theme: {
           customCss: "./src/css/custom.css",
@@ -136,9 +125,60 @@ const config: Config = {
       ],
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
-    },
+      prism: {
+        theme: prismThemes.github,
+        darkTheme: prismThemes.dracula,
+        additionalLanguages: ["ruby", "csharp", "php", "java", "powershell", "json", "bash"],
+      },
+      languageTabs: [
+        {
+          highlight: "python",
+          language: "python",
+          logoClass: "python",
+        },
+        {
+          highlight: "bash",
+          language: "curl",
+          logoClass: "bash",
+        },
+        {
+          highlight: "csharp",
+          language: "csharp",
+          logoClass: "csharp",
+        },
+        {
+          highlight: "go",
+          language: "go",
+          logoClass: "go",
+        },
+        {
+          highlight: "javascript",
+          language: "nodejs",
+          logoClass: "nodejs",
+        },
+        {
+          highlight: "ruby",
+          language: "ruby",
+          logoClass: "ruby",
+        },
+        {
+          highlight: "php",
+          language: "php",
+          logoClass: "php",
+        },
+        {
+          highlight: "java",
+          language: "java",
+          logoClass: "java",
+          variant: "unirest",
+        },
+        {
+          highlight: "powershell",
+          language: "powershell",
+          logoClass: "powershell",
+        },
+      ],
+    } satisfies Preset.ThemeConfig,
     algolia: {
       // The application ID provided by Algolia
       appId: "OUSV9KGN15",
@@ -161,7 +201,43 @@ const config: Config = {
       // Optional: whether the insights feature is enabled or not on Docsearch (`false` by default)
       insights: false,
     },
-  } satisfies Preset.ThemeConfig,
+  },
+
+  plugins: [
+    async function myPlugin(context, options) {
+      return {
+        name: "docusaurus-tailwindcss",
+        configurePostCss(postcssOptions) {
+          // Appends TailwindCSS
+          postcssOptions.plugins.push(require("tailwindcss"));
+          return postcssOptions;
+        },
+      };
+    },
+    [
+      "docusaurus-plugin-openapi-docs",
+      {
+        id: "openapi",
+        docsPluginId: "classic",
+        config: {
+          agenta: {
+            specPath: "docs/reference/openapi.json",
+            outputDir: "docs/reference/api",
+            downloadUrl:
+              "https://raw.githubusercontent.com/PaloAltoNetworks/docusaurus-template-openapi-docs/main/examples/agenta.yaml",
+            sidebarOptions: {
+              groupPathsBy: "tag",
+              categoryLinkSource: "tag",
+            },
+          } satisfies OpenApiPlugin.Options,
+        } satisfies Plugin.PluginOptions,
+      },
+    ],
+  ],
+
+  themes: ["docusaurus-theme-openapi-docs"],
 };
 
-export default config;
+export default async function createConfig() {
+  return config;
+}
