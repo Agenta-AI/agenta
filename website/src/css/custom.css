@@ -78,3 +78,21 @@
   content: "patch";
   background-color: var(--openapi-code-orange);
 }
+
+/* customizes "section headers". */
+li.sidebar-section-title {
+  > div.menu__list-item-collapsible {
+      font-weight: bold; 
+      color: var(--ifm-color-primary-contrast-foreground);
+      /* don't want any click interaction effects here */
+      &:hover {
+        background-color: transparent;
+      }
+  }
+  &:first-child > div.menu__list-item-collapsible {
+    margin-top: 0.5em;
+  }
+  &:not(:first-child) > div.menu__list-item-collapsible {
+    margin-top: 1em;
+  }
+}
