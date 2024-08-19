@@ -209,7 +209,8 @@ async def fetch_app_variant_by_id(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with db_engine.get_session() as session:
         base_query = select(AppVariantDB).options(
-            joinedload(AppVariantDB.base), joinedload(AppVariantDB.app)
+            joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
+            joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
         if isCloudEE():
             query = base_query.options(
@@ -1125,8 +1126,8 @@ async def list_app_variants(app_id: str):
         result = await session.execute(
             select(AppVariantDB)
             .options(
-                joinedload(AppVariantDB.app).load_only(AppDB.id, AppDB.app_name),  # type: ignore
-                joinedload(AppVariantDB.base).joinedload(VariantBaseDB.deployment).load_only(DeploymentDB.uri),  # type: ignore
+                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
+                joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
             )
             .filter_by(app_id=uuid.UUID(app_uuid))
         )
@@ -1824,7 +1825,10 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
+            .options(
+                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
+                joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
+            )
             .filter_by(id=uuid.UUID(variant_id))
         )
         app_variant_db = result.scalars().first()
@@ -1945,11 +1949,13 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
             )
         result = await session.execute(
             query.options(
-                joinedload(EvaluationDB.variant).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision).load_only(AppVariantRevisionsDB.revision),  # type: ignore
-                joinedload(EvaluationDB.aggregated_results).joinedload(
-                    EvaluationAggregatedResultDB.evaluator_config
-                ),
+                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
+                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                joinedload(
+                    EvaluationDB.aggregated_results.of_type(
+                        EvaluationAggregatedResultDB
+                    )
+                ).joinedload(EvaluationAggregatedResultDB.evaluator_config),
             )
         )
         evaluation = result.unique().scalars().first()
@@ -2692,11 +2698,13 @@ async def list_evaluations(app_id: str):
 
         result = await session.execute(
             query.options(
-                joinedload(EvaluationDB.variant).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision).load_only(AppVariantRevisionsDB.revision),  # type: ignore
-                joinedload(EvaluationDB.aggregated_results).joinedload(
-                    EvaluationAggregatedResultDB.evaluator_config
-                ),
+                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
+                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                joinedload(
+                    EvaluationDB.aggregated_results.of_type(
+                        EvaluationAggregatedResultDB
+                    )
+                ).joinedload(EvaluationAggregatedResultDB.evaluator_config),
             )
         )
         evaluations = result.unique().scalars().all()
