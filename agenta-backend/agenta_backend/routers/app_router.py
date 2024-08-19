@@ -286,7 +286,7 @@ async def create_app(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
+@router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
 async def update_app(
     app_id: str,
     payload: UpdateApp,

@@ -69,7 +69,7 @@ async def test_update_app():
         result = await session.execute(select(AppDB).filter_by(app_name="app_test"))
         app = result.scalars().first()
 
-    response = await test_client.put(
+    response = await test_client.patch(
         f"{BACKEND_API_HOST}/apps/{str(app.id)}/",
         json={
             "app_name": "test_app",
