@@ -2963,13 +2963,17 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         return evaluator_config
 
 
-async def check_if_ai_critique_exists_in_list_of_evaluators_configs(
-    evaluators_configs_ids: List[str],
+async def check_if_evaluators_exist_in_list_of_evaluators_configs(
+    evaluators_configs_ids: List[str], evaluators_keys: List[str]
 ) -> bool:
-    """Fetch evaluator configurations from the database.
+    """Check if the provided evaluators exist in the database within the given evaluator configurations.
+
+    Arguments:
+        evaluators_configs_ids (List[str]): List of evaluator configuration IDs to search within.
+        evaluators_keys (List[str]): List of evaluator keys to check for existence.
 
     Returns:
-        EvaluatorConfigDB: the evaluator configuration object.
+        bool: True if all evaluators exist, False otherwise.
     """
 
     async with db_engine.get_session() as session:
@@ -2978,15 +2982,18 @@ async def check_if_ai_critique_exists_in_list_of_evaluators_configs(
             for evaluator_config_id in evaluators_configs_ids
         ]
 
-        query = select(EvaluatorConfigDB).where(
+        query = select(EvaluatorConfigDB.id, EvaluatorConfigDB.evaluator_key).where(
             EvaluatorConfigDB.id.in_(evaluator_config_uuids),
-            EvaluatorConfigDB.evaluator_key == "auto_ai_critique",
+            EvaluatorConfigDB.evaluator_key.in_(evaluators_keys),
         )
-
         result = await session.execute(query)
-        evaluators_configs = result.scalars().all()
 
-        return bool(evaluators_configs)
+        # NOTE: result.all() returns the records as a list of tuples
+        # 0 is the evaluator_id and 1 is evaluator_key
+        fetched_evaluators_keys = {config[1] for config in result.all()}
+
+        # Ensure the passed evaluators are found in the fetched evaluator keys
+        return any(key in fetched_evaluators_keys for key in evaluators_keys)
 
 
 async def fetch_evaluator_config_by_appId(
