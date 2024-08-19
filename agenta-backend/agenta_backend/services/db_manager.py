@@ -2609,9 +2609,18 @@ async def update_app_variant(
             if hasattr(app_variant, key):
                 setattr(app_variant, key, value)
 
+        relationships_to_load_in_session = [
+            "user",
+            "app",
+            "image",
+            "base",
+        ]
+        if isCloudEE():
+            relationships_to_load_in_session.append("organization")
+
         await session.commit()
         await session.refresh(
-            app_variant, attribute_names=["user", "app", "image", "base"]
+            app_variant, attribute_names=relationships_to_load_in_session
         )
 
         return app_variant
