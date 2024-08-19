@@ -84,7 +84,7 @@ async def test_update_app():
 @pytest.mark.asyncio
 async def test_update_app_does_not_exist():
     APP_ID_NOT_FOUND = "5da3bfe7-bc4b-4713-928e-48275126a1c2"
-    response = await test_client.put(
+    response = await test_client.patch(
         f"{BACKEND_API_HOST}/apps/{APP_ID_NOT_FOUND}/",
         json={
             "app_name": "test_app",
