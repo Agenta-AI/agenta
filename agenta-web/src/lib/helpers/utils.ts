@@ -342,5 +342,5 @@ export const getStringOrJson = (value: any) => {
         ? value
         : typeof value?.data === "string"
           ? value?.data
-          : JSON.stringify(value, null, 2)
+          : JSON.stringify(value.data, null, 2)
 }
