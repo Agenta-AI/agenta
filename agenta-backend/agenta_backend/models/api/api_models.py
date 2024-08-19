@@ -65,8 +65,8 @@ class CreateAppOutput(BaseModel):
     app_name: str
 
 
-class UpdateApp(CreateApp):
-    pass
+class UpdateApp(BaseModel):
+    app_name: str
 
 
 class UpdateAppOutput(CreateAppOutput):
