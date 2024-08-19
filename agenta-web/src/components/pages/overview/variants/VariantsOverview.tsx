@@ -222,14 +222,14 @@ const VariantsOverview = ({
                                         setSelectedVariant(record)
                                     },
                                 },
-                                {
-                                    key: "clone",
-                                    label: "Clone",
-                                    icon: <Copy size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                    },
-                                },
+                                // {
+                                //     key: "clone",
+                                //     label: "Clone",
+                                //     icon: <Copy size={16} />,
+                                //     onClick: (e) => {
+                                //         e.domEvent.stopPropagation()
+                                //     },
+                                // },
                                 {type: "divider"},
                                 // {
                                 //     key: "rename",
