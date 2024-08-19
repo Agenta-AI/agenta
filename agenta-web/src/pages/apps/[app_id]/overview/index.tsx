@@ -125,7 +125,7 @@ export default function Overview() {
                     </Dropdown>
                 </Space>
 
-                <ObservabilityOverview variants={variants} />
+                <ObservabilityOverview />
 
                 <DeploymentOverview
                     variants={variants}
