@@ -21,7 +21,7 @@
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
+[data-theme="dark"] {
   --ifm-color-primary: #25c2a0;
   --ifm-color-primary-dark: #21af90;
   --ifm-color-primary-darker: #1fa588;
@@ -33,12 +33,12 @@
 }
 
 /* Sidebar Method labels */
-.api-method>.menu__link {
+.api-method > .menu__link {
   align-items: center;
   justify-content: start;
 }
 
-.api-method>.menu__link::before {
+.api-method > .menu__link::before {
   width: 50px;
   height: 20px;
   font-size: 12px;
@@ -54,45 +54,42 @@
   color: white;
 }
 
-.get>.menu__link::before {
+.get > .menu__link::before {
   content: "get";
   background-color: var(--ifm-color-primary);
 }
 
-.put>.menu__link::before {
+.put > .menu__link::before {
   content: "put";
   background-color: var(--openapi-code-blue);
 }
 
-.post>.menu__link::before {
+.post > .menu__link::before {
   content: "post";
   background-color: var(--openapi-code-green);
 }
 
-.delete>.menu__link::before {
+.delete > .menu__link::before {
   content: "del";
   background-color: var(--openapi-code-red);
 }
 
-.patch>.menu__link::before {
+.patch > .menu__link::before {
   content: "patch";
   background-color: var(--openapi-code-orange);
 }
 
 /* customizes "section headers". */
-li.sidebar-section-title {
-  > div.menu__list-item-collapsible {
-      font-weight: bold; 
-      color: var(--ifm-color-primary-contrast-foreground);
-      /* don't want any click interaction effects here */
-      &:hover {
-        background-color: transparent;
-      }
-  }
-  &:first-child > div.menu__list-item-collapsible {
-    margin-top: 0.5em;
-  }
-  &:not(:first-child) > div.menu__list-item-collapsible {
-    margin-top: 1em;
-  }
+li.sidebar-section-title > div.menu__list-item-collapsible {
+  font-weight: bold;
+  color: var(--ifm-color-primary-contrast-foreground);
+}
+li.sidebar-section-title > div.menu__list-item-collapsible:hover {
+  background-color: transparent;
+}
+li.sidebar-section-title:first-child > div.menu__list-item-collapsible {
+  margin-top: 0.5em;
+}
+li.sidebar-section-title:not(:first-child) > div.menu__list-item-collapsible {
+  margin-top: 1em;
 }

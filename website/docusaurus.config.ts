@@ -93,7 +93,7 @@ const config: Config = {
           label: "Reference",
         },
         {
-          to: "/changelog/changes",
+          to: "/changelog",
           position: "left",
           label: "Changelog",
         },
