@@ -620,10 +620,21 @@ def auto_json_diff(
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
+    if not isinstance(output, str):
+        output = output.get("data", "")
+        if not isinstance(output, str):
+            return Result(
+                type="error",
+                value=None,
+                error=Error(
+                    message="JSON Diff expects a string output but was given something else."
+                ),
+            )
+
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
-            ground_truth=correct_answer,
+            ground_truth=json.loads(correct_answer),
             app_output=json.loads(output),
             settings_values=settings_values,
         )
