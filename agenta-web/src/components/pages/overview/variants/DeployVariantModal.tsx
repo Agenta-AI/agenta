@@ -1,7 +1,7 @@
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {createPublishVariant} from "@/services/deployment/api"
 import {Rocket} from "@phosphor-icons/react"
-import {Badge, message, Modal, Table, Tag, Typography} from "antd"
+import {Badge, message, Modal, Table, Tag, theme, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -11,6 +11,8 @@ type DeployVariantModalProps = {
     selectedVariant: Variant
     loadEnvironments: () => Promise<void>
 } & React.ComponentProps<typeof Modal>
+
+const {useToken} = theme
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -34,6 +36,7 @@ const DeployVariantModal = ({
     loadEnvironments,
     ...props
 }: DeployVariantModalProps) => {
+    const {token} = useToken()
     const classes = useStyles()
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [isPublishing, setIsPublishing] = useState(false)
@@ -73,7 +76,7 @@ const DeployVariantModal = ({
             render(_, record) {
                 return record.deployed_variant_name ? (
                     <Tag>
-                        <Badge color="blue" text={record.deployed_variant_name} />
+                        <Badge color={token.colorPrimary} text={record.deployed_variant_name} />
                     </Tag>
                 ) : (
                     <Tag>No deployment</Tag>

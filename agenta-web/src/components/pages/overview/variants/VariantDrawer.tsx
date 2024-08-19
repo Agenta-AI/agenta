@@ -4,7 +4,7 @@ import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CloseOutlined, MoreOutlined} from "@ant-design/icons"
 import {CloudArrowUp, Lightning, Rocket, Trash} from "@phosphor-icons/react"
-import {Badge, Button, Drawer, Dropdown, Tabs, Tag, Typography} from "antd"
+import {Badge, Button, Drawer, Dropdown, Tabs, Tag, theme, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
@@ -16,6 +16,7 @@ type VariantDrawerProps = {
 } & React.ComponentProps<typeof Drawer>
 
 const {Title} = Typography
+const {useToken} = theme
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     drawerTitleContainer: {
@@ -79,6 +80,7 @@ const VariantDrawer = ({
     setIsDeployVariantModalOpen,
     ...props
 }: VariantDrawerProps) => {
+    const {token} = useToken()
     const classes = useStyles()
     const appId = useAppId()
 
@@ -156,7 +158,7 @@ const VariantDrawer = ({
                         {environments.map((env, idx) =>
                             env.deployed_app_variant_id ? (
                                 <Tag key={idx}>
-                                    <Badge color="blue" text={env.name} />
+                                    <Badge color={token.colorPrimary} text={env.name} />
                                 </Tag>
                             ) : (
                                 <Tag key={idx}>{env.name}</Tag>
