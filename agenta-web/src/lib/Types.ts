@@ -2,7 +2,7 @@ import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 import {GlobalToken} from "antd"
 
-export type JSSTheme = GlobalToken & {isDark: boolean}
+export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
     _id: string

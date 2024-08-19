@@ -31,7 +31,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             color: theme.colorPrimary,
             fontSize: theme.fontSizeLG,
             lineHeight: theme.lineHeightLG,
-            fontWeight: 500,
+            fontWeight: theme.fontWeightMedium,
         },
     },
 }))

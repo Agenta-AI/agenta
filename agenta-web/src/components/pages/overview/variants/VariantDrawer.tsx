@@ -25,13 +25,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& h1.ant-typography": {
             fontSize: theme.fontSizeHeading5,
             lineHeight: theme.lineHeightHeading5,
-            fontWeight: 500,
+            fontWeight: theme.fontWeightMedium,
         },
     },
     subTitle: {
         fontSize: theme.fontSize,
         lineHeight: theme.lineHeight,
-        fontWeight: 500,
+        fontWeight: theme.fontWeightMedium,
     },
     resultTag: {
         minWidth: 150,
@@ -58,7 +58,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     noParams: {
         color: theme.colorTextDescription,
-        fontWeight: 500,
+        fontWeight: theme.fontWeightMedium,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

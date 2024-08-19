@@ -55,7 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
         "& h1.ant-typography": {
             fontSize: theme.fontSizeHeading5,
-            fontWeight: 500,
+            fontWeight: theme.fontWeightMedium,
             textTransform: "capitalize",
         },
     },

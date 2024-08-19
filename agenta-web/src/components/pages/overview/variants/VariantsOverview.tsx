@@ -32,7 +32,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         gap: theme.paddingXS,
-        fontWeight: 500,
         "& > div h1.ant-typography": {
             fontSize: theme.fontSize,
         },

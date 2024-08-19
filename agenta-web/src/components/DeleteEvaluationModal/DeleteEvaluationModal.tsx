@@ -20,7 +20,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     delText: {
         color: theme.colorPrimary,
         fontSize: theme.fontSizeLG,
-        fontWeight: 500,
+        fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightLG,
         textTransform: "capitalize",
     },
