@@ -129,6 +129,18 @@ const config: Config = {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
         additionalLanguages: ["ruby", "csharp", "php", "java", "powershell", "json", "bash"],
+        magicComments: [
+          // Remember to extend the default highlight class name as well!
+          {
+            className: "theme-code-block-highlighted-line",
+            line: "highlight-next-line",
+            block: { start: "highlight-start", end: "highlight-end" },
+          },
+          {
+            className: "code-block-error-line",
+            line: "highlight-error",
+          },
+        ],
       },
       languageTabs: [
         {
@@ -184,6 +196,12 @@ const config: Config = {
       apiKey: "d760ee239785f6acd72ea26185681706",
       indexName: "agenta-ai",
     },
+    // For image zoom plugin
+    zoom: {
+      config: {
+        margin: 50,
+      },
+    },
   },
 
   plugins: [
@@ -216,6 +234,7 @@ const config: Config = {
         } satisfies Plugin.PluginOptions,
       },
     ],
+    "docusaurus-plugin-image-zoom",
   ],
 
   themes: ["docusaurus-theme-openapi-docs"],
