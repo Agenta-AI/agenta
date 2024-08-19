@@ -45,6 +45,8 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_semantic_similarity]: "Semantic Similarity Match",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
     [EvaluationType.single_model_test]: "Single Model Test",
+    [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
+    [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
 }
 
 export const apiKeyObject = () => {
@@ -107,7 +109,7 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
 
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
-        return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
+        return ["cloud", "ee", "cloud-dev"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
 }
@@ -162,8 +164,8 @@ export const withRetry = (
         (retry, attempt) =>
             func().catch((e) => {
                 if (logErrors) {
-                    console.log("Error: ", getErrorMessage(e))
-                    console.log("Retry attempt: ", attempt)
+                    console.error("Error: ", getErrorMessage(e))
+                    console.error("Retry attempt: ", attempt)
                 }
                 retry(e)
             }),
@@ -199,7 +201,7 @@ export async function batchExecute(
             return await (allowRetry ? withRetry(f, {logErrors, ...(retryConfig || {})}) : f())
         } catch (e) {
             if (supressErrors) {
-                if (logErrors) console.log("Ignored error:", getErrorMessage(e))
+                if (logErrors) console.error("Ignored error:", getErrorMessage(e))
                 return {__error: e}
             }
             throw e
@@ -329,8 +331,16 @@ export const getInitials = (str: string, limit = 2) => {
             .slice(0, limit)
             ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
     } catch (error) {
-        console.log("Error using getInitials", error)
+        console.error("Error using getInitials", error)
     }
 
     return initialText
+}
+
+export const getStringOrJson = (value: any) => {
+    return typeof value === "string"
+        ? value
+        : typeof value?.data === "string"
+          ? value?.data
+          : JSON.stringify(value, null, 2)
 }
