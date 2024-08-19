@@ -32,7 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: 40,
         "& h1": {
             fontSize: theme.fontSizeHeading4,
-            fontWeight: 500,
+            fontWeight: theme.fontWeightMedium,
             lineHeight: theme.lineHeightHeading4,
         },
     },

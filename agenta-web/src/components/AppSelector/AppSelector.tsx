@@ -2,7 +2,7 @@ import {useState, useEffect, useMemo} from "react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Button, notification} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, StyleProps} from "@/lib/Types"
+import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
@@ -22,7 +22,7 @@ import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
         marginTop: "24px",
         width: "100%",
@@ -66,7 +66,7 @@ const useStyles = createUseStyles({
     },
     title: {
         fontSize: 16,
-        fontWeight: 500,
+        fontWeight: theme.fontWeightMedium,
         lineHeight: "24px",
     },
     modal: {
@@ -84,7 +84,7 @@ const useStyles = createUseStyles({
     modalBtn: {
         alignSelf: "flex-end",
     },
-})
+}))
 
 const timeout = isDemo() ? 60000 : 30000
 

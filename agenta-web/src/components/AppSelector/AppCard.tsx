@@ -26,7 +26,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
             "& .ant-card-head-title": {
                 fontSize: theme.fontSizeLG,
-                fontWeight: 500,
+                fontWeight: theme.fontWeightMedium,
             },
         },
         "& > .ant-card-body": {

@@ -79,6 +79,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         maxHeight: "calc(100vh - 390px)",
         overflowY: "auto",
         position: "relative",
+        "& .ant-menu-item-selected": {
+            fontWeight: theme.fontWeightMedium,
+        },
     },
     menuContainer2: {
         borderRight: "0 !important",
