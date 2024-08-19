@@ -1,6 +1,6 @@
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CaretRight} from "@phosphor-icons/react"
-import {Badge, Input, Modal, Table, Tag, Typography} from "antd"
+import {Badge, Input, Modal, Table, Tag, theme, Typography} from "antd"
 import React, {SetStateAction, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentModal from "./DeploymentModal"
@@ -14,6 +14,8 @@ type ChangeVariantModalProps = {
     setOpenChangeVariantModal: (value: SetStateAction<boolean>) => void
     loadEnvironments: () => Promise<void>
 } & React.ComponentProps<typeof Modal>
+
+const {useToken} = theme
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -40,6 +42,7 @@ const ChangeVariantModal = ({
     loadEnvironments,
     ...props
 }: ChangeVariantModalProps) => {
+    const {token} = useToken()
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState<string>("")
     const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState(false)
@@ -87,7 +90,7 @@ const ChangeVariantModal = ({
                                                 <div className="flex items-center">
                                                     <Tag>
                                                         <Badge
-                                                            color="blue"
+                                                            color={token.colorPrimary}
                                                             text={splitVariantId(record.variantId)}
                                                         />
                                                     </Tag>
