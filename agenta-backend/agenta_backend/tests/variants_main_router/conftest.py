@@ -218,6 +218,16 @@ def app_variant_parameters_updated():
 
 
 @pytest.fixture()
+def evaluators_requiring_llm_keys():
+    return [
+        "rag_context_relevancy",
+        "rag_faithfulness",
+        "auto_ai_critique",
+        "auto_semantic_similarity",
+    ]
+
+
+@pytest.fixture()
 def auto_exact_match_evaluator_config():
     return {
         "app_id": "string",
