@@ -164,7 +164,7 @@ export default function AddANewTestset() {
             <Spin spinning={uploadLoading}>
                 <Form onFinish={onFinish} form={form} className={classes.form} {...layout}>
                     <Form.Item name="testsetName" label="Test set name" rules={[{type: "string"}]}>
-                        <Input maxLength={25} />
+                        <Input maxLength={25} data-cy="upload-testset-file-name" />
                     </Form.Item>
                     <Form.Item
                         name="file"
@@ -189,7 +189,12 @@ export default function AddANewTestset() {
                     </Form.Item>
 
                     <Form.Item {...tailLayout}>
-                        <Button type="primary" htmlType="submit" disabled={uploadLoading}>
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            disabled={uploadLoading}
+                            data-cy="testset-upload-button"
+                        >
                             Add test set
                         </Button>
                     </Form.Item>
