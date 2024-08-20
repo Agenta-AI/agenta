@@ -996,15 +996,9 @@ async def levenshtein_distance(
 ) -> EvaluatorOutputInterface:
     prediction = input.inputs["prediction"]
     ground_truth = input.inputs["ground_truth"]
-    # if len(prediction) < len(ground_truth):
-    #     return await levenshtein_distance(
-    #         input=EvaluatorInputInterface(
-    #             **{"inputs": {"prediction": prediction, "ground_truth": ground_truth}}
-    #         )
-    #     )  # pylint: disable=arguments-out-of-order
 
     if len(ground_truth) == 0:
-        return len(s1)
+        return len(prediction)
 
     previous_row = range(len(ground_truth) + 1)
     for i, c1 in enumerate(prediction):
