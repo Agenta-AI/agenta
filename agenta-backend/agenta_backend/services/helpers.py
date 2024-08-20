@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Union, Tuple
 
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import LMProvidersEnum
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
 
 def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
@@ -120,12 +121,11 @@ async def ensure_required_llm_keys_exist(
     """
 
     evaluators_requiring_llm_keys = [
-        "rag_context_relevancy",
-        "rag_faithfulness",
-        "auto_ai_critique",
-        "auto_semantic_similarity",
+        evaluator["key"]
+        for evaluator in get_all_evaluators()
+        if evaluator["settings_template"]["requires_llm_api_keys"].get("default", False)
+        is True
     ]
-
     evaluators_found = (
         await db_manager.check_if_evaluators_exist_in_list_of_evaluators_configs(
             evaluator_configs, evaluators_requiring_llm_keys
