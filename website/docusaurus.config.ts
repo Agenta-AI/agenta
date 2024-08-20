@@ -35,7 +35,7 @@ const config: Config = {
           path: "docs",
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/packages/create-docusaurus/templates/shared/",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/websites",
           docItemComponent: "@theme/ApiItem",
         },
         blog: {
@@ -45,7 +45,7 @@ const config: Config = {
             type: ["rss", "atom"],
           },
           blogSidebarCount: 0,
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/packages/create-docusaurus/templates/shared/",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/websites",
           onInlineTags: "ignore",
         },
         theme: {
@@ -108,17 +108,17 @@ const config: Config = {
           position: "right",
         },
         {
-          href: "https://github.com/facebook/docusaurus",
+          href: "https://github.com/Agenta-AI/agenta",
           label: "GitHub",
           position: "right",
         },
         {
-          href: "https://github.com/facebook/docusaurus",
+          href: "https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
           label: "Slack",
           position: "right",
         },
         {
-          href: "https://github.com/facebook/docusaurus",
+          href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           label: "Book A Demo",
           position: "right",
         },
