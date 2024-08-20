@@ -92,6 +92,18 @@
       "group": "Evaluation",
       "pages": [
         "evaluation/test_sets",
+        {
+          "group": "Evaluators",
+          "pages": [
+            "evaluation/text_classification_and_entity_extraction",
+            "evaluation/semantic_analysis",
+            "evaluation/pattern_matching",
+            "evaluation/LLM_as_a_judge",
+            "evaluation/custom_code_evaluation",
+            "evaluation/webhook_integration",
+            "evaluation/retrieval_augmented_generation"
+          ]
+        },
         "evaluation/automatic_evaluation",
         "evaluation/custom_evaluator",
         "evaluation/webhook_evaluator",
