@@ -11,6 +11,8 @@ export default defineConfig({
         baseUrl: "http://localhost:3000",
         defaultCommandTimeout: 75000,
         requestTimeout: 60000,
+        pageLoadTimeout: 60000,
+        responseTimeout: 60000,
         setupNodeEvents(on) {
             on("task", {
                 log(message) {
