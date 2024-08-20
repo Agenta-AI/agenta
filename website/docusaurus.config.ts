@@ -65,11 +65,10 @@ const config: Config = {
       },
     },
     navbar: {
-      title: "agenta",
       logo: {
         alt: "agenta-ai",
-        src: "images/light-logo.svg",
-        srcDark: "images/dark-logo.svg",
+        src: "images/light-complete-transparent-CROPPED.png",
+        srcDark: "images/dark-complete-transparent-CROPPED.png",
       },
       hideOnScroll: false,
       items: [
