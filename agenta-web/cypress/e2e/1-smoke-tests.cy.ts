@@ -1,6 +1,5 @@
 describe("Basic smoke tests to see if app has loaded correctly", () => {
     beforeEach(() => {
-        cy.wait(60000)
         cy.visit("/apps")
     })
 
