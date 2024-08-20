@@ -95,13 +95,6 @@ class AppVariantFromImagePayload(BaseModel):
     variant_name: str
 
 
-class ModifiedBy(BaseModel):
-    id: str
-    uid: str
-    username: str
-    profile_picture: Optional[str] = None
-
-
 class AppVariantResponse(BaseModel):
     app_id: str
     app_name: str
@@ -114,9 +107,9 @@ class AppVariantResponse(BaseModel):
     config_name: str
     uri: Optional[str]
     revision: int
-    date_modified: str
-    date_created: str
-    modified_by: ModifiedBy
+    created_at: str
+    updated_at: str
+    modified_by_id: str
 
 
 class AppVariantRevision(BaseModel):

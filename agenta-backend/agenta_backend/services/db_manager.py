@@ -211,9 +211,6 @@ async def fetch_app_variant_by_id(
         base_query = select(AppVariantDB).options(
             joinedload(AppVariantDB.base),
             joinedload(AppVariantDB.app),
-            joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
-                UserDB.id, UserDB.uid, UserDB.username
-            ),
         )
         if isCloudEE():
             query = base_query.options(
@@ -474,7 +471,6 @@ async def create_new_app_variant(
             "image",
             "user",
             "base",
-            "modified_by",
         ]
         if isCloudEE():
             attributes_to_refresh.extend(["organization", "workspace"])
@@ -857,7 +853,7 @@ async def get_user_with_id(user_id: str):
         user = result.scalars().first()
         if user is None:
             logger.error("Failed to get user with id")
-            raise Exception("Error while getting user")
+            raise NoResultFound(f"User with id {user_id} not found")
         return user
 
 
@@ -1153,9 +1149,6 @@ async def list_app_variants(app_id: str):
             .options(
                 joinedload(AppVariantDB.app),
                 joinedload(AppVariantDB.base),
-                joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
-                    UserDB.id, UserDB.uid, UserDB.username
-                ),
             )
             .filter_by(app_id=uuid.UUID(app_uuid))
         )
@@ -1856,9 +1849,6 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
             .options(
                 joinedload(AppVariantDB.base),
                 joinedload(AppVariantDB.app),
-                joinedload(AppVariantDB.modified_by.of_type(UserDB)).load_only(
-                    UserDB.id, UserDB.uid, UserDB.username
-                ),
             )
             .filter_by(id=uuid.UUID(variant_id))
         )
