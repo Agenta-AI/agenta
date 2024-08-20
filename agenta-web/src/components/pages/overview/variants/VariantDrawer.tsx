@@ -65,12 +65,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "center",
         height: 200,
     },
-    drawerTabs: {
-        "& .ant-tabs-content-holder": {
-            maxHeight: 700,
-            overflowY: "scroll",
-        },
-    },
 }))
 
 const VariantDrawer = ({
@@ -87,7 +81,7 @@ const VariantDrawer = ({
     return (
         <Drawer
             closeIcon={null}
-            width={560}
+            width={720}
             destroyOnClose
             {...props}
             title={
@@ -170,7 +164,6 @@ const VariantDrawer = ({
                     <Tabs
                         destroyInactiveTabPane
                         defaultActiveKey={"configuration"}
-                        className={classes.drawerTabs}
                         items={[
                             {
                                 key: "configuration",

@@ -59,12 +59,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             textTransform: "capitalize",
         },
     },
-    drawerTabs: {
-        "& .ant-tabs-content-holder": {
-            maxHeight: 700,
-            overflowY: "scroll",
-        },
-    },
     noDataContainer: {
         height: 200,
         display: "flex",
@@ -179,7 +173,7 @@ const DeploymentDrawer = ({
     return (
         <>
             <Drawer
-                width={560}
+                width={720}
                 {...props}
                 destroyOnClose
                 closeIcon={null}
@@ -262,7 +256,6 @@ const DeploymentDrawer = ({
                             <Tabs
                                 destroyInactiveTabPane
                                 defaultActiveKey={selectedLang}
-                                className={classes.drawerTabs}
                                 items={[
                                     {
                                         key: "python",

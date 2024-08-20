@@ -112,6 +112,7 @@ const VariantsOverview = ({
             title: "Name",
             dataIndex: "variant_name",
             key: "variant_name",
+            fixed: "left",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),

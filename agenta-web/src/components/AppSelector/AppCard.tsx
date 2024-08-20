@@ -133,11 +133,11 @@ const AppCard: React.FC<{
                 <div data-cy="app-card-link" className={classes.app_card_link}>
                     <div>
                         <Text>Type</Text>
-                        <Tag className="mr-0">Single Prompt</Tag>
+                        <Tag className="mr-0">Template</Tag>
                     </div>
                     <div>
                         <Text>Last modified:</Text>
-                        <Text>{formatDay("2024-08-05T22:32:19.593503Z")}</Text>
+                        <Text>{formatDay(new Date().getTime())}</Text>
                     </div>
                 </div>
             </Card>
