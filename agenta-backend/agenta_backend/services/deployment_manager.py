@@ -136,10 +136,15 @@ async def validate_image(image: Image) -> bool:
         msg = "Image tags cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
+
+    if isCloudEE():
+        image = Image(**image.model_dump(exclude={"workspace", "organization"}))
+
     if not image.tags.startswith(agenta_registry_repo):
         raise ValueError(
             f"Image should have a tag starting with the registry name ({agenta_registry_repo})\n Image Tags: {image.tags}"
         )
+
     if image not in docker_utils.list_images():
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
