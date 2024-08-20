@@ -13,6 +13,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     AppVariantDB,
 )
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
 import httpx
 from sqlalchemy.future import select
@@ -219,12 +220,13 @@ def app_variant_parameters_updated():
 
 @pytest.fixture()
 def evaluators_requiring_llm_keys():
-    return [
-        "rag_context_relevancy",
-        "rag_faithfulness",
-        "auto_ai_critique",
-        "auto_semantic_similarity",
+    evaluators_requiring_llm_keys = [
+        evaluator["key"]
+        for evaluator in get_all_evaluators()
+        if evaluator["settings_template"]["requires_llm_api_keys"].get("default", False)
+        is True
     ]
+    return evaluators_requiring_llm_keys
 
 
 @pytest.fixture()
