@@ -196,6 +196,7 @@ const AutomaticEvalOverview = () => {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
+            fixed: "left",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
