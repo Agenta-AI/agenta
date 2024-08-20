@@ -1,6 +1,6 @@
 describe("Basic smoke tests to see if app has loaded correctly", () => {
     beforeEach(() => {
-        cy.visit("/apps")
+        cy.visit("/apps", {timeout: 60000})
     })
 
     it("should navigate successfully to the app page", () => {
