@@ -17,7 +17,9 @@ async def user_profile(request: Request, user_id: Optional[str] = None):
         else:
             user = await db_manager.get_user(request.state.user_id)
 
-        assert user is not None, "User not found. Please ensure that the user_id is specified correctly."
+        assert (
+            user is not None
+        ), "User not found. Please ensure that the user_id is specified correctly."
         return User(
             id=str(user.id),
             uid=str(user.uid),

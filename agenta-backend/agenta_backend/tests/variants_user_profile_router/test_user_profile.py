@@ -64,7 +64,9 @@ async def test_fetch_user_profile_with_valid_user_id():
             updated_at=str(user_db.updated_at),
         ).model_dump(exclude_unset=True)
 
-        response = await test_client.get(f"{BACKEND_API_HOST}/profile/?user_id={str(user_db.id)}")
+        response = await test_client.get(
+            f"{BACKEND_API_HOST}/profile/?user_id={str(user_db.id)}"
+        )
 
         assert response.status_code == 200
         assert response.json()["id"] == user_db_dict["id"]
