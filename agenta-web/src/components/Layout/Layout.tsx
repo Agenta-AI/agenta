@@ -37,16 +37,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
-        // marginLeft: 225,
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
     breadcrumbContainer: {
+        display: "flex",
+        alignItems: "center",
         justifyContent: "space-between",
         width: "100%",
-    },
-    breadcrumb: {
-        padding: "24px 0",
+        padding: "8px 1.5rem",
+        marginBottom: 24,
+        borderBottom: "1px solid #eaeff5",
     },
     footer: {
         position: "absolute",
@@ -168,10 +169,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
                         <Layout className={classes.layout}>
-                            <Content className={classes.content}>
-                                <Space className={classes.breadcrumbContainer}>
+                            <div>
+                                <div className={classes.breadcrumbContainer}>
                                     <Breadcrumb
-                                        className={classes.breadcrumb}
                                         items={[
                                             {
                                                 title: (
@@ -187,12 +187,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     <div className={classes.topRightBar}>
                                         <Text>agenta v{packageJsonData.version}</Text>
                                     </div>
-                                </Space>
-                                <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                    {children}
-                                    {contextHolder}
-                                </ErrorBoundary>
-                            </Content>
+                                </div>
+                                <Content className={classes.content}>
+                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                        {children}
+                                        {contextHolder}
+                                    </ErrorBoundary>
+                                </Content>
+                            </div>
                             <Footer ref={footerRef} className={classes.footer}>
                                 <Space className={classes.footerLeft} size={10}>
                                     <Link
