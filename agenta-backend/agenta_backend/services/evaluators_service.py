@@ -616,7 +616,6 @@ async def auto_contains_json(
             if not isinstance(output, str):
                 raise Exception(
                     f"Evaluator 'contains_json' requires the output to be a string, but received {type(output).__name__} instead. "
-                    f"Please ensure the output of the application is a valid string, or that the 'data' key in the dictionary contains a string."
                 )
 
         response = await contains_json(
