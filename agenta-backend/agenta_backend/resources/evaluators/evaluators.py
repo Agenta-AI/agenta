@@ -59,7 +59,7 @@ evaluators = [
         "oss": True,
     },
     {
-        "name": "Contains Json",
+        "name": "Contains JSON",
         "key": "auto_contains_json",
         "direct_use": True,
         "settings_template": {
@@ -72,7 +72,7 @@ evaluators = [
                 "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
             },
         },
-        "description": "Contains Json evaluator checks if the output contains the specified JSON structure.",
+        "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
         "oss": True,
     },
     {
@@ -243,7 +243,7 @@ evaluators = [
         "oss": True,
     },
     {
-        "name": "AI Critique",
+        "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
         "settings_template": {

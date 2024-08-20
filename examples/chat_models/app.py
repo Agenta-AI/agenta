@@ -1,18 +1,17 @@
+import os
 import agenta as ag
 import replicate
 from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-from langchain.llms import OpenAI
+from langchain_community.chat_models import ChatOpenAI
+from langchain_community.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
 
 ag.init()
-
 prompts = {
     "human_prompt": """What is the capital of {text}""",
     "system_prompt": "You are an expert in geography.",
 }
-
 
 replicate_dict = {
     "replicate/llama-2-7b-chat": "a16z-infra/llama-2-7b-chat:4f0b260b6a13eb53a6b1891f089d57c08f41003ae79458be5011303d81a394dc",
@@ -22,12 +21,11 @@ replicate_dict = {
 
 # ChatGpt 3.5 models
 CHAT_LLM_GPT = [
-    "gpt-3.5-turbo-16k-0613",
     "gpt-3.5-turbo-16k",
-    "gpt-3.5-turbo-0613",
-    "gpt-3.5-turbo-0301",
     "gpt-3.5-turbo",
     "gpt-4",
+    "gpt-4o",
+    "gpt-4o-mini",
 ]
 
 ag.config.default(
@@ -65,10 +63,14 @@ def call_llm(prompt_system, prompt_human):
         output = chat(
             messages,
         )
+        return output.content
 
     # replicate
     if ag.config.model.startswith("replicate"):
-        output = replicate.run(
+        replicate_client = replicate.Client(
+            api_token=os.environ.get("REPLICATE_API_KEY")
+        )
+        output = replicate_client.run(
             replicate_dict[ag.config.model],
             input={
                 "prompt": prompt_human,
@@ -79,8 +81,7 @@ def call_llm(prompt_system, prompt_human):
                 "repetition_penalty": ag.config.frequence_penalty,
             },
         )
-
-    return "".join(list(output))
+        return "".join(list(output))
 
 
 @ag.entrypoint

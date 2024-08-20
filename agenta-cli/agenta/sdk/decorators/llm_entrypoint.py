@@ -1,5 +1,6 @@
 """The code for the Agenta SDK"""
 
+from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 import os
 import sys
 import time
@@ -30,6 +31,7 @@ from agenta.sdk.types import (
     InFile,
     IntParam,
     MultipleChoiceParam,
+    MultipleChoice,
     GroupedMultipleChoiceParam,
     TextParam,
     MessagesInput,
@@ -37,8 +39,16 @@ from agenta.sdk.types import (
     BaseResponse,
     BinaryParam,
 )
+import pydantic
+
+from pydantic import BaseModel
+from typing import Type
+from annotated_types import Ge, Le, Gt, Lt
 
 from pydantic import BaseModel, HttpUrl
+import contextvars
+from contextlib import contextmanager
+
 
 app = FastAPI()
 
@@ -56,10 +66,30 @@ app.add_middleware(
 
 app.include_router(router, prefix="")
 
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
-
 
 logging.setLevel("DEBUG")
+
+route_context = contextvars.ContextVar("route_context", default={})
+
+
+@contextmanager
+def route_context_manager(
+    config: Optional[Dict[str, Any]] = None,
+    environment: Optional[str] = None,
+    version: Optional[str] = None,
+    variant: Optional[str] = None,
+):
+    context = {
+        "config": config,
+        "environment": environment,
+        "version": version,
+        "variant": variant,
+    }
+    token = route_context.set(context)
+    try:
+        yield
+    finally:
+        route_context.reset(token)
 
 
 class PathValidator(BaseModel):
@@ -72,16 +102,18 @@ class route(BaseDecorator):
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
     # routes without altering the main workflow entrypoint. This helps in modularizing the services
     # and provides flexibility in how we expose different functionalities as APIs.
-    def __init__(self, path):
+    def __init__(self, path, config_schema: BaseModel):
+        self.config_schema: BaseModel = config_schema
         path = "/" + path.strip("/").strip()
         path = "" if path == "/" else path
-
         PathValidator(url=f"http://example.com{path}")
 
         self.route_path = path
 
     def __call__(self, f):
-        self.e = entrypoint(f, route_path=self.route_path)
+        self.e = entrypoint(
+            f, route_path=self.route_path, config_schema=self.config_schema
+        )
 
         return f
 
@@ -119,15 +151,29 @@ class entrypoint(BaseDecorator):
 
     routes = list()
 
-    def __init__(self, func: Callable[..., Any], route_path=""):
+    def __init__(
+        self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None
+    ):
         logging.info(f"Using Agenta Python SDK version {version('agenta')}")
 
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
-
         func_signature = inspect.signature(func)
-        config_params = ag.config.all()
+        try:
+            config = (
+                config_schema() if config_schema else None
+            )  # we initialize the config object to be able to use it
+        except pydantic.ValidationError as e:
+            raise ValueError(
+                f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
+            ) from e
+        except Exception as e:
+            raise ValueError(
+                f"Unexpected error initializing config_schema: {str(e)}"
+            ) from e
+
+        config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
         ### --- Playground  --- #
@@ -136,25 +182,30 @@ class entrypoint(BaseDecorator):
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
-            ag.config.set(**api_config_params)
+            if not config_schema:
+                ag.config.set(**api_config_params)
 
             # Set the configuration and environment of the LLM app parent span at run-time
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
-
-            entrypoint_result = await self.execute_function(
-                func,
-                True,  # inline trace: True
-                *args,
-                params=func_params,
-                config_params=config_params,
-            )
+            with route_context_manager(config=api_config_params):
+                entrypoint_result = await self.execute_function(
+                    func,
+                    True,  # inline trace: True
+                    *args,
+                    params=func_params,
+                    config_params=config_params,
+                )
 
             return entrypoint_result
 
         self.update_function_signature(
-            wrapper, func_signature, config_params, ingestible_files
+            wrapper=wrapper,
+            func_signature=func_signature,
+            config_class=config,
+            config_dict=config_params,
+            ingestible_files=ingestible_files,
         )
 
         #
@@ -165,7 +216,10 @@ class entrypoint(BaseDecorator):
                 {
                     "func": func.__name__,
                     "endpoint": route,
-                    "params": {**config_params, **func_signature.parameters},
+                    "params": {**config_params, **func_signature.parameters}
+                    if not config
+                    else func_signature.parameters,
+                    "config": config,
                 }
             )
 
@@ -175,7 +229,10 @@ class entrypoint(BaseDecorator):
             {
                 "func": func.__name__,
                 "endpoint": route,
-                "params": {**config_params, **func_signature.parameters},
+                "params": {**config_params, **func_signature.parameters}
+                if not config
+                else func_signature.parameters,
+                "config": config,
             }
         )
         ### ---------------------------- #
@@ -187,26 +244,28 @@ class entrypoint(BaseDecorator):
             func_params = {
                 k: v for k, v in kwargs.items() if k not in ["config", "environment"]
             }
-
-            if "environment" in kwargs and kwargs["environment"] is not None:
-                ag.config.pull(environment_name=kwargs["environment"])
-            elif "config" in kwargs and kwargs["config"] is not None:
-                ag.config.pull(config_name=kwargs["config"])
-            else:
-                ag.config.pull(config_name="default")
+            if not config_schema:
+                if "environment" in kwargs and kwargs["environment"] is not None:
+                    ag.config.pull(environment_name=kwargs["environment"])
+                elif "config" in kwargs and kwargs["config"] is not None:
+                    ag.config.pull(config_name=kwargs["config"])
+                else:
+                    ag.config.pull(config_name="default")
 
             # Set the configuration and environment of the LLM app parent span at run-time
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
-
-            entrypoint_result = await self.execute_function(
-                func,
-                False,  # inline trace: False
-                *args,
-                params=func_params,
-                config_params=config_params,
-            )
+            with route_context_manager(
+                variant=kwargs["config"], environment=kwargs["environment"]
+            ):
+                entrypoint_result = await self.execute_function(
+                    func,
+                    False,  # inline trace: False
+                    *args,
+                    params=func_params,
+                    config_params=config_params,
+                )
 
             return entrypoint_result
 
@@ -215,7 +274,6 @@ class entrypoint(BaseDecorator):
             func_signature,
             ingestible_files,
         )
-
         if route_path == "":
             route_deployed = f"/{DEFAULT_PATH}_deployed"
             app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
@@ -231,11 +289,18 @@ class entrypoint(BaseDecorator):
         for route in entrypoint.routes:
             self.override_schema(
                 openapi_schema=openapi_schema,
-                func=route["func"],
+                func_name=route["func"],
                 endpoint=route["endpoint"],
                 params=route["params"],
             )
-        ### ---------------------- #
+            if route["config"] is not None:  # new SDK version
+                self.override_config_in_schema(
+                    openapi_schema=openapi_schema,
+                    func_name=route["func"],
+                    endpoint=route["endpoint"],
+                    config=route["config"],
+                )
+
         if self.is_main_script(func) and route_path == "":
             self.handle_terminal_run(
                 func,
@@ -393,13 +458,17 @@ class entrypoint(BaseDecorator):
         self,
         wrapper: Callable[..., Any],
         func_signature: inspect.Signature,
-        config_params: Dict[str, Any],
+        config_class: Type[BaseModel],  # TODO: change to our type
+        config_dict: Dict[str, Any],
         ingestible_files: Dict[str, inspect.Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[inspect.Parameter] = []
-        self.add_config_params_to_parser(updated_params, config_params)
+        if config_class:
+            self.add_config_params_to_parser(updated_params, config_class)
+        else:
+            self.deprecated_add_config_params_to_parser(updated_params, config_dict)
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
 
@@ -419,8 +488,8 @@ class entrypoint(BaseDecorator):
         ]:  # we add the config and environment parameters
             updated_params.append(
                 inspect.Parameter(
-                    param,
-                    inspect.Parameter.KEYWORD_ONLY,
+                    name=param,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
                     default=Body(None),
                     annotation=str,
                 )
@@ -428,17 +497,32 @@ class entrypoint(BaseDecorator):
         self.update_wrapper_signature(wrapper, updated_params)
 
     def add_config_params_to_parser(
-        self, updated_params: list, config_params: Dict[str, Any]
+        self, updated_params: list, config_class: Type[BaseModel]
     ) -> None:
         """Add configuration parameters to function signature."""
-        for name, param in config_params.items():
+        for name, field in config_class.__fields__.items():
+            assert field.default is not None, f"Field {name} has no default value"
+            updated_params.append(
+                inspect.Parameter(
+                    name=name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    annotation=field.annotation.__name__,
+                    default=Body(field.default),
+                )
+            )
+
+    def deprecated_add_config_params_to_parser(
+        self, updated_params: list, config_dict: Dict[str, Any]
+    ) -> None:
+        """Add configuration parameters to function signature."""
+        for name, param in config_dict.items():
             assert (
                 len(param.__class__.__bases__) == 1
             ), f"Inherited standard type of {param.__class__} needs to be one."
             updated_params.append(
                 inspect.Parameter(
-                    name,
-                    inspect.Parameter.KEYWORD_ONLY,
+                    name=name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
                     default=Body(param),
                     annotation=param.__class__.__bases__[
                         0
@@ -546,10 +630,17 @@ class entrypoint(BaseDecorator):
                 file_path=args_func_params[name],
             )
 
-        ag.config.set(**args_config_params)
+        # Update args_config_params with default values from config_params if not provided in command line arguments
+        args_config_params.update(
+            {
+                key: value
+                for key, value in config_params.items()
+                if key not in args_config_params
+            }
+        )
 
         # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage({"config": ag.config.all(), "environment": "bash"})
+        ag.tracing.update_baggage({"config": args_config_params, "environment": "bash"})
 
         loop = asyncio.get_event_loop()
 
@@ -561,15 +652,92 @@ class entrypoint(BaseDecorator):
             )
         )
 
-        print(f"\n========== Result ==========\n")
+        print("\n========== Result ==========\n")
 
         print("-> data")
         print(json.dumps(result.data, indent=2))
         print("-> trace")
         print(json.dumps(result.trace, indent=2))
 
+        with open("trace.json", "w") as trace_file:
+            json.dump(result.trace, trace_file, indent=4)
+
+    def override_config_in_schema(
+        self,
+        openapi_schema: dict,
+        func_name: str,
+        endpoint: str,
+        config: Type[BaseModel],
+    ):
+        endpoint = endpoint[1:].replace("/", "_")
+        schema_to_override = openapi_schema["components"]["schemas"][
+            f"Body_{func_name}_{endpoint}_post"
+        ]["properties"]
+        # New logic
+        for param_name, param_val in config.__fields__.items():
+            if param_val.annotation is str:
+                if any(
+                    isinstance(constraint, MultipleChoice)
+                    for constraint in param_val.metadata
+                ):
+                    choices = next(
+                        constraint.choices
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, MultipleChoice)
+                    )
+                    if isinstance(choices, dict):
+                        schema_to_override[param_name]["x-parameter"] = "grouped_choice"
+                        schema_to_override[param_name]["choices"] = choices
+                    elif isinstance(choices, list):
+                        schema_to_override[param_name]["x-parameter"] = "choice"
+                        schema_to_override[param_name]["enum"] = choices
+                else:
+                    schema_to_override[param_name]["x-parameter"] = "text"
+            if param_val.annotation is bool:
+                schema_to_override[param_name]["x-parameter"] = "bool"
+            if param_val.annotation in (int, float):
+                schema_to_override[param_name]["x-parameter"] = (
+                    "int" if param_val.annotation is int else "float"
+                )
+                # Check for greater than or equal to constraint
+                if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
+                    min_value = next(
+                        constraint.ge
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Ge)
+                    )
+                    schema_to_override[param_name]["minimum"] = min_value
+                # Check for greater than constraint
+                elif any(
+                    isinstance(constraint, Gt) for constraint in param_val.metadata
+                ):
+                    min_value = next(
+                        constraint.gt
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Gt)
+                    )
+                    schema_to_override[param_name]["exclusiveMinimum"] = min_value
+                # Check for less than or equal to constraint
+                if any(isinstance(constraint, Le) for constraint in param_val.metadata):
+                    max_value = next(
+                        constraint.le
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Le)
+                    )
+                    schema_to_override[param_name]["maximum"] = max_value
+                # Check for less than constraint
+                elif any(
+                    isinstance(constraint, Lt) for constraint in param_val.metadata
+                ):
+                    max_value = next(
+                        constraint.lt
+                        for constraint in param_val.metadata
+                        if isinstance(constraint, Lt)
+                    )
+                    schema_to_override[param_name]["exclusiveMaximum"] = max_value
+
     def override_schema(
-        self, openapi_schema: dict, func: str, endpoint: str, params: dict
+        self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
     ):
         """
         Overrides the default openai schema generated by fastapi with additional information about:
@@ -641,7 +809,7 @@ class entrypoint(BaseDecorator):
         endpoint = endpoint[1:].replace("/", "_")
 
         schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func}_{endpoint}_post"
+            f"Body_{func_name}_{endpoint}_post"
         ]["properties"]
 
         for param_name, param_val in params.items():

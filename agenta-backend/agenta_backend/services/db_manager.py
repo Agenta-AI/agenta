@@ -671,6 +671,27 @@ async def create_app_and_envs(
         return app
 
 
+async def update_app(app_id: str, values_to_update: dict) -> None:
+    """Update the app in the database.
+
+    Arguments:
+        app_id (str): The app id
+        values_to_update (dict): The values to update in the app
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+        app = result.scalars().first()
+        if not app:
+            raise NoResultFound(f"App with {app_id} not found")
+
+        for key, value in values_to_update.items():
+            if hasattr(app, key):
+                setattr(app, key, value)
+
+        await session.commit()
+
+
 async def get_deployment_by_id(
     deployment_id: str,
 ) -> DeploymentDB:
@@ -2609,9 +2630,18 @@ async def update_app_variant(
             if hasattr(app_variant, key):
                 setattr(app_variant, key, value)
 
+        relationships_to_load_in_session = [
+            "user",
+            "app",
+            "image",
+            "base",
+        ]
+        if isCloudEE():
+            relationships_to_load_in_session.append("organization")
+
         await session.commit()
         await session.refresh(
-            app_variant, attribute_names=["user", "app", "image", "base"]
+            app_variant, attribute_names=relationships_to_load_in_session
         )
 
         return app_variant
