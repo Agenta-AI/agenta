@@ -8,7 +8,7 @@ export default defineConfig({
     video: false,
     screenshotOnRunFailure: false,
     e2e: {
-        baseUrl: "http://localhost:3000",
+        baseUrl: "http://localhost",
         defaultCommandTimeout: 30000,
         requestTimeout: 10000,
         setupNodeEvents(on) {
