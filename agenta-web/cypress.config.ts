@@ -20,7 +20,6 @@ export default defineConfig({
             })
         },
         experimentalStudio: true,
-        excludeSpecPattern: ["cypress/e2e/1-smoke-tests.cy.ts"],
     },
     env: {
         baseApiURL: "http://localhost/api",
