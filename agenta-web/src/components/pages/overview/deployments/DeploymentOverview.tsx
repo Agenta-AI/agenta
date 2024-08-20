@@ -129,9 +129,13 @@ const DeploymentOverview = ({
                                                 icon: <Rocket size={16} />,
                                                 onClick: (e) => {
                                                     e.domEvent.stopPropagation()
-                                                    router.push(
-                                                        `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
-                                                    )
+                                                    if (env.deployed_variant_name) {
+                                                        router.push(
+                                                            `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
+                                                        )
+                                                    } else {
+                                                        router.push(`/apps/${appId}/playground`)
+                                                    }
                                                 },
                                             },
                                         ],
