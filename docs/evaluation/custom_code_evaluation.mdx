@@ -1,0 +1,118 @@
+---
+title: "Custom Code Evaluation"
+---
+
+Custom code evaluation allows you to write your own code to evaluate the correctness of the model's outputs or specific usecase.
+Writing your own custom evaluators provides you with a flexible and programmable way to assess whether the model's generated outputs match expected results.
+
+You can write custom evaluators using Python programming language, but at the moment there are limitation on the code that can be written in the custom evaluator.
+Agenta's backend uses `RestrictedPython` to execute the code which limits the libraries that can be used.
+
+## Creating the Custom Code Evaluator
+
+To create a custom evaluator on Agenta, click on the **Automatic Evaluations** in the sidebar menu, and then click on the **New Evaluator** button.
+
+<img
+  className="dark:hidden"
+  height="600"
+  src="/images/Evaluators/Agenta-Custom-Code-new-evaluator.png"
+/>
+
+Select **Code Evaluation** from the list of evaluators.
+
+<img
+  className="dark:hidden"
+  height="600"
+  src="/images/Evaluators/Agenta-Custom-Code-evaluator-select.png"
+/>
+
+You will see a modal pop up prompting you to provide the following information:
+
+- **Evaluator name**: Enter a unique and descriptive name for your custom evaluator.
+- **Evaluator Template**: Choose a template for your custom evaluator. This could be based on the specific criteria or type of evaluation you want.
+
+<img
+  className="dark:hidden"
+  height="600"
+  src="/images/Evaluators/Agenta-Custom-Code-evaluator-configuration.png"
+/>
+
+## Evaluation code
+
+Your code should include a function called evaluate with the following signature:
+
+```python
+from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    correct_answer: str
+) -> float:
+```
+
+The function should return a float value which is the score of the evaluation. The score should be between 0 and 1. `0` means the evaluation `failed` and `1` means the evaluation `passed`.
+
+The parameters are as follows:
+
+1. `app_params`: A dictionary containing the configuration of the app. This would include the prompt, model and all the other parameters specified in the playground with the same naming.
+2. `inputs`: A dictionary containing the inputs of the app.
+3. `output`: The generated output of the app.
+4. `correct_answer`: The correct answer of the app.
+
+For instance, **exact match** would be implemented as follows:
+
+```python
+from typing import Dict, Union, Any
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: Union[str, Dict[str, Any]],  # The output could be a string or a more complex structure
+    correct_answer: str
+) -> float:
+    """
+    Evaluate if the output matches the correct answer exactly.
+
+    Parameters:
+    - app_params: A dictionary containing the configuration of the app.
+    - inputs: A dictionary containing the inputs of the app.
+    - output: The generated output of the app.
+    - correct_answer: The expected correct answer.
+
+    Returns:
+    - A float value: 1.0 if the output matches the correct answer, 0.0 otherwise.
+    """
+    if isinstance(output, str):
+        return 1.0 if output == correct_answer else 0.0
+    elif isinstance(output, dict):
+        return 1.0 if output.get('result') == correct_answer else 0.0
+    else:
+        return 0.0
+
+```
+
+Click on the **Save** button.
+
+In the **Results** section, click on the **New Evaluation** button. Fill in the following details:
+
+- Which testset do you want to use?
+- Which variants you would like to evaluate?
+- Which evaluator you would like to evaluate on (in this case Code Evaluator)?
+
+<img
+  className="dark:hidden"
+  height="600"
+  src="/images/Evaluators/Agenta-Custom-Code-evaluator-new-evaluation.png"
+/>
+
+Click **Create**.
+
+The evalution begins to run and it is marked as **completed** once it is done. Here is the evaluation result as well as the cost and latency:
+
+<img
+  className="dark:hidden"
+  height="600"
+  src="/images/Evaluators/Agenta-Custom-Code-evaluator-result.png"
+/>
