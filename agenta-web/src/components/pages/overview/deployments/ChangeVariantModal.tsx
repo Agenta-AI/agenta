@@ -4,7 +4,7 @@ import {Badge, Input, Modal, Table, Tag, theme, Typography} from "antd"
 import React, {SetStateAction, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentModal from "./DeploymentModal"
-import {splitVariantId} from "@/lib/helpers/utils"
+import {formatVariantIdWithHash} from "@/lib/helpers/utils"
 
 const {Search} = Input
 
@@ -91,7 +91,9 @@ const ChangeVariantModal = ({
                                                     <Tag>
                                                         <Badge
                                                             color={token.colorPrimary}
-                                                            text={splitVariantId(record.variantId)}
+                                                            text={formatVariantIdWithHash(
+                                                                record.variantId,
+                                                            )}
                                                         />
                                                     </Tag>
                                                     <CaretRight />

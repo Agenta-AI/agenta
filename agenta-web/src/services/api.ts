@@ -12,6 +12,7 @@ import {
     KeyValuePair,
     FuncResponse,
     BaseResponse,
+    User,
 } from "@/lib/Types"
 
 //Prefix convention:
@@ -48,9 +49,9 @@ export async function fetchVariants(
                 baseName: variant.base_name,
                 configName: variant.config_name,
                 revision: variant.revision,
-                lastModified: formatDay(variant.date_modified),
-                modifiedBy: variant.modified_by,
-                createdAt: formatDay(variant.date_created),
+                updatedAt: formatDay(variant.updated_at),
+                modifiedById: variant.modified_by_id,
+                createdAt: formatDay(variant.created_at),
             }
             return v
         })
@@ -202,6 +203,17 @@ export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
+}
+
+export const fetchSingleProfile = async (
+    userId: string,
+    ignoreAxiosError: boolean = false,
+): Promise<User> => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/profile?user_id=${userId}`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
 }
 
 export const fetchData = async (url: string): Promise<any> => {

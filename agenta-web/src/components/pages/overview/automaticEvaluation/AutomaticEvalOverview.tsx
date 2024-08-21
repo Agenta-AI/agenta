@@ -238,7 +238,7 @@ const AutomaticEvalOverview = () => {
             dataIndex: "aggregated_results",
             key: "results",
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 240},
             }),
             render: (_, record) => {
                 if (!evaluators?.length) return

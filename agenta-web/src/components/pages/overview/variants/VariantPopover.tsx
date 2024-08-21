@@ -1,9 +1,10 @@
-import {isDemo, splitVariantId} from "@/lib/helpers/utils"
+import {isDemo, formatVariantIdWithHash} from "@/lib/helpers/utils"
 import {Environment, Variant} from "@/lib/Types"
+import {fetchSingleProfile} from "@/services/api"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Popover, Tag, theme, Typography} from "antd"
 import {useRouter} from "next/router"
-import React from "react"
+import React, {useEffect, useState} from "react"
 
 const {useToken} = theme
 
@@ -16,6 +17,22 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
     const router = useRouter()
     const {token} = useToken()
     const appId = router.query.app_id as string
+    const [variantUsername, setVariantUsername] = useState<string>()
+
+    useEffect(() => {
+        const handleFetchVariantProfile = async () => {
+            try {
+                if (!selectedDeployedVariant) return
+                const data = await fetchSingleProfile(selectedDeployedVariant.modifiedById)
+                setVariantUsername(data.username)
+            } catch (error) {
+                console.error(error)
+            }
+        }
+
+        handleFetchVariantProfile()
+    }, [selectedDeployedVariant])
+
     return (
         <Popover
             {...props}
@@ -35,10 +52,8 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}`}
                         />
                     </div>
-                    {selectedDeployedVariant && isDemo() && (
-                        <Typography.Text className="font-normal">
-                            {selectedDeployedVariant.modifiedBy.username}
-                        </Typography.Text>
+                    {selectedDeployedVariant && (
+                        <Typography.Text className="font-normal">{variantUsername}</Typography.Text>
                     )}
                 </div>
             }
@@ -46,7 +61,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             <Tag className="w-fit cursor-pointer" onClick={(e) => e.stopPropagation()}>
                 <Badge
                     color={token.colorPrimary}
-                    text={splitVariantId(env.deployed_app_variant_id as string)}
+                    text={formatVariantIdWithHash(env.deployed_app_variant_id as string)}
                 />
             </Tag>
         </Popover>
