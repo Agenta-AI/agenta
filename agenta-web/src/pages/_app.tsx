@@ -44,6 +44,10 @@ export default function App({Component, pageProps}: AppProps) {
             <Head>
                 <title>Agenta: The LLMOps platform.</title>
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
+                <style>
+                    @import
+                    url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+                </style>
             </Head>
             <PostHogProvider client={posthog}>
                 <ThemeContextProvider>
