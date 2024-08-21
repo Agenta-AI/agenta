@@ -53,8 +53,8 @@ def validate_string_output(
     return output
 
 
-def validate_json_output(evaluator_key: str, output: Union[str, Dict[str, Any]]) -> str:
-    """Checks and validate the output to be of type JSON string.
+def validate_json_output(evaluator_key: str, output: Union[str, Dict[str, Any]]) -> Union[str, dict]:
+    """Checks and validate the output to be of type JSON string or dictionary.
 
     Args:
         evaluator_key (str): the key of the evaluator
@@ -64,7 +64,7 @@ def validate_json_output(evaluator_key: str, output: Union[str, Dict[str, Any]])
         Exception: requires output to be a JSON string
 
     Returns:
-        str: output
+        str, dict: output
     """
 
     output = output.get("data", "") if isinstance(output, dict) else output
