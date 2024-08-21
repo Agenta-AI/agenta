@@ -6,7 +6,7 @@ import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "an
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
-import React, {useMemo, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -16,6 +16,7 @@ import {deleteSingleVariant} from "@/services/playground/api"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import DeployVariantModal from "./DeployVariantModal"
 import VariantComparisonModal from "./VariantComparisonModal"
+import {fetchSingleProfile} from "@/services/api"
 
 const {Title} = Typography
 
@@ -68,6 +69,24 @@ const VariantsOverview = ({
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
     const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
+    const [usernames, setUsernames] = useState<Record<string, string>>({})
+
+    useEffect(() => {
+        const fetchUsernames = async () => {
+            const usernameMap: Record<string, string> = {}
+            await Promise.all(
+                variantList.map(async (variant) => {
+                    if (!usernameMap[variant.modifiedById]) {
+                        const userProfile = await fetchSingleProfile(variant.modifiedById)
+                        usernameMap[variant.modifiedById] = userProfile?.username || "-"
+                    }
+                }),
+            )
+            setUsernames(usernameMap)
+        }
+
+        fetchUsernames()
+    }, [variantList])
 
     const selectedVariantsToCompare = useMemo(() => {
         const variants = variantList.filter((variant) =>
@@ -122,27 +141,27 @@ const VariantsOverview = ({
         },
         {
             title: "Last modified",
-            dataIndex: "lastModified",
-            key: "lastModified",
+            dataIndex: "updatedAt",
+            key: "updatedAt",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return <div>{record.lastModified}</div>
+                return <div>{record.updatedAt}</div>
             },
         },
     ]
 
-    if (isDemo()) {
+    if (!isDemo()) {
         columns.push({
             title: "Modified by",
-            dataIndex: "modifiedBy",
-            key: "modifiedBy",
+            dataIndex: "modifiedById",
+            key: "modifiedById",
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return <div>{record.modifiedBy.username}</div>
+                return <div>{usernames[record.modifiedById] || <Spin />}</div>
             },
         })
     }

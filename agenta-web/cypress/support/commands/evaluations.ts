@@ -45,9 +45,9 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
 
-    cy.url().should("include", "/overview")
+    cy.url().should("include", "/playground")
     cy.url().then((url) => {
-        app_id = url.match(/\/apps\/([a-fA-F0-9-]+)\/overview/)[1]
+        app_id = url.match(/\/apps\/([a-fA-F0-9-]+)\/playground/)[1]
 
         cy.wrap(app_id).as("app_id")
     })

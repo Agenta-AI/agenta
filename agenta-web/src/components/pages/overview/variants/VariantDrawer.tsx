@@ -1,5 +1,5 @@
 import {useAppId} from "@/hooks/useAppId"
-import {filterVariantParameters, splitVariantId} from "@/lib/helpers/utils"
+import {filterVariantParameters, formatVariantIdWithHash} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CloseOutlined, MoreOutlined} from "@ant-design/icons"
@@ -101,7 +101,7 @@ const VariantDrawer = ({
                                     revision: selectedVariant.revision,
                                 })}
                             </Title>
-                            <Tag>{splitVariantId(selectedVariant.variantId)}</Tag>
+                            <Tag>{formatVariantIdWithHash(selectedVariant.variantId)}</Tag>
                         </div>
                     </div>
 

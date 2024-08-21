@@ -186,7 +186,7 @@ const AbTestingEvalOverview = () => {
             title: "Results",
             key: "results",
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 240},
             }),
             render: (_, record: HumanEvaluationListTableDataType) => {
                 const stat1 = getVotesPercentage(record, 0)

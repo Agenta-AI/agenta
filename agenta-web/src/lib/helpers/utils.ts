@@ -366,6 +366,6 @@ export const filterVariantParameters = ({
     )
 }
 
-export const splitVariantId = (variantId: string) => {
+export const formatVariantIdWithHash = (variantId: string) => {
     return `# ${variantId.split("-")[0]}`
 }
