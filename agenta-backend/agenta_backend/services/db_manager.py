@@ -209,7 +209,8 @@ async def fetch_app_variant_by_id(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with db_engine.get_session() as session:
         base_query = select(AppVariantDB).options(
-            joinedload(AppVariantDB.base), joinedload(AppVariantDB.app)
+            joinedload(AppVariantDB.base),
+            joinedload(AppVariantDB.app),
         )
         if isCloudEE():
             query = base_query.options(
@@ -852,7 +853,7 @@ async def get_user_with_id(user_id: str):
         user = result.scalars().first()
         if user is None:
             logger.error("Failed to get user with id")
-            raise Exception("Error while getting user")
+            raise NoResultFound(f"User with id {user_id} not found")
         return user
 
 
@@ -1145,7 +1146,10 @@ async def list_app_variants(app_id: str):
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.app), joinedload(AppVariantDB.base))
+            .options(
+                joinedload(AppVariantDB.app),
+                joinedload(AppVariantDB.base),
+            )
             .filter_by(app_id=uuid.UUID(app_uuid))
         )
         app_variants = result.scalars().all()
@@ -1842,7 +1846,10 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .options(joinedload(AppVariantDB.base), joinedload(AppVariantDB.app))
+            .options(
+                joinedload(AppVariantDB.base),
+                joinedload(AppVariantDB.app),
+            )
             .filter_by(id=uuid.UUID(variant_id))
         )
         app_variant_db = result.scalars().first()
