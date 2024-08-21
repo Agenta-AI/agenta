@@ -344,3 +344,28 @@ export const getStringOrJson = (value: any) => {
           ? value?.data
           : JSON.stringify(value.data, null, 2)
 }
+
+export const filterVariantParameters = ({
+    record,
+    key,
+    include = true,
+}: {
+    record: Record<string, any>
+    key: string
+    include?: boolean
+}) => {
+    return Object.keys(record).reduce(
+        (acc, curr) => {
+            const condition = curr.includes(key)
+            if ((record.hasOwnProperty(curr) && include && condition) || (!include && !condition)) {
+                acc[curr] = record[curr]
+            }
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
+
+export const formatVariantIdWithHash = (variantId: string) => {
+    return `# ${variantId.split("-")[0]}`
+}
