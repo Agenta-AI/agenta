@@ -637,8 +637,6 @@ def auto_json_diff(
                 f"Evaluator 'auto_json_diff' requires the output to be either a JSON string or a JSON object, but received {type(output).__name__} instead."
             )
 
-        print(output)
-
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
             ground_truth=json.loads(correct_answer),
