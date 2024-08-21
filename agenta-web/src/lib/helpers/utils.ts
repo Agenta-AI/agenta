@@ -338,9 +338,30 @@ export const getInitials = (str: string, limit = 2) => {
 }
 
 export const getStringOrJson = (value: any) => {
-    return typeof value === "string"
-        ? value
-        : typeof value?.data === "string"
-          ? value?.data
-          : JSON.stringify(value, null, 2)
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+}
+
+export const filterVariantParameters = ({
+    record,
+    key,
+    include = true,
+}: {
+    record: Record<string, any>
+    key: string
+    include?: boolean
+}) => {
+    return Object.keys(record).reduce(
+        (acc, curr) => {
+            const condition = curr.includes(key)
+            if ((record.hasOwnProperty(curr) && include && condition) || (!include && !condition)) {
+                acc[curr] = record[curr]
+            }
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
+
+export const formatVariantIdWithHash = (variantId: string) => {
+    return `# ${variantId.split("-")[0]}`
 }

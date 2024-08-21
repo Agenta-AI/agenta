@@ -755,6 +755,22 @@ async def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
+        output = output.get("data", "") if isinstance(output, dict) else output
+
+        if isinstance(output, dict):
+            output = json.dumps(output)
+        elif isinstance(output, str):
+            try:
+                json.loads(output)
+            except:
+                raise Exception(
+                    f"Evaluator 'auto_json_diff' requires string outputs to be JSON strings."
+                )
+        else:
+            raise Exception(
+                f"Evaluator 'auto_json_diff' requires the output to be either a JSON string or a JSON object, but received {type(output).__name__} instead."
+            )
+
         correct_answer = get_correct_answer(data_point, settings_values)
         response = await json_diff(
             input=EvaluatorInputInterface(
@@ -992,15 +1008,9 @@ async def levenshtein_distance(
 ) -> EvaluatorOutputInterface:
     prediction = input.inputs["prediction"]
     ground_truth = input.inputs["ground_truth"]
-    # if len(prediction) < len(ground_truth):
-    #     return await levenshtein_distance(
-    #         input=EvaluatorInputInterface(
-    #             **{"inputs": {"prediction": prediction, "ground_truth": ground_truth}}
-    #         )
-    #     )  # pylint: disable=arguments-out-of-order
 
     if len(ground_truth) == 0:
-        return len(s1)
+        return len(prediction)
 
     previous_row = range(len(ground_truth) + 1)
     for i, c1 in enumerate(prediction):

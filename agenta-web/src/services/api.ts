@@ -1,4 +1,5 @@
 import axios from "@/lib//helpers/axiosConfig"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
@@ -11,6 +12,7 @@ import {
     KeyValuePair,
     FuncResponse,
     BaseResponse,
+    User,
 } from "@/lib/Types"
 
 //Prefix convention:
@@ -46,6 +48,10 @@ export async function fetchVariants(
                 baseId: variant.base_id,
                 baseName: variant.base_name,
                 configName: variant.config_name,
+                revision: variant.revision,
+                updatedAt: formatDay(variant.updated_at),
+                modifiedById: variant.modified_by_id,
+                createdAt: formatDay(variant.created_at),
             }
             return v
         })
@@ -197,6 +203,17 @@ export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
     return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
+}
+
+export const fetchSingleProfile = async (
+    userId: string,
+    ignoreAxiosError: boolean = false,
+): Promise<User> => {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/profile?user_id=${userId}`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    return data
 }
 
 export const fetchData = async (url: string): Promise<any> => {
