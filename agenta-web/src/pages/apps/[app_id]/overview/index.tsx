@@ -9,7 +9,7 @@ import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
-import {fetchVariants} from "@/services/api"
+import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
 import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
@@ -50,6 +50,7 @@ export default function Overview() {
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
     const [environments, setEnvironments] = useState<Environment[]>([])
     const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
+    const [usernames, setUsernames] = useState<Record<string, string>>({})
 
     const loadEnvironments = useCallback(async () => {
         try {
@@ -64,9 +65,25 @@ export default function Overview() {
     }, [appId])
 
     const fetchAllVariants = async () => {
+        const usernameMap: Record<string, string> = {}
         try {
             setIsVariantLoading(true)
+
             const data = await fetchVariants(appId)
+            const uniqueModifiedByIds = Array.from(
+                new Set(data.map((variant) => variant.modifiedById)),
+            )
+
+            const profiles = await Promise.all(
+                uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
+            )
+
+            profiles.forEach((profile, index) => {
+                const id = uniqueModifiedByIds[index]
+                usernameMap[id] = profile?.username || "-"
+            })
+
+            setUsernames(usernameMap)
             setVariants(data)
         } catch (error) {
             console.error(error)
@@ -140,6 +157,7 @@ export default function Overview() {
                     environments={environments}
                     fetchAllVariants={fetchAllVariants}
                     loadEnvironments={loadEnvironments}
+                    usernames={usernames}
                 />
 
                 <AutomaticEvalOverview />
