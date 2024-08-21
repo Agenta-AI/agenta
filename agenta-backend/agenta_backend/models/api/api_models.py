@@ -107,6 +107,9 @@ class AppVariantResponse(BaseModel):
     config_name: str
     uri: Optional[str]
     revision: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    modified_by_id: Optional[str] = None
 
 
 class AppVariantRevision(BaseModel):

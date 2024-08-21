@@ -240,12 +240,7 @@ async def test_auto_contains_json(output, expected):
     [
         (
             {
-                "correct_answer": {
-                    "user": {
-                        "name": "John",
-                        "details": {"age": 30, "location": "New York"},
-                    }
-                }
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
             },
             '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}',
             {
@@ -259,12 +254,7 @@ async def test_auto_contains_json(output, expected):
         ),
         (
             {
-                "correct_answer": {
-                    "user": {
-                        "name": "John",
-                        "details": {"age": 30, "location": "New York"},
-                    }
-                }
+                "correct_answer": '{"user": {"name": "John", "details": {"age": "30", "location": "New York"}}}'
             },
             '{"user": {"name": "John", "details": {"age": "30", "location": "New York"}}}',
             {
@@ -278,12 +268,7 @@ async def test_auto_contains_json(output, expected):
         ),
         (
             {
-                "correct_answer": {
-                    "user": {
-                        "name": "John",
-                        "details": {"age": 30, "location": "New York"},
-                    }
-                }
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
             },
             '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}',
             {
