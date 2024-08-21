@@ -1,0 +1,213 @@
+---
+id: list-organizations
+title: "List Organizations"
+description: "Returns a list of organizations associated with the user's session."
+sidebar_label: "List Organizations"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVE1z2jAQ/SsaXdrOZID26FNpmmmYfiST0BMwmUVesBJbciSZhHr4792VDbGTkkunt/oAtvbt26+3qmWKXjldBm2NTOQVhsoZL0Dk2gdhV8K6NRj9CxhA595bpSFgKh50yETIUFQe3RsvPHpPmMHczM3YrX0yN4IeH+wdmpvWKt5eNy+n1gTQBt27RExfkIjoFKnajFo2zmp20UlpkYjx3+V6BZo+W/7z6fTy7FFh7EciJiv2cig00RmBzlknHAancaPNOlL2g66cLeJxCgGW4HEgT6Qt0UX7JKUec7Y3PS+COPQlvaGXSS0/jEb81x/NdaUUpb2qcnHVgslPUR/RBIZDWeZaRcbhrWefWnqVYQH8pgMWkbx0nE7QTSid8m/YlkghPBVm1sQadMj5gPLdnUgDBb6G+sF2wvXyPQ7/3IGRVwM7Dp/yOeHsA6nlNeBFBBCywGKJzveq7jsdwkpwDrYdku+tLyG02ejQDqhDddx30nFgf39TwpbDPcVfWpsjmK6TF5cNavfEbJe3qEKUxX2lHdKQZs0Y9n1YdOruSOmVyvaiEd94Wy56+tvxw40LmWWJrpGDlxAy+hg+1yrt0Cb2d1bLyuUEyUIofTIcqtxW6QDWpEgYgB5CqeUzXchxtIpThsrdgulU5XTYRr7x5eQrbs8RUh72bNEFXLOYG9n2YYf2Ujw6lnvJynFFBbl9b3iknGzjtYsjXtno3vaoze0TKLp+UnLgOpu0R4P3g9GxYloHQWm1Owkq7uQ+jwgjU79dh0aRhdZUsy0gFB+fDJxlaX0owHT4/jDCF+t3uBn+X+r/5FJvJRfwMQzLnMrm3YvzrdvNmcn+5pCUMxolG+qaaX66fLfj4/sKHeufXjfgNCxZjST+k71YeTXuSNkkJcWFsDQhrxrNP7v2eWUOm/zlbEoa+g0Uy8K2
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Organizations"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/organizations"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns a list of organizations associated with the user's session.
+
+Args:
+    stoken_session (SessionContainer): The user's session token.
+
+Returns:
+    list[Organization]: A list of organizations associated with the user's session.
+
+Raises:
+    HTTPException: If there is an error retrieving the organizations from the database.
+
+<div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                        >
+                          Array [
+                        </div>
+                      </li><SchemaItem
+                        collapsible={false}
+                        name={"id"}
+                        required={false}
+                        schemaName={"Id (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Id"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"name"}
+                        required={true}
+                        schemaName={"Name (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Name"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"description"}
+                        required={false}
+                        schemaName={"Description (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Description"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"type"}
+                        required={false}
+                        schemaName={"Type (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Type"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"owner"}
+                        required={true}
+                        schemaName={"Owner (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Owner"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"members"}
+                        required={false}
+                        schemaName={"string[]"}
+                        qualifierMessage={undefined}
+                        schema={{"items":{"type":"string"},"type":"array","title":"Members"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"invitations"}
+                        required={false}
+                        schemaName={"undefined[]"}
+                        qualifierMessage={undefined}
+                        schema={{"items":{},"type":"array","title":"Invitations"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"is_paying"}
+                        required={false}
+                        schemaName={"Is Paying (boolean)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"boolean","title":"Is Paying"}}
+                      >
+                        
+                      </SchemaItem><li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"[\n  {\n    \"id\": \"string\",\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"type\": \"string\",\n    \"owner\": \"string\",\n    \"members\": [\n      \"string\"\n    ],\n    \"invitations\": [\n      null\n    ],\n    \"is_paying\": true\n  }\n]"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      
