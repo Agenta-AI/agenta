@@ -152,7 +152,7 @@ const VariantsOverview = ({
         },
     ]
 
-    if (!isDemo()) {
+    if (isDemo()) {
         columns.push({
             title: "Modified by",
             dataIndex: "modifiedById",
