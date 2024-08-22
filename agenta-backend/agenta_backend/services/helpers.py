@@ -123,8 +123,12 @@ async def ensure_required_llm_keys_exist(
     evaluators_requiring_llm_keys = [
         evaluator["key"]
         for evaluator in get_all_evaluators()
-        if evaluator["settings_template"]["requires_llm_api_keys"].get("default", False)
-        is True
+        if evaluator.get("requires_llm_api_keys", False)
+        or (
+            evaluator.get("settings_template", {})
+            .get("requires_llm_api_keys", {})
+            .get("default", False)
+        )
     ]
     evaluators_found = (
         await db_manager.check_if_evaluators_exist_in_list_of_evaluators_configs(

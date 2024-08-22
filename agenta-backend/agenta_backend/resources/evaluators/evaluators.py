@@ -1,12 +1,4 @@
 rag_evaluator_settings_template = {
-    "requires_llm_api_keys": {
-        "label": "Requires LLM API Key(s)",
-        "type": "boolean",
-        "required": True,
-        "default": True,
-        "advanced": True,
-        "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-    },
     "question_key": {
         "label": "Question Key",
         "default": "",
@@ -38,14 +30,6 @@ evaluators = [
         "key": "auto_exact_match",
         "direct_use": True,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
@@ -62,16 +46,7 @@ evaluators = [
         "name": "Contains JSON",
         "key": "auto_contains_json",
         "direct_use": True,
-        "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
-        },
+        "settings_template": {},
         "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
         "oss": True,
     },
@@ -80,14 +55,6 @@ evaluators = [
         "key": "auto_similarity_match",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "similarity_threshold": {
                 "label": "Similarity Threshold",
                 "type": "number",
@@ -113,16 +80,9 @@ evaluators = [
         "name": "Semantic Similarity Match",
         "key": "auto_semantic_similarity",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "advanced": True,
-                "default": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
@@ -140,14 +100,6 @@ evaluators = [
         "direct_use": False,
         "description": "Regex Test evaluator checks if the generated answer matches a regular expression pattern. You need to provide the regex expression and specify whether an answer is correct if it matches or does not match the regex.",
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "regex_pattern": {
                 "label": "Regex Pattern",
                 "type": "regex",
@@ -169,14 +121,6 @@ evaluators = [
         "key": "field_match_test",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "json_field": {
                 "label": "JSON Field",
                 "type": "string",
@@ -202,14 +146,6 @@ evaluators = [
         "direct_use": False,
         "description": "Compares the generated JSON output to a ground truth JSON and returns a normalized score between 0 and 1 based on their differences.",
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "compare_schema_only": {
                 "label": "Compare Schema Only",
                 "type": "boolean",
@@ -246,15 +182,8 @@ evaluators = [
         "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": True,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "prompt_template": {
                 "label": "Prompt Template",
                 "type": "text",
@@ -342,14 +271,6 @@ evaluators = [
         "key": "auto_starts_with",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "prefix": {
                 "label": "prefix",
                 "type": "string",
@@ -371,14 +292,6 @@ evaluators = [
         "key": "auto_ends_with",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -400,14 +313,6 @@ evaluators = [
         "key": "auto_contains",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -429,14 +334,6 @@ evaluators = [
         "key": "auto_contains_any",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -458,14 +355,6 @@ evaluators = [
         "key": "auto_contains_all",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "case_sensitive": {
                 "label": "Case Sensitive",
                 "type": "boolean",
@@ -487,14 +376,6 @@ evaluators = [
         "key": "auto_levenshtein_distance",
         "direct_use": False,
         "settings_template": {
-            "requires_llm_api_keys": {
-                "label": "Requires LLM API Key(s)",
-                "type": "boolean",
-                "required": True,
-                "default": False,
-                "advanced": True,
-                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
-            },
             "threshold": {
                 "label": "Threshold",
                 "type": "number",
@@ -517,6 +398,7 @@ evaluators = [
         "name": "RAG Faithfulness",
         "key": "rag_faithfulness",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
     },
@@ -524,6 +406,7 @@ evaluators = [
         "name": "RAG Context Relevancy",
         "key": "rag_context_relevancy",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
     },
