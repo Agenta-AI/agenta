@@ -24,7 +24,11 @@ def upgrade() -> None:
 
     # Create the enum type first
     app_enumtype = sa.Enum(
-        "CHAT_PROMPT", "SINGLE_PROMPT", "RAG", "CUSTOM", name="app_enumtype"
+        "TEMPLATE:CONVERSATION:Simple_Chat",
+        "TEMPLATE:GENERATION:Simple_Prompt",
+        "TEMPLATE:CHAIN:RAG:Simple_RAG",
+        "CUSTOM",
+        name="app_enumtype",
     )
     app_enumtype.create(op.get_bind(), checkfirst=True)
 
@@ -48,7 +52,11 @@ def downgrade() -> None:
 
     # Then drop the enum type
     app_enumtype = sa.Enum(
-        "CHAT_PROMPT", "SINGLE_PROMPT", "RAG", "CUSTOM", name="app_enumtype"
+        "TEMPLATE:CONVERSATION:Simple_Chat",
+        "TEMPLATE:GENERATION:Simple_Prompt",
+        "TEMPLATE:CHAIN:RAG:Simple_RAG",
+        "CUSTOM",
+        name="app_enumtype",
     )
     app_enumtype.drop(op.get_bind(), checkfirst=True)
     # ### end Alembic commands ###

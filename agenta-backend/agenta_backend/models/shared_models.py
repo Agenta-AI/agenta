@@ -68,7 +68,7 @@ class TemplateType(enum.Enum):
 
 
 class AppType(enum.Enum):
-    CHAT_PROMPT = "chat_prompt"
-    SINGLE_PROMPT = "single_prompt"
-    RAG = "rag"
-    CUSTOM = "custom"
+    CHAT_PROMPT = "TEMPLATE:CONVERSATION:Simple_Chat"
+    SINGLE_PROMPT = "TEMPLATE:GENERATION:Simple_Prompt"
+    RAG = "TEMPLATE:CHAIN:RAG:Simple_RAG"
+    CUSTOM = "CUSTOM"
