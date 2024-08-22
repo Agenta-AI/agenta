@@ -619,14 +619,14 @@ async def create_deployment(
             raise Exception(f"Error while creating deployment: {e}")
 
 
-async def get_app_type_from_template_by_id(template_id: Optional[str]) -> Enum:
+async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
     """Get the application type from the specified template.
 
     Args:
         template_id (Optional[str]): The ID of the template
 
     Returns:
-        AppType (Enum): The determined application type. Defaults to AppType.CUSTOM.
+        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
     """
 
     if template_id is None:
@@ -677,6 +677,7 @@ async def create_app_and_envs(
         raise ValueError("App with the same name already exists")
 
     app_type = await get_app_type_from_template_by_id(template_id)
+    print("App Type: ", app_type)
     async with db_engine.get_session() as session:
         app = AppDB(app_name=app_name, user_id=user.id, app_type=app_type)
 
