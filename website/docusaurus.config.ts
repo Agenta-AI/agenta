@@ -37,6 +37,7 @@ const config: Config = {
           sidebarPath: "./sidebars.ts",
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/websites",
           docItemComponent: "@theme/ApiItem",
+          breadcrumbs: false,
         },
         blog: {
           routeBasePath: "/changelog",
@@ -60,7 +61,7 @@ const config: Config = {
     image: "images/simple-img.png",
     docs: {
       sidebar: {
-        hideable: true,
+        hideable: false,
         autoCollapseCategories: false,
       },
     },
@@ -110,16 +111,35 @@ const config: Config = {
           href: "https://github.com/Agenta-AI/agenta",
           label: "GitHub",
           position: "right",
+          class: "nav_social_links",
         },
         {
           href: "https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
           label: "Slack",
           position: "right",
+          class: "nav_social_links",
         },
         {
           href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           label: "Book A Demo",
           position: "right",
+          class: "nav_social_links",
+        },
+        {
+          href: "https://cloud.agenta.ai/apps",
+          label: "Start for Free",
+          position: "right",
+          class: "nav_social_links",
+        },
+        {
+          href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+          position: "right",
+          html: "<button class='nav_secondary_button'>Book A Demo</button",
+        },
+        {
+          href: "https://cloud.agenta.ai/apps",
+          position: "right",
+          html: "<button class='nav_primary_button'>Start for Free</button",
         },
       ],
     },
