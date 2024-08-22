@@ -2,7 +2,7 @@ import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 import {GlobalToken} from "antd"
 
-export type JSSTheme = GlobalToken & {isDark: boolean}
+export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
     _id: string
@@ -39,6 +39,10 @@ export interface Variant {
     baseId: string
     baseName: string
     configName: string
+    revision: number
+    updatedAt: string
+    createdAt: string
+    modifiedById: string
 }
 
 // Define the interface for the tabs item in playground page
@@ -493,6 +497,31 @@ export type PaginationQuery = {
 
 export type StyleProps = {
     themeMode: "dark" | "light"
+}
+
+export interface SingleModelEvaluationListTableDataType {
+    key: string
+    variants: Variant[]
+    testset: {
+        _id: string
+        name: string
+    }
+    evaluationType: string
+    status: EvaluationFlow
+    scoresData: {
+        nb_of_rows: number
+        wrong?: GenericObject[]
+        correct?: GenericObject[]
+        true?: GenericObject[]
+        false?: GenericObject[]
+        variant: string[]
+    }
+    avgScore: number
+    custom_code_eval_id: string
+    resultsData: {[key: string]: number}
+    createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
 }
 
 export type FuncResponse = {
