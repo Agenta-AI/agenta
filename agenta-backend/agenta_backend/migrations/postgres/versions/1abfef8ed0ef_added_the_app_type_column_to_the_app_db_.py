@@ -24,9 +24,9 @@ def upgrade() -> None:
 
     # Create the enum type first
     app_enumtype = sa.Enum(
-        "TEMPLATE:CONVERSATION:Simple_Chat",
-        "TEMPLATE:GENERATION:Simple_Prompt",
-        "TEMPLATE:CHAIN:RAG:Simple_RAG",
+        "CHAT_PROMPT",
+        "SINGLE_PROMPT",
+        "RAG",
         "CUSTOM",
         name="app_enumtype",
     )
@@ -52,9 +52,9 @@ def downgrade() -> None:
 
     # Then drop the enum type
     app_enumtype = sa.Enum(
-        "TEMPLATE:CONVERSATION:Simple_Chat",
-        "TEMPLATE:GENERATION:Simple_Prompt",
-        "TEMPLATE:CHAIN:RAG:Simple_RAG",
+        "CHAT_PROMPT",
+        "SINGLE_PROMPT",
+        "RAG",
         "CUSTOM",
         name="app_enumtype",
     )

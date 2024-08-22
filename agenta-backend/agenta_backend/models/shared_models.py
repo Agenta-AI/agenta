@@ -67,7 +67,7 @@ class TemplateType(enum.Enum):
     ZIP = "zip"
 
 
-class AppType(enum.Enum):
+class AppType(str, enum.Enum):
     CHAT_PROMPT = "TEMPLATE:CONVERSATION:Simple_Chat"
     SINGLE_PROMPT = "TEMPLATE:GENERATION:Simple_Prompt"
     RAG = "TEMPLATE:CHAIN:RAG:Simple_RAG"
