@@ -26,6 +26,9 @@ class AppVariantResponse(pydantic.BaseModel):
     revision: int
     organization_id: typing.Optional[str]
     workspace_id: typing.Optional[str]
+    created_at: typing.Optional[dt.datetime] = None
+    updated_at: typing.Optional[dt.datetime] = None
+    modified_by_id: typing.Optional[str] = None
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
