@@ -176,7 +176,6 @@ async def fetch_evaluation_results(evaluation_id):
         f"{BACKEND_API_HOST}/evaluations/{evaluation_id}/results/", timeout=timeout
     )
     response_data = response.json()
-    print("Response Data: ", response_data)
 
     assert response.status_code == 200
     assert response_data["evaluation_id"] == evaluation_id
