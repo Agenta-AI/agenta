@@ -141,6 +141,16 @@ const config: Config = {
           position: "right",
           html: "<button class='nav_primary_button'>Start for Free</button",
         },
+        {
+          href: "https://github.com/Agenta-AI/agenta",
+          position: "right",
+          class: "nav_github_icons",
+        },
+        {
+          href: "https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
+          position: "right",
+          class: "nav_slack_icons",
+        },
       ],
     },
     prism: {
