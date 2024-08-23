@@ -1,8 +1,7 @@
 import os
 import pytest
 
-from test_traces import simple_rag_trace
-
+from agenta_backend.tests.unit.test_traces import simple_rag_trace
 from agenta_backend.services.evaluators_service import (
     auto_levenshtein_distance,
     auto_starts_with,
@@ -175,10 +174,13 @@ async def test_auto_contains_all(output, substrings, case_sensitive, expected):
 @pytest.mark.parametrize(
     "output, expected",
     [
-        ('Some random text {"key": "value"} more text', True),
-        ("No JSON here!", False),
-        ("{Malformed JSON, nope!}", False),
+        ('Some random text {"key": "value"} more text', None),
+        ("No JSON here!", None),
+        ("{Malformed JSON, nope!}", None),
         ('{"valid": "json", "number": 123}', True),
+        ({"data": {"message": "The capital of Azerbaijan is Baku."}}, True),
+        ({"data": '{"message": "The capital of Azerbaijan is Baku."}'}, True),
+        ({"data": "The capital of Azerbaijan is Baku."}, None),
     ],
 )
 @pytest.mark.asyncio
@@ -223,6 +225,40 @@ async def test_auto_contains_json(output, expected):
                 "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
             },
             '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}',
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
+            },
+            0.0,
+            1.0,
+        ),
+        (
+            {
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
+            },
+            {
+                "data": '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}'
+            },
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
+            },
+            0.0,
+            1.0,
+        ),
+        (
+            {
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
+            },
+            {
+                "data": {
+                    "output": '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}'
+                }
+            },
             {
                 "predict_keys": True,
                 "compare_schema_only": False,
