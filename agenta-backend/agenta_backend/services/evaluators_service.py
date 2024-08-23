@@ -394,7 +394,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
         model="gpt-3.5-turbo", messages=messages, temperature=0.8
     )
     evaluation_output = response.choices[0].message.content.strip()
-    return {"outputs": {"score": float(evaluation_output)}}
+    return {"outputs": {"score": evaluation_output}}
 
 
 async def auto_starts_with(
