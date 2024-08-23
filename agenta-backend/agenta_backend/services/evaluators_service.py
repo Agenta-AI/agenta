@@ -337,13 +337,20 @@ async def auto_ai_critique(
     try:
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
-            "prompt_user": app_params.get("prompt_user", ""),
+            "prompt_user": app_params.get("prompt_user", "").format(**data_point),
             "prediction": output,
             "ground_truth": correct_answer,
         }
+        settings = {
+            "prompt_template": settings_values.get("prompt_template", ""),
+        }
         response = await ai_critique(
             input=EvaluatorInputInterface(
-                **{"inputs": inputs, "credentials": lm_providers_keys}
+                **{
+                    "inputs": inputs,
+                    "settings": settings,
+                    "credentials": lm_providers_keys,
+                }
             )
         )
         return Result(type="text", value=response["outputs"]["score"])
@@ -374,11 +381,13 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     for key, value in input.inputs.items():
         chain_run_args[key] = value
 
-    prompt_template = input.settings["prompt_template"]
+    prompt_system = input.settings.get("prompt_system", "")
     messages = [
-        {"role": "system", "content": prompt_template},
+        {"role": "system", "content": prompt_system},
         {"role": "user", "content": str(chain_run_args)},
     ]
+
+    print(input)
 
     client = AsyncOpenAI(api_key=openai_api_key)
     response = await client.chat.completions.create(
