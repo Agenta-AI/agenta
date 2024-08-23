@@ -77,7 +77,7 @@ def validate_json_output(
             json.loads(output)
         except json.JSONDecodeError:
             raise Exception(
-                f"Evaluator {evaluator_key} requires the output to be a JSON string."
+                f"Evaluator {evaluator_key} requires the output to be a JSON string or object."
             )
 
     if not isinstance(
