@@ -343,7 +343,11 @@ async def auto_ai_critique(
         }
         response = await ai_critique(
             input=EvaluatorInputInterface(
-                **{"inputs": inputs, "settings": settings_values, "credentials": lm_providers_keys}
+                **{
+                    "inputs": inputs,
+                    "settings": settings_values,
+                    "credentials": lm_providers_keys,
+                }
             )
         )
         return Result(type="text", value=str(response["outputs"]["score"]))
