@@ -7,8 +7,8 @@ import {
     Variant,
 } from "./Types"
 import {EvaluationType} from "./enums"
-import {formatDate} from "./helpers/dateTimeHelper"
-import {getStringOrJson, snakeToCamel} from "./helpers/utils"
+import {formatDay} from "./helpers/dateTimeHelper"
+import {snakeToCamel} from "./helpers/utils"
 import {TraceSpan} from "@/lib/Types"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
@@ -33,7 +33,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
 
     return {
         id: item.id,
-        createdAt: formatDate(item.created_at),
+        createdAt: formatDay(item.created_at),
         user: {
             id: item.user_id,
             username: item.user_username,
@@ -81,6 +81,53 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
     }
     return evaluationScenario
 }
+
+export const abTestingEvaluationTransformer = ({
+    item,
+    results,
+}: {
+    item: EvaluationResponseType
+    results: any
+}) => ({
+    key: item.id,
+    createdAt: formatDay(item.created_at),
+    variants: item.variant_ids,
+    variantNames: item.variant_names,
+    votesData: results.votes_data,
+    evaluationType: item.evaluation_type,
+    status: item.status,
+    user: {
+        id: item.user_id,
+        username: item.user_username,
+    },
+    testset: {
+        _id: item.testset_id,
+        name: item.testset_name,
+    },
+    revisions: item.revisions,
+    variant_revision_ids: item.variants_revision_ids,
+})
+
+export const singleModelTestEvaluationTransformer = ({
+    item,
+    result,
+}: {
+    item: Evaluation
+    result: any
+}) => ({
+    key: item.id,
+    createdAt: item.createdAt,
+    variants: item.variants,
+    scoresData: result.scores_data,
+    evaluationType: item.evaluationType,
+    status: item.status,
+    testset: item.testset,
+    custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
+    resultsData: result.results_data,
+    avgScore: result.avg_score,
+    revisions: item.revisions,
+    variant_revision_ids: item.variant_revision_ids,
+})
 
 export const fromBaseResponseToTraceSpanType = (
     spans: BaseResponseSpans[],

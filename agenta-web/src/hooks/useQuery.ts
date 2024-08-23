@@ -28,10 +28,14 @@ function getUpdateQuery(router: NextRouter, method: Method) {
             }
         })
 
-        router[method]({
-            pathname: window.location.pathname,
-            query: newQuery,
-        })
+        router[method](
+            {
+                pathname: window.location.pathname,
+                query: newQuery,
+            },
+            undefined,
+            {scroll: false},
+        )
     }
 }
 
