@@ -78,7 +78,7 @@ const config: Config = {
           sidebarId: "docsSidebar",
           docId: "getting_started/introduction",
           position: "left",
-          label: "Documentation",
+          label: "Docs",
         },
         {
           type: "docSidebar",
@@ -134,12 +134,12 @@ const config: Config = {
         {
           href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           position: "right",
-          html: "<button class='nav_secondary_button'>Book A Demo</button",
+          html: "<button class='nav_secondary_button'>Book A Demo</button>",
         },
         {
           href: "https://cloud.agenta.ai/apps",
           position: "right",
-          html: "<button class='nav_primary_button'>Start for Free</button",
+          html: "<button class='nav_primary_button'>Start for Free</button>",
         },
         {
           href: "https://github.com/Agenta-AI/agenta",

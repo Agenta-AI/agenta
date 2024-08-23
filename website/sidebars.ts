@@ -10,6 +10,16 @@ const CATEGORY_UTILITIES: any = {
 
 const sidebars: SidebarsConfig = {
   docsSidebar: [
+    // {
+    //   type: "html",
+    //   value:
+    //     '<a href="https://github.com/Agenta-AI/agenta" class="menu__link sidebar_github_link"><img src="/icons/github.svg" alt="image" /> Github</a>',
+    // },
+    // {
+    //   type: "html",
+    //   value:
+    //     '<a href="https://github.com/Agenta-AI/agenta" class="menu__link sidebar_slack_link"><img src="/icons/slack.svg" alt="image" /> Slack</a>',
+    // },
     {
       label: "Getting Started",
       ...CATEGORY_UTILITIES,
