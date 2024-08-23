@@ -39,6 +39,7 @@ export const ADD_BUTTON_COL = {field: "", editable: false, maxWidth: 100}
 const useStylesTestset = createUseStyles({
     title: {
         marginBottom: "20px !important",
+        fontWeight: "500 !important",
     },
     inputContainer: {
         width: "100%",

@@ -310,6 +310,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_name=app_variant_db.config_name,  # type: ignore
         uri=uri,  # type: ignore
         revision=app_variant_db.revision,  # type: ignore
+        created_at=str(app_variant_db.updated_at),
+        updated_at=str(app_variant_db.created_at),
+        modified_by_id=str(app_variant_db.modified_by_id),
     )
 
     if isCloudEE():

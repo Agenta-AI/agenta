@@ -352,6 +352,7 @@ const HumanEvaluationModal = ({
                 open={isEvalModalOpen}
                 onCancel={() => {
                     setIsEvalModalOpen(false)
+
                     setSelectedTestset({name: "Select a Test set"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
