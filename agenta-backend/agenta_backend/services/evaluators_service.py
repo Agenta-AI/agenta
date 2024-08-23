@@ -343,10 +343,10 @@ async def auto_ai_critique(
         }
         response = await ai_critique(
             input=EvaluatorInputInterface(
-                **{"inputs": inputs, "credentials": lm_providers_keys}
+                **{"inputs": inputs, "settings": settings_values, "credentials": lm_providers_keys}
             )
         )
-        return Result(type="text", value=response["outputs"]["score"])
+        return Result(type="text", value=str(response["outputs"]["score"]))
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
