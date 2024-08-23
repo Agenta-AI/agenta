@@ -311,15 +311,18 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
                     let res: BaseResponse | undefined
 
-                    if (isFuncResponse(result)) {
+                    if (typeof result === "string") {
+                        res = {version: "2.0", data: result} as BaseResponse
+                    } else if (isFuncResponse(result)) {
                         res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
                     } else {
-                        res = {version: "2.0", data: result} as BaseResponse
+                        console.error("Unknown response type:", result)
+                        res = {version: "2.0", data: ""} as BaseResponse
                     }
 
-                    let _result = getStringOrJson(res)
+                    let _result = getStringOrJson(res.data)
 
                     setRowValue(rowIndex, variant.variantId, _result)
                     ;(outputs as KeyValuePair)[variant.variantId] = _result
