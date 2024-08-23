@@ -29,13 +29,13 @@
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme="dark"] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --ifm-color-primary: #758391;
+  --ifm-color-primary-dark: #bdc7d1;
+  --ifm-color-primary-darker: #d6dee6;
+  --ifm-color-primary-darkest: #eaeff5;
+  --ifm-color-primary-light: #758391;
+  --ifm-color-primary-lighter: #586673;
+  --ifm-color-primary-lightest: #394857;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
@@ -101,19 +101,10 @@ article a:hover {
   }
 }
 
-.navbar__inner > * > .nav_social_links {
-  display: none !important;
-}
-.nav_social_links {
-  font-size: 14px;
-  padding: 0px 12px !important;
-  color: var(--ifm-color-primary);
-  font-weight: 400;
-}
-.nav_github_icons img,
-.nav_slack_icons img {
-  width: 24px;
-  height: 24px;
+.nav_github_icons svg,
+.nav_slack_icons svg {
+  width: 22px;
+  height: 22px;
 }
 .nav_github_icons,
 .nav_slack_icons {
@@ -121,17 +112,30 @@ article a:hover {
   justify-content: center;
   align-items: center;
 }
+.theme-icon {
+  color: var(--ifm-color-primary-darkest);
+}
+.nav_slack_icons {
+  margin-right: 3px;
+}
 .nav_primary_button {
   background-color: var(--ifm-color-primary-darkest);
   color: var(--ifm-color-primary-lightest);
   margin-right: 25px;
   padding: 8px 16px;
 }
+[data-theme="dark"] .nav_primary_button {
+  background-color: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest);
+}
 .nav_secondary_button {
   background-color: transparent;
   color: var(--ifm-color-primary);
   margin-left: 10px;
   padding: 8px 12px;
+}
+[data-theme="dark"] .nav_secondary_button {
+  color: var(--ifm-color-primary-dark);
 }
 .nav_primary_button,
 .nav_secondary_button {
@@ -155,11 +159,16 @@ article a:hover {
   color: var(--ifm-color-primary);
   font-weight: 400;
 }
+[data-theme="dark"] .navbar__link {
+  color: var(--ifm-color-primary-darker);
+}
 .navbar__link--active {
   color: var(--ifm-color-primary-darkest);
   font-weight: 500;
 }
-
+[data-theme="dark"] .navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
 /** Nav searchbar **/
 .DocSearch-Button {
   border-radius: 6px !important;
@@ -199,25 +208,39 @@ article a:hover {
     margin-right: 20px;
   }
 }
-li.sidebar-section-title:first-child > div.menu__list-item-collapsible {
+li.sidebar-section-title > div.menu__list-item-collapsible {
+  font-size: 12px !important;
+  margin-top: 25px !important;
+}
+/* li.sidebar-section-title:first-child > div.menu__list-item-collapsible {
   margin-top: 0.5em;
 }
 li.sidebar-section-title:not(:first-child) > div.menu__list-item-collapsible {
   margin-top: 1em;
-}
+} */
 li.sidebar-section-title > div.menu__list-item-collapsible:hover {
-  background-color: transparent;
+  background-color: transparent !important;
 }
-.menu__link {
+.theme-doc-sidebar-item-link,
+.theme-doc-sidebar-item-category-level-2 {
   font-size: 14px;
   line-height: 22px;
+}
+.menu__link {
   font-weight: 400;
   color: var(--ifm-color-primary);
+}
+[data-theme="dark"] .menu__link {
+  color: var(--ifm-color-primary-darker);
 }
 .menu__link--active {
   font-weight: 500;
   color: var(--ifm-color-primary-darkest);
 }
+[data-theme="dark"] .menu__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
+
 .menu__link--sublist-caret:after,
 .menu__caret:before {
   margin: 0 10px;
@@ -229,10 +252,17 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   /* padding-left: 0px !important; */
   padding-right: 5px;
 }
+.docSidebarContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocRoot-Layout-Sidebar-styles-module,
+.docSidebarContainer_YfHR {
+  border-right: none !important;
+}
 
 /** main content - middle section **/
 .container > .row {
   justify-content: space-between;
+}
+.theme-doc-markdown h1:first-child {
+  padding-top: 40px;
 }
 
 .docItemCol_node_modules-docusaurus-theme-openapi-docs-lib-theme-ApiItem-Layout-styles-module {
@@ -251,6 +281,12 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   line-height: 20px;
   font-weight: 400;
   color: var(--ifm-color-primary-light);
+}
+[data-theme="dark"] .table-of-contents__link {
+  color: var(--ifm-color-primary-dark);
+}
+.table-of-contents__left-border {
+  border-left: none !important;
 }
 
 /* Sidebar Method labels in Referencce page api section */
@@ -341,26 +377,18 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   margin-top: 50px;
   line-height: 180px;
   border-bottom: 1px solid var(--ifm-color-primary-lightest);
-  /* margin-bottom: 80px; */
-}
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
-.title_f1Hy a {
-  width: 80%;
-  margin-left: auto;
-  display: block;
-  pointer-events: none;
-  text-decoration: none !important;
+  padding-left: 20%;
 }
 
-/* .blog-list-page {
-  border: 1px solid red;
-} */
-.blog-list-page .col[class*="col--"] {
+.blog-post-page .col[class*="col--"] {
   flex: 0 !important;
   /* border: 1px solid red; */
   position: relative;
 }
-.blog-list-page .col {
+.blog-post-page .col--2 {
+  display: none !important;
+}
+.blog-post-page .col {
   --ifm-col-width: 100% !important;
   flex: 0 0;
   margin-left: 0;
@@ -368,7 +396,7 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   padding: 0 var(--ifm-spacing-horizontal);
   width: 100%;
 }
-.blog-list-page .row {
+.blog-post-page .row {
   display: block;
 }
 
@@ -380,7 +408,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   font-style: normal;
   font-weight: 500;
   position: absolute;
-  /* top: 20px; */
   left: 15px;
   margin-top: -44px;
 }
