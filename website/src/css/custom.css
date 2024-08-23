@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
 
 @tailwind base;
@@ -16,8 +17,6 @@
   --ifm-color-primary-lightest: #d6dee6;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.274);
   --ifm-font-weight-normal: 400;
-  /* --ifm-menu-link-sublist-icon: "" */
-  /* --doc-sidebar-width: 280px !important; */
   --ifm-navbar-height: 3.9rem;
   --ifm-link-color: var(--ifm-color-primary-darker);
   --ifm-heading-color: var(--ifm-color-primary-darkest);
@@ -39,12 +38,17 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
-* {
+*:not(code *):not(pre) {
   font-family: "Inter", sans-serif !important;
 }
 body {
   color: var(--ifm-color-primary-darker);
   font-size: 16px;
+}
+
+code *,
+pre {
+  font-family: "IBM Plex Mono", monospace !important;
 }
 h1 {
   font-size: var(--ifm-heading-h1-font-size) !important;
@@ -74,7 +78,9 @@ article a:hover {
   transition-duration: 400ms;
 }
 .cardContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a {
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
+.cardContainer_fWXF,
+.hash-link {
   text-decoration: none !important;
 }
 
@@ -145,11 +151,9 @@ article a:hover {
   border: none;
   cursor: pointer;
 }
-@media (max-width: 995px) {
-  .nav_primary_button,
-  .nav_secondary_button,
-  .nav_slack_icons,
-  .nav_github_icons {
+@media (min-width: 995px) and (max-width: 1150px) {
+  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
+  {
     display: none;
   }
 }
@@ -169,6 +173,7 @@ article a:hover {
 [data-theme="dark"] .navbar__link--active {
   color: var(--ifm-color-primary-darkest);
 }
+
 /** Nav searchbar **/
 .DocSearch-Button {
   border-radius: 6px !important;
@@ -196,6 +201,24 @@ article a:hover {
   padding: 0 !important;
   width: 18px !important;
 }
+[data-theme="dark"] .DocSearch-Button {
+  background-color: #181818;
+}
+[data-theme="dark"] .DocSearch-Button:hover {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Modal {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Footer {
+  background-color: #242526;
+  opacity: 0.9;
+}
+[data-theme="dark"] .DocSearch-Form {
+  background-color: #181818;
+  box-shadow: none;
+  border: 2px solid #3d4144;
+}
 
 /* sidebar "section headers". */
 @media (min-width: 1350px) {
@@ -208,39 +231,32 @@ article a:hover {
     margin-right: 20px;
   }
 }
-li.sidebar-section-title > div.menu__list-item-collapsible {
-  font-size: 12px !important;
-  margin-top: 25px !important;
-}
-/* li.sidebar-section-title:first-child > div.menu__list-item-collapsible {
-  margin-top: 0.5em;
-}
-li.sidebar-section-title:not(:first-child) > div.menu__list-item-collapsible {
-  margin-top: 1em;
-} */
+
 li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   background-color: transparent !important;
 }
-.theme-doc-sidebar-item-link,
-.theme-doc-sidebar-item-category-level-2 {
+.menu__link {
   font-size: 14px;
   line-height: 22px;
-}
-.menu__link {
   font-weight: 400;
   color: var(--ifm-color-primary);
-}
-[data-theme="dark"] .menu__link {
-  color: var(--ifm-color-primary-darker);
 }
 .menu__link--active {
   font-weight: 500;
   color: var(--ifm-color-primary-darkest);
 }
+li.sidebar-section-title > div.menu__list-item-collapsible {
+  margin-top: 25px !important;
+}
+li.sidebar-section-title > div.menu__list-item-collapsible a {
+  font-weight: 600 !important;
+}
+[data-theme="dark"] .menu__link {
+  color: var(--ifm-color-primary-darker);
+}
 [data-theme="dark"] .menu__link--active {
   color: var(--ifm-color-primary-darkest);
 }
-
 .menu__link--sublist-caret:after,
 .menu__caret:before {
   margin: 0 10px;
@@ -258,10 +274,15 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 }
 
 /** main content - middle section **/
+.markdown img {
+  margin-bottom: 24px;
+}
 .container > .row {
   justify-content: space-between;
 }
-.theme-doc-markdown h1:first-child {
+.theme-doc-markdown h1:first-child,
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module,
+.title_kItE {
   padding-top: 40px;
 }
 
@@ -290,23 +311,35 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 }
 
 /* Sidebar Method labels in Referencce page api section */
+.cardTitle_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
+.cardTitle_rnsV {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  line-height: 28px !important;
+}
+[href="/reference/api/agenta-backend"],
+.list_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module article:first-child,
+.list_eTzJ article:first-child,
+.generatedIndexPage_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module
+  header
+  p,
+.generatedIndexPage_vN6x header p {
+  display: none;
+}
 .api-method > .menu__link {
   align-items: center;
   justify-content: start;
 }
 .api-method > .menu__link::before {
-  width: 50px;
-  height: 20px;
-  font-size: 12px;
-  line-height: 20px;
+  width: 35px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 18px;
   text-transform: uppercase;
   font-weight: 600;
   border-radius: 0.25rem;
-  border: 1px solid;
   margin-right: var(--ifm-spacing-horizontal);
   text-align: center;
   flex-shrink: 0;
-  border-color: transparent;
   color: white;
 }
 .get > .menu__link::before {
@@ -356,18 +389,12 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 .medium-zoom-overlay {
   z-index: 9999999;
 }
-
 [data-theme="dark"] .medium-zoom-image--opened {
   border: 1px solid rgba(255, 255, 255, 0.096);
 }
 
 /** changelog file **/
 
-/** 
-# selectors which are presentt here but not showing any output those are production enviroment selectors
-.container_mt6G
-.title_f1Hy
- **/
 .container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
 .container_mt6G {
   display: none;
