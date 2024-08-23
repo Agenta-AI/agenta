@@ -110,18 +110,16 @@ article a:hover {
   color: var(--ifm-color-primary);
   font-weight: 400;
 }
-.nav_slack_icons {
-  background: url("../../static/icons/slack.svg") 50% / 1.45rem 1.45rem;
+.nav_github_icons img,
+.nav_slack_icons img {
   width: 24px;
   height: 24px;
-  margin: 0 12px;
-  background-repeat: no-repeat;
 }
-.nav_github_icons {
-  width: 24px;
-  height: 24px;
-  background: url("../../static/icons/github.svg") 50% / 1.5rem 1.5rem;
-  background-repeat: no-repeat;
+.nav_github_icons,
+.nav_slack_icons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .nav_primary_button {
   background-color: var(--ifm-color-primary-darkest);
@@ -328,20 +326,30 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 }
 
 /** changelog file **/
-.container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module {
+
+/** 
+# selectors which are presentt here but not showing any output those are production enviroment selectors
+.container_mt6G
+.title_f1Hy
+ **/
+.container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
+.container_mt6G {
   display: none;
 }
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module {
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
+.title_f1Hy {
   margin-top: 50px;
   line-height: 180px;
   border-bottom: 1px solid var(--ifm-color-primary-lightest);
   /* margin-bottom: 80px; */
 }
-.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a {
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
+.title_f1Hy a {
   width: 80%;
   margin-left: auto;
   display: block;
   pointer-events: none;
+  text-decoration: none !important;
 }
 
 /* .blog-list-page {
@@ -390,23 +398,3 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 .changelog h3:first-child {
   margin-top: 60px;
 }
-
-
-/* .sidebar_github_link,
-.sidebar_slack_link {
-  display: flex;
-  align-items: center;
-  font-weight: 500 !important;
-}
-.sidebar_github_link img,
-.sidebar_slack_link img {
-  width: 21px;
-  height: 21px;
-  margin-right: 10px;
-}
-.sidebar_github_link {
-  margin-top: 20px;
-}
-.sidebar_slack_link {
-  margin: 5px 0 20px;
-} */
