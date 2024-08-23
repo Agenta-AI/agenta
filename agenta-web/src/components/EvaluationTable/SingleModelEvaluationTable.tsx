@@ -351,8 +351,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
                     } else {
-                        console.error("Unknown response type:", result)
                         res = {version: "2.0", data: ""} as BaseResponse
+                        console.error("Unknown response type:", result)
                     }
 
                     let _result = getStringOrJson(res.data)
