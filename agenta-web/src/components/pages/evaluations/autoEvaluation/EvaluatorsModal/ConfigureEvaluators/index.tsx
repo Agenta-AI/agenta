@@ -1,17 +1,19 @@
-import {useAppId} from "@/hooks/useAppId"
-import {JSSTheme} from "@/lib/Types"
+import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
-import {Button, Divider, Input, Modal, Radio, Space, Typography} from "antd"
-import React, {useEffect, useState} from "react"
+import {Button, Divider, Input, Radio, Space, Typography} from "antd"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
-import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
-import {useAtom} from "jotai"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
 
-type ConfigureEvaluatorModalProps = {} & React.ComponentProps<typeof Modal>
+type ConfigureEvaluatorModalProps = {
+    evaluatorConfigs: EvaluatorConfig[]
+    handleOnCancel: () => void
+    selectedEvaluatorCategory: string
+    setSelectedEvaluatorCategory: React.Dispatch<React.SetStateAction<string>>
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     titleContainer: {
@@ -24,17 +26,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             lineHeight: theme.lineHeightLG,
         },
     },
-    bodyContainer: {
-        padding: `${theme.padding}px 0`,
-        "& > div:nth-of-type(1)": {
-            backgroundColor: theme.colorBgContainer,
-            position: "sticky",
-            top: 0,
-        },
-        "& > div:nth-of-type(2)": {
-            height: 800,
-            overflowY: "auto",
-        },
+    header: {
+        display: "flex",
+        flexDirection: "column",
+        gap: theme.padding,
     },
     radioBtnContainer: {
         display: "flex",
@@ -56,43 +51,33 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ConfigureEvaluatorModal = ({...props}: ConfigureEvaluatorModalProps) => {
+const ConfigureEvaluatorModal = ({
+    evaluatorConfigs,
+    handleOnCancel,
+    selectedEvaluatorCategory,
+    setSelectedEvaluatorCategory,
+    setCurrent,
+}: ConfigureEvaluatorModalProps) => {
     const classes = useStyles()
-    const appId = useAppId()
-    const setEvaluators = useAtom(evaluatorsAtom)[1]
-    const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
-    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
-
-    useEffect(() => {
-        Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId)]).then(
-            ([evaluators, configs]) => {
-                setEvaluators(evaluators)
-                setEvaluatorConfigs(configs)
-            },
-        )
-    }, [appId])
 
     return (
-        <Modal
-            footer={null}
-            width={1200}
-            closeIcon={null}
-            title={
+        <div>
+            <div className={classes.header}>
                 <div className={classes.titleContainer}>
                     <Typography.Title>Configure evaluators</Typography.Title>
 
                     <Space>
-                        <Button type="primary" icon={<PlusOutlined />}>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => setCurrent(1)}
+                        >
                             Create new evaluator
                         </Button>
-                        <CloseOutlined onClick={() => props.onCancel?.({} as any)} />
+                        <CloseOutlined onClick={handleOnCancel} />
                     </Space>
                 </div>
-            }
-            {...props}
-        >
-            <div className={classes.bodyContainer}>
                 <div>
                     <div className="flex items-center justify-between">
                         <Radio.Group
@@ -127,16 +112,16 @@ const ConfigureEvaluatorModal = ({...props}: ConfigureEvaluatorModalProps) => {
                     </div>
                     <Divider className="my-4" />
                 </div>
-
-                <div>
-                    {evaluatorsDisplay === "list" ? (
-                        <EvaluatorList evaluatorConfigs={evaluatorConfigs} />
-                    ) : (
-                        <EvaluatorCard evaluatorConfigs={evaluatorConfigs} />
-                    )}
-                </div>
             </div>
-        </Modal>
+
+            <div>
+                {evaluatorsDisplay === "list" ? (
+                    <EvaluatorList evaluatorConfigs={evaluatorConfigs} />
+                ) : (
+                    <EvaluatorCard evaluatorConfigs={evaluatorConfigs} />
+                )}
+            </div>
+        </div>
     )
 }
 
