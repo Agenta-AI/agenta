@@ -114,7 +114,7 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
             columns={columns}
             rowKey={"id"}
             dataSource={evaluatorConfigs}
-            scroll={{x: true}}
+            scroll={{x: true, y: 600}}
             bordered
             pagination={false}
             onRow={(record) => ({
