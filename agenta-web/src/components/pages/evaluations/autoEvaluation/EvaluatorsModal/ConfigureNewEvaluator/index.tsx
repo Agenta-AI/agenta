@@ -3,6 +3,7 @@ import React from "react"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
+    handleOnCancel: () => void
 }
 
 const ConfigureNewEvaluator = ({setCurrent}: ConfigureNewEvaluatorProps) => {

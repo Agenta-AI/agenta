@@ -6,7 +6,7 @@ import {Modal} from "antd"
 import {useAtom} from "jotai"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import ConfigureEvaluators from "@/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluators"
+import ConfigureEvaluators from "./ConfigureEvaluators"
 import CreateNewEvaluator from "./CreateNewEvaluator"
 import ConfigureNewEvaluator from "./ConfigureNewEvaluator"
 
@@ -16,7 +16,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalWrapper: {
         "& .ant-modal-content": {
             height: 800,
-            overflowY: "auto",
         },
     },
 }))
@@ -27,7 +26,6 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [current, setCurrent] = useState(0)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
-    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     useEffect(() => {
         Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId)]).then(
@@ -44,17 +42,26 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                 <ConfigureEvaluators
                     evaluatorConfigs={evaluatorConfigs}
                     handleOnCancel={() => props.onCancel?.({} as any)}
-                    selectedEvaluatorCategory={selectedEvaluatorCategory}
-                    setSelectedEvaluatorCategory={setSelectedEvaluatorCategory}
                     setCurrent={setCurrent}
                 />
             ),
         },
         {
-            content: <CreateNewEvaluator setCurrent={setCurrent} />,
+            content: (
+                <CreateNewEvaluator
+                    evaluators={evaluators}
+                    setCurrent={setCurrent}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                />
+            ),
         },
         {
-            content: <ConfigureNewEvaluator setCurrent={setCurrent} />,
+            content: (
+                <ConfigureNewEvaluator
+                    setCurrent={setCurrent}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                />
+            ),
         },
     ]
 

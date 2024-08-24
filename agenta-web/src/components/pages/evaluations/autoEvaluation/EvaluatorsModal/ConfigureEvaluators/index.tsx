@@ -10,8 +10,6 @@ import EvaluatorList from "./EvaluatorList"
 type ConfigureEvaluatorModalProps = {
     evaluatorConfigs: EvaluatorConfig[]
     handleOnCancel: () => void
-    selectedEvaluatorCategory: string
-    setSelectedEvaluatorCategory: React.Dispatch<React.SetStateAction<string>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
 }
 
@@ -54,12 +52,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const ConfigureEvaluatorModal = ({
     evaluatorConfigs,
     handleOnCancel,
-    selectedEvaluatorCategory,
-    setSelectedEvaluatorCategory,
     setCurrent,
 }: ConfigureEvaluatorModalProps) => {
     const classes = useStyles()
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
+    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     return (
         <div>
@@ -75,7 +72,7 @@ const ConfigureEvaluatorModal = ({
                         >
                             Create new evaluator
                         </Button>
-                        <CloseOutlined onClick={handleOnCancel} />
+                        <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
                     </Space>
                 </div>
                 <div>
@@ -114,7 +111,7 @@ const ConfigureEvaluatorModal = ({
                 </div>
             </div>
 
-            <div>
+            <div className="h-[650px] overflow-y-auto">
                 {evaluatorsDisplay === "list" ? (
                     <EvaluatorList evaluatorConfigs={evaluatorConfigs} />
                 ) : (
