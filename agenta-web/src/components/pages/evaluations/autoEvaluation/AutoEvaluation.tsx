@@ -13,9 +13,9 @@ import {
 import {Button, Dropdown, Space, Spin, Table} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
-import ConfigureEvaluatorModal from "./evaluators/ConfigureEvaluatorModal"
 import {ColumnsType} from "antd/es/table"
 import {MoreOutlined} from "@ant-design/icons"
+import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     button: {
@@ -230,7 +230,7 @@ const AutoEvaluation = () => {
                 />
             </Spin>
 
-            <ConfigureEvaluatorModal
+            <EvaluatorsModal
                 open={isConfigEvaluatorModalOpen}
                 onCancel={() => setIsConfigEvaluatorModalOpen(false)}
             />
