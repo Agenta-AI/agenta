@@ -47,7 +47,7 @@ jobs:
 
           cd agenta-web
           npm version $BUMP_TYPE
-          WEB_VERSION=$(npm version --json | jq -r '."agenta-web"')
+          WEB_VERSION=$(npm pkg get version | tr -d '"')
           cd ..
 
           cd agenta-cli
