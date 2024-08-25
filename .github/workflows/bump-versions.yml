@@ -60,6 +60,10 @@ jobs:
           BACKEND_VERSION=$(poetry version -s)
           cd ..
 
+          echo "WEB_VERSION=$WEB_VERSION"
+          echo "CLI_VERSION=$CLI_VERSION"
+          echo "BACKEND_VERSION=$BACKEND_VERSION"
+
           if [ "$WEB_VERSION" = "$CLI_VERSION" ] && [ "$CLI_VERSION" = "$BACKEND_VERSION" ]; then
             echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
             echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
