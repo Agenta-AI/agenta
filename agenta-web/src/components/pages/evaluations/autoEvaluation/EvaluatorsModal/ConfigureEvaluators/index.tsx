@@ -111,7 +111,7 @@ const ConfigureEvaluatorModal = ({
                 </div>
             </div>
 
-            <div className="h-[650px] overflow-y-auto">
+            <div>
                 {evaluatorsDisplay === "list" ? (
                     <EvaluatorList evaluatorConfigs={evaluatorConfigs} />
                 ) : (
