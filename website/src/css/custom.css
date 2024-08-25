@@ -6,7 +6,6 @@
 @tailwind utilities;
 
 /* You can override the default Infima variables here. */
-
 :root {
   --ifm-color-primary: #758391;
   --ifm-color-primary-dark: #586673;
@@ -45,7 +44,6 @@ body {
   color: var(--ifm-color-primary-darker);
   font-size: 16px;
 }
-
 code *,
 pre {
   font-family: "IBM Plex Mono", monospace !important;
@@ -80,7 +78,8 @@ article a:hover {
 .cardContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
 .cardContainer_fWXF,
-.hash-link {
+.hash-link,
+.table-of-contents__link {
   text-decoration: none !important;
 }
 
@@ -106,7 +105,28 @@ article a:hover {
     margin: auto;
   }
 }
-
+@media (min-width: 995px) and (max-width: 1150px) {
+  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
+  {
+    display: none;
+  }
+}
+.navbar__link {
+  font-size: 14px;
+  padding: 0px 8px;
+  color: var(--ifm-color-primary);
+  font-weight: 400;
+}
+[data-theme="dark"] .navbar__link {
+  color: var(--ifm-color-primary-darker);
+}
+.navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+  font-weight: 500;
+}
+[data-theme="dark"] .navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
 .nav_github_icons svg,
 .nav_slack_icons svg {
   width: 22px;
@@ -151,30 +171,26 @@ article a:hover {
   border: none;
   cursor: pointer;
 }
-@media (min-width: 995px) and (max-width: 1150px) {
-  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
-  {
-    display: none;
-  }
-}
-.navbar__link {
-  font-size: 14px;
-  padding: 0px 8px;
-  color: var(--ifm-color-primary);
-  font-weight: 400;
-}
-[data-theme="dark"] .navbar__link {
-  color: var(--ifm-color-primary-darker);
-}
-.navbar__link--active {
-  color: var(--ifm-color-primary-darkest);
-  font-weight: 500;
-}
-[data-theme="dark"] .navbar__link--active {
-  color: var(--ifm-color-primary-darkest);
-}
 
-/** Nav searchbar **/
+/************************** Nav searchbar **************************/
+[data-theme="dark"] .DocSearch-Button {
+  background-color: #181818;
+}
+[data-theme="dark"] .DocSearch-Button:hover {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Modal {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Footer {
+  background-color: #242526;
+  opacity: 0.9;
+}
+[data-theme="dark"] .DocSearch-Form {
+  background-color: #181818;
+  box-shadow: none;
+  border: 2px solid #3d4144;
+}
 .DocSearch-Button {
   border-radius: 6px !important;
   padding: 0 2px 0px 8px !important;
@@ -201,26 +217,8 @@ article a:hover {
   padding: 0 !important;
   width: 18px !important;
 }
-[data-theme="dark"] .DocSearch-Button {
-  background-color: #181818;
-}
-[data-theme="dark"] .DocSearch-Button:hover {
-  background-color: #1b1b1d;
-}
-[data-theme="dark"] .DocSearch-Modal {
-  background-color: #1b1b1d;
-}
-[data-theme="dark"] .DocSearch-Footer {
-  background-color: #242526;
-  opacity: 0.9;
-}
-[data-theme="dark"] .DocSearch-Form {
-  background-color: #181818;
-  box-shadow: none;
-  border: 2px solid #3d4144;
-}
 
-/* sidebar "section headers". */
+/*************************** Sidebar ***************************/
 @media (min-width: 1350px) {
   .theme-doc-sidebar-container {
     margin-right: 40px;
@@ -231,9 +229,14 @@ article a:hover {
     margin-right: 20px;
   }
 }
-
 li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   background-color: transparent !important;
+}
+li.sidebar-section-title > div.menu__list-item-collapsible {
+  margin-top: 25px !important;
+}
+li.sidebar-section-title > div.menu__list-item-collapsible a {
+  font-weight: 600 !important;
 }
 .menu__link {
   font-size: 14px;
@@ -244,12 +247,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible:hover {
 .menu__link--active {
   font-weight: 500;
   color: var(--ifm-color-primary-darkest);
-}
-li.sidebar-section-title > div.menu__list-item-collapsible {
-  margin-top: 25px !important;
-}
-li.sidebar-section-title > div.menu__list-item-collapsible a {
-  font-weight: 600 !important;
 }
 [data-theme="dark"] .menu__link {
   color: var(--ifm-color-primary-darker);
@@ -265,7 +262,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   opacity: 0.8;
 }
 .menu__list {
-  /* padding-left: 0px !important; */
   padding-right: 5px;
 }
 .docSidebarContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocRoot-Layout-Sidebar-styles-module,
@@ -273,19 +269,18 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   border-right: none !important;
 }
 
-/** main content - middle section **/
-.markdown img {
-  margin-bottom: 24px;
-}
+/**************************** Article section ****************************/
 .container > .row {
   justify-content: space-between;
+}
+.markdown img {
+  margin-bottom: 24px;
 }
 .theme-doc-markdown h1:first-child,
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module,
 .title_kItE {
   padding-top: 40px;
 }
-
 .docItemCol_node_modules-docusaurus-theme-openapi-docs-lib-theme-ApiItem-Layout-styles-module {
   line-height: 24px;
 }
@@ -293,9 +288,15 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   padding: 3px 15px;
 }
 
-/** heading list - list of heading section **/
+/**************************** Heading lists ****************************/
 .col--3 {
   --ifm-col-width: calc(2.8 / 12 * 100%);
+}
+@media (max-width: 995px) {
+  .tocCollapsibleButton_node_modules-\@docusaurus-theme-classic-lib-theme-TOCCollapsible-CollapseButton-styles-module,
+  .tocCollapsibleButtonExpanded_MG3E {
+    color: var(--ifm-color-primary);
+  }
 }
 .table-of-contents__link {
   font-size: 12px;
@@ -307,10 +308,10 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   color: var(--ifm-color-primary-dark);
 }
 .table-of-contents__left-border {
-  border-left: none !important;
+  border: none !important;
 }
 
-/* Sidebar Method labels in Referencce page api section */
+/***************************** Sidebar Method labels in Referencce page API section *****************************/
 .cardTitle_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
 .cardTitle_rnsV {
   font-size: var(--ifm-heading-h3-font-size) !important;
@@ -369,32 +370,8 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   line-height: 14px !important;
 }
 
-/* highlight error code */
-.code-block-error-line {
-  background-color: #ff000020;
-  display: block;
-  margin: 0 calc(-1 * var(--ifm-pre-padding));
-  padding: 0 var(--ifm-pre-padding);
-  border-left: 3px solid #ff000080;
-}
 
-/* image zoom customization */
-.medium-zoom-overlay {
-  background-color: #0000009f !important;
-}
-[data-theme="dark"] .medium-zoom-overlay {
-  background-color: #000000b4 !important;
-}
-.medium-zoom-image--opened,
-.medium-zoom-overlay {
-  z-index: 9999999;
-}
-[data-theme="dark"] .medium-zoom-image--opened {
-  border: 1px solid rgba(255, 255, 255, 0.096);
-}
-
-/** changelog file **/
-
+/****************************** changelog file ******************************/
 .container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
 .container_mt6G {
   display: none;
@@ -405,7 +382,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   margin-bottom: 10px;
   padding-left: 20%;
 }
-
 .blog-post-page .col[class*="col--"] {
   flex: 0 !important;
   position: relative;
@@ -424,7 +400,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 .blog-post-page .row {
   display: block;
 }
-
 .changelog {
   width: 80%;
   margin-left: auto;
@@ -454,7 +429,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 .changelog h3:first-child {
   margin-top: 60px;
 }
-
 @media (max-width: 995px) {
   .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
   .title_f1Hy {
@@ -481,7 +455,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
     margin-top: 110px;
   }
 }
-
 @media (max-width: 520px) {
   .changelog hr {
     margin: 50px auto 28%;
@@ -502,4 +475,28 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
     max-height: 58px;
     overflow: hidden;
   }
+}
+
+/* highlight error code */
+.code-block-error-line {
+  background-color: #ff000020;
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+  border-left: 3px solid #ff000080;
+}
+
+/* image zoom customization */
+.medium-zoom-overlay {
+  background-color: #0000009f !important;
+}
+[data-theme="dark"] .medium-zoom-overlay {
+  background-color: #000000b4 !important;
+}
+.medium-zoom-image--opened,
+.medium-zoom-overlay {
+  z-index: 9999999;
+}
+[data-theme="dark"] .medium-zoom-image--opened {
+  border: 1px solid rgba(255, 255, 255, 0.096);
 }
