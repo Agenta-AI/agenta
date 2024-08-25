@@ -81,7 +81,7 @@ jobs:
           delete-branch: true
           title: "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
-            New release ${{ steps.bump_versions.outputs.NEW_VERSION }} in
+            New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - agenta-web
             - agenta-backend
             - agenta-cli
