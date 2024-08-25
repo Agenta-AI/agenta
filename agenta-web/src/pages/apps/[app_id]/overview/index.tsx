@@ -1,4 +1,5 @@
 import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
+import EditAppModal from "@/components/AppSelector/modals/EditAppModal"
 import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
@@ -51,6 +52,7 @@ export default function Overview() {
     const [environments, setEnvironments] = useState<Environment[]>([])
     const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
     const [usernames, setUsernames] = useState<Record<string, string>>({})
+    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
     const loadEnvironments = useCallback(async () => {
         try {
@@ -123,11 +125,12 @@ export default function Overview() {
                         overlayStyle={{width: 180}}
                         menu={{
                             items: [
-                                // {
-                                //     key: "rename_app",
-                                //     label: "Rename",
-                                //     icon: <PencilLine size={16} />,
-                                // },
+                                {
+                                    key: "rename_app",
+                                    label: "Rename",
+                                    icon: <PencilLine size={16} />,
+                                    onClick: () => setIsEditAppModalOpen(true),
+                                },
                                 {
                                     key: "delete_app",
                                     label: "Delete",
@@ -173,6 +176,14 @@ export default function Overview() {
                     onCancel={() => setIsDeleteAppModalOpen(false)}
                     confirmLoading={isDelAppLoading}
                     appName={currentApp?.app_name}
+                />
+            )}
+
+            {currentApp && (
+                <EditAppModal
+                    open={isEditAppModalOpen}
+                    onCancel={() => setIsEditAppModalOpen(false)}
+                    appDetails={currentApp}
                 />
             )}
         </>
