@@ -75,13 +75,13 @@ jobs:
         if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: Bump versions to ${{ steps.bump_versions.outputs.NEW_VERSION }}
+          commit-message: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          branch: bump-versions-${{ steps.bump_versions.outputs.NEW_VERSION }}
+          branch: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           delete-branch: true
           title: "Bump versions to ${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
-            New version ${{ steps.bump_versions.outputs.NEW_VERSION }} in
+            New release ${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - agenta-web
             - agenta-backend
             - agenta-cli
