@@ -401,9 +401,8 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 }
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
 .title_f1Hy {
-  margin-top: 50px;
-  line-height: 180px;
-  border-bottom: 1px solid var(--ifm-color-primary-lightest);
+  margin-top: 40px;
+  margin-bottom: 10px;
   padding-left: 20%;
 }
 
