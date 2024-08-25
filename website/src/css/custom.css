@@ -171,6 +171,44 @@ article a:hover {
   border: none;
   cursor: pointer;
 }
+@media (max-width: 995px) {
+  .nav_github_icons,
+  .nav_slack_icons {
+    position: absolute;
+    top: -42px;
+    left: 181px;
+  }
+  .nav_slack_icons {
+    left: 220px;
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"],
+  [href="https://cloud.agenta.ai/apps"]
+  {
+    padding: 0px;
+    position: absolute;
+    bottom: 15px;
+    width: 95%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]
+  {
+    bottom: 65px;
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]:hover,
+  [href="https://cloud.agenta.ai/apps"]:hover,
+  [href="https://github.com/Agenta-AI/agenta"]:hover,
+  [href="https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"]:hover
+  {
+    background: transparent;
+  }
+  .nav_primary_button,
+  .nav_secondary_button {
+    width: 100%;
+    text-align: center;
+    margin: 0px !important;
+  }
+}
 
 /************************** Nav searchbar **************************/
 [data-theme="dark"] .DocSearch-Button {
@@ -369,7 +407,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   font-size: 14px !important;
   line-height: 14px !important;
 }
-
 
 /****************************** changelog file ******************************/
 .container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
