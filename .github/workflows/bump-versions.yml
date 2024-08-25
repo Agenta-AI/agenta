@@ -79,7 +79,7 @@ jobs:
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           branch: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           delete-branch: true
-          title: "Bump versions to ${{ steps.bump_versions.outputs.NEW_VERSION }}"
+          title: "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
             New release ${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - agenta-web
