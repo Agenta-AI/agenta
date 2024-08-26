@@ -222,6 +222,7 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+    updated_at: str
 
 
 class RemoveApp(BaseModel):
