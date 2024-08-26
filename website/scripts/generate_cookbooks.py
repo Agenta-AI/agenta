@@ -5,6 +5,7 @@ import nbformat
 import os
 import sys
 
+
 def make_header(notebook_path):
     github_uri = "Agenta-AI/agenta/blob/main/cookbook"
     github_path = f"https://github.com/{github_uri}/{os.path.basename(notebook_path)}"
@@ -52,11 +53,11 @@ def export_notebook(notebook_path, output_path):
     title = convert_to_title_case(os.path.basename(notebook_path))
 
     # Add the title to the top of the markdown file
-    title_header = f"---\ntitle: \"{title}\"\n---\n\n"
-    
+    title_header = f'---\ntitle: "{title}"\n---\n\n'
+
     # Add the header below the title
     header = make_header(notebook_path)
-    
+
     # Combine the title, header, and the output markdown content
     output = title_header + header + output
 
