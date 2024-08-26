@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {JSSTheme} from "@/lib/Types"
+import {Evaluator, JSSTheme} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -26,6 +26,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [current, setCurrent] = useState(0)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
+    const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
 
     useEffect(() => {
         Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId)]).then(
@@ -43,6 +44,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     evaluatorConfigs={evaluatorConfigs}
                     handleOnCancel={() => props.onCancel?.({} as any)}
                     setCurrent={setCurrent}
+                    setSelectedEvaluator={setSelectedEvaluator}
                 />
             ),
         },
@@ -52,18 +54,23 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     evaluators={evaluators}
                     setCurrent={setCurrent}
                     handleOnCancel={() => props.onCancel?.({} as any)}
-                />
-            ),
-        },
-        {
-            content: (
-                <ConfigureNewEvaluator
-                    setCurrent={setCurrent}
-                    handleOnCancel={() => props.onCancel?.({} as any)}
+                    setSelectedEvaluator={setSelectedEvaluator}
                 />
             ),
         },
     ]
+
+    if (selectedEvaluator) {
+        steps.push({
+            content: (
+                <ConfigureNewEvaluator
+                    selectedEvaluator={selectedEvaluator}
+                    setCurrent={setCurrent}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                />
+            ),
+        })
+    }
 
     return (
         <Modal
@@ -74,7 +81,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             className={classes.modalWrapper}
             {...props}
         >
-            {steps[current].content}
+            {steps[current]?.content}
         </Modal>
     )
 }

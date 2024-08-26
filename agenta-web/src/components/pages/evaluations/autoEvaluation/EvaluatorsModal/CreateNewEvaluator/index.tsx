@@ -2,7 +2,7 @@ import {Evaluator, JSSTheme} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowLeft, Cards, Table} from "@phosphor-icons/react"
 import {Button, Divider, Input, Radio, Space, Typography} from "antd"
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import CreateEvaluatorList from "./CreateEvaluatorList"
 import CreateEvaluatorCard from "./CreateEvaluatorCard"
@@ -11,6 +11,7 @@ type CreateNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     handleOnCancel: () => void
     evaluators: Evaluator[]
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -18,7 +19,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        "& h1": {
+        "& .ant-typography": {
             fontSize: theme.fontSizeHeading4,
             fontWeight: theme.fontWeightStrong,
             lineHeight: theme.lineHeightLG,
@@ -49,10 +50,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const CreateNewEvaluator = ({evaluators, setCurrent, handleOnCancel}: CreateNewEvaluatorProps) => {
+const CreateNewEvaluator = ({
+    evaluators,
+    setCurrent,
+    handleOnCancel,
+    setSelectedEvaluator,
+}: CreateNewEvaluatorProps) => {
     const classes = useStyles()
+    const [searchTerm, setSearchTerm] = useState("")
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+
+    const filteredEvaluators = useMemo(() => {
+        if (!searchTerm) return evaluators
+        return evaluators.filter((item) =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+    }, [searchTerm, evaluators])
 
     return (
         <div>
@@ -60,7 +74,7 @@ const CreateNewEvaluator = ({evaluators, setCurrent, handleOnCancel}: CreateNewE
                 <div className={classes.title}>
                     <Space>
                         {evaluatorsDisplay === "list" ? (
-                            <Typography.Title>Configure evaluators</Typography.Title>
+                            <Typography.Text>Configure evaluators</Typography.Text>
                         ) : (
                             <>
                                 <Button
@@ -68,7 +82,7 @@ const CreateNewEvaluator = ({evaluators, setCurrent, handleOnCancel}: CreateNewE
                                     className="flex items-center justify-center"
                                     onClick={() => setCurrent(0)}
                                 />
-                                <Typography.Title>Step 1/2: Select new evaluator</Typography.Title>
+                                <Typography.Text>Step 1/2: Select new evaluator</Typography.Text>
                             </>
                         )}
                     </Space>
@@ -106,7 +120,12 @@ const CreateNewEvaluator = ({evaluators, setCurrent, handleOnCancel}: CreateNewE
                             </Radio.Group>
                         )}
                         <Space>
-                            <Input.Search style={{width: 400}} placeholder="Search" allowClear />
+                            <Input.Search
+                                style={{width: 400}}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search"
+                                allowClear
+                            />
                             <Radio.Group
                                 defaultValue={evaluatorsDisplay}
                                 onChange={(e) => setEvaluatorsDisplay(e.target.value)}
@@ -126,9 +145,17 @@ const CreateNewEvaluator = ({evaluators, setCurrent, handleOnCancel}: CreateNewE
 
             <div>
                 {evaluatorsDisplay === "list" ? (
-                    <CreateEvaluatorList evaluators={evaluators} />
+                    <CreateEvaluatorList
+                        evaluators={filteredEvaluators}
+                        setSelectedEvaluator={setSelectedEvaluator}
+                        setCurrent={setCurrent}
+                    />
                 ) : (
-                    <CreateEvaluatorCard evaluators={evaluators} />
+                    <CreateEvaluatorCard
+                        evaluators={filteredEvaluators}
+                        setSelectedEvaluator={setSelectedEvaluator}
+                        setCurrent={setCurrent}
+                    />
                 )}
             </div>
         </div>

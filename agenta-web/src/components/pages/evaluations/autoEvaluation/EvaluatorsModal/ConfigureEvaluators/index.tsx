@@ -1,8 +1,8 @@
-import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
+import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
 import {Button, Divider, Input, Radio, Space, Typography} from "antd"
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
@@ -11,6 +11,7 @@ type ConfigureEvaluatorModalProps = {
     evaluatorConfigs: EvaluatorConfig[]
     handleOnCancel: () => void
     setCurrent: React.Dispatch<React.SetStateAction<number>>
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -18,7 +19,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        "& h1": {
+        "& .ant-typography": {
             fontSize: theme.fontSizeLG,
             fontWeight: theme.fontWeightStrong,
             lineHeight: theme.lineHeightLG,
@@ -53,16 +54,25 @@ const ConfigureEvaluatorModal = ({
     evaluatorConfigs,
     handleOnCancel,
     setCurrent,
+    setSelectedEvaluator,
 }: ConfigureEvaluatorModalProps) => {
     const classes = useStyles()
+    const [searchTerm, setSearchTerm] = useState("")
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+
+    const filteredEvalConfigs = useMemo(() => {
+        if (!searchTerm) return evaluatorConfigs
+        return evaluatorConfigs.filter((item) =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+    }, [searchTerm, evaluatorConfigs])
 
     return (
         <div>
             <div className={classes.header}>
                 <div className={classes.titleContainer}>
-                    <Typography.Title>Configure evaluators</Typography.Title>
+                    <Typography.Text>Configure evaluators</Typography.Text>
 
                     <Space>
                         <Button
@@ -93,7 +103,12 @@ const ConfigureEvaluatorModal = ({
                             )}
                         </Radio.Group>
                         <Space>
-                            <Input.Search style={{width: 400}} placeholder="Search" allowClear />
+                            <Input.Search
+                                style={{width: 400}}
+                                placeholder="Search"
+                                allowClear
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                             <Radio.Group
                                 defaultValue={evaluatorsDisplay}
                                 onChange={(e) => setEvaluatorsDisplay(e.target.value)}
@@ -113,9 +128,9 @@ const ConfigureEvaluatorModal = ({
 
             <div>
                 {evaluatorsDisplay === "list" ? (
-                    <EvaluatorList evaluatorConfigs={evaluatorConfigs} />
+                    <EvaluatorList evaluatorConfigs={filteredEvalConfigs} />
                 ) : (
-                    <EvaluatorCard evaluatorConfigs={evaluatorConfigs} />
+                    <EvaluatorCard evaluatorConfigs={filteredEvalConfigs} />
                 )}
             </div>
         </div>
