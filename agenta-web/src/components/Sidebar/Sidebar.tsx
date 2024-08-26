@@ -113,6 +113,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     menuHeader: {
         padding: `${theme.paddingXS}px ${theme.padding}px`,
         color: theme.colorTextDescription,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
     },
 }))
 
