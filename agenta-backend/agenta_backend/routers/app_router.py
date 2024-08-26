@@ -313,7 +313,7 @@ async def update_app(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 object=app,
-                permission=Permission.UPDATE_APPLICATION,
+                permission=Permission.EDIT_APPLICATION,
             )
             logger.debug(f"User has Permission to update app: {has_permission}")
             if not has_permission:
