@@ -442,9 +442,9 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     for key, value in input.inputs.items():
         chain_run_args[key] = value
 
-    prompt_system = input.settings.get("prompt_system", "")
+    prompt_template = input.settings.get("prompt_template", "")
     messages = [
-        {"role": "system", "content": prompt_system},
+        {"role": "system", "content": prompt_template},
         {"role": "user", "content": str(chain_run_args)},
     ]
 
