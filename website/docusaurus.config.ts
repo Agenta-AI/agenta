@@ -4,13 +4,14 @@ import type * as Preset from "@docusaurus/preset-classic";
 import type { Config } from "@docusaurus/types";
 import type * as Plugin from "@docusaurus/types/src/plugin";
 import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
+import "dotenv/config";
 
 const config: Config = {
   title: "Agenta Documentation",
   tagline: "Agenta: The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
-  url: "https://your-docusaurus-site.example.com",
+  url: "https://docs.agenta.ai",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -107,30 +108,6 @@ const config: Config = {
           type: "search",
           position: "right",
         },
-        // {
-        //   href: "https://github.com/Agenta-AI/agenta",
-        //   label: "GitHub",
-        //   position: "right",
-        //   class: "nav_social_links",
-        // },
-        // {
-        //   href: "https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
-        //   label: "Slack",
-        //   position: "right",
-        //   class: "nav_social_links",
-        // },
-        // {
-        //   href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-        //   label: "Book A Demo",
-        //   position: "right",
-        //   class: "nav_social_links",
-        // },
-        // {
-        //   href: "https://cloud.agenta.ai/apps",
-        //   label: "Start for Free",
-        //   position: "right",
-        //   class: "nav_social_links",
-        // },
         {
           href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           position: "right",
@@ -263,6 +240,15 @@ const config: Config = {
         } satisfies Plugin.PluginOptions,
       },
     ],
+    [
+      "posthog-docusaurus",
+      {
+        apiKey: process.env.POSTHOG_API_KEY,
+        appUrl: "https://docs.agenta.ai",
+        enableInDevelopment: false, // optional
+      },
+    ],
+
     "docusaurus-plugin-image-zoom",
   ],
 
