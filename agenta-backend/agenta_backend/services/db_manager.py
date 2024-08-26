@@ -634,11 +634,11 @@ async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
 
     template_db = await get_template(template_id=template_id)
     if "Single Prompt" in template_db.title:
-        return AppType.SINGLE_PROMPT
+        return AppType.PROMPT_TEMPLATE
     elif "Chat Application" in template_db.title:
-        return AppType.CHAT_PROMPT
+        return AppType.CHAT_TEMPLATE
     elif "RAG" in template_db.title:
-        return AppType.RAG
+        return AppType.RAG_TEMPLATE
     return AppType.CUSTOM
 
 
@@ -677,7 +677,6 @@ async def create_app_and_envs(
         raise ValueError("App with the same name already exists")
 
     app_type = await get_app_type_from_template_by_id(template_id)
-    print("App Type: ", app_type)
     async with db_engine.get_session() as session:
         app = AppDB(app_name=app_name, user_id=user.id, app_type=app_type)
 
