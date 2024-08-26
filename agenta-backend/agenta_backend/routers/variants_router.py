@@ -98,6 +98,15 @@ async def add_variant_from_base_and_config(
             user_uid=request.state.user_id,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(db_app_variant.app_id),
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         app_variant_db = await db_manager.get_app_variant_instance_by_id(
             str(db_app_variant.id)
         )
@@ -141,6 +150,14 @@ async def remove_variant(
                     {"detail": error_msg},
                     status_code=403,
                 )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=variant_id,
+            object_type="variant",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         await app_manager.terminate_and_remove_app_variant(app_variant_id=variant_id)
     except DockerException as e:
@@ -198,6 +215,14 @@ async def update_variant_parameters(
             parameters=payload.parameters,
             user_uid=request.state.user_id,
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=variant_id,
+            object_type="variant",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -253,6 +278,14 @@ async def update_variant_image(
         await app_manager.update_variant_image(
             db_app_variant, image, request.state.user_id
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(db_app_variant.app_id),
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
         import traceback
 
