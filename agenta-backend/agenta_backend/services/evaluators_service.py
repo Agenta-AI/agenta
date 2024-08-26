@@ -29,6 +29,71 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+def validate_string_output(
+    evaluator_key: str, output: Union[str, Dict[str, Any]]
+) -> str:
+    """Checks and validate the output to be of type string.
+
+    Args:
+        evaluator_key (str): the key of the evaluator
+        output (Union[str, Dict[str, Any]]): the llm response
+
+    Raises:
+        Exception: requires output to be a string
+
+    Returns:
+        str: output
+    """
+
+    output = output.get("data", "") if isinstance(output, dict) else output
+    if not isinstance(output, str):
+        raise Exception(
+            f"Evaluator {evaluator_key} requires the output to be a string, but received {type(output).__name__} instead. "
+        )
+    return output
+
+
+def validate_json_output(
+    evaluator_key: str, output: Union[str, Dict[str, Any]]
+) -> Union[str, dict]:
+    """Checks and validate the output to be of type JSON string or dictionary.
+
+    Args:
+        evaluator_key (str): the key of the evaluator
+        output (Union[str, Dict[str, Any]]): the llm response
+
+    Raises:
+        Exception: requires output to be a JSON string
+
+    Returns:
+        str, dict: output
+    """
+
+    output = output.get("data", "") if isinstance(output, dict) else output
+    if isinstance(output, dict):
+        output = json.dumps(output)
+    elif isinstance(output, str):
+        try:
+            json.loads(output)
+        except json.JSONDecodeError:
+            raise Exception(
+                f"Evaluator {evaluator_key} requires the output to be a JSON string or object."
+            )
+
+    if not isinstance(
+        output,
+        (
+            str,
+            dict,
+        ),
+    ):
+        raise Exception(
+            f"Evaluator {evaluator_key} requires the output to be either a JSON string or object, but received {type(output).__name__} instead."
+        )
+
+    return output
+
+
 async def map(
     mapping_input: EvaluatorMappingInputInterface,
 ) -> EvaluatorMappingOutputInterface:
@@ -94,9 +159,9 @@ async def auto_exact_match(
     Returns:
         Result: A Result object containing the evaluation result.
     """
-    if not isinstance(output, str):
-        output = output.get("data", "")
+
     try:
+        output = validate_string_output("exact_match", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
         response = exact_match(input=EvaluatorInputInterface(**{"inputs": inputs}))
@@ -136,9 +201,8 @@ async def auto_regex_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("regex_test", output)
         inputs = {"ground_truth": data_point, "prediction": output}
         response = await regex_test(
             input=EvaluatorInputInterface(
@@ -174,9 +238,8 @@ async def auto_field_match_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("field_match_test", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
         response = await field_match_test(
@@ -210,9 +273,8 @@ async def auto_webhook_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("webhook_test", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
         response = await webhook_test(
@@ -272,9 +334,8 @@ async def auto_custom_code_run(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("custom_code_run", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
             "app_config": app_params,
@@ -332,9 +393,9 @@ async def auto_ai_critique(
     Returns:
         Result: Evaluation result.
     """
-    if not isinstance(output, str):
-        output = output.get("data", "")
+
     try:
+        output = validate_string_output("ai_critique", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
             "prompt_user": app_params.get("prompt_user", "").format(**data_point),
@@ -353,7 +414,7 @@ async def auto_ai_critique(
                 }
             )
         )
-        return Result(type="text", value=response["outputs"]["score"])
+        return Result(type="text", value=str(response["outputs"]["score"]))
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -405,9 +466,8 @@ async def auto_starts_with(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("starts_with", output)
         inputs = {"prediction": output}
         response = await starts_with(
             input=EvaluatorInputInterface(
@@ -447,9 +507,8 @@ async def auto_ends_with(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("ends_with", output)
         inputs = {"prediction": output}
         response = await ends_with(
             input=EvaluatorInputInterface(
@@ -490,9 +549,8 @@ async def auto_contains(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("contains", output)
         inputs = {"prediction": output}
         response = await contains(
             input=EvaluatorInputInterface(
@@ -533,9 +591,8 @@ async def auto_contains_any(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("contains_any", output)
         inputs = {"prediction": output}
         response = await contains_any(
             input=EvaluatorInputInterface(
@@ -578,9 +635,8 @@ async def auto_contains_all(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("contains_all", output)
         response = await contains_all(
             input=EvaluatorInputInterface(
                 **{"inputs": {"prediction": output}, "settings": settings_values}
@@ -621,9 +677,8 @@ async def auto_contains_json(
     settings_values: Dict[str, Any],  # pylint: disable=unused-argument
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_json_output("contains_json", output)
         response = await contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
@@ -764,22 +819,7 @@ async def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        output = output.get("data", "") if isinstance(output, dict) else output
-
-        if isinstance(output, dict):
-            output = json.dumps(output)
-        elif isinstance(output, str):
-            try:
-                json.loads(output)
-            except:
-                raise Exception(
-                    f"Evaluator 'auto_json_diff' requires string outputs to be JSON strings."
-                )
-        else:
-            raise Exception(
-                f"Evaluator 'auto_json_diff' requires the output to be either a JSON string or a JSON object, but received {type(output).__name__} instead."
-            )
-
+        output = validate_json_output("json_diff", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         response = await json_diff(
             input=EvaluatorInputInterface(
@@ -1048,9 +1088,8 @@ async def auto_levenshtein_distance(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("levenshtein_distance", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         response = await levenshtein_distance(
             input=EvaluatorInputInterface(
@@ -1091,9 +1130,8 @@ async def auto_similarity_match(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
     try:
+        output = validate_string_output("similarity_match", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         response = await similarity_match(
             input=EvaluatorInputInterface(
@@ -1178,10 +1216,8 @@ async def auto_semantic_similarity(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],
 ) -> Result:
-    if not isinstance(output, str):
-        output = output.get("data", "")
-
     try:
+        output = validate_string_output("semantic_similarity", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"prediction": output, "ground_truth": correct_answer}
         response = await semantic_similarity(
