@@ -103,11 +103,11 @@ async def evaluator_run(
         )
         return result
     except Exception as e:
-        logger.error(f"Error while running evaluator: {str(e)}")
+        logger.error(f"Error while running {evaluator_key} evaluator: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
-                "message": "Error while running evaluator",
+                "message": f"Error while running {evaluator_key} evaluator",
                 "stacktrace": traceback.format_exc(),
             },
         )
