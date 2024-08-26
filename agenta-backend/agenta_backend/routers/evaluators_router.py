@@ -153,7 +153,9 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
 
         # Update last_modified_by app information
         await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id, object_id=payload.app_id, object_type="app"
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
         )
         logger.debug("Successfully updated last_modified_by app information")
 
