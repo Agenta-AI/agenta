@@ -84,7 +84,14 @@ article a:hover {
 }
 
 /** Navbar **/
-@media (min-width: 1350px) {
+@media (min-width: 1851px) {
+  .main-wrapper,
+  .navbar__inner {
+    width: 1550px;
+    margin: auto;
+  }
+}
+@media (min-width: 1350px) and (max-width: 1850px) {
   .main-wrapper,
   .navbar__inner {
     width: 85%;
