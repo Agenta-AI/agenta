@@ -2685,7 +2685,9 @@ async def fetch_app_by_name_and_parameters(
                 workspace_id=workspace_id,
             )
         else:
-            query = base_query.join(UserDB).filter(UserDB.uid == user_uid)
+            query = base_query.join(UserDB, AppDB.user_id == UserDB.id).filter(
+                UserDB.uid == user_uid
+            )
 
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
