@@ -1,11 +1,13 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
-import {Space, Table, Tag, Typography} from "antd"
+import {Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
 interface CreateEvaluatorListProps {
     evaluators: Evaluator[]
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    setCurrent: (value: React.SetStateAction<number>) => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -19,7 +21,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const CreateEvaluatorList = ({evaluators}: CreateEvaluatorListProps) => {
+const CreateEvaluatorList = ({
+    evaluators,
+    setSelectedEvaluator,
+    setCurrent,
+}: CreateEvaluatorListProps) => {
     const classes = useStyles()
 
     const columns: ColumnsType<Evaluator> = [
@@ -59,6 +65,12 @@ const CreateEvaluatorList = ({evaluators}: CreateEvaluatorListProps) => {
             rowKey={"key"}
             className="ph-no-capture"
             scroll={{x: true, y: 550}}
+            onRow={(record) => ({
+                onClick: () => {
+                    setSelectedEvaluator(record)
+                    setCurrent(2)
+                },
+            })}
         />
     )
 }

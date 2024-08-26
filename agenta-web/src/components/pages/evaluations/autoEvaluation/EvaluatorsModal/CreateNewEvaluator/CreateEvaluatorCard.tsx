@@ -5,6 +5,8 @@ import {createUseStyles} from "react-jss"
 
 interface CreateEvaluatorCardProps {
     evaluators: Evaluator[]
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    setCurrent: (value: React.SetStateAction<number>) => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -47,7 +49,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const CreateEvaluatorCard = ({evaluators}: CreateEvaluatorCardProps) => {
+const CreateEvaluatorCard = ({
+    evaluators,
+    setSelectedEvaluator,
+    setCurrent,
+}: CreateEvaluatorCardProps) => {
     const classes = useStyles()
 
     return (
@@ -60,6 +66,10 @@ const CreateEvaluatorCard = ({evaluators}: CreateEvaluatorCardProps) => {
                             key={evaluator.key}
                             className={classes.evaluatorCard}
                             title={evaluator.name}
+                            onClick={() => {
+                                setSelectedEvaluator(evaluator)
+                                setCurrent(2)
+                            }}
                         >
                             <Typography.Text>{evaluator.description}</Typography.Text>
                         </Card>

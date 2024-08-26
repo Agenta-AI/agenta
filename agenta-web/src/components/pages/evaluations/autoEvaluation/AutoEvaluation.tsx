@@ -16,6 +16,7 @@ import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
 import {MoreOutlined} from "@ant-design/icons"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     button: {
@@ -27,7 +28,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const AutoEvaluation = () => {
     const classes = useStyles()
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useState(false)
+    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
+        "configureEvaluatorModal",
+        "",
+    )
 
     const columns: ColumnsType<_Evaluation> = [
         {
@@ -180,7 +184,7 @@ const AutoEvaluation = () => {
                     <Button
                         icon={<Gauge size={14} />}
                         className={classes.button}
-                        onClick={() => setIsConfigEvaluatorModalOpen(true)}
+                        onClick={() => setIsConfigEvaluatorModalOpen("open")}
                     >
                         Configure evaluators
                     </Button>
@@ -230,10 +234,12 @@ const AutoEvaluation = () => {
                 />
             </Spin>
 
-            <EvaluatorsModal
-                open={isConfigEvaluatorModalOpen}
-                onCancel={() => setIsConfigEvaluatorModalOpen(false)}
-            />
+            {isConfigEvaluatorModalOpen === "open" && (
+                <EvaluatorsModal
+                    open={isConfigEvaluatorModalOpen === "open"}
+                    onCancel={() => setIsConfigEvaluatorModalOpen("")}
+                />
+            )}
         </div>
     )
 }
