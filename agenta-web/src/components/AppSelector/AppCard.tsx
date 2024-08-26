@@ -137,7 +137,7 @@ const AppCard: React.FC<{
                     </div>
                     <div>
                         <Text>Last modified:</Text>
-                        <Text>{formatDay(new Date().getTime())}</Text>
+                        <Text>{formatDay(app.updated_at)}</Text>
                     </div>
                 </div>
             </Card>
