@@ -108,7 +108,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     ) : type === "code" ? (
                         <Editor
                             className={classes.editor}
-                            height={400}
+                            height={375}
                             width="100%"
                             language="python"
                             theme={`vs-${appTheme}`}

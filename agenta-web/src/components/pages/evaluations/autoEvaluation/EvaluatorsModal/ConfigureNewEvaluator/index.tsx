@@ -9,7 +9,7 @@ import {
     Lightning,
     Play,
 } from "@phosphor-icons/react"
-import {Button, Divider, Flex, Form, Input, Space, Tag, Typography} from "antd"
+import {Button, Divider, Flex, Form, Input, Select, Space, Tag, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
@@ -45,6 +45,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-form-item": {
             marginBottom: 0,
         },
+        "& .ant-form-item-label": {
+            paddingBottom: theme.paddingXXS,
+        },
+    },
+    formTitleText: {
+        fontSize: theme.fontSize,
+        lineHeight: theme.lineHeight,
+        fontWeight: theme.fontWeightMedium,
     },
 }))
 
@@ -144,21 +152,60 @@ const ConfigureNewEvaluator = ({
                             layout="vertical"
                             className={classes.formContainer}
                         >
-                            <Form.Item
-                                name="name"
-                                label="Name"
-                                rules={[{required: true, message: "This field is required"}]}
-                            >
-                                <Input data-cy="configure-new-evaluator-modal-input" />
-                            </Form.Item>
+                            <Space direction="vertical" size={4}>
+                                <Typography.Text className={classes.formTitleText}>
+                                    Identifier
+                                </Typography.Text>
 
-                            {basicSettingsFields.map((field) => (
-                                <DynamicFormField
-                                    {...field}
-                                    key={field.key}
-                                    name={["settings_values", field.key]}
-                                />
-                            ))}
+                                <div className="flex gap-4">
+                                    <Form.Item
+                                        name="name"
+                                        label="Name"
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
+                                        className="flex-1"
+                                    >
+                                        <Input />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="label"
+                                        label="Label"
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
+                                        className="flex-1"
+                                    >
+                                        <Select
+                                            mode="multiple"
+                                            allowClear
+                                            placeholder="Please select"
+                                            defaultValue={["item1"]}
+                                            options={[
+                                                {label: "item1", value: "item1"},
+                                                {label: "item2", value: "item2"},
+                                            ]}
+                                        />
+                                    </Form.Item>
+                                </div>
+                            </Space>
+
+                            {basicSettingsFields.length ? (
+                                <Space direction="vertical" size={4}>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        Parameters
+                                    </Typography.Text>
+                                    {basicSettingsFields.map((field) => (
+                                        <DynamicFormField
+                                            {...field}
+                                            key={field.key}
+                                            name={["settings_values", field.key]}
+                                        />
+                                    ))}
+                                </Space>
+                            ) : (
+                                ""
+                            )}
 
                             {advancedSettingsFields.length > 0 && (
                                 <AdvancedSettings settings={advancedSettingsFields} />
@@ -211,13 +258,17 @@ const ConfigureNewEvaluator = ({
                             </Flex>
 
                             <div className="flex-1 flex flex-col h-full">
-                                <Typography.Text>JSON</Typography.Text>
+                                <Typography.Text className={classes.formTitleText}>
+                                    JSON
+                                </Typography.Text>
                                 <Input.TextArea className="h-full flex-1" placeholder="Textarea" />
                             </div>
 
                             <div className="flex flex-col gap-2">
                                 <Flex justify="space-between">
-                                    <Typography.Text>Output</Typography.Text>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        Output
+                                    </Typography.Text>
                                     <Button className="flex items-center gap-2" size="small">
                                         <Play /> Run evaluator
                                     </Button>
