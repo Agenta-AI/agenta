@@ -14,6 +14,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         gap: theme.paddingLG,
+        height: 600,
+        overflowY: "auto",
     },
     cardTitle: {
         fontSize: theme.fontSizeLG,
