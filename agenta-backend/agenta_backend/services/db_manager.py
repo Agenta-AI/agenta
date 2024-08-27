@@ -355,7 +355,7 @@ async def create_new_variant_base(
     app: AppDB,
     user: UserDB,
     base_name: str,
-    image: ImageDB,
+    image: Optional[ImageDB] = None,
     organization=None,
     workspace=None,
 ) -> VariantBaseDB:
@@ -372,12 +372,13 @@ async def create_new_variant_base(
     """
 
     logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    # logger.debug(f"Creating new base: {base_name} for app: {app}")
     async with db_engine.get_session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             user_id=user.id,
             base_name=base_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
         )
 
         if isCloudEE():
@@ -420,10 +421,10 @@ async def create_new_app_variant(
     app: AppDB,
     user: UserDB,
     variant_name: str,
-    image: ImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
+    image: Optional[ImageDB] = None,
     organization=None,
     workspace=None,
 ) -> AppVariantDB:
@@ -448,7 +449,7 @@ async def create_new_app_variant(
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
             base_id=base.id,
             base_name=base_name,
             config_name=config.config_name,
@@ -572,10 +573,10 @@ async def create_image(
 async def create_deployment(
     app_id: str,
     user_id: str,
-    container_name: str,
-    container_id: str,
     uri: str,
     status: str,
+    container_name: Optional[str] = "",
+    container_id: Optional[str] = "",
     organization=None,
     workspace=None,
 ) -> DeploymentDB:
@@ -813,6 +814,7 @@ async def get_user(user_uid: str) -> UserDB:
         # 1. Check if user_uid is found in the UserDB.uid column.
         # 2. If not found, check if user_uid is found in the UserDB.id column.
         conditions = [UserDB.uid == user_uid]
+
         if isCloudEE():
             conditions.append(UserDB.id == uuid.UUID(user_uid))
 
@@ -1266,9 +1268,11 @@ async def deploy_to_environment(
     """
 
     app_variant_db = await fetch_app_variant_by_id(variant_id)
+
     app_variant_revision_db = await fetch_app_variant_revision_by_variant(
         app_variant_id=variant_id, revision=app_variant_db.revision  # type: ignore
     )
+
     if app_variant_db is None:
         raise ValueError("App variant not found")
 

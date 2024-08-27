@@ -41,6 +41,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantRevision,
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
+    UpdateVariantURL,
 )
 
 router = APIRouter()
@@ -253,6 +254,62 @@ async def update_variant_image(
         await app_manager.update_variant_image(
             db_app_variant, image, request.state.user_id
         )
+    except ValueError as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except DockerException as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Docker error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/{variant_id}/url/", operation_id="update_variant_url")
+async def update_variant_url(
+    variant_id: str,
+    payload: UpdateVariantURL,
+    request: Request,
+):
+    """
+    ...
+    """
+
+    try:
+        db_app_variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id
+        )
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=db_app_variant,
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(
+                f"User has Permission to update variant image: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        await app_manager.update_variant_url(
+            db_app_variant, payload.url, request.state.user_id
+        )
+
     except ValueError as e:
         import traceback
 
