@@ -30,7 +30,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     cardContainer: {
         display: "flex",
-        gap: theme.paddingMD,
+        gap: theme.padding,
         "& .ant-card": {
             width: "100%",
             position: "relative",
