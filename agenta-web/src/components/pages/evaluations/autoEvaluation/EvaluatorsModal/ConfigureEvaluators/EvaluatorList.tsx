@@ -1,7 +1,7 @@
 import {EvaluatorConfig} from "@/lib/Types"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Table} from "antd"
+import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useState} from "react"
 
@@ -28,6 +28,9 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
             onHeaderCell: () => ({
                 style: {minWidth: 400},
             }),
+            render: (_, record) => {
+                return <div>{record.name}</div>
+            },
         },
         {
             title: "Type",
@@ -36,6 +39,9 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
+            render: (_, record) => {
+                return <Tag>{record.evaluator_key}</Tag>
+            },
         },
         {
             title: "Tags",
@@ -114,9 +120,8 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
             columns={columns}
             rowKey={"id"}
             dataSource={evaluatorConfigs}
-            scroll={{x: true, y: 550}}
+            scroll={{x: true}}
             bordered
-            pagination={false}
             onRow={(record) => ({
                 style: {cursor: "pointer"},
                 onClick: () => {},
