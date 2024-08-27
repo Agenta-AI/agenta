@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {Evaluator, JSSTheme} from "@/lib/Types"
+import {Evaluator, JSSTheme, Variant} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -9,6 +9,7 @@ import {createUseStyles} from "react-jss"
 import ConfigureEvaluators from "./ConfigureEvaluators"
 import CreateNewEvaluator from "./CreateNewEvaluator"
 import ConfigureNewEvaluator from "./ConfigureNewEvaluator"
+import {fetchVariants} from "@/services/api"
 
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
@@ -30,14 +31,18 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
+    const [variants, setVariants] = useState<Variant[] | null>(null)
 
     useEffect(() => {
-        Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId)]).then(
-            ([evaluators, configs]) => {
-                setEvaluators(evaluators)
-                setEvaluatorConfigs(configs)
-            },
-        )
+        Promise.all([
+            fetchAllEvaluators(),
+            fetchAllEvaluatorConfigs(appId),
+            fetchVariants(appId),
+        ]).then(([evaluators, configs, variants]) => {
+            setEvaluators(evaluators)
+            setEvaluatorConfigs(configs)
+            setVariants(variants)
+        })
     }, [appId])
 
     const steps = [
@@ -70,6 +75,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     selectedEvaluator={selectedEvaluator}
                     setCurrent={setCurrent}
                     handleOnCancel={() => props.onCancel?.({} as any)}
+                    variants={variants}
                 />
             ),
         })
