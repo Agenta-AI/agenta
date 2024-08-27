@@ -16,6 +16,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalWrapper: {
         "& .ant-modal-content": {
             height: 800,
+            "& .ant-modal-body": {
+                height: "100%",
+            },
         },
     },
 }))
