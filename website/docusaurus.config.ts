@@ -11,7 +11,7 @@ const config: Config = {
   tagline: "Agenta: The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
-  url: "https://docs.agenta.ai",
+  url: "https://newdoc.agenta.ai",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -244,8 +244,9 @@ const config: Config = {
       "posthog-docusaurus",
       {
         apiKey: process.env.POSTHOG_API_KEY,
-        appUrl: "https://docs.agenta.ai",
+        appUrl: "https://newdoc.agenta.ai",
         enableInDevelopment: false, // optional
+        api_host: "https://app.posthog.com",
       },
     ],
 
