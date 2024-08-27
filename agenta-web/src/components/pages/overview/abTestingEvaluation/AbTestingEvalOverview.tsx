@@ -33,7 +33,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     statFlag: {
-        lineHeight: "20px",
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
             fontSize: theme.fontSize,
             color: theme.colorError,
@@ -44,7 +44,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     stat: {
-        lineHeight: "20px",
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
             fontSize: theme.fontSize,
             color: theme.colorPrimary,
@@ -55,7 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     statGood: {
-        lineHeight: "20px",
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
             fontSize: theme.fontSize,
             color: theme.colorSuccess,
