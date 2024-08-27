@@ -35,11 +35,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     stat: {
         lineHeight: "20px",
         "& .ant-statistic-content-value": {
-            fontSize: "12px",
+            fontSize: theme.fontSize,
             color: theme.colorPrimary,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: "12px",
+            fontSize: theme.fontSize,
             color: theme.colorPrimary,
         },
     },
