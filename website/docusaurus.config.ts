@@ -244,7 +244,7 @@ const config: Config = {
       "posthog-docusaurus",
       {
         apiKey: process.env.POSTHOG_API_KEY,
-        appUrl: "https://newdoc.agenta.ai",
+        appUrl: "https://doc.agenta.ai",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
       },
