@@ -10,13 +10,21 @@ import {
     Rocket,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Spin, Table} from "antd"
+import {Button, Dropdown, Space, Table} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
 import {MoreOutlined} from "@ant-design/icons"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import {useQueryParam} from "@/hooks/useQuery"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
+import {getTypedValue} from "@/lib/helpers/evaluate"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+
+interface AutoEvaluationProps {
+    evaluationList: _Evaluation[]
+    fetchingEvaluations: boolean
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     button: {
@@ -25,7 +33,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const AutoEvaluation = () => {
+const AutoEvaluation = ({evaluationList, fetchingEvaluations}: AutoEvaluationProps) => {
     const classes = useStyles()
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
@@ -42,6 +50,16 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (value, record) => {
+                return (
+                    <span>
+                        {variantNameWithRev({
+                            variant_name: value[0].variantName,
+                            revision: record.revisions[0],
+                        })}
+                    </span>
+                )
+            },
         },
         {
             title: "Test set",
@@ -50,6 +68,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return <span>{record.testset.name}</span>
+            },
         },
         {
             title: "Status",
@@ -64,7 +85,7 @@ const AutoEvaluation = () => {
             children: [
                 {
                     title: "Evaluator 1",
-                    dataIndex: "aggregated_results",
+                    // dataIndex: "aggregated_results",
                     key: "results",
                     onHeaderCell: () => ({
                         style: {minWidth: 240},
@@ -72,7 +93,7 @@ const AutoEvaluation = () => {
                 },
                 {
                     title: "Evaluator 2",
-                    dataIndex: "aggregated_results",
+                    // dataIndex: "aggregated_results",
                     key: "results",
                     onHeaderCell: () => ({
                         style: {minWidth: 240},
@@ -80,7 +101,7 @@ const AutoEvaluation = () => {
                 },
                 {
                     title: "Evaluator 3",
-                    dataIndex: "aggregated_results",
+                    // dataIndex: "aggregated_results",
                     key: "results",
                     onHeaderCell: () => ({
                         style: {minWidth: 240},
@@ -95,6 +116,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return formatDay(record.created_at)
+            },
         },
         {
             title: "Avg. Latency",
@@ -103,6 +127,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return getTypedValue(record.average_latency)
+            },
         },
         {
             title: "Total Cost",
@@ -111,6 +138,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => {
+                return getTypedValue(record.average_cost)
+            },
         },
         {
             title: <GearSix size={16} />,
@@ -211,28 +241,27 @@ const AutoEvaluation = () => {
                 </Space>
             </div>
 
-            <Spin spinning={false}>
-                <Table
-                    rowSelection={{
-                        type: "checkbox",
-                        columnWidth: 48,
-                        onChange: (selectedRowKeys: React.Key[]) => {
-                            setSelectedRowKeys(selectedRowKeys)
-                        },
-                    }}
-                    className="ph-no-capture"
-                    columns={columns}
-                    rowKey={"id"}
-                    dataSource={[]}
-                    scroll={{x: true}}
-                    bordered
-                    pagination={false}
-                    onRow={(record) => ({
-                        style: {cursor: "pointer"},
-                        onClick: () => {},
-                    })}
-                />
-            </Spin>
+            <Table
+                loading={fetchingEvaluations}
+                rowSelection={{
+                    type: "checkbox",
+                    columnWidth: 48,
+                    onChange: (selectedRowKeys: React.Key[]) => {
+                        setSelectedRowKeys(selectedRowKeys)
+                    },
+                }}
+                className="ph-no-capture"
+                columns={columns}
+                rowKey={"id"}
+                dataSource={evaluationList}
+                scroll={{x: true}}
+                bordered
+                pagination={false}
+                onRow={(record) => ({
+                    style: {cursor: "pointer"},
+                    onClick: () => {},
+                })}
+            />
 
             {isConfigEvaluatorModalOpen === "open" && (
                 <EvaluatorsModal
