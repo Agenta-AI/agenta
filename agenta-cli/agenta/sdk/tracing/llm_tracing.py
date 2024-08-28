@@ -199,7 +199,9 @@ class Tracing(metaclass=SingletonMeta):
     def is_trace_ready(self):
         tracing = tracing_context.get()
 
-        are_spans_ready = [span.end_time is not None for span in tracing.spans.values()]
+        are_spans_ready = [
+            (span.end_time == span.start_time) for span in tracing.spans.values()
+        ]
 
         return all(are_spans_ready)
 
@@ -253,6 +255,8 @@ class Tracing(metaclass=SingletonMeta):
         logging.info(f"Opening span  {span_id} {spankind.upper()}")
 
         ### --- TO BE CLEANED --- >>>
+        now = datetime.now(timezone.utc)
+
         span = CreateSpan(
             id=span_id,
             inputs=input,
@@ -261,13 +265,13 @@ class Tracing(metaclass=SingletonMeta):
             config=config,
             spankind=spankind.upper(),
             attributes={},
-            status=SpanStatusCode.UNSET.value,
-            start_time=datetime.now(timezone.utc),
+            status="UNSET",
+            start_time=now,
             internals=None,
             outputs=None,
             tags=None,
             user=None,
-            end_time=None,
+            end_time=now,
             tokens=None,
             cost=None,
             token_consumption=None,
@@ -457,18 +461,12 @@ class Tracing(metaclass=SingletonMeta):
             trace["trace_id"] = tracing.trace_id
 
             for span in tracing.spans.values():
-                if span.end_time is None:
-                    span.end_time = span.start_time
-
                 if span.parent_span_id is None:
                     trace["cost"] = span.cost
                     trace["usage"] = (
                         None if span.tokens is None else json.loads(span.tokens.json())
                     )
-                    trace["latency"] = (
-                        (span.end_time if span.end_time else span.start_time)
-                        - span.start_time
-                    ).total_seconds()
+                    trace["latency"] = (span.end_time - span.start_time).total_seconds()
 
             spans = (
                 []
