@@ -34,11 +34,11 @@ class CreateSpan(UniversalBaseModel):
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
+            extra="allow", frozen=False
         )  # type: ignore # Pydantic v2
     else:
 
         class Config:
-            frozen = True
+            frozen = False
             smart_union = True
             extra = pydantic.Extra.allow
