@@ -18,8 +18,8 @@ from agenta.client.backend.client import AsyncObservabilityClient
 from agenta.client.backend.types.create_span import (
     CreateSpan,
     LlmTokens,
-    SpanStatusCode,
 )
+from agenta.client.backend.types.span_status_code import SpanStatusCode
 
 from bson.objectid import ObjectId
 
