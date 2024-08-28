@@ -11,7 +11,7 @@ const config: Config = {
   tagline: "Agenta: The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
-  url: "https://newdoc.agenta.ai",
+  url: "https://docs.agenta.ai",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -36,7 +36,7 @@ const config: Config = {
           path: "docs",
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/websites",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/website",
           docItemComponent: "@theme/ApiItem",
           breadcrumbs: false,
         },
@@ -47,7 +47,7 @@ const config: Config = {
             type: ["rss", "atom"],
           },
           blogSidebarCount: 0,
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/websites",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/website",
           onInlineTags: "ignore",
         },
         theme: {
@@ -98,11 +98,11 @@ const config: Config = {
           position: "left",
           label: "Changelog",
         },
-        {
-          to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",
-          position: "left",
-          label: "Roadmap",
-        },
+        // {
+        //   to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",
+        //   position: "left",
+        //   label: "Roadmap",
+        // },
         // nav social links
         {
           type: "search",
@@ -114,7 +114,7 @@ const config: Config = {
           html: "<button class='nav_secondary_button'>Book A Demo</button>",
         },
         {
-          href: "https://cloud.agenta.ai/apps",
+          href: "https://cloud.agenta.ai/",
           position: "right",
           html: "<button class='nav_primary_button'>Start for Free</button>",
         },
@@ -244,7 +244,7 @@ const config: Config = {
       "posthog-docusaurus",
       {
         apiKey: process.env.POSTHOG_API_KEY,
-        appUrl: "https://doc.agenta.ai",
+        appUrl: "https://docs.agenta.ai",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
       },
