@@ -1,9 +1,18 @@
+import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import AbTestingEvaluation from "@/components/pages/evaluations/abTestingEvaluation/AbTestingEvaluation"
 import AutoEvaluation from "@/components/pages/evaluations/autoEvaluation/AutoEvaluation"
+import SingleModelEvaluation from "@/components/pages/evaluations/singleModelEvaluation/SingleModelEvaluation"
+import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
-import {JSSTheme} from "@/lib/Types"
+import {_Evaluation, JSSTheme, SingleModelEvaluationListTableDataType} from "@/lib/Types"
+import {fetchAllEvaluations} from "@/services/evaluations/api"
+import {
+    fetchAbTestingEvaluationResult,
+    fetchSingleModelEvaluationResult,
+} from "@/services/human-evaluations/api"
 import {ChartDonut, ListChecks, TestTube} from "@phosphor-icons/react"
 import {Tabs, TabsProps, Typography} from "antd"
-import React from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -32,28 +41,72 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const EvaluationsPage = () => {
+    const appId = useAppId()
     const classes = useStyles()
+    const [autoEvaluationList, setAutoEvaluationList] = useState<_Evaluation[]>([])
+    const [singleModelEvalList, setSingleModelEvalList] = useState<
+        SingleModelEvaluationListTableDataType[]
+    >([])
+    const [abTestingEvalList, setAbTestingEvalList] = useState<HumanEvaluationListTableDataType[]>(
+        [],
+    )
     const [selectedEvaluation, setSelectedEvaluation] = useQueryParam(
         "selectedEvaluation",
         "auto_evaluation",
     )
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
+
+    useEffect(() => {
+        if (!appId) return
+
+        setFetchingEvaluations(true)
+        Promise.all([
+            fetchAllEvaluations(appId),
+            fetchSingleModelEvaluationResult(appId),
+            fetchAbTestingEvaluationResult(appId),
+        ])
+            .then(([autoEvalResult, singleModelEvalResult, abTestingEvalResult]) => {
+                setAutoEvaluationList(autoEvalResult)
+                setSingleModelEvalList(singleModelEvalResult as any)
+                setAbTestingEvalList(abTestingEvalResult)
+            })
+            .catch(console.error)
+            .finally(() => setFetchingEvaluations(false))
+    }, [appId])
 
     const items: TabsProps["items"] = [
         {
             key: "auto_evaluation",
             label: "Automatic Evaluation",
             icon: <ChartDonut size={16} />,
-            children: <AutoEvaluation />,
+            children: (
+                <AutoEvaluation
+                    evaluationList={autoEvaluationList}
+                    fetchingEvaluations={fetchingEvaluations}
+                />
+            ),
         },
         {
             key: "ab_testing_evaluation",
             label: "A/B Testing Evaluation",
             icon: <TestTube size={16} />,
+            children: (
+                <AbTestingEvaluation
+                    evaluationList={abTestingEvalList}
+                    fetchingEvaluations={fetchingEvaluations}
+                />
+            ),
         },
         {
             key: "single_model_evaluation",
             label: "Single Model Evaluation",
             icon: <ListChecks size={16} />,
+            children: (
+                <SingleModelEvaluation
+                    evaluationList={singleModelEvalList}
+                    fetchingEvaluations={fetchingEvaluations}
+                />
+            ),
         },
     ]
 
