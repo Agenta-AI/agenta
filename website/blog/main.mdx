@@ -4,6 +4,190 @@ title: "Changelog"
 
 <section class="changelog">
 
+### UI Redesign and Configuration Management and Overview View
+
+_22 August 2024_
+
+**v0.24.0**
+
+<div>
+  <img
+    src="/images/changelog/new_ui.png"
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
+  />
+</div>
+
+We've completely redesigned the platform's UI. Additionally we have introduced a new overview view for your applications. This is part of a series of upcoming improvements slated for the next few weeks.
+
+The new overview view offers:
+
+- A dashboard displaying key metrics of your application
+- A table with all the variants of your applications
+- A summary of your application's most recent evaluations
+
+We've also added a new **JSON Diff evaluator**. This evaluator compares two JSON objects and provides a similarity score.
+
+Lastly, we've updated the UI of our documentation.
+
+---
+
+### New Alpha Version of the SDK for Creating Custom Applications
+
+_20 August 2024_
+
+**v0.23.0**
+
+We've released a new version of the SDK for creating custom applications. This Pydantic-based SDK significantly simplifies the process of building custom applications. It's fully backward compatible, so your existing code will continue to work seamlessly. We'll soon be rolling out comprehensive documentation and examples for the new SDK.
+
+In the meantime, here's a quick example of how to use it:
+
+```python
+import agenta as ag
+from agenta import Agenta
+from pydantic import BaseModel, Field
+
+#highlight-start
+ag.init()
+#highlight-end
+
+# Define the configuration of the application (that will be shown in the playground )
+#highlight-start
+class MyConfig(BaseModel):
+    temperature: float = Field(default=0.2)
+    prompt_template: str = Field(default="What is the capital of {country}?")
+#highlight-end
+
+# Creates an endpoint for the entrypoint of the application
+#highlight-start
+@ag.route("/", config_schema=MyConfig)
+#highlight-end
+def generate(country: str) -> str:
+    # Fetch the config from the request
+    #highlight-start
+    config: MyConfig = ag.ConfigManager.get_from_route(schema=MyConfig)
+    #highlight-end
+    prompt = config.prompt_template.format(country=country)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=config.temperature,
+    )
+    return chat_completion.choices[0].message.content
+
+```
+
+---
+
+### RAGAS Evaluators and Traces in the Playground
+
+_12 August 2024_
+
+**v0.22.0**
+
+We're excited to announce two major features this week:
+
+1. We've integrated [RAGAS evaluators](https://docs.ragas.io/) into agenta. Two new evaluators have been added: **RAG Faithfulness** (measuring how consistent the LLM output is with the context) and **Context Relevancy** (assessing how relevant the retrieved context is to the question). Both evaluators use intermediate outputs within the trace to calculate the final score.
+
+   [Check out the tutorial](evaluation/rag_evaluators) to learn how to use RAG evaluators.
+
+{" "}
+
+<div>
+  <img
+    src="/images/changelog/rag_faithfulness.png"
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
+  />
+</div>
+
+2. You can now **view traces directly in the playground**. This feature enables you to debug your application while configuring it—for example, by examining the prompts sent to the LLM or reviewing intermediate outputs.
+
+   <div>
+     <img
+       src="/images/changelog/trace_in_playground.png"
+       alt="Button for exporting evaluation results"
+       style={{ width: "80%", maxWidth: "800px" }}
+     />
+   </div>
+
+:::note
+Both features are available exclusively in the cloud and enterprise versions of agenta.
+:::
+
+---
+
+### Migration from MongoDB to Postgres
+
+_9 July 2024_
+
+**v0.19.0**
+
+We have migrated the Agenta database from MongoDB to Postgres. As a result, the **platform is much more faster** (up to 10x in some use cases).
+
+However, if you are self-hosting agenta, note that this is a breaking change that requires you to manually migrate your data from MongoDB to Postgres. You can find more information how to migrate your data [here](/self-host/migration/migration-to-postgres).
+
+If you are using the cloud version of Agenta, there is nothing you need to do (other than enjoying the new performance improvements).
+
+---
+
+### More Reliable Evaluations
+
+_5 July 2024_
+
+**v0.18.0**
+
+<div>
+  <img
+    src="/images/changelog/export_evaluation.png"
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
+  />
+</div>
+
+We have worked extensively on improving the **reliability of evaluations**. Specifically:
+
+- We improved the status for evaluations and added a new `Queued` status
+- We improved the error handling in evaluations. Now we show the exact error message that caused the evaluation to fail.
+- We fixed issues that caused evaluations to run infinitely
+- We fixed issues in the calculation of scores in human evaluations.
+- We fixed small UI issues with large output in human evaluations.
+- We have added a new export button in the evaluation view to export the results as a CSV file.
+
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/guides/cookbooks/evaluations_with_sdk).
+
+In **observability**:
+
+- We have added a **new integration with [Litellm](https://litellm.ai/)** to automatically trace all LLM calls done through it.
+- Now we automatically propagate cost and token usage from spans to traces.
+
+---
+
+### Evaluators can access all columns
+
+_4 June 2024_
+
+**v0.17.0**
+
+<div>
+  <img
+    src="/images/changelog/configure_expected_answer.png"
+    alt="Configure Expected Answer"
+    style={{ width: "70%", maxWidth: "800px" }}
+  />
+</div>
+
+Evaluators now can access all columns in the test set. Previously, you were limited to using only the `correct_answer` column for the ground truth / reference answer in evaluation.
+Now you can configure your evaluator to use any column in the test set as the ground truth. To do that, open the collapsable `Advanced Settings` when configuring the evaluator, and define the `Expected Answer Column` to the name of the columns containing the reference answer you want to use.
+
+In addition to this:
+
+- We've upgraded the SDK to pydantic v2.
+- We have improved by 10x the speed for the get config endpoint
+- We have add documentation for observability
+
+---
+
 ### New LLM Provider: Welcome Gemini!
 
 _25 May 2024_
@@ -12,7 +196,7 @@ _25 May 2024_
 
 We are excited to announce the addition of Google's Gemini to our list of supported LLM providers, bringing the total number to 12.
 
-<img className="dark:hidden" src="/images/changelog/gemini_screenshot.png" />
+<img src="/images/changelog/gemini_screenshot.png" />
 
 ---
 
@@ -23,10 +207,7 @@ _24 May 2024_
 **v0.14.1-13**
 
 - We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
-  <img
-    className="dark:hidden"
-    src="/images/changelog/default-selected-testset_video.gif"
-  />
+  <img src="/images/changelog/default-selected-testset_video.gif" />
 - We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
 - We moved the copy message button in the playground to the output text area.
 - We now hide the cost and usage in the playground when they aren't specified
@@ -49,9 +230,11 @@ _1 May 2024_
 We've introduced a feature that allows you to use Agenta as a prompt registry or management system. In the deployment view, we now provide an endpoint to directly fetch the latest version of your prompt. Here is how it looks like:
 
 ```
+
 from agenta import Agenta
 agenta = Agenta()
 config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
+
 ```
 
 You can find additional documentation [here](/prompt_management/integrating).
@@ -59,10 +242,7 @@ You can find additional documentation [here](/prompt_management/integrating).
 **Improvements**
 
 - Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
-  <img
-    className="dark:hidden"
-    src="/images/changelog/publish_to_production_by_default_screenshot.png"
-  />
+  <img src="/images/changelog/publish_to_production_by_default_screenshot.png" />
 
 ---
 
@@ -73,10 +253,7 @@ _28 April 2024_
 **v0.13.8**
 
 - The total cost of an evaluation is now displayed in the evaluation table. This allows you to understand how much evaluations are costing you and track your expenses.
-  <img
-    className="dark:hidden"
-    src="/images/changelog/total_cost_screenshot.png"
-  />
+  <img src="/images/changelog/total_cost_screenshot.png" />
 
 **Bug Fixes**
 
@@ -448,15 +625,17 @@ We've added a feature that allows you to compare the time taken by an LLM app, i
 This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
 
 ```
+
 {
- "message": string,
- "usage": {
-  "prompt_tokens": int,
-  "completion_tokens": int,
-  "total_tokens": int
- },
- "cost": float
+"message": string,
+"usage": {
+"prompt_tokens": int,
+"completion_tokens": int,
+"total_tokens": int
+},
+"cost": float
 }
+
 ```
 
 ---
@@ -603,3 +782,4 @@ _23rd October 2023_
 - Completed a comprehensive refactoring of the application
 
 </section>
+```
