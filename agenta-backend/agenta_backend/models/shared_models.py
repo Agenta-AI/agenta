@@ -74,7 +74,7 @@ class AppType(str, enum.Enum):
     CUSTOM = "CUSTOM"
 
     @classmethod
-    def friendly_name(cls, app_type: str):
+    def friendly_tag(cls, app_type: str):
         mappings = {
             cls.CHAT_TEMPLATE: "chat",
             cls.PROMPT_TEMPLATE: "completion",

@@ -471,7 +471,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     return App(
         app_name=app_db.app_name,
         app_id=str(app_db.id),
-        app_type=AppType.friendly_name(app_db.app_type),
+        app_type=AppType.friendly_tag(app_db.app_type),
     )
 
 
