@@ -1,7 +1,7 @@
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
-import {Button, Divider, Input, Radio, Space, Typography} from "antd"
+import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
@@ -102,7 +102,7 @@ const ConfigureEvaluatorModal = ({
                                 ),
                             )}
                         </Radio.Group>
-                        <Space>
+                        <Flex gap={8}>
                             <Input.Search
                                 style={{width: 400}}
                                 placeholder="Search"
@@ -120,7 +120,7 @@ const ConfigureEvaluatorModal = ({
                                     <Cards size={16} className="h-full" />
                                 </Radio.Button>
                             </Radio.Group>
-                        </Space>
+                        </Flex>
                     </div>
                     <Divider className="my-4" />
                 </div>

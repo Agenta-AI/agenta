@@ -1,7 +1,7 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowLeft, Cards, Table} from "@phosphor-icons/react"
-import {Button, Divider, Input, Radio, Space, Typography} from "antd"
+import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import CreateEvaluatorList from "./CreateEvaluatorList"
@@ -119,7 +119,7 @@ const CreateNewEvaluator = ({
                                 )}
                             </Radio.Group>
                         )}
-                        <Space>
+                        <Flex gap={8}>
                             <Input.Search
                                 style={{width: 400}}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -137,7 +137,7 @@ const CreateNewEvaluator = ({
                                     <Cards size={16} className="h-full" />
                                 </Radio.Button>
                             </Radio.Group>
-                        </Space>
+                        </Flex>
                     </div>
                 </div>
                 {evaluatorsDisplay !== "list" ? <Divider className="mt-2 mb-4" /> : <div />}
