@@ -108,20 +108,12 @@ Agenta allows developers and product teams to collaborate in building production
 
 ### With Agenta, you can:
 
-- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/basic_guides/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...) 
-- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/basic_guides/test_sets) for evaluation
-- 📈 [**Evaluate** your application](https://docs.agenta.ai/basic_guides/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/advanced_guides/using_custom_evaluators)
-- [🔍 **Annotate** and **A/B test**](https://docs.agenta.aibasic_guides/human_evaluation) your applications with **human feedback**
-- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/basic_guides/team_management) for prompt engineering and evaluation
-- [🚀 **Deploy your application**](https://docs.agenta.ai/basic_guides/deployment) in one-click in the UI,  through CLI, or through github workflows. 
-=======
 - [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
 - ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets) for evaluation
 - 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator)
 - [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation) your applications with **human feedback**
 - [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management) for prompt engineering and evaluation
 - [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment) in one-click in the UI, through CLI, or through github workflows.
-
 
 ### Works with any LLM app workflow
 
@@ -131,23 +123,13 @@ Agenta enables prompt engineering and evaluation on any LLM app architecture:
 - RAG
 - Agents
 
-It works with any framework such as [Langchain](https://www.langchain.com/), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral). 
-
-
-It works with any framework such as [Langchain](https://langchain.com), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral).
+It works with any framework such as [Langchain](https://www.langchain.com/), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral).
 
 # Quick Start
 
 ### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
 
 ### [Explore the Docs](https://docs.agenta.ai/)
-### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start)
-### [Create an application using Langchain](https://docs.agenta.ai/guides/tutorials/first-app-with-langchain) 
-### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
-### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk)
-
-
-### [Explore the Docs](https://docs.agenta.ai/getting_started/introduction)
 
 ### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start)
 
@@ -155,8 +137,7 @@ It works with any framework such as [Langchain](https://langchain.com), [LlamaIn
 
 ### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
 
-
-### [Check the Cookbook](https://docs.agenta.ai/guides/evaluation_from_sdk)
+### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk)
 
 # Features
 
@@ -192,15 +173,14 @@ We warmly welcome contributions to Agenta. Feel free to submit issues, fork the 
 
 We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
 
-
-Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started) for more information. 
-
 Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started) for more information.
 
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-48-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
