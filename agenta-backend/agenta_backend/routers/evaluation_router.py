@@ -8,7 +8,6 @@ from fastapi import HTTPException, Request, status, Response, Query
 from agenta_backend.models import converters
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluation_service, db_manager
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -18,6 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
+from agenta_backend.services import evaluation_service, db_manager, app_manager
 
 if isCloudEE():
     from agenta_backend.commons.models.shared_models import Permission
@@ -138,6 +138,14 @@ async def create_evaluation(
                 lm_providers_keys=payload.lm_providers_keys,
             )
             evaluations.append(evaluation)
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         return evaluations
     except KeyError:
@@ -410,6 +418,14 @@ async def delete_evaluations(
                     {"detail": error_msg},
                     status_code=403,
                 )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=random.choice(payload.evaluations_ids),
+            object_type="evaluation",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         await evaluation_service.delete_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
