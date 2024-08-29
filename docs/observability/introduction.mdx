@@ -1,0 +1,86 @@
+---
+title: Monitoring & Observability
+description: This page describes the tools and features in Agenta to perform monitoring and observability effectively.
+---
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-ui.png"
+/>
+
+## Why Monitoring?
+
+Monitoring is crucial in the lifecycle of an LLM application. These applications are complex, involving multiple layers of data processing, model inference,
+and external API interactions. Without monitoring, it becomes challenging to ensure that your LLM application is performing as expected, identify and resolve issues, and also optimize resource usage.
+
+### Key Reasons to Monitor Your LLM Application:
+
+- **Performance Tracking**: LLM applications often involve substantial computational resources, and monitoring helps track how well these resources are being utilized.
+  Some of these metrics includes `request`, `latency`, `cost`, and `token`.
+
+- **Cost Management**: Running LLMs can be expensive, especially at scale. Monitoring helps you track costs associated with each request or operation, enabling you to manage and optimize your spending.
+
+- **Continuous Improvement**: Monitoring provides insights that are essential for the continuous improvement of your LLM application.
+
+<Note>
+  When creating an application from the UI, **tracing** is enabled by default.
+  No setup is required. Simply navigate to the observability section view to see
+  all requests.
+</Note>
+
+Agenta provides a dashboard that offers an overview of your app's performance metrics over time, including **request counts**, **average latency**, and **costs** coupled with a
+table that can be filtered and used to enrich your test sets, debug your applications, or fine-tune them.
+
+## Dashboard
+
+Every application on Agenta has a dashboard that shows all the interactions that have been made which include `requests`, `latency`, `cost` and `tokens`.
+Each of these metrics have its own view on the dashboard making it easier to keep track and understand.
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-dashboard.png"
+/>
+
+## Filters
+
+The app dashboard comes with filter for several criteria. For example, you can filter by **Day**, **Week**, **Month**, **Variant** and **Environment**.
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-filters.png"
+/>
+
+## Traces
+
+A trace represents the entire journey of a request or operation as it moves through a system. In our context, a trace represents **one request** to the LLM application.
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-traces.png"
+/>
+
+## Spans
+
+A span represents a unit of work within a trace. Spans are nested to form a tree-like structure, with the root span representing the overall operation,
+and child spans representing sub-operations. In Agenta, we enrich each span with **cost information and metadata** in the event of an LLM call.
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-spans.png"
+/>
+
+## Generations
+
+Generations refer to the outputs produced by the model in response to a given input or prompt. These outputs are typically text-based and are the result of the model's processing of the input data.
+Agenta offers a table that present generation data in an easily digestible way. This includes metrics like the `inputs.messages`, `outputs`, `status`, `timestamp`, `latency`, `tokens`, and `cost`.
+
+<img
+  height="600"
+  className="dark:hidden"
+  src="/images/observability/Agenta-observability-generations.png"
+/>
