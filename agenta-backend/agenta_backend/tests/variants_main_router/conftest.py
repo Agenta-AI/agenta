@@ -17,6 +17,7 @@ from agenta_backend.tests.unit.test_traces import (
     simple_rag_trace,
     simple_finance_assisstant_trace,
 )
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
 import httpx
 from sqlalchemy.future import select
@@ -219,6 +220,21 @@ def app_variant_parameters_updated():
             "force_json": 0,
         }
     }
+
+
+@pytest.fixture()
+def evaluators_requiring_llm_keys():
+    evaluators_requiring_llm_keys = [
+        evaluator["key"]
+        for evaluator in get_all_evaluators()
+        if evaluator.get("requires_llm_api_keys", False)
+        or (
+            evaluator.get("settings_template", {})
+            .get("requires_llm_api_keys", {})
+            .get("default", False)
+        )
+    ]
+    return evaluators_requiring_llm_keys
 
 
 @pytest.fixture()

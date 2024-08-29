@@ -398,15 +398,18 @@ async def auto_ai_critique(
         output = validate_string_output("ai_critique", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
-            "prompt_user": app_params.get("prompt_user", ""),
+            "prompt_user": app_params.get("prompt_user", "").format(**data_point),
             "prediction": output,
             "ground_truth": correct_answer,
+        }
+        settings = {
+            "prompt_template": settings_values.get("prompt_template", ""),
         }
         response = await ai_critique(
             input=EvaluatorInputInterface(
                 **{
                     "inputs": inputs,
-                    "settings": settings_values,
+                    "settings": settings,
                     "credentials": lm_providers_keys,
                 }
             )
@@ -424,7 +427,12 @@ async def auto_ai_critique(
 
 
 async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    openai_api_key = input.credentials["OPENAI_API_KEY"]
+    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+
+    if not openai_api_key:
+        raise Exception(
+            "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+        )
 
     chain_run_args = {
         "llm_app_prompt_template": input.inputs.get("prompt_user", ""),
@@ -434,18 +442,20 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     for key, value in input.inputs.items():
         chain_run_args[key] = value
 
-    prompt_template = input.settings["prompt_template"]
+    prompt_template = input.settings.get("prompt_template", "")
     messages = [
         {"role": "system", "content": prompt_template},
         {"role": "user", "content": str(chain_run_args)},
     ]
+
+    print(input)
 
     client = AsyncOpenAI(api_key=openai_api_key)
     response = await client.chat.completions.create(
         model="gpt-3.5-turbo", messages=messages, temperature=0.8
     )
     evaluation_output = response.choices[0].message.content.strip()
-    return {"outputs": {"score": float(evaluation_output)}}
+    return {"outputs": {"score": evaluation_output}}
 
 
 async def auto_starts_with(
@@ -846,7 +856,7 @@ async def measure_rag_consistency(
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     if not openai_api_key:
         raise Exception(
-            "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
 
     # Initialize RAG evaluator to calculate faithfulness score
@@ -945,10 +955,9 @@ async def measure_context_coherence(
     input: EvaluatorInputInterface,
 ) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-
     if not openai_api_key:
         raise Exception(
-            "No LLM keys OpenAI key found. Please configure your OpenAI keys and try again."
+            "No OpenAI key was found. RAG evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
 
     # Initialize RAG evaluator to calculate context relevancy score
@@ -1176,8 +1185,13 @@ async def semantic_similarity(
         float: the semantic similarity score
     """
 
-    api_key = input.credentials["OPENAI_API_KEY"]
-    openai = AsyncOpenAI(api_key=api_key)
+    openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
+    if not openai_api_key:
+        raise Exception(
+            "No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+        )
+
+    openai = AsyncOpenAI(api_key=openai_api_key)
 
     async def encode(text: str):
         response = await openai.embeddings.create(
