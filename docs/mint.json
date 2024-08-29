@@ -75,14 +75,6 @@
     {
       "group": "Prompt Management and Engineering",
       "pages": [
-        "basic_guides/creating_an_app",
-        "basic_guides/prompt_engineering",
-        "basic_guides/prompt_engineering_techniques",
-        "basic_guides/test_sets",
-        "basic_guides/automatic_evaluation",
-        "basic_guides/human_evaluation",
-        "basic_guides/deployment",
-        "basic_guides/team_management"
         {
           "group": "Setting up",
           "pages": [
@@ -140,15 +132,6 @@
     {
       "group": "Misc",
       "pages": [
-        "developer_guides/how_does_agenta_work"
-      ]
-    },
-    {
-      "group": "Tutorials",
-      "pages": [
-        "developer_guides/tutorials/first-app-with-langchain",
-        "developer_guides/tutorials/build-rag-application",
-        "developer_guides/tutorials/deploy-mistral-model",
         "misc/team_management",
         "misc/getting_support",
         {
