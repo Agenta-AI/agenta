@@ -1,7 +1,5 @@
-import asyncio
 from contextlib import asynccontextmanager
 
-from agenta_backend.config import settings
 from agenta_backend import celery_config
 from agenta_backend.routers import (
     app_router,
@@ -10,7 +8,6 @@ from agenta_backend.routers import (
     evaluation_router,
     human_evaluation_router,
     evaluators_router,
-    observability_router,
     testset_router,
     user_profile,
     variants_router,
@@ -18,13 +15,16 @@ from agenta_backend.routers import (
     configs_router,
     health_router,
 )
-from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.open_api import open_api_tags_metadata
+from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
+from agenta_backend.migrations.postgres.utils import (
+    check_for_new_migrations,
+    check_if_templates_table_exist,
+)
 
-if isCloudEE():
+if isEE() or isCloudProd():
     from agenta_backend.commons.services import templates_manager
-else:
+elif isCloudDev() or isOss():
     from agenta_backend.services import templates_manager
 
 from fastapi import FastAPI
@@ -40,6 +40,7 @@ origins = [
     "http://0.0.0.0:3001",
 ]
 
+
 celery_app = Celery("agenta_app")
 celery_app.config_from_object(celery_config)
 
@@ -53,8 +54,16 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    await DBEngine().init_db()
-    await templates_manager.update_and_sync_templates(cache=cache)
+
+    if isCloudEE():
+        from agenta_backend.cloud.db.mongo_engine import initialize_mongodb
+
+        await initialize_mongodb()
+
+    await check_for_new_migrations()
+    if await check_if_templates_table_exist():
+        await templates_manager.update_and_sync_templates(cache=cache)
+
     yield
 
 
@@ -65,6 +74,7 @@ allow_headers = ["Content-Type"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex="https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=allow_headers,
@@ -97,9 +107,6 @@ app.include_router(testset_router.router, prefix="/testsets", tags=["Testsets"])
 app.include_router(container_router.router, prefix="/containers", tags=["Containers"])
 app.include_router(
     environment_router.router, prefix="/environments", tags=["Environments"]
-)
-app.include_router(
-    observability_router.router, prefix="/observability", tags=["Observability"]
 )
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])

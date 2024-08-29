@@ -1,15 +1,5 @@
-import React, {useEffect, useMemo, useState} from "react"
-import {
-    Breadcrumb,
-    Button,
-    ConfigProvider,
-    Dropdown,
-    Layout,
-    Modal,
-    Space,
-    Tooltip,
-    theme,
-} from "antd"
+import React, {useEffect, useMemo} from "react"
+import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -20,23 +10,22 @@ import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
-import {fetchData} from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {useRouter} from "next/router"
-import Image from "next/image"
-import moonIcon from "@/media/night.png"
-import sunIcon from "@/media/sun.png"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
+import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
+import {Lightning} from "@phosphor-icons/react"
+import packageJsonData from "../../../package.json"
 
 const {Content, Footer} = Layout
+const {Text} = Typography
 
-type StyleProps = {
-    themeMode: "dark" | "light"
+interface StyleProps extends MainStyleProps {
     footerHeight: number
 }
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     layout: ({themeMode}: StyleProps) => ({
         display: "flex",
         background: themeMode === "dark" ? "#141414" : "#ffffff",
@@ -48,49 +37,17 @@ const useStyles = createUseStyles({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
-        // marginLeft: 225,
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
     breadcrumbContainer: {
+        display: "flex",
+        alignItems: "center",
         justifyContent: "space-between",
         width: "100%",
-    },
-    breadcrumb: {
-        padding: "24px 0",
-    },
-    star: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        alignItems: "center",
-        padding: 0,
-        height: 30,
-        borderWidth: 2,
-        borderColor: themeMode === "dark" ? "#333" : "#dfdfdf",
-        "& div:nth-of-type(1)": {
-            display: "flex",
-            alignItems: "center",
-            height: "100%",
-            width: "100%",
-            gap: 8,
-            padding: "0 10px",
-            background: themeMode === "dark" ? "#333" : "#dfdfdf",
-            borderTopLeftRadius: 3,
-            borderBottomLeftRadius: 3,
-        },
-        "& div:nth-of-type(2)": {
-            padding: "0 15px",
-        },
-    }),
-    joinBtn: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        "& span": {
-            display: "block",
-        },
-        "& img": {
-            width: "15px",
-        },
+        padding: "8px 1.5rem",
+        marginBottom: 24,
+        borderBottom: "1px solid #eaeff5",
     },
     footer: {
         position: "absolute",
@@ -113,12 +70,11 @@ const useStyles = createUseStyles({
         display: "flex",
         alignItems: "center",
         gap: "1rem",
-        "& >span": {
-            cursor: "pointer",
-            marginTop: 3,
+        "& span.ant-typography": {
+            color: "rgba(0, 0, 0, 0.45)",
         },
     },
-})
+}))
 
 type LayoutProps = {
     children: React.ReactNode
@@ -126,12 +82,11 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
-    const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
-    const {currentApp, setModalInstance} = useAppsData()
+    const {appTheme} = useAppTheme()
+    const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
-    const [starCount, setStarCount] = useState(0)
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
@@ -193,21 +148,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
     )
 
     useEffect(() => {
-        const githubRepo = async () => {
-            try {
-                fetchData("https://api.github.com/repos/Agenta-AI/agenta").then((resp) => {
-                    setStarCount(resp.stargazers_count)
-                })
-            } catch (error) {
-                console.log(error)
-            }
-        }
-        githubRepo()
-
-        setModalInstance(modal)
-    }, [])
-
-    useEffect(() => {
         if (typeof window === "undefined") return () => {}
 
         const body = document.body
@@ -229,77 +169,32 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
                         <Layout className={classes.layout}>
-                            <Content className={classes.content}>
-                                <Space className={classes.breadcrumbContainer}>
+                            <div>
+                                <div className={classes.breadcrumbContainer}>
                                     <Breadcrumb
-                                        className={classes.breadcrumb}
                                         items={[
-                                            {title: <Link href="/apps">Apps</Link>},
+                                            {
+                                                title: (
+                                                    <div className="flex items-center gap-1">
+                                                        <Lightning size={16} />
+                                                        <Link href="/apps">Apps</Link>
+                                                    </div>
+                                                ),
+                                            },
                                             {title: capitalizedAppName},
                                         ]}
                                     />
                                     <div className={classes.topRightBar}>
-                                        <Dropdown
-                                            trigger={["click"]}
-                                            menu={{
-                                                items: [
-                                                    {
-                                                        key: "system",
-                                                        label: "System",
-                                                        onClick: () => toggleAppTheme("system"),
-                                                    },
-                                                    {
-                                                        key: "light",
-                                                        label: "Light",
-                                                        onClick: () => toggleAppTheme("light"),
-                                                    },
-                                                    {
-                                                        key: "dark",
-                                                        label: "Dark",
-                                                        onClick: () => toggleAppTheme("dark"),
-                                                    },
-                                                ],
-                                                selectedKeys: [themeMode],
-                                            }}
-                                        >
-                                            <a onClick={(e) => e.preventDefault()}>
-                                                <Tooltip title="Change theme" placement="left">
-                                                    <Image
-                                                        alt={`Curren Theme: ${
-                                                            isDarkTheme ? "dark" : "light"
-                                                        }`}
-                                                        src={isDarkTheme ? sunIcon : moonIcon}
-                                                        width={24}
-                                                        height={24}
-                                                    />
-                                                </Tooltip>
-                                            </a>
-                                        </Dropdown>
-                                        <Button
-                                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
-                                            target="_blank"
-                                            className={classes.joinBtn}
-                                        >
-                                            <img src="/assets/slack.png" alt="Slack Image" />
-                                            <span>Join us</span>
-                                        </Button>
-                                        <Button
-                                            className={classes.star}
-                                            href="https://github.com/Agenta-AI/agenta"
-                                        >
-                                            <div>
-                                                <GithubFilled style={{fontSize: 18}} />
-                                                <p>Star</p>
-                                            </div>
-                                            <div>{starCount || 0}</div>
-                                        </Button>
+                                        <Text>agenta v{packageJsonData.version}</Text>
                                     </div>
-                                </Space>
-                                <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                    {children}
-                                    {contextHolder}
-                                </ErrorBoundary>
-                            </Content>
+                                </div>
+                                <Content className={classes.content}>
+                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                        {children}
+                                        {contextHolder}
+                                    </ErrorBoundary>
+                                </Content>
+                            </div>
                             <Footer ref={footerRef} className={classes.footer}>
                                 <Space className={classes.footerLeft} size={10}>
                                     <Link

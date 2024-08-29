@@ -1,34 +1,27 @@
-import re
-import os
 import asyncio
 import logging
 import traceback
-
 from typing import Any, Dict, List
+
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services import evaluators_service, llm_apps_service
-
-from agenta_backend.models.api.evaluation_model import (
-    EvaluationStatusEnum,
-)
-from agenta_backend.models.db_models import (
-    AggregatedResult,
-    AppDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-    EvaluationScenarioResult,
-    InvokationResult,
-    Error,
-    Result,
-)
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
     deployment_manager,
     aggregation_service,
+)
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
+from agenta_backend.models.shared_models import (
+    AggregatedResult,
+    CorrectAnswer,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
+    EvaluationScenarioResult,
+    InvokationResult,
+    Error,
+    Result,
 )
 from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
@@ -37,28 +30,33 @@ from agenta_backend.services.db_manager import (
     fetch_evaluation_by_id,
     fetch_evaluator_config,
     fetch_testset_by_id,
-    get_deployment_by_objectid,
+    get_deployment_by_id,
     update_evaluation,
     update_evaluation_with_aggregated_results,
     EvaluationScenarioResult,
     check_if_evaluation_contains_failed_evaluation_scenarios,
 )
+from agenta_backend.services.evaluator_manager import get_evaluators
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if isCloudEE():
     from agenta_backend.commons.models.db_models import AppDB_ as AppDB
 else:
     from agenta_backend.models.db_models import AppDB
-from agenta_backend.models.db_models import (
-    Result,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
-)
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Fetch all evaluators and precompute ground truth keys
+all_evaluators = get_evaluators()
+ground_truth_keys_dict = {
+    evaluator.key: [
+        key
+        for key, value in evaluator.settings_template.items()
+        if value.get("ground_truth_key") is True
+    ]
+    for evaluator in all_evaluators
+}
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate", bind=True)
@@ -71,19 +69,19 @@ def evaluate(
     evaluation_id: str,
     rate_limit_config: Dict[str, int],
     lm_providers_keys: Dict[str, Any],
-    correct_answer_column: str,
 ):
     """
-    Evaluate function that performs the evaluation of an app variant using the provided evaluators and testset.
-    Saves the results in the Database
+    Evaluates an app variant using the provided evaluators and testset, and saves the results in the database.
 
     Args:
+        self: The task instance.
         app_id (str): The ID of the app.
         variant_id (str): The ID of the app variant.
         evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
         testset_id (str): The ID of the testset.
-        rate_limit_config (Dict[str,int]): See LLMRunRateLimit
-        correct_answer_column (str): The name of the column in the testset that contains the correct answer.
+        evaluation_id (str): The ID of the evaluation.
+        rate_limit_config (Dict[str, int]): Configuration for rate limiting.
+        lm_providers_keys (Dict[str, Any]): Keys for language model providers.
 
     Returns:
         None
@@ -92,28 +90,37 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
+        # 0. Update evaluation status to STARTED
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
+                    ).model_dump()
+                },
+            )
+        )
+
         # 1. Fetch data from the database
-        loop.run_until_complete(DBEngine().init_db())
         app = loop.run_until_complete(fetch_app_by_id(app_id))
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
             app_variant_db is not None
         ), f"App variant with id {variant_id} not found!"
-        app_variant_parameters = app_variant_db.config.parameters
+        app_variant_parameters = app_variant_db.config_parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
-        new_evaluation_db = loop.run_until_complete(
-            fetch_evaluation_by_id(evaluation_id)
-        )
         evaluator_config_dbs = []
         for evaluator_config_id in evaluators_config_ids:
             evaluator_config = loop.run_until_complete(
                 fetch_evaluator_config(evaluator_config_id)
             )
             evaluator_config_dbs.append(evaluator_config)
+
         deployment_db = loop.run_until_complete(
-            get_deployment_by_objectid(app_variant_db.base.deployment)
+            get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
-        uri = deployment_manager.get_deployment_uri(deployment_db)
+        uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri)  # type: ignore
 
         # 2. Initialize vars
         evaluators_aggregated_data = {
@@ -128,8 +135,8 @@ def evaluate(
         app_outputs: List[InvokationResult] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
                 uri,
-                testset_db.csvdata,
-                app_variant_parameters,
+                testset_db.csvdata,  # type: ignore
+                app_variant_parameters,  # type: ignore
                 rate_limit_config,
             )
         )
@@ -139,23 +146,24 @@ def evaluate(
             llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
         )
 
-        for data_point, app_output in zip(testset_db.csvdata, app_outputs):
+        for data_point, app_output in zip(testset_db.csvdata, app_outputs):  # type: ignore
             # 1. We prepare the inputs
             logger.debug(f"Preparing inputs for data point: {data_point}")
             list_inputs = get_app_inputs(app_variant_parameters, openapi_parameters)
             logger.debug(f"List of inputs: {list_inputs}")
 
             inputs = [
-                EvaluationScenarioInputDB(
+                EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[
+                    value=data_point.get(
                         (
                             input_item["name"]
                             if input_item["type"] != "messages"
                             else "chat"
-                        )
-                    ],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
+                        ),
+                        "",
+                    ),  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
@@ -166,7 +174,7 @@ def evaluate(
                 print("There is an error when invoking the llm app so we need to skip")
                 error_results = [
                     EvaluationScenarioResult(
-                        evaluator_config=evaluator_config_db.id,
+                        evaluator_config=str(evaluator_config_db.id),
                         result=Result(
                             type=app_output.result.type,
                             value=None,
@@ -178,26 +186,15 @@ def evaluate(
                     )
                     for evaluator_config_db in evaluator_config_dbs
                 ]
-                correct_answer = (
-                    data_point[correct_answer_column]
-                    if correct_answer_column in data_point
-                    else ""
-                )
 
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
-                        user=app.user,
-                        organization=app.organization if isCloudEE() else None,
-                        workspace=app.workspace if isCloudEE() else None,
-                        evaluation=new_evaluation_db,
+                        user_id=str(app.user_id),
+                        evaluation_id=evaluation_id,
                         variant_id=variant_id,
-                        evaluators_configs=new_evaluation_db.evaluators_configs,
                         inputs=inputs,
-                        is_pinned=False,
-                        note="",
-                        correct_answer=correct_answer,
                         outputs=[
-                            EvaluationScenarioOutputDB(
+                            EvaluationScenarioOutput(
                                 result=Result(
                                     type="error",
                                     value=None,
@@ -208,33 +205,40 @@ def evaluate(
                                 )
                             )
                         ],
+                        correct_answers=None,
+                        is_pinned=False,
+                        note="",
                         results=error_results,
+                        organization=str(app.organization_id) if isCloudEE() else None,
+                        workspace=str(app.workspace_id) if isCloudEE() else None,
                     )
                 )
                 continue
 
             # 3. We evaluate
-            evaluators_results: [EvaluationScenarioResult] = []
+            evaluators_results: List[EvaluationScenarioResult] = []
+
+            # Loop over each evaluator configuration to gather the correct answers and evaluate
+            ground_truth_column_names = []
             for evaluator_config_db in evaluator_config_dbs:
+                ground_truth_keys = ground_truth_keys_dict.get(
+                    evaluator_config_db.evaluator_key, []
+                )
+                ground_truth_column_names.extend(
+                    evaluator_config_db.settings_values.get(key, "")
+                    for key in ground_truth_keys
+                )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
-                if correct_answer_column in data_point:
-                    result = evaluators_service.evaluate(
-                        evaluator_key=evaluator_config_db.evaluator_key,
-                        output=app_output.result.value,
-                        correct_answer=data_point[correct_answer_column],
-                        settings_values=evaluator_config_db.settings_values,
-                        app_params=app_variant_parameters,
-                        inputs=data_point,
-                        lm_providers_keys=lm_providers_keys,
-                    )
-                else:
-                    result = Result(
-                        type="error",
-                        value=None,
-                        error=Error(
-                            message=f"No {correct_answer_column} column in test set"
-                        ),
-                    )
+
+                result = evaluators_service.evaluate(
+                    evaluator_key=evaluator_config_db.evaluator_key,
+                    output=app_output.result.value,
+                    data_point=data_point,
+                    settings_values=evaluator_config_db.settings_values,
+                    app_params=app_variant_parameters,  # type: ignore
+                    inputs=data_point,
+                    lm_providers_keys=lm_providers_keys,
+                )
 
                 # Update evaluators aggregated data
                 evaluator_results: List[Result] = evaluators_aggregated_data[
@@ -243,38 +247,46 @@ def evaluate(
                 evaluator_results.append(result)
 
                 result_object = EvaluationScenarioResult(
-                    evaluator_config=evaluator_config_db.id,
+                    evaluator_config=str(evaluator_config_db.id),
                     result=result,
                 )
                 logger.debug(f"Result: {result_object}")
                 evaluators_results.append(result_object)
 
+            all_correct_answers = [
+                (
+                    CorrectAnswer(
+                        key=ground_truth_column_name,
+                        value=data_point[ground_truth_column_name],
+                    )
+                    if ground_truth_column_name in data_point
+                    else CorrectAnswer(key=ground_truth_column_name, value="")
+                )
+                for ground_truth_column_name in ground_truth_column_names
+            ]
+
             # 4. We save the result of the eval scenario in the db
-            correct_answer = (
-                data_point[correct_answer_column]
-                if correct_answer_column in data_point
-                else ""
-            )
             loop.run_until_complete(
                 create_new_evaluation_scenario(
-                    user=app.user,
-                    evaluation=new_evaluation_db,
+                    user_id=str(app.user_id),
+                    evaluation_id=evaluation_id,
                     variant_id=variant_id,
-                    evaluators_configs=new_evaluation_db.evaluators_configs,
                     inputs=inputs,
-                    is_pinned=False,
-                    note="",
-                    correct_answer=correct_answer,
                     outputs=[
-                        EvaluationScenarioOutputDB(
-                            result=Result(type="text", value=app_output.result.value),
+                        EvaluationScenarioOutput(
+                            result=Result(
+                                type="text", value=app_output.result.value["data"]
+                            ),
                             latency=app_output.latency,
                             cost=app_output.cost,
                         )
                     ],
+                    correct_answers=all_correct_answers,
+                    is_pinned=False,
+                    note="",
                     results=evaluators_results,
-                    organization=app.organization if isCloudEE() else None,
-                    workspace=app.workspace if isCloudEE() else None,
+                    organization=str(app.organization_id) if isCloudEE() else None,
+                    workspace=str(app.workspace_id) if isCloudEE() else None,
                 )
             )
 
@@ -285,10 +297,17 @@ def evaluate(
         average_cost = aggregation_service.aggregate_float_from_llm_app_response(
             app_outputs, "cost"
         )
+        total_cost = aggregation_service.sum_float_from_llm_app_response(
+            app_outputs, "cost"
+        )
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
-                {"average_latency": average_latency, "average_cost": average_cost},
+                {
+                    "average_latency": average_latency.model_dump(),
+                    "average_cost": average_cost.model_dump(),
+                    "total_cost": total_cost.model_dump(),
+                },
             )
         )
 
@@ -302,48 +321,83 @@ def evaluate(
                     "status": Result(
                         type="status",
                         value="EVALUATION_FAILED",
-                        error=Error(message="Evaluation Failed", stacktrace=str(e)),
-                    )
+                        error=Error(
+                            message="Evaluation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
+                    ).model_dump()
                 },
             )
         )
         self.update_state(state=states.FAILURE)
         return
 
-    aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(app, evaluators_aggregated_data)
-    )
-    loop.run_until_complete(
-        update_evaluation_with_aggregated_results(
-            new_evaluation_db.id, aggregated_results
+    try:
+        aggregated_results = loop.run_until_complete(
+            aggregate_evaluator_results(evaluators_aggregated_data)
         )
-    )
 
-    failed_evaluation_scenarios = loop.run_until_complete(
-        check_if_evaluation_contains_failed_evaluation_scenarios(new_evaluation_db.id)
-    )
+        loop.run_until_complete(
+            update_evaluation_with_aggregated_results(evaluation_id, aggregated_results)
+        )
 
-    evaluation_status = Result(
-        type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
-    )
+        failed_evaluation_scenarios = loop.run_until_complete(
+            check_if_evaluation_contains_failed_evaluation_scenarios(evaluation_id)
+        )
 
-    if failed_evaluation_scenarios:
         evaluation_status = Result(
-            type="status",
-            value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
-            error=None,
+            type="status", value=EvaluationStatusEnum.EVALUATION_FINISHED, error=None
         )
 
-    loop.run_until_complete(
-        update_evaluation(
-            evaluation_id=new_evaluation_db.id, updates={"status": evaluation_status}
+        if failed_evaluation_scenarios:
+            evaluation_status = Result(
+                type="status",
+                value=EvaluationStatusEnum.EVALUATION_FINISHED_WITH_ERRORS,
+                error=None,
+            )
+
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id=evaluation_id,
+                updates={"status": evaluation_status.model_dump()},
+            )
         )
-    )
+
+    except Exception as e:
+        logger.error(f"An error occurred during evaluation aggregation: {e}")
+        traceback.print_exc()
+        loop.run_until_complete(
+            update_evaluation(
+                evaluation_id,
+                {
+                    "status": Result(
+                        type="status",
+                        value="EVALUATION_AGGREGATION_FAILED",
+                        error=Error(
+                            message="Evaluation Aggregation Failed",
+                            stacktrace=str(traceback.format_exc()),
+                        ),
+                    ).model_dump()
+                },
+            )
+        )
+        self.update_state(state=states.FAILURE)
+        return
 
 
 async def aggregate_evaluator_results(
-    app: AppDB, evaluators_aggregated_data: dict
+    evaluators_aggregated_data: dict,
 ) -> List[AggregatedResult]:
+    """
+    Aggregate the results of the evaluation evaluator.
+
+    Args:
+        evaluators_aggregated_data (dict):  The evaluators aggregated data
+
+    Returns:
+        the aggregated result of the evaluation evaluator
+    """
+
     aggregated_results = []
     for config_id, val in evaluators_aggregated_data.items():
         evaluator_key = val["evaluator_key"] or ""
@@ -371,7 +425,11 @@ async def aggregate_evaluator_results(
             "auto_contains_any",
             "auto_contains_all",
             "auto_contains_json",
+            "auto_json_diff",
+            "auto_semantic_similarity",
             "auto_levenshtein_distance",
+            "rag_faithfulness",
+            "rag_context_relevancy",
         ]:
             result = aggregation_service.aggregate_float(results)
 
@@ -380,9 +438,8 @@ async def aggregate_evaluator_results(
                 type="error", value=None, error=Error(message="Aggregation failed")
             )
 
-        evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
-            evaluator_config=evaluator_config.id,
+            evaluator_config=config_id,
             result=result,
         )
         aggregated_results.append(aggregated_result)
@@ -400,11 +457,13 @@ def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str,
     Returns:
         list: A list of dictionaries representing the application inputs, where each dictionary contains the input name and type.
     """
+
     list_inputs = []
     for param in openapi_parameters:
         if param["type"] == "input":
             list_inputs.append({"name": param["name"], "type": "input"})
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in app_variant_parameters

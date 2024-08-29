@@ -1,13 +1,14 @@
 import os
-from pathlib import Path
 
+import httpx
+import pytest
+from sqlalchemy.future import select
+
+from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
 )
-import httpx
-
-import pytest
 
 
 # Initialize http client
@@ -28,98 +29,133 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_testset():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
+        app = result.scalars().first()
 
-    payload = {
-        "name": "create_testset_main",
-        "csvdata": [
-            {
-                "country": "Comoros",
-                "correct_answer": "The capital of Comoros is Moroni",
-            },
-            {
-                "country": "Kyrgyzstan",
-                "correct_answer": "The capital of Kyrgyzstan is Bishkek",
-            },
-            {
-                "country": "Azerbaijan",
-                "correct_answer": "The capital of Azerbaijan is Baku",
-            },
-        ],
-    }
-    response = await test_client.post(
-        f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=payload
-    )
-    assert response.status_code == 200
-    assert response.json()["name"] == payload["name"]
+        payload = {
+            "name": "create_testset_main",
+            "csvdata": [
+                {
+                    "country": "Comoros",
+                    "correct_answer": "The capital of Comoros is Moroni",
+                },
+                {
+                    "country": "Kyrgyzstan",
+                    "correct_answer": "The capital of Kyrgyzstan is Bishkek",
+                },
+                {
+                    "country": "Azerbaijan",
+                    "correct_answer": "The capital of Azerbaijan is Baku",
+                },
+            ],
+        }
+        response = await test_client.post(
+            f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=payload
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == payload["name"]
 
 
 @pytest.mark.asyncio
 async def test_update_testset():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
-    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
+        app = result.scalars().first()
 
-    payload = {
-        "name": "update_testset",
-        "csvdata": [
-            {
-                "country": "Comoros",
-                "correct_answer": "The capital of Comoros is Moroni",
-            },
-            {
-                "country": "Kyrgyzstan",
-                "correct_answer": "The capital of Kyrgyzstan is Bishkek",
-            },
-            {
-                "country": "Azerbaijan",
-                "correct_answer": "The capital of Azerbaijan is Baku",
-            },
-        ],
-    }
-    response = await test_client.put(
-        f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/", json=payload
-    )
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
+        testset = testset_result.scalars().first()
 
-    assert response.status_code == 200
-    assert response.json()["_id"] == str(testset.id)
-    assert response.json()["status"] == "success"
-    assert response.json()["message"] == "testset updated successfully"
+        payload = {
+            "name": "update_testset",
+            "csvdata": [
+                {
+                    "country": "Comoros",
+                    "correct_answer": "The capital of Comoros is Moroni",
+                },
+                {
+                    "country": "Kyrgyzstan",
+                    "correct_answer": "The capital of Kyrgyzstan is Bishkek",
+                },
+                {
+                    "country": "Azerbaijan",
+                    "correct_answer": "The capital of Azerbaijan is Baku",
+                },
+            ],
+        }
+        response = await test_client.put(
+            f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/", json=payload
+        )
+
+        assert response.status_code == 200
+        assert response.json()["_id"] == str(testset.id)
+        assert response.json()["status"] == "success"
+        assert response.json()["message"] == "testset updated successfully"
 
 
 @pytest.mark.asyncio
 async def test_get_testsets():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
-    response = await test_client.get(
-        f"{BACKEND_API_HOST}/testsets/?app_id={str(app.id)}"
-    )
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
+        app = result.scalars().first()
 
-    assert response.status_code == 200
-    assert len(response.json()) == 1
+        response = await test_client.get(
+            f"{BACKEND_API_HOST}/testsets/?app_id={str(app.id)}"
+        )
+
+        assert response.status_code == 200
+        assert len(response.json()) == 1
 
 
 @pytest.mark.asyncio()
 async def test_get_testset():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
-    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
+        app = result.scalars().first()
 
-    response = await test_client.get(f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/")
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
+        testset = testset_result.scalars().first()
 
-    assert response.status_code == 200
-    assert response.json()["name"] == testset.name
-    assert response.json()["id"] == str(testset.id)
+        response = await test_client.get(
+            f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/"
+        )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == testset.name
+        assert response.json()["id"] == str(testset.id)
 
 
 @pytest.mark.asyncio
 async def test_delete_testsets():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
-    testsets = await TestSetDB.find(TestSetDB.app.id == app.id).to_list()
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="app_variant_test")
+        )
+        app = result.scalars().first()
 
-    testset_ids = [str(testset.id) for testset in testsets]
-    payload = {"testset_ids": testset_ids}
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(app_id=app.id)
+        )
+        testsets = testset_result.scalars().all()
 
-    response = await test_client.request(
-        method="DELETE", url=f"{BACKEND_API_HOST}/testsets/", json=payload
-    )
+        testset_ids = [str(testset.id) for testset in testsets]
+        payload = {"testset_ids": testset_ids}
 
-    assert response.status_code == 200
-    assert response.json() == testset_ids
+        response = await test_client.request(
+            method="DELETE", url=f"{BACKEND_API_HOST}/testsets/", json=payload
+        )
+
+        assert response.status_code == 200
+        assert response.json() == testset_ids

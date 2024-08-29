@@ -1,18 +1,21 @@
 import os
 import pytest
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
+from agenta_backend.models.db.postgres_engine import db_engine
+from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     AppDB,
     UserDB,
+    DeploymentDB,
     VariantBaseDB,
     ImageDB,
-    ConfigDB,
     AppVariantDB,
 )
 
 import httpx
+from sqlalchemy.future import select
 
 
 # Initialize logger
@@ -32,127 +35,106 @@ elif ENVIRONMENT == "github":
 async def get_first_user_object():
     """Get the user object from the database or create a new one if not found."""
 
-    user = await UserDB.find_one(UserDB.uid == "0")
-    if user is None:
-        create_user = UserDB(uid="0")
-        await create_user.create()
-
-        return create_user
-    return user
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(UserDB).filter_by(uid="0"))
+        user = result.scalars().first()
+        if user is None:
+            create_user = UserDB(uid="0")
+            session.add(create_user)
+            await session.commit()
+            await session.refresh(create_user)
+            return create_user
+        return user
 
 
 @pytest.fixture()
 async def get_second_user_object():
     """Create a second user object."""
 
-    user = await UserDB.find_one(UserDB.uid == "1")
-    if user is None:
-        create_user = UserDB(
-            uid="1", username="test_user1", email="test_user1@email.com"
-        )
-        await create_user.create()
-
-        return create_user
-    return user
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(UserDB).filter_by(uid="1"))
+        user = result.scalars().first()
+        if user is None:
+            create_user = UserDB(
+                uid="1", username="test_user1", email="test_user1@email.com"
+            )
+            session.add(create_user)
+            await session.commit()
+            await session.refresh(create_user)
+            return create_user
+        return user
 
 
 @pytest.fixture()
 async def get_first_user_app(get_first_user_object):
     user = await get_first_user_object
 
-    app = AppDB(app_name="myapp", user=user)
-    await app.create()
+    async with db_engine.get_session() as session:
+        app = AppDB(app_name="myapp", user_id=user.id)
+        session.add(app)
+        await session.commit()
+        await session.refresh(app)
 
-    db_image = ImageDB(
-        docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        tags="agentaai/templates_v2:local_test_prompt",
-        user=user,
-    )
-    await db_image.create()
+        db_image = ImageDB(
+            docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            tags="agentaai/templates_v2:local_test_prompt",
+            user_id=user.id,
+        )
+        session.add(db_image)
+        await session.commit()
+        await session.refresh(db_image)
 
-    db_config = ConfigDB(
-        config_name="default",
-        parameters={},
-    )
+        db_config = ConfigDB(
+            config_name="default",
+            parameters={},
+        )
 
-    db_base = VariantBaseDB(base_name="app", image=db_image, user=user, app=app)
-    await db_base.create()
+        db_deployment = DeploymentDB(
+            app_id=app.id,
+            user_id=user.id,
+            container_name="container_a_test",
+            container_id="w243e34red",
+            uri="http://localhost/app/w243e34red",
+            status="stale",
+        )
+        session.add(db_deployment)
 
-    appvariant = AppVariantDB(
-        app=app,
-        variant_name="app",
-        image=db_image,
-        user=user,
-        parameters={},
-        base_name="app",
-        config_name="default",
-        base=db_base,
-        revision=0,
-        modified_by=user,
-        config=db_config,
-    )
-    await appvariant.create()
-    return appvariant, user, app, db_image, db_config, db_base
+        db_base = VariantBaseDB(
+            base_name="app",
+            image_id=db_image.id,
+            user_id=user.id,
+            app_id=app.id,
+            deployment_id=db_deployment.id,
+        )
+        session.add(db_base)
+        await session.commit()
+        await session.refresh(db_base)
+
+        appvariant = AppVariantDB(
+            app_id=app.id,
+            variant_name="app",
+            image_id=db_image.id,
+            user_id=user.id,
+            config_parameters={},
+            base_name="app",
+            config_name="default",
+            base_id=db_base.id,
+            revision=0,
+            modified_by_id=user.id,
+        )
+        session.add(appvariant)
+        await session.commit()
+        await session.refresh(appvariant)
+
+        return appvariant, user, app, db_image, db_config, db_base
 
 
-@pytest.fixture()
-def spans_db_data():
-    return [
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 8.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 80,
-            "tokens_output": 25,
-            "token_total": 105,
-            "cost": 0.23,
-            "tags": ["string"],
-        },
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 13.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 58,
-            "tokens_output": 65,
-            "token_total": 123,
-            "cost": 0.19,
-            "tags": ["string"],
-        },
-        {
-            "parent_span_id": "string",
-            "meta": {},
-            "event_name": "call",
-            "event_type": "fixture_call",
-            "start_time": str(datetime.now()),
-            "duration": 18.30,
-            "status": "initiated",
-            "end_time": str(datetime.now()),
-            "inputs": ["string"],
-            "outputs": ["string"],
-            "prompt_template": "string",
-            "tokens_input": 100,
-            "tokens_output": 35,
-            "token_total": 135,
-            "cost": 0.54,
-            "tags": ["string"],
-        },
-    ]
+@pytest.fixture(scope="session")
+async def fetch_user():
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(UserDB).filter_by(uid="0"))
+        user = result.scalars().first()
+        return user
 
 
 @pytest.fixture()
@@ -160,8 +142,8 @@ def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
 
 
@@ -170,30 +152,9 @@ def app_variant_create_data():
     return {
         "variant_name": "v1",
         "parameters": {},
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
-
-
-@pytest.fixture()
-def trace_create_data():
-    return {
-        "cost": 0.782,
-        "latency": 20,
-        "status": "completed",
-        "token_consumption": 638,
-        "tags": ["string"],
-        "start_time": str(datetime.now()),
-        "end_time": str(datetime.now()),
-    }
-
-
-@pytest.fixture()
-def feedbacks_create_data():
-    return [
-        {"feedback": "thumbs up", "score": 0, "meta": {}},
-        {"feedback": "thumbs down", "score": 10, "meta": {}},
-    ]
 
 
 @pytest.fixture(scope="session")
@@ -223,12 +184,6 @@ def app_from_template():
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
         "template_id": "string",
     }
-
-
-@pytest.fixture(scope="session")
-async def fetch_user():
-    user = await UserDB.find_one(UserDB.uid == "0", fetch_links=True)
-    return user
 
 
 @pytest.fixture()

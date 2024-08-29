@@ -1,24 +1,28 @@
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ValueGetterParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Dropdown, Space, Spin, Tag, Tooltip, theme} from "antd"
+import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography, theme} from "antd"
 import {
-    CheckOutlined,
     DeleteOutlined,
+    DownloadOutlined,
     PlusCircleOutlined,
     SlidersOutlined,
     SwapOutlined,
 } from "@ant-design/icons"
-import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
+import {EvaluationStatus, GenericObject, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
-import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
+import {
+    deleteEvaluations,
+    fetchAllEvaluations,
+    fetchEvaluationStatus,
+} from "@/services/evaluations/api"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
@@ -36,6 +40,13 @@ import {useRouter} from "next/router"
 import EmptyEvaluations from "./EmptyEvaluations"
 import {calcEvalDuration, getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import Link from "next/link"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {getAppValues} from "@/contexts/app.context"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import {formatDate24} from "@/lib/helpers/dateTimeHelper"
+import {useQueryParam} from "@/hooks/useQuery"
+
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -78,6 +89,8 @@ const EvaluationResults: React.FC<Props> = () => {
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
     const [evaluators] = useAtom(evaluatorsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [queryNewEvalModalOpen, setQueryNewEvalModalOpen] =
+        useQueryParam("openNewEvaluationModal")
     const [fetching, setFetching] = useState(false)
     const [selected, setSelected] = useState<_Evaluation[]>([])
     const stoppers = useRef<Function>()
@@ -85,6 +98,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const {token} = theme.useToken()
     const gridRef = useRef<AgGridReact>()
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -203,8 +217,17 @@ const EvaluationResults: React.FC<Props> = () => {
                         </Link>
                     )
                 },
+                onCellClicked(params: any) {
+                    const {revisions, variants} = params.data
+                    router.push(
+                        `/apps/${appId}/playground?variant=${variants[0].variantName}&revision=${revisions[0]}`,
+                    )
+                },
                 valueGetter: (params) =>
-                    `${params.data?.variants[0].variantName} #${params.data?.revisions[0]}`,
+                    variantNameWithRev({
+                        variant_name: params.data?.variants[0].variantName ?? "",
+                        revision: params.data?.revisions[0],
+                    }),
                 headerName: "Variant",
                 tooltipValueGetter: (params) => params.data?.variants[0].variantName,
                 ...getFilterParams("text"),
@@ -223,6 +246,9 @@ const EvaluationResults: React.FC<Props> = () => {
                 minWidth: 160,
                 tooltipValueGetter: (params) => params.value,
                 ...getFilterParams("text"),
+                onCellClicked(params) {
+                    router.push(`/apps/${appId}/testsets/${params.data?.testset.id}`)
+                },
             },
             ...evaluatorConfigs.map(
                 (config) =>
@@ -251,6 +277,19 @@ const EvaluationResults: React.FC<Props> = () => {
                         ),
                         autoHeaderHeight: true,
                         ...getFilterParams("number"),
+                        cellRenderer: (params: ValueGetterParams<_Evaluation, any>) => {
+                            const result = params.data?.aggregated_results.find(
+                                (item) => item.evaluator_config.id === config.id,
+                            )?.result
+
+                            return result?.error ? (
+                                <Typography.Text type="danger" strong>
+                                    Error
+                                </Typography.Text>
+                            ) : (
+                                <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                            )
+                        },
                         valueGetter: (params) =>
                             getTypedValue(
                                 params.data?.aggregated_results.find(
@@ -272,24 +311,28 @@ const EvaluationResults: React.FC<Props> = () => {
                 pinned: "right",
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
-                    statusMapper(token)[params.data?.status.value as EvaluationStatus].label,
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
                 cellRenderer: StatusRenderer,
+                valueGetter: (params) =>
+                    statusMapper(token)(params.data?.status.value as EvaluationStatus).label,
             },
             {
                 flex: 1,
                 field: "average_latency",
-                headerName: "Latency",
+                headerName: "Avg. Latency",
+                hide: hiddenCols.includes("Latency"),
                 minWidth: 120,
                 ...getFilterParams("number"),
                 valueGetter: (params) => getTypedValue(params?.data?.average_latency),
             },
             {
                 flex: 1,
-                field: "average_cost",
-                headerName: "Cost",
+                field: "total_cost",
+                headerName: "Total Cost",
+                hide: hiddenCols.includes("Cost"),
                 minWidth: 120,
                 ...getFilterParams("number"),
-                valueGetter: (params) => getTypedValue(params?.data?.average_cost),
+                valueGetter: (params) => getTypedValue(params?.data?.total_cost),
             },
             {
                 flex: 1,
@@ -300,6 +343,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 ...getFilterParams("date"),
                 cellRenderer: DateFromNowRenderer,
                 sort: "desc",
+                valueFormatter: (params) => formatDate24(params.value),
             },
         ]
         return colDefs
@@ -313,7 +357,7 @@ const EvaluationResults: React.FC<Props> = () => {
             data-cy="evaluation-results-compare-button"
             onClick={() =>
                 router.push(
-                    `/apps/${appId}/evaluations/compare/?evaluations=${selected
+                    `/apps/${appId}/evaluations/results/compare/?evaluations=${selected
                         .map((item) => item.id)
                         .join(",")}`,
                 )
@@ -338,6 +382,44 @@ const EvaluationResults: React.FC<Props> = () => {
         [colDefs],
     )
 
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
+
+    const onExport = () => {
+        if (!gridRef.current) return
+        const {currentApp} = getAppValues()
+        const filename = `${currentApp?.app_name}_evaluation_scenarios.csv`
+        if (!!selected.length) {
+            const csvData = convertToCsv(
+                selected.map((item) => ({
+                    Variant: variantNameWithRev({
+                        variant_name: item.variants[0].variantName ?? "",
+                        revision: item.revisions[0],
+                    }),
+                    Testset: item.testset.name,
+                    ...item.aggregated_results.reduce((acc, curr) => {
+                        if (!acc[curr.evaluator_config.name]) {
+                            acc[curr.evaluator_config.name] = getTypedValue(curr.result)
+                        }
+                        return acc
+                    }, {} as GenericObject),
+                    "Avg. Latency": getTypedValue(item.average_latency),
+                    "Total Cost": getTypedValue(item.average_cost),
+                    Created: formatDate24(item.created_at),
+                    Status: statusMapper(token)(item.status.value as EvaluationStatus).label,
+                })),
+                colDefs.map((col) => col.headerName!),
+            )
+            downloadCsv(csvData, filename)
+        } else {
+            gridRef.current.api.exportDataAsCsv({
+                fileName: filename,
+            })
+        }
+    }
     return (
         <>
             {!fetching && !evaluations.length ? (
@@ -382,25 +464,19 @@ const EvaluationResults: React.FC<Props> = () => {
                     </Space>
 
                     <Space className={classes.buttonsGroup}>
-                        <Dropdown
-                            trigger={["click"]}
-                            menu={{
-                                selectedKeys: shownCols,
-                                items: colDefs.map((configs) => ({
-                                    key: configs.headerName as string,
-                                    label: (
-                                        <Space>
-                                            <CheckOutlined />
-                                            <>{configs.headerName}</>
-                                        </Space>
-                                    ),
-                                })),
-                                onClick: ({key}) => onToggleEvaluatorVisibility(key),
-                                className: classes.dropdownMenu,
+                        <FilterColumns
+                            items={generateFilterItems(colDefs)}
+                            isOpen={isFilterColsDropdownOpen}
+                            handleOpenChange={handleOpenChangeFilterCols}
+                            shownCols={shownCols}
+                            onClick={({key}) => {
+                                onToggleEvaluatorVisibility(key)
+                                setIsFilterColsDropdownOpen(true)
                             }}
-                        >
-                            <Button>Filter Columns</Button>
-                        </Dropdown>
+                        />
+                        <Button onClick={onExport} icon={<DownloadOutlined />}>
+                            {!!selected.length ? `Export (${selected.length})` : "Export All"}
+                        </Button>
                     </Space>
 
                     <Spin spinning={fetching}>
@@ -427,8 +503,12 @@ const EvaluationResults: React.FC<Props> = () => {
                                         return
                                     ;(EvaluationStatus.FINISHED === params.data?.status.value ||
                                         EvaluationStatus.FINISHED_WITH_ERRORS ===
+                                            params.data?.status.value ||
+                                        EvaluationStatus.AGGREGATION_FAILED ===
                                             params.data?.status.value) &&
-                                        router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
+                                        router.push(
+                                            `/apps/${appId}/evaluations/results/${params.data?.id}`,
+                                        )
                                 }}
                                 rowSelection="multiple"
                                 suppressRowClickSelection
@@ -442,10 +522,14 @@ const EvaluationResults: React.FC<Props> = () => {
                 </div>
             )}
             <NewEvaluationModal
-                open={newEvalModalOpen}
-                onCancel={() => setNewEvalModalOpen(false)}
+                open={queryNewEvalModalOpen === "open" || newEvalModalOpen}
+                onCancel={() => {
+                    setNewEvalModalOpen(false)
+                    setQueryNewEvalModalOpen("")
+                }}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
+                    setQueryNewEvalModalOpen("")
                     fetcher()
                 }}
             />

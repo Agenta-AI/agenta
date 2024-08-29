@@ -1,31 +1,44 @@
-FROM node:18-alpine
+FROM node:22-alpine3.18 AS base
 
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
-    if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm i; \
-    elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i; \
-    # Allow install without lockfile, so example works even without Node.js installed locally
-    else echo "Warning: Lockfile not found. It is recommended to commit lockfiles to version control." && yarn install; \
+    if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then npm install; \
+    elif [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm install; \
+    else yarn install; \
     fi
 
+# Copy only the necessary files for development
 COPY src ./src
 COPY public ./public
 COPY next.config.js .
 COPY tsconfig.json .
 COPY postcss.config.js .
+COPY tailwind.config.ts .
 COPY .env .
-RUN if [ -f .env.local ]; then cp .env.local .; fi
-# # used in cloud
 COPY sentry.* .
-# Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line to disable telemetry at run time
-# ENV NEXT_TELEMETRY_DISABLED 1
 
-# Note: Don't expose ports here, Compose will handle that for us
+# Stage 2: Development Stage
+FROM node:22-alpine3.18 AS dev
+
+WORKDIR /app
+
+# Copy dependencies and application files from the base stage
+COPY --from=base /app /app
+
+# Install development dependencies
+RUN \
+    if [ -f yarn.lock ]; then yarn install; \
+    elif [ -f package-lock.json ]; then npm install; \
+    elif [ -f pnpm-lock.yaml ]; then pnpm install; \
+    else yarn install; \
+    fi
+
+# Expose the necessary ports
+EXPOSE 3000
 
 # Start Next.js in development mode based on the preferred package manager
 CMD \
@@ -34,4 +47,3 @@ CMD \
     elif [ -f pnpm-lock.yaml ]; then pnpm dev; \
     else yarn dev; \
     fi
-

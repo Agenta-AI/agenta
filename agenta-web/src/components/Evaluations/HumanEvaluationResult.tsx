@@ -1,16 +1,21 @@
-import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Statistic, Table, Typography} from "antd"
+import {
+    deleteEvaluations,
+    fetchAllLoadEvaluations,
+    fetchEvaluationResults,
+} from "@/services/human-evaluations/api"
+import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {EvaluationResponseType} from "@/lib/Types"
+import {EvaluationResponseType, StyleProps} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {abTestingEvaluationTransformer} from "@/lib/transformers"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -43,10 +48,6 @@ export interface HumanEvaluationListTableDataType {
     revisions: string[]
     variant_revision_ids: string[]
     variantNames: string[]
-}
-
-type StyleProps = {
-    themeMode: "dark" | "light"
 }
 
 const useStyles = createUseStyles({
@@ -119,6 +120,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const app_id = router.query.app_id?.toString() || ""
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
 
     useEffect(() => {
         if (!app_id) {
@@ -126,34 +128,15 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
+                setFetchingEvaluations(true)
+                fetchAllLoadEvaluations(app_id)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
-                            return fetchData(
-                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
-                            )
+                            return fetchEvaluationResults(item.id)
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
                                         if (Object.keys(results.votes_data).length > 0) {
-                                            return {
-                                                key: item.id,
-                                                createdAt: formatDate(item.created_at),
-                                                variants: item.variant_ids,
-                                                variantNames: item.variant_names,
-                                                votesData: results.votes_data,
-                                                evaluationType: item.evaluation_type,
-                                                status: item.status,
-                                                user: {
-                                                    id: item.user_id,
-                                                    username: item.user_username,
-                                                },
-                                                testset: {
-                                                    _id: item.testset_id,
-                                                    name: item.testset_name,
-                                                },
-                                                revisions: item.revisions,
-                                                variant_revision_ids: item.variants_revision_ids,
-                                            }
+                                            return abTestingEvaluationTransformer({item, results})
                                         }
                                     }
                                 })
@@ -169,8 +152,9 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             .catch((err) => console.error(err))
                     })
                     .catch((err) => console.error(err))
+                    .finally(() => setFetchingEvaluations(false))
             } catch (error) {
-                console.log(error)
+                console.error(error)
             }
         }
 
@@ -183,7 +167,7 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/human_a_b_testing/${evaluation.key}`)
         }
     }
 
@@ -218,7 +202,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[0], record.revisions[0])}
                         >
-                            ({`${value[0]} #${record.revisions[0]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[0],
+                                revision: record.revisions[0],
+                            })}
+                            )
                         </div>
                     </div>
                 )
@@ -242,7 +231,12 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                             style={{cursor: "pointer"}}
                             onClick={() => handleNavigation(value[1], record.revisions[1])}
                         >
-                            ({`${value[1]} #${record.revisions[1]}`})
+                            (
+                            {variantNameWithRev({
+                                variant_name: value[1],
+                                revision: record.revisions[1],
+                            })}
+                            )
                         </div>
                     </div>
                 )
@@ -363,15 +357,17 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
                 <Title level={3}>A/B Test Results</Title>
             </div>
 
-            <Table
-                rowSelection={{
-                    type: selectionType,
-                    ...rowSelection,
-                }}
-                className="ph-no-capture"
-                columns={columns}
-                dataSource={evaluationsList}
-            />
+            <Spin spinning={fetchingEvaluations}>
+                <Table
+                    rowSelection={{
+                        type: selectionType,
+                        ...rowSelection,
+                    }}
+                    className="ph-no-capture"
+                    columns={columns}
+                    dataSource={evaluationsList}
+                />
+            </Spin>
         </div>
     )
 }

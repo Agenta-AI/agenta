@@ -1,25 +1,16 @@
-from agenta.client.exceptions import APIRequestError
-from agenta.client.backend.client import AgentaApi
 import os
 import logging
-from typing import Any, Optional
+import toml
+from typing import Optional
 
-from .utils.globals import set_global
+from agenta.sdk.utils.globals import set_global
+from agenta.client.backend.client import AgentaApi
+from agenta.sdk.tracing.llm_tracing import Tracing
+from agenta.client.exceptions import APIRequestError
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
-CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
-CLIENT_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
-
-# initialize the client with the backend url and api key
-backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
-client = AgentaApi(
-    base_url=backend_url,
-    api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
-)
 
 
 class AgentaSingleton:
@@ -28,6 +19,7 @@ class AgentaSingleton:
     _instance = None
     setup = None
     config = None
+    tracing: Optional[Tracing] = None
 
     def __new__(cls):
         if not cls._instance:
@@ -36,78 +28,74 @@ class AgentaSingleton:
 
     def init(
         self,
-        app_name: Optional[str] = None,
-        base_name: Optional[str] = None,
-        api_key: Optional[str] = None,
-        base_id: Optional[str] = None,
+        app_id: Optional[str] = None,
         host: Optional[str] = None,
-        **kwargs: Any,
+        api_key: Optional[str] = None,
+        config_fname: Optional[str] = None,
     ) -> None:
         """Main function to initialize the singleton.
 
-        Initializes the singleton with the given `app_name`, `base_name`, and `host`. If any of these arguments are not provided,
-        the function will look for them in environment variables.
+        Initializes the singleton with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
+        1. Explicit argument provided in the function call.
+        2. Value from the configuration file specified by `config_fname`.
+        3. Environment variables.
+
+        Examples:
+        ag.init(app_id="xxxx", api_key="xxx")
+        ag.init(config_fname="config.toml")
+        ag.init() #assuming env vars are set
 
         Args:
-            app_name (Optional[str]): Name of the Agenta application. Defaults to None. If not provided, will look for "AGENTA_APP_NAME" in environment variables.
-            base_name (Optional[str]): Base name for the Agenta setup. Defaults to None. If not provided, will look for "AGENTA_BASE_NAME" in environment variables.
-            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "AGENTA_HOST" in environment variables.
-            kwargs (Any): Additional keyword arguments.
+            app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
+            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
+            api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
+            config_fname (Optional[str]): Path to the configuration file (relative or absolute). Defaults to None.
 
         Raises:
-            ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
+            ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
-        if app_name is None:
-            app_name = os.environ.get("AGENTA_APP_NAME")
-        if base_name is None:
-            base_name = os.environ.get("AGENTA_BASE_NAME")
-        if api_key is None:
-            api_key = os.environ.get("AGENTA_API_KEY")
-        if base_id is None:
-            base_id = os.environ.get("AGENTA_BASE_ID")
-        if host is None:
-            host = os.environ.get("AGENTA_HOST", "http://localhost")
+        config = {}
+        if config_fname:
+            config = toml.load(config_fname)
 
-        if base_id is None:
-            if app_name is None or base_name is None:
-                print(
-                    f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
-                )
-            else:
-                try:
-                    apps = client.list_apps(app_name=app_name)
-                    if len(apps) == 0:
-                        raise APIRequestError(f"App with name {app_name} not found")
+        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
+        self.host = (
+            host
+            or config.get("backend_host")
+            or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
+        )
+        self.api_key = (
+            api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+        )
 
-                    app_id = apps[0].app_id
-                    if not app_id:
-                        raise APIRequestError(
-                            f"App with name {app_name} does not exist on the server."
-                        )
+        if not self.app_id:
+            raise ValueError(
+                "App ID must be specified. You can provide it in one of the following ways:\n"
+                "1. As an argument when calling ag.init(app_id='your_app_id').\n"
+                "2. In the configuration file specified by config_fname.\n"
+                "3. As an environment variable 'AGENTA_APP_ID'."
+            )
+        self.base_id = os.environ.get("AGENTA_BASE_ID")
+        if self.base_id is None:
+            print(
+                "Warning: Your configuration will not be saved permanently since base_id is not provided."
+            )
 
-                    bases = client.list_bases(app_id=app_id, base_name=base_name)
-                    if len(bases) == 0:
-                        raise APIRequestError(f"No base was found for the app {app_id}")
-
-                    base_id = bases[0].base_id
-                except Exception as ex:
-                    raise APIRequestError(
-                        f"Failed to get base id and/or app_id from the server with error: {ex}"
-                    )
-        self.base_id = base_id
-        self.host = host
-        self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host)
+        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
 
 class Config:
-    def __init__(self, base_id, host):
+    def __init__(self, base_id: str, host: str, api_key: Optional[str] = ""):
         self.base_id = base_id
         self.host = host
+
         if base_id is None or host is None:
             self.persist = False
         else:
             self.persist = True
+            self.client = AgentaApi(
+                base_url=self.host + "/api", api_key=api_key if api_key else ""
+            )
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
@@ -126,7 +114,7 @@ class Config:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
             logger.warning(
-                "Unable to push the default configuration to the server." + str(ex)
+                "Unable to push the default configuration to the server. %s", str(ex)
             )
 
     def push(self, config_name: str, overwrite=True, **kwargs):
@@ -139,7 +127,7 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_config(
+            self.client.configs.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -147,38 +135,40 @@ class Config:
             )
         except Exception as ex:
             logger.warning(
-                "Failed to push the configuration to the server with error: " + str(ex)
+                "Failed to push the configuration to the server with error: %s", ex
             )
 
-    def pull(self, config_name: str = "default", environment_name: str = None):
+    def pull(
+        self, config_name: str = "default", environment_name: Optional[str] = None
+    ):
         """Pulls the parameters for the app variant from the server and sets them to the config"""
         if not self.persist and (
             config_name != "default" or environment_name is not None
         ):
-            raise Exception(
+            raise ValueError(
                 "Cannot pull the configuration from the server since the app_name and base_name are not provided."
             )
         if self.persist:
             try:
                 if environment_name:
-                    config = client.get_config(
+                    config = self.client.configs.get_config(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.get_config(
+                    config = self.client.configs.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
                     )
             except Exception as ex:
                 logger.warning(
-                    "Failed to pull the configuration from the server with error: "
-                    + str(ex)
+                    "Failed to pull the configuration from the server with error: %s",
+                    str(ex),
                 )
         try:
-            self.set(**config.parameters)
+            self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
-            logger.warning("Failed to set the configuration with error: " + str(ex))
+            logger.warning("Failed to set the configuration with error: %s", str(ex))
 
     def all(self):
         """Returns all the parameters for the app variant"""
@@ -186,7 +176,15 @@ class Config:
             k: v
             for k, v in self.__dict__.items()
             if k
-            not in ["app_name", "base_name", "host", "base_id", "api_key", "persist"]
+            not in [
+                "app_name",
+                "base_name",
+                "host",
+                "base_id",
+                "api_key",
+                "persist",
+                "client",
+            ]
         }
 
     # function to set the parameters for the app variant
@@ -199,14 +197,53 @@ class Config:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def dump(self):
+        """Returns all the information about the current version in the configuration.
 
-def init(app_name=None, base_name=None, **kwargs):
-    """Main function to be called by the user to initialize the sdk.
+        Raises:
+            NotImplementedError: _description_
+        """
+
+        raise NotImplementedError()
+
+
+def init(
+    app_id: Optional[str] = None,
+    host: Optional[str] = None,
+    api_key: Optional[str] = None,
+    config_fname: Optional[str] = None,
+    max_workers: Optional[int] = None,
+):
+    """Main function to initialize the agenta sdk.
+
+    Initializes agenta with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
+    1. Explicit argument provided in the function call.
+    2. Value from the configuration file specified by `config_fname`.
+    3. Environment variables.
+
+    - `app_id` is a required parameter (to be specified in one of the above ways)
+    - `host` is optional and defaults to "https://cloud.agenta.ai"
+    - `api_key` is optional and defaults to "". It is required only when using cloud or enterprise version of agenta.
+
 
     Args:
-        app_name: _description_. Defaults to None.
-        base_name: _description_. Defaults to None.
+        app_id (Optional[str]): ID of the Agenta application. Defaults to None. If not provided, will look for "app_id" in the config file, then "AGENTA_APP_ID" in environment variables.
+        host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "backend_host" in the config file, then "AGENTA_HOST" in environment variables.
+        api_key (Optional[str]): API Key to use with the host of the backend server. Defaults to None. If not provided, will look for "api_key" in the config file, then "AGENTA_API_KEY" in environment variables.
+        config_fname (Optional[str]): Path to the configuration file. Defaults to None.
+
+    Raises:
+        ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
     """
+
     singleton = AgentaSingleton()
-    singleton.init(app_name=app_name, base_name=base_name, **kwargs)
-    set_global(setup=singleton.setup, config=singleton.config)
+
+    singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
+
+    tracing = Tracing(
+        host=singleton.host,  # type: ignore
+        app_id=singleton.app_id,  # type: ignore
+        api_key=singleton.api_key,
+        max_workers=max_workers,
+    )
+    set_global(setup=singleton.setup, config=singleton.config, tracing=tracing)

@@ -3,20 +3,23 @@ import json
 import httpx
 import backoff
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 from asyncio.exceptions import CancelledError
 from httpx import ConnectError, TimeoutException
-
-from agenta_backend.config import settings
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import isCloud, isOss
 
-if os.environ["FEATURE_FLAG"] in ["oss", "cloud"]:
+from datetime import datetime, timezone
+
+from agenta_backend.services.helpers import convert_to_utc_datetime
+
+if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
-
-from typing import Union
+agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
+docker_hub_url = os.getenv("DOCKER_HUB_URL")
 
 
 async def update_and_sync_templates(cache: bool = True) -> None:
@@ -38,6 +41,8 @@ async def update_and_sync_templates(cache: bool = True) -> None:
         if temp["name"] in list(templates_info.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
             temp_info = templates_info[temp["name"]]
+            last_pushed = convert_to_utc_datetime(temp.get("last_pushed"))
+
             template_id = await db_manager.add_template(
                 **{
                     "tag_id": int(temp["id"]),
@@ -51,22 +56,14 @@ async def update_and_sync_templates(cache: bool = True) -> None:
                         else temp["size"]
                     ),
                     "digest": temp["digest"],
-                    "last_pushed": (
-                        temp["images"][0]["last_pushed"]
-                        if not temp.get("last_pushed", None)
-                        else temp["last_pushed"]
-                    ),
+                    "last_pushed": last_pushed,
                 }
             )
             print(f"Template {template_id} added to the database.")
 
-            # Get docker hub config
-            repo_owner = settings.docker_hub_repo_owner
-            repo_name = settings.docker_hub_repo_name
-
             # Pull image from DockerHub
             image_res = await container_manager.pull_docker_image(
-                repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
+                repo_name=f"{agenta_template_repo}", tag=temp["name"]
             )
             print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
@@ -89,9 +86,8 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await retrieve_templates_from_dockerhub(
-        settings.docker_hub_url,
-        settings.docker_hub_repo_owner,
-        settings.docker_hub_repo_name,
+        docker_hub_url,
+        agenta_template_repo,
     )
     response_data = response["results"]
 
@@ -130,7 +126,7 @@ async def retrieve_templates_info_from_s3(
 
 @backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
 async def retrieve_templates_from_dockerhub(
-    url: str, repo_owner: str, repo_name: str
+    url: str, repo_name: str
 ) -> Union[List[dict], dict]:
     """
     Business logic to retrieve templates from DockerHub.
@@ -139,7 +135,6 @@ async def retrieve_templates_from_dockerhub(
         url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
             for the `repo_owner` and `repo_name` values to be inserted. For example:
             `https://hub.docker.com/v2/repositories/{}/{}/tags`.
-        repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
         repo_name (str): The name of the repository where the templates are located.
 
     Returns:
@@ -147,9 +142,7 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{url.format(repo_owner, repo_name)}/tags", timeout=10
-        )
+        response = await client.get(f"{url}/{repo_name}/tags", timeout=90)
         if response.status_code == 200:
             response_data = response.json()
             return response_data
@@ -174,7 +167,7 @@ async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=10)
+        response = await client.get(url, timeout=90)
         if response.status_code == 200:
             response_data = response.json()
             return response_data

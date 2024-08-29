@@ -28,7 +28,7 @@ Cypress.Commands.add("createVariant", () => {
         }
     })
 
-    cy.contains("Single Prompt")
+    cy.contains("Single Prompt OpenAI")
         .parentsUntil('[data-cy^="app-template-card"]')
         .last()
         .contains("create app", {matchCase: false})
@@ -47,11 +47,10 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.url().should("include", "/playground")
     cy.url().then((url) => {
-        app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+        app_id = url.match(/\/apps\/([a-fA-F0-9-]+)\/playground/)[1]
 
         cy.wrap(app_id).as("app_id")
     })
-    cy.contains(/modify parameters/i)
     cy.removeLlmProviderKey()
 })
 
@@ -59,6 +58,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
+    cy.get('[data-cy="app-testsets-link"]').trigger("mouseout")
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
 

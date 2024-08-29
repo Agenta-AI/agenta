@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
+from sentry_sdk import capture_exception
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -51,16 +52,29 @@ class APIRouter(FastAPIRouter):
 
 
 def isCloudEE():
-    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee", "cloud-dev"]
 
 
 def isCloud():
-    return os.environ["FEATURE_FLAG"] == "cloud"
+    return os.environ["FEATURE_FLAG"] in ["cloud", "cloud-dev"]
 
 
 def isEE():
     return os.environ["FEATURE_FLAG"] == "ee"
 
 
-def isOssEE():
-    return os.environ["FEATURE_FLAG"] in ["oss", "ee"]
+def isCloudProd():
+    return os.environ["FEATURE_FLAG"] == "cloud"
+
+
+def isCloudDev():
+    return os.environ["FEATURE_FLAG"] == "cloud-dev"
+
+
+def isOss():
+    return os.environ["FEATURE_FLAG"] == "oss"
+
+
+def capture_exception_in_sentry(e: Exception):
+    if isCloudProd():
+        capture_exception(e)

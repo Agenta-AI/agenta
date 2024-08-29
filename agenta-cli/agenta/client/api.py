@@ -47,7 +47,7 @@ def add_variant_to_server(
     )
     for attempt in range(retries):
         try:
-            response = client.add_variant_from_image(
+            response = client.apps.add_variant_from_image(
                 app_id=app_id,
                 variant_name=f"{base_name.lower()}.default",
                 base_name=base_name,
@@ -55,7 +55,7 @@ def add_variant_to_server(
                 docker_id=image.docker_id,
                 tags=image.tags,
             )
-            click.echo(click.style("\nVariant added successfully.", fg="green"))
+            click.echo(click.style("\nVariant added successfully!", fg="green"))
             return response
         except RequestException as e:
             if attempt < retries - 1:

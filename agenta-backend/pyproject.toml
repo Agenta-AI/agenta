@@ -1,26 +1,23 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.12.6"
+version = "0.24.1"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
 packages = [{include = "agenta_backend"}]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<4.0"
 fastapi = "^0.109.1"
-pydantic = "^1.10.7"
-docker = "^6.1.1"
+pydantic = "^2.7.4"
+docker = "7.1.0"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"
-sqlmodel = "^0.0.8"
 motor = "^3.1.2"
-python-multipart = "^0.0.6"
+python-multipart = "^0.0.7"
 backoff = "^2.2.1"
 redis = "^4.6.0"
 aiodocker = "^0.21.0"
-openai = "^0.27.8"
-langchain = "^0.0.329"
 supertokens-python = "^0.15.1"
 sendgrid = "^6.10.0"
 restrictedpython = { version = "^6.2", python = ">=3.9,<3.12" }
@@ -33,11 +30,24 @@ kubernetes = "^28.1.0"
 celery = "^5.3.6"
 watchdog = {extras = ["watchmedo"], version = "^3.0.0"}
 beanie = "^1.25.0"
+newrelic = "^9.8.0"
+aioboto3 = "^12.4.0"
+openai = "^1.30.4"
+sqlalchemy = "^2.0.30"
+asyncpg = "^0.29.0"
+psycopg2-binary = "^2.9.9"
+uuid-utils = "^0.7.0"
+sqlalchemy-json = "^0.7.0"
+tqdm = "^4.66.4"
+alembic = "^1.13.2"
+numpy = "1.26.3"
+autoevals = "^0.0.83"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 httpx = "^0.24.0"
 pytest-asyncio = "^0.21.1"
+faker = "^23.2.0"
 
 [build-system]
 requires = ["poetry-core"]

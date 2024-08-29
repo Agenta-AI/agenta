@@ -78,9 +78,15 @@ def cli():
 
 
 @click.command()
-@click.option("--app_name", default="")
-@click.option("--backend_host", default="")
-def init(app_name: str, backend_host: str):
+@click.option("--app-name", "--app_name", default=None)
+@click.option("--backend-host", "backend_host", default=None)
+@click.option(
+    "--organisation-name",
+    "organisation_name",
+    default=None,
+    help="The name of the organisation",
+)
+def init(app_name: str, backend_host: str, organisation_name: str):
     init_option = "Blank App" if backend_host != "" and app_name != "" else ""
     """Initialize a new Agenta app with the template files."""
 
@@ -169,28 +175,26 @@ def init(app_name: str, backend_host: str):
                 click.echo(click.style(f"Error: {ex}", fg="red"))
                 sys.exit(1)
 
-        filtered_org = None
+        organization = None
+        organization_choices = {}
         if where_question == "On agenta cloud":
-            which_organization = questionary.select(
-                "Which organization do you want to create the app for?",
-                choices=[
-                    f"{org.name}: {org.description}" for org in user_organizations
-                ],
-            ).ask()
-            filtered_org = next(
-                (
-                    org
-                    for org in user_organizations
-                    if org.name == which_organization.split(":")[0]
-                ),
-                None,
-            )
+            if not organisation_name:
+                organization_choices = {
+                    f"{org.name}": org for org in user_organizations
+                }
+                which_organization = questionary.select(
+                    "Which organization do you want to create the app for?",
+                    choices=list(organization_choices.keys()),
+                ).ask()
+                organisation_name = which_organization
+
+            organization = organization_choices.get(organisation_name)
 
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.create_app(
+            app_id = client.apps.create_app(
                 app_name=app_name,
-                organization_id=filtered_org.id if filtered_org else None,
+                organization_id=organization.id if organization else None,
             ).app_id
         except Exception as ex:
             click.echo(click.style(f"Error: {ex}", fg="red"))
@@ -248,8 +252,9 @@ def init(app_name: str, backend_host: str):
         gitignore_content = (
             "# Environments \nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/\nmyenv/\n"
         )
-        with open(".gitignore", "w") as gitignore_file:
-            gitignore_file.write(gitignore_content)
+        if not os.path.exists(".agentaignore"):
+            with open(".agentaignore", "w") as gitignore_file:
+                gitignore_file.write(gitignore_content)
 
         click.echo("App initialized successfully")
         if init_option == "Start from template":

@@ -2,8 +2,9 @@ import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {fetchTestsets, fetchVariants} from "@/lib/services/api"
-import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
+import {fetchVariants} from "@/services/api"
+import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations/api"
+import {fetchTestsets} from "@/services/testsets/api"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
 import {
     Divider,
@@ -213,6 +214,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                 const evaluator = evaluators.find(
                                     (item) => item.key === config.evaluator_key,
                                 )!
+
+                                if (!evaluator) {
+                                    return null
+                                }
+
                                 return (
                                     <Select.Option
                                         key={config.id}

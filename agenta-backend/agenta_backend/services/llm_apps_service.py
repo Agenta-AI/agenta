@@ -1,16 +1,41 @@
 import json
-import httpx
 import logging
 import asyncio
 import traceback
+import aiohttp
 from typing import Any, Dict, List
 
 
-from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
+from agenta_backend.utils import common
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def extract_result_from_response(response):
+    value = None
+    latency = None
+    cost = None
+
+    if response.get("version", None) == "2.0":
+        value = response
+
+        if not isinstance(value["data"], dict):
+            value["data"] = str(value["data"])
+
+        if "trace" in response:
+            latency = response["trace"].get("latency", None)
+            cost = response["trace"].get("cost", None)
+    else:
+        value = {"data": str(response["message"])}
+        latency = response.get("latency", None)
+        cost = response.get("cost", None)
+
+    kind = "text" if isinstance(value, str) else "object"
+
+    return value, kind, cost, latency
 
 
 async def make_payload(
@@ -32,7 +57,8 @@ async def make_payload(
     for param in openapi_parameters:
         if param["type"] == "input":
             payload[param["name"]] = datapoint.get(param["name"], "")
-        elif param["type"] == "dict":  # in case of dynamic inputs (as in our templates)
+        # in case of dynamic inputs (as in our templates)
+        elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
                 param["name"] in parameters
@@ -50,7 +76,8 @@ async def make_payload(
         elif param["type"] == "file_url":
             payload[param["name"]] = datapoint.get(param["name"], "")
         else:
-            payload[param["name"]] = parameters[param["name"]]
+            if param["name"] in parameters:  # hotfix
+                payload[param["name"]] = parameters[param["name"]]
 
     if inputs_dict:
         payload["inputs"] = inputs_dict
@@ -74,80 +101,70 @@ async def invoke_app(
         InvokationResult: The output of the app.
 
     Raises:
-        httpx.HTTPError: If the POST request fails.
+        aiohttp.ClientError: If the POST request fails.
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
+    async with aiohttp.ClientSession() as client:
+        app_response = {}
 
-    async with httpx.AsyncClient() as client:
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
-            response = await client.post(
-                url, json=payload, timeout=httpx.Timeout(timeout=5, read=None, write=5)
-            )
+            response = await client.post(url, json=payload, timeout=900)
+            app_response = await response.json()
             response.raise_for_status()
-            app_response = response.json()
+
+            value, kind, cost, latency = extract_result_from_response(app_response)
+
             return InvokationResult(
                 result=Result(
-                    type="text",
-                    value=app_response["message"],
+                    type=kind,
+                    value=value,
                     error=None,
                 ),
-                latency=app_response.get("latency"),
-                cost=app_response.get("cost"),
+                latency=latency,
+                cost=cost,
             )
 
-        except httpx.HTTPStatusError as e:
-            # Parse error details from the API response
-            error_message = "Error in invoking the LLM App:"
-            try:
-                error_body = e.response.json()
-                if "message" in error_body:
-                    error_message = error_body["message"]
-                elif (
-                    "error" in error_body
-                ):  # Some APIs return error information under an 'error' key
-                    error_message = error_body["error"]
-            except ValueError:
-                # Fallback if the error response is not JSON or doesn't have the expected structure
-                logger.error(f"Failed to parse error response: {e}")
-
-            logger.error(f"Error occurred during request: {error_message}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message=error_message,
-                        stacktrace=str(e),
-                    ),
-                )
+        except aiohttp.ClientResponseError as e:
+            error_message = app_response.get("detail", {}).get(
+                "error", f"HTTP error {e.status}: {e.message}"
             )
-
-        except httpx.RequestError as e:
-            # Handle other request errors (e.g., network issues)
-            logger.error(f"Request error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Network error while invoking the LLM App",
-                        stacktrace=str(e),
-                    ),
-                )
+            stacktrace = app_response.get("detail", {}).get(
+                "traceback", "".join(traceback.format_exception_only(type(e), e))
             )
-
+            logger.error(f"HTTP error occurred during request: {error_message}")
+            common.capture_exception_in_sentry(e)
+        except aiohttp.ServerTimeoutError as e:
+            error_message = "Request timed out"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+        except aiohttp.ClientConnectionError as e:
+            error_message = f"Connection error: {str(e)}"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+        except json.JSONDecodeError as e:
+            error_message = "Failed to decode JSON from response"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
         except Exception as e:
-            # Catch-all for any other unexpected errors
-            logger.error(f"Unexpected error: {e}")
-            return InvokationResult(
-                result=Result(
-                    type="error",
-                    error=Error(
-                        message="Unexpected error while invoking the LLM App",
-                        stacktrace=str(e),
-                    ),
-                )
+            error_message = f"Unexpected error: {str(e)}"
+            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            logger.error(error_message)
+            common.capture_exception_in_sentry(e)
+
+        return InvokationResult(
+            result=Result(
+                type="error",
+                error=Error(
+                    message=error_message,
+                    stacktrace=stacktrace,
+                ),
             )
+        )
 
 
 async def run_with_retry(
@@ -173,25 +190,39 @@ async def run_with_retry(
         InvokationResult: The invokation result.
 
     """
+
     retries = 0
     last_exception = None
     while retries < max_retry_count:
         try:
             result = await invoke_app(uri, input_data, parameters, openapi_parameters)
             return result
-        except (httpx.TimeoutException, httpx.ConnectTimeout, httpx.ConnectError) as e:
+        except aiohttp.ClientError as e:
             last_exception = e
             print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
+        except Exception as e:
+            last_exception = e
+            logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
+            logger.info("".join(traceback.format_exception_only(type(e), e)))
+            retries += 1
+            common.capture_exception_in_sentry(e)
 
-    # If max retries reached, return the last exception
-    # return AppOutput(output=None, status=str(last_exception))
+    # If max retries is reached or an exception that isn't in the second block,
+    # update & return the last exception
+    logging.info("Max retries reached")
+    exception_message = (
+        "Max retries reached"
+        if retries == max_retry_count
+        else f"Error processing {input_data} datapoint"
+    )
+
     return InvokationResult(
         result=Result(
             type="error",
             value=None,
-            error=Error(message="max retries reached", stacktrace=last_exception),
+            error=Error(message=exception_message, stacktrace=str(last_exception)),
         )
     )
 
@@ -230,11 +261,12 @@ async def batch_invoke(
     openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
 
     async def run_batch(start_idx: int):
+        tasks = []
         print(f"Preparing {start_idx} batch...")
         end_idx = min(start_idx + batch_size, len(testset_data))
         for index in range(start_idx, end_idx):
-            try:
-                batch_output: InvokationResult = await run_with_retry(
+            task = asyncio.ensure_future(
+                run_with_retry(
                     uri,
                     testset_data[index],
                     parameters,
@@ -242,13 +274,15 @@ async def batch_invoke(
                     retry_delay,
                     openapi_parameters,
                 )
-                list_of_app_outputs.append(batch_output)
-                print(f"Adding outputs to batch {start_idx}")
-            except Exception as exc:
-                traceback.print_exc()
-                logger.info(
-                    f"Error processing batch[{start_idx}]:[{end_idx}] ==> {str(exc)}"
-                )
+            )
+            tasks.append(task)
+
+        # Gather results of all tasks
+        results = await asyncio.gather(*tasks)
+
+        for result in results:
+            list_of_app_outputs.append(result)
+            print(f"Adding outputs to batch {start_idx}")
 
         # Schedule the next batch with a delay
         next_batch_start_idx = end_idx
@@ -258,6 +292,7 @@ async def batch_invoke(
 
     # Start the first batch
     await run_batch(0)
+
     return list_of_app_outputs
 
 
@@ -307,9 +342,8 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
 
 async def _get_openai_json_from_uri(uri):
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(uri)
-        timeout = httpx.Timeout(timeout=5, read=None, write=5)
-        resp = await client.get(uri, timeout=timeout)
-        json_data = json.loads(resp.text)
+    async with aiohttp.ClientSession() as client:
+        resp = await client.get(uri, timeout=5)
+        resp_text = await resp.text()
+        json_data = json.loads(resp_text)
         return json_data
