@@ -11,7 +11,7 @@ import uuid_utils.compat as uuid
 
 from agenta_backend.models.db_models import (
     UserDB,
-    ImageDB,
+    DockerImageDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
@@ -47,7 +47,7 @@ from agenta_backend.models.shared_models import TemplateType
 
 tables = [
     UserDB,
-    ImageDB,
+    DockerImageDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
@@ -502,7 +502,7 @@ async def main():
     try:
         await create_all_tables(tables=tables)
         await migrate_collection("users", UserDB, transform_user)
-        await migrate_collection("docker_images", ImageDB, transform_image)
+        await migrate_collection("docker_images", DockerImageDB, transform_image)
         await migrate_collection("app_db", AppDB, transform_app)
         await migrate_collection("deployments", DeploymentDB, transform_deployment)
         await migrate_collection("bases", VariantBaseDB, transform_variant_base)

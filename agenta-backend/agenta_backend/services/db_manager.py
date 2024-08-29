@@ -27,7 +27,7 @@ if isCloudEE():
         WorkspaceDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
-        ImageDB_ as ImageDB,
+        DockerImageDB_ as DockerImageDB,
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
@@ -48,7 +48,7 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
-        ImageDB,
+        DockerImageDB,
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
@@ -153,19 +153,19 @@ async def add_testset_to_app_variant(
             print(f"An error occurred in adding the default testset: {e}")
 
 
-async def get_image_by_id(image_id: str) -> ImageDB:
+async def get_image_by_id(image_id: str) -> DockerImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
         image_id (str): The image unique identifier
 
     Returns:
-        ImageDB: instance of image object
+        DockerImageDB: instance of image object
     """
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(ImageDB).filter_by(id=uuid.UUID(image_id))
+            select(DockerImageDB).filter_by(id=uuid.UUID(image_id))
         )
         image = result.scalars().first()
         return image
@@ -216,12 +216,12 @@ async def fetch_app_variant_by_id(
             query = base_query.options(
                 joinedload(AppVariantDB.organization),
                 joinedload(AppVariantDB.user.of_type(UserDB)).load_only(UserDB.uid),  # type: ignore
-                joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
+                joinedload(AppVariantDB.image.of_type(DockerImageDB)).load_only(DockerImageDB.docker_id, DockerImageDB.tags),  # type: ignore
             )
         else:
             query = base_query.options(
                 joinedload(AppVariantDB.user).load_only(UserDB.uid),  # type: ignore
-                joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
+                joinedload(AppVariantDB.image).load_only(DockerImageDB.docker_id, DockerImageDB.tags),  # type: ignore
             )
 
         result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
@@ -355,14 +355,14 @@ async def create_new_variant_base(
     app: AppDB,
     user: UserDB,
     base_name: str,
-    image: ImageDB,
+    image: DockerImageDB,
     organization=None,
     workspace=None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
         base_name (str): The name of the base.
-        image (ImageDB): The image of the base.
+        image (DockerImageDB): The image of the base.
         user (UserDB): The User Object creating the variant.
         app (AppDB): The associated App Object.
         organization (OrganizationDB): The Organization the variant belongs to.
@@ -420,7 +420,7 @@ async def create_new_app_variant(
     app: AppDB,
     user: UserDB,
     variant_name: str,
-    image: ImageDB,
+    image: DockerImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
@@ -430,7 +430,7 @@ async def create_new_app_variant(
     """Create a new variant.
     Args:
         variant_name (str): The name of the variant.
-        image (ImageDB): The image of the variant.
+        image (DockerImageDB): The image of the variant.
         base (VariantBaseDB): The base of the variant.
         config (ConfigDB): The config of the variant.
     Returns:
@@ -506,7 +506,7 @@ async def create_image(
     template_uri: Optional[str] = None,
     docker_id: Optional[str] = None,
     tags: Optional[str] = None,
-) -> ImageDB:
+) -> DockerImageDB:
     """Create a new image.
     Args:
         docker_id (str): The ID of the image.
@@ -516,7 +516,7 @@ async def create_image(
         organization (OrganizationDB): The organization that the image belongs to.
         workspace (WorkspaceDB): The workspace that the image belongs to.
     Returns:
-        ImageDB: The created image.
+        DockerImageDB: The created image.
     """
 
     # Validate image type
@@ -535,7 +535,7 @@ async def create_image(
         raise Exception("template_uri must be provided for type zip")
 
     async with db_engine.get_session() as session:
-        image = ImageDB(
+        image = DockerImageDB(
             deletable=deletable,
             user_id=user.id,
         )
@@ -903,7 +903,7 @@ async def get_orga_image_instance_by_docker_id(
     docker_id: str,
     organization_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
-) -> ImageDB:
+) -> DockerImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -911,11 +911,11 @@ async def get_orga_image_instance_by_docker_id(
         docker_id (str): The image id
 
     Returns:
-        ImageDB: instance of image object
+        DockerImageDB: instance of image object
     """
 
     async with db_engine.get_session() as session:
-        query = select(ImageDB).filter_by(docker_id=docker_id)
+        query = select(DockerImageDB).filter_by(docker_id=docker_id)
 
         if isCloudEE():
             # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -937,7 +937,7 @@ async def get_orga_image_instance_by_uri(
     template_uri: str,
     organization_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
-) -> ImageDB:
+) -> DockerImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -945,7 +945,7 @@ async def get_orga_image_instance_by_uri(
         template_uri (url): The image template url
 
     Returns:
-        ImageDB: instance of image object
+        DockerImageDB: instance of image object
     """
 
     parsed_url = urlparse(template_uri)
@@ -953,7 +953,7 @@ async def get_orga_image_instance_by_uri(
         raise ValueError(f"Invalid URL: {template_uri}")
 
     async with db_engine.get_session() as session:
-        query = select(ImageDB).filter_by(template_uri=template_uri)
+        query = select(DockerImageDB).filter_by(template_uri=template_uri)
 
         if isCloudEE():
             # assert that if organization is provided, workspace_id is also provided, and vice versa
@@ -1636,12 +1636,12 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         return app_variant_revisions
 
 
-async def remove_image(image: ImageDB):
+async def remove_image(image: DockerImageDB):
     """
     Removes an image from the database.
 
     Args:
-        image (ImageDB): The image to remove from the database.
+        image (DockerImageDB): The image to remove from the database.
 
     Raises:
         ValueError: If the image is None.
@@ -1654,7 +1654,7 @@ async def remove_image(image: ImageDB):
         raise ValueError("Image is None")
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(ImageDB).filter_by(id=image.id))
+        result = await session.execute(select(DockerImageDB).filter_by(id=image.id))
         image = result.scalars().first()
 
         await session.delete(image)
