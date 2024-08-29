@@ -1,5 +1,5 @@
 {
-  "schema": "https://mintlify.com/schema.json",
+  "$schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
     "dark": "/logo/dark-complete-transparent-cropped.svg",
