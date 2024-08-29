@@ -176,7 +176,7 @@ class VariantBaseDB(Base):
     )
 
     user = relationship("UserDB")
-    image = relationship("ImageDB")
+    image = relationship("DockerImageDB")
     deployment = relationship("DeploymentDB")
     app = relationship("AppDB", back_populates="base")
 
@@ -214,7 +214,7 @@ class AppVariantDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    image = relationship("ImageDB")
+    image = relationship("DockerImageDB")
     app = relationship("AppDB", back_populates="variant")
     user = relationship("UserDB", foreign_keys=[user_id])
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
