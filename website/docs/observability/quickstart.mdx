@@ -2,6 +2,8 @@
 title: Quick Start
 ---
 
+# Setting up telemetry
+
 You can configure Agenta to capture all inputs, outputs, and other metadata from your LLM applications, regardless of whether they are hosted in Agenta or in your environment.
 
 Post instrumentation, Agenta provides a dashboard that offers an overview of your app's performance metrics over time, including request counts, average latency, and costs.
@@ -16,8 +18,6 @@ Concepts of Telemetry:
 **Spans:** A span represents a unit of work within a trace. Spans are nested to form a tree-like structure, with the root span representing the overall operation, and child spans representing sub-operations. In Agenta, we enrich each span with cost information and metadata in the event of an LLM call.
 
 :::
-
-# Setting up telemetry
 
 :::note
   When creating an application from the UI, tracing is enabled by default. No
