@@ -72,3 +72,13 @@ class AppType(str, enum.Enum):
     PROMPT_TEMPLATE = "TEMPLATE:single_prompt"
     RAG_TEMPLATE = "TEMPLATE:RAG"
     CUSTOM = "CUSTOM"
+
+    @classmethod
+    def friendly_name(cls, app_type: str):
+        mappings = {
+            cls.CHAT_TEMPLATE: "chat",
+            cls.PROMPT_TEMPLATE: "completion",
+            cls.RAG_TEMPLATE: "rag",
+            cls.CUSTOM: "custom",
+        }
+        return mappings.get(app_type, None)
