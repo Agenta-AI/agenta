@@ -10,7 +10,7 @@ from agenta_backend.models.db_models import (
     UserDB,
     DeploymentDB,
     VariantBaseDB,
-    ImageDB,
+    DockerImageDB,
     AppVariantDB,
 )
 
@@ -75,7 +75,7 @@ async def get_first_user_app(get_first_user_object):
         await session.commit()
         await session.refresh(app)
 
-        db_image = ImageDB(
+        db_image = DockerImageDB(
             docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             tags="agentaai/templates_v2:local_test_prompt",
             user_id=user.id,

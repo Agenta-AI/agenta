@@ -39,8 +39,7 @@ class UserDB(Base):
     )
 
 
-# TODO: Rename ImageDB to DockerImageDB ?
-class ImageDB(Base):
+class DockerImageDB(Base):
     __tablename__ = "docker_images"
 
     id = Column(
