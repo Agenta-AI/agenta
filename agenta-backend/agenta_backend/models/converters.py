@@ -118,16 +118,13 @@ async def human_evaluation_db_to_simple_evaluation_output(
 async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
-    variant = await db_manager.get_app_variant_instance_by_id(
-        str(evaluation_db.variant_id)
+    variant_name = (
+        evaluation_db.variant.variant_name
+        if evaluation_db.variant.variant_name
+        else str(evaluation_db.variant_id)
     )
-    variant_name = variant.variant_name if variant else str(evaluation_db.variant_id)
-    variant_revision = await db_manager.get_app_variant_revision_by_id(
-        str(evaluation_db.variant_revision_id)
-    )
-    revision = str(variant_revision.revision)
-    aggregated_results = await aggregated_result_of_evaluation_to_pydantic(
-        str(evaluation_db.id)
+    aggregated_results = aggregated_result_of_evaluation_to_pydantic(
+        evaluation_db.aggregated_results
     )
 
     return Evaluation(
@@ -138,7 +135,7 @@ async def evaluation_db_to_pydantic(
         status=evaluation_db.status,
         variant_ids=[str(evaluation_db.variant_id)],
         variant_revision_ids=[str(evaluation_db.variant_revision_id)],
-        revisions=[revision],
+        revisions=[str(evaluation_db.variant_revision.revision)],
         variant_names=[variant_name],
         testset_id=str(evaluation_db.testset_id),
         testset_name=evaluation_db.testset.name,
@@ -212,12 +209,11 @@ def human_evaluation_scenario_db_to_pydantic(
     )
 
 
-async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> List[dict]:
+def aggregated_result_of_evaluation_to_pydantic(
+    evaluation_aggregated_results: List,
+) -> List[dict]:
     transformed_results = []
-    aggregated_results = await db_manager.fetch_eval_aggregated_results(
-        evaluation_id=evaluation_id
-    )
-    for aggregated_result in aggregated_results:
+    for aggregated_result in evaluation_aggregated_results:
         evaluator_config_dict = (
             {
                 "id": str(aggregated_result.evaluator_config.id),
@@ -241,27 +237,16 @@ async def aggregated_result_of_evaluation_to_pydantic(evaluation_id: str) -> Lis
     return transformed_results
 
 
-async def evaluation_scenarios_results_to_pydantic(
-    evaluation_scenario_id: str,
-) -> List[dict]:
-    scenario_results = await db_manager.fetch_evaluation_scenario_results(
-        evaluation_scenario_id
-    )
-    return [
+async def evaluation_scenario_db_to_pydantic(
+    evaluation_scenario_db: EvaluationScenarioDB, evaluation_id: str
+) -> EvaluationScenario:
+    scenario_results = [
         {
             "evaluator_config": str(scenario_result.evaluator_config_id),
             "result": scenario_result.result,
         }
-        for scenario_result in scenario_results
+        for scenario_result in evaluation_scenario_db.results
     ]
-
-
-async def evaluation_scenario_db_to_pydantic(
-    evaluation_scenario_db: EvaluationScenarioDB, evaluation_id: str
-) -> EvaluationScenario:
-    scenario_results = await evaluation_scenarios_results_to_pydantic(
-        str(evaluation_scenario_db.id)
-    )
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=evaluation_id,
@@ -307,17 +292,11 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     if isinstance(app_variant_db.base_id, uuid.UUID) and isinstance(
         app_variant_db.base.deployment_id, uuid.UUID
     ):
-        deployment = await db_manager.get_deployment_by_id(
-            str(app_variant_db.base.deployment_id)
-        )
-        uri = deployment.uri
+        uri = app_variant_db.base.deployment.uri
     else:
-        deployment = None
         uri = None
 
-    logger.info(
-        f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)} {deployment}"
-    )
+    logger.info(f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)}")
     variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),
@@ -328,7 +307,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         base_name=app_variant_db.base_name,  # type: ignore
         base_id=str(app_variant_db.base_id),
         config_name=app_variant_db.config_name,  # type: ignore
-        uri=uri,
+        uri=uri,  # type: ignore
         revision=app_variant_db.revision,  # type: ignore
         created_at=str(app_variant_db.updated_at),
         updated_at=str(app_variant_db.created_at),
@@ -472,6 +451,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
         app_name=app_db.app_name,
         app_id=str(app_db.id),
         app_type=AppType.friendly_tag(app_db.app_type),
+        updated_at=str(app_db.updated_at),
     )
 
 

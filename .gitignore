@@ -104,3 +104,5 @@ examples/baby_name_generator/test_example/requirements.txt
 examples/baby_name_generator/test_example/v1.py
 examples/baby_name_generator/.agentaignore
 agenta-cli/tests/test_sdk_locally/config.toml
+
+agenta-cli/agenta/client/fern

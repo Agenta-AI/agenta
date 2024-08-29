@@ -22,6 +22,7 @@ export interface ListAppsItem {
     app_id: string
     app_name: string
     app_type?: string
+    updated_at: string
 }
 
 export interface AppVariant {

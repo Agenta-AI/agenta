@@ -1,97 +1,524 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
+  --ifm-color-primary: #758391;
+  --ifm-color-primary-dark: #586673;
+  --ifm-color-primary-darker: #394857;
+  --ifm-color-primary-darkest: #1c2c3d;
+  --ifm-color-primary-light: #97a4b0;
+  --ifm-color-primary-lighter: #bdc7d1;
+  --ifm-color-primary-lightest: #d6dee6;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.274);
+  --ifm-font-weight-normal: 400;
+  --ifm-navbar-height: 3.9rem;
+  --ifm-link-color: var(--ifm-color-primary-darker);
+  --ifm-heading-color: var(--ifm-color-primary-darkest);
+  --ifm-heading-h1-font-size: 32px;
+  --ifm-heading-h2-font-size: 26px;
+  --ifm-heading-h3-font-size: 20px;
+  --ifm-heading-h4-font-size: 16px;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme="dark"] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --ifm-color-primary: #758391;
+  --ifm-color-primary-dark: #bdc7d1;
+  --ifm-color-primary-darker: #d6dee6;
+  --ifm-color-primary-darkest: #eaeff5;
+  --ifm-color-primary-light: #758391;
+  --ifm-color-primary-lighter: #586673;
+  --ifm-color-primary-lightest: #394857;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
-/* Sidebar Method labels */
+*:not(code *):not(pre) {
+  font-family: "Inter", sans-serif !important;
+}
+body {
+  color: var(--ifm-color-primary-darker);
+  font-size: 16px;
+}
+code *,
+pre {
+  font-family: "IBM Plex Mono", monospace !important;
+}
+h1 {
+  font-size: var(--ifm-heading-h1-font-size) !important;
+  line-height: 40px;
+}
+h2 {
+  font-size: var(--ifm-heading-h2-font-size) !important;
+  line-height: 34px;
+}
+h3 {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  line-height: 28px;
+}
+h4 {
+  font-size: var(--ifm-heading-h4-font-size) !important;
+  line-height: 28px;
+}
+/* link underline style */
+article a {
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ifm-color-primary);
+}
+article a:hover {
+  text-decoration-thickness: 2px !important;
+  transition-duration: 400ms;
+}
+.cardContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
+.cardContainer_fWXF,
+.hash-link,
+.table-of-contents__link {
+  text-decoration: none !important;
+}
+
+/** Navbar **/
+@media (min-width: 1851px) {
+  .main-wrapper,
+  .navbar__inner {
+    width: 1550px;
+    margin: auto;
+  }
+}
+@media (min-width: 1350px) and (max-width: 1850px) {
+  .main-wrapper,
+  .navbar__inner {
+    width: 85%;
+    margin: auto;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1350px) {
+  .main-wrapper,
+  .navbar__inner {
+    width: 95%;
+    margin: auto;
+  }
+}
+@media (max-width: 1024px) {
+  .main-wrapper,
+  .navbar__inner {
+    width: 100%;
+    margin: auto;
+  }
+}
+@media (min-width: 995px) and (max-width: 1150px) {
+  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
+  {
+    display: none;
+  }
+}
+.navbar__link {
+  font-size: 14px;
+  padding: 0px 8px;
+  color: var(--ifm-color-primary);
+  font-weight: 400;
+}
+[data-theme="dark"] .navbar__link {
+  color: var(--ifm-color-primary-darker);
+}
+.navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+  font-weight: 500;
+}
+[data-theme="dark"] .navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
+.nav_github_icons svg,
+.nav_slack_icons svg {
+  width: 22px;
+  height: 22px;
+}
+.nav_github_icons,
+.nav_slack_icons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.theme-icon {
+  color: var(--ifm-color-primary-darkest);
+}
+.nav_slack_icons {
+  margin-right: 3px;
+}
+.nav_primary_button {
+  background-color: var(--ifm-color-primary-darkest);
+  color: var(--ifm-color-primary-lightest);
+  margin-right: 25px;
+  padding: 8px 16px;
+}
+[data-theme="dark"] .nav_primary_button {
+  background-color: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest);
+}
+.nav_secondary_button {
+  background-color: transparent;
+  color: var(--ifm-color-primary);
+  margin-left: 10px;
+  padding: 8px 12px;
+}
+[data-theme="dark"] .nav_secondary_button {
+  color: var(--ifm-color-primary-dark);
+}
+.nav_primary_button,
+.nav_secondary_button {
+  font-size: 14px;
+  border-radius: 6px;
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+@media (max-width: 995px) {
+  .nav_github_icons,
+  .nav_slack_icons {
+    position: absolute;
+    top: -42px;
+    left: 181px;
+  }
+  .nav_slack_icons {
+    left: 220px;
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"],
+  [href="https://cloud.agenta.ai/apps"]
+  {
+    padding: 0px;
+    position: absolute;
+    bottom: 15px;
+    width: 95%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]
+  {
+    bottom: 65px;
+  }
+  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]:hover,
+  [href="https://cloud.agenta.ai/apps"]:hover,
+  [href="https://github.com/Agenta-AI/agenta"]:hover,
+  [href="https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"]:hover
+  {
+    background: transparent;
+  }
+  .nav_primary_button,
+  .nav_secondary_button {
+    width: 100%;
+    text-align: center;
+    margin: 0px !important;
+  }
+}
+
+/************************** Nav searchbar **************************/
+[data-theme="dark"] .DocSearch-Button {
+  background-color: #181818;
+}
+[data-theme="dark"] .DocSearch-Button:hover {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Modal {
+  background-color: #1b1b1d;
+}
+[data-theme="dark"] .DocSearch-Footer {
+  background-color: #242526;
+  opacity: 0.9;
+}
+[data-theme="dark"] .DocSearch-Form {
+  background-color: #181818;
+  box-shadow: none;
+  border: 2px solid #3d4144;
+}
+.DocSearch-Button {
+  border-radius: 6px !important;
+  padding: 0 2px 0px 8px !important;
+}
+@media (min-width: 1350px) {
+  .DocSearch-Button {
+    width: 250px;
+  }
+}
+@media (max-width: 768px) {
+  .DocSearch-Button {
+    padding: 0 8px 0px 8px !important;
+  }
+}
+.DocSearch-Search-Icon {
+  color: var(--ifm-color-primary) !important;
+}
+.DocSearch-Button-Placeholder {
+  font-size: 14px !important;
+}
+.DocSearch-Button-Key {
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  width: 18px !important;
+}
+
+/*************************** Sidebar ***************************/
+@media (min-width: 1350px) {
+  .theme-doc-sidebar-container {
+    margin-right: 40px;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1350px) {
+  .theme-doc-sidebar-container {
+    margin-right: 20px;
+  }
+}
+li.sidebar-section-title > div.menu__list-item-collapsible:hover {
+  background-color: transparent !important;
+}
+li.sidebar-section-title > div.menu__list-item-collapsible {
+  margin-top: 25px !important;
+}
+li.sidebar-section-title > div.menu__list-item-collapsible a {
+  font-weight: 600 !important;
+}
+.menu__link {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
+  color: var(--ifm-color-primary);
+}
+.menu__link--active {
+  font-weight: 500;
+  color: var(--ifm-color-primary-darkest);
+}
+[data-theme="dark"] .menu__link {
+  color: var(--ifm-color-primary-darker);
+}
+[data-theme="dark"] .menu__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
+.menu__link--sublist-caret:after,
+.menu__caret:before {
+  margin: 0 10px;
+  background: var(--ifm-menu-link-sublist-icon) 50% / 1.4rem 1.4rem;
+  height: 10px;
+  opacity: 0.8;
+}
+.menu__list {
+  padding-right: 5px;
+}
+.docSidebarContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocRoot-Layout-Sidebar-styles-module,
+.docSidebarContainer_YfHR {
+  border-right: none !important;
+}
+
+/**************************** Article section ****************************/
+.container > .row {
+  justify-content: space-between;
+}
+.markdown img {
+  margin-bottom: 24px;
+}
+.theme-doc-markdown h1:first-child,
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module,
+.title_kItE {
+  padding-top: 40px;
+}
+.docItemCol_node_modules-docusaurus-theme-openapi-docs-lib-theme-ApiItem-Layout-styles-module {
+  line-height: 24px;
+}
+.breadcrumbs__item--active > span {
+  padding: 3px 15px;
+}
+
+/**************************** Heading lists ****************************/
+.col--3 {
+  --ifm-col-width: calc(2.8 / 12 * 100%);
+}
+@media (max-width: 995px) {
+  .tocCollapsibleButton_node_modules-\@docusaurus-theme-classic-lib-theme-TOCCollapsible-CollapseButton-styles-module,
+  .tocCollapsibleButtonExpanded_MG3E {
+    color: var(--ifm-color-primary);
+  }
+}
+.table-of-contents__link {
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 400;
+  color: var(--ifm-color-primary-light);
+}
+[data-theme="dark"] .table-of-contents__link {
+  color: var(--ifm-color-primary-dark);
+}
+.table-of-contents__left-border {
+  border: none !important;
+}
+
+/***************************** Sidebar Method labels in Referencce page API section *****************************/
+.cardTitle_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
+.cardTitle_rnsV {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  line-height: 28px !important;
+}
+[href="/reference/api/agenta-backend"],
+.list_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module article:first-child,
+.list_eTzJ article:first-child,
+.generatedIndexPage_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module
+  header
+  p,
+.generatedIndexPage_vN6x header p {
+  display: none;
+}
 .api-method > .menu__link {
   align-items: center;
   justify-content: start;
 }
-
 .api-method > .menu__link::before {
-  width: 50px;
-  height: 20px;
-  font-size: 12px;
-  line-height: 20px;
+  width: 35px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 18px;
   text-transform: uppercase;
   font-weight: 600;
   border-radius: 0.25rem;
-  border: 1px solid;
   margin-right: var(--ifm-spacing-horizontal);
   text-align: center;
   flex-shrink: 0;
-  border-color: transparent;
   color: white;
 }
-
 .get > .menu__link::before {
   content: "get";
   background-color: var(--ifm-color-primary);
 }
-
 .put > .menu__link::before {
   content: "put";
   background-color: var(--openapi-code-blue);
 }
-
 .post > .menu__link::before {
   content: "post";
   background-color: var(--openapi-code-green);
 }
-
 .delete > .menu__link::before {
   content: "del";
   background-color: var(--openapi-code-red);
 }
-
 .patch > .menu__link::before {
   content: "patch";
   background-color: var(--openapi-code-orange);
 }
+.openapi__method-endpoint-path,
+.openapi-markdown__details-summary-header-params,
+.openapi-markdown__details-summary-header-body {
+  font-size: 14px !important;
+  line-height: 14px !important;
+}
 
-/* customizes "section headers". */
-li.sidebar-section-title > div.menu__list-item-collapsible {
-  font-weight: bold;
-  color: var(--ifm-color-primary-contrast-foreground);
+/****************************** changelog file ******************************/
+.container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
+.container_mt6G {
+  display: none;
 }
-li.sidebar-section-title > div.menu__list-item-collapsible:hover {
-  background-color: transparent;
+.title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
+.title_f1Hy {
+  margin-top: 40px;
+  margin-bottom: 10px;
+  padding-left: 20%;
 }
-li.sidebar-section-title:first-child > div.menu__list-item-collapsible {
-  margin-top: 0.5em;
+.blog-post-page .col[class*="col--"] {
+  flex: 0 !important;
+  position: relative;
 }
-li.sidebar-section-title:not(:first-child) > div.menu__list-item-collapsible {
-  margin-top: 1em;
+.blog-post-page .col--2 {
+  display: none !important;
+}
+.blog-post-page .col {
+  --ifm-col-width: 100% !important;
+  flex: 0 0;
+  margin-left: 0;
+  max-width: 100% !important;
+  padding: 0 var(--ifm-spacing-horizontal);
+  width: 100%;
+}
+.blog-post-page .row {
+  display: block;
+}
+.changelog {
+  width: 80%;
+  margin-left: auto;
+}
+.changelog em {
+  font-style: normal;
+  font-weight: 500;
+  position: absolute;
+  left: 15px;
+  margin-top: -42px;
+  color: var(--ifm-color-primary-darker);
+}
+[data-theme="dark"] .changelog em {
+  color: var(--ifm-color-primary-light);
+}
+.changelog hr {
+  margin-top: 70px;
+  width: 97%;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--ifm-color-primary-lightest);
+}
+.changelog h3 {
+  margin-top: 160px;
+}
+.changelog h3:first-child {
+  margin-top: 60px;
+}
+@media (max-width: 995px) {
+  .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
+  .title_f1Hy {
+    padding-left: 0px;
+  }
+  .changelog {
+    width: 100%;
+    margin-left: auto;
+  }
+  .changelog hr {
+    margin-top: 50px;
+    width: 96%;
+  }
+  .changelog em {
+    font-weight: 500;
+    position: absolute;
+    left: auto;
+    margin-top: -100px !important;
+  }
+  .changelog h3 {
+    margin-top: 195px;
+  }
+  .changelog h3:first-child {
+    margin-top: 110px;
+  }
+}
+@media (max-width: 520px) {
+  .changelog hr {
+    margin: 50px auto 28%;
+    width: 100%;
+    position: static;
+    left: 0;
+    transform: translateX(0);
+  }
+  .changelog em {
+    font-weight: 500;
+    position: absolute;
+    left: auto;
+    margin-top: -105px !important;
+  }
+  .changelog h3 {
+    margin-top: 0px;
+    height: auto;
+    max-height: 58px;
+    overflow: hidden;
+  }
 }
 
 /* highlight error code */
@@ -114,7 +541,6 @@ li.sidebar-section-title:not(:first-child) > div.menu__list-item-collapsible {
 .medium-zoom-overlay {
   z-index: 9999999;
 }
-
 [data-theme="dark"] .medium-zoom-image--opened {
   border: 1px solid rgba(255, 255, 255, 0.096);
 }

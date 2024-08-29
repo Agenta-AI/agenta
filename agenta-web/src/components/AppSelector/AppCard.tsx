@@ -10,6 +10,7 @@ import {Note, PencilLine, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import DeleteAppModal from "./modals/DeleteAppModal"
+import EditAppModal from "./modals/EditAppModal"
 
 const {Text} = Typography
 
@@ -57,6 +58,7 @@ const AppCard: React.FC<{
     const [confirmLoading, setConfirmLoading] = useState(false)
     const {mutate} = useAppsData()
     const router = useRouter()
+    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
     const handleDeleteOk = async () => {
         setConfirmLoading(true)
@@ -100,14 +102,15 @@ const AppCard: React.FC<{
                                     },
                                 },
                                 {type: "divider"},
-                                // {
-                                //     key: "rename_app",
-                                //     label: "Rename",
-                                //     icon: <PencilLine size={16} />,
-                                //     onClick: (e: any) => {
-                                //         e.domEvent.stopPropagation()
-                                //     },
-                                // },
+                                {
+                                    key: "rename_app",
+                                    label: "Rename",
+                                    icon: <PencilLine size={16} />,
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        setIsEditAppModalOpen(true)
+                                    },
+                                },
                                 {
                                     key: "delete_app",
                                     label: "Delete",
@@ -137,7 +140,7 @@ const AppCard: React.FC<{
                     </div>
                     <div>
                         <Text>Last modified:</Text>
-                        <Text>{formatDay(new Date().getTime())}</Text>
+                        <Text>{formatDay(app.updated_at)}</Text>
                     </div>
                 </div>
             </Card>
@@ -148,6 +151,12 @@ const AppCard: React.FC<{
                 onCancel={handleDeleteCancel}
                 appName={app.app_name}
                 confirmLoading={confirmLoading}
+            />
+
+            <EditAppModal
+                open={isEditAppModalOpen}
+                onCancel={() => setIsEditAppModalOpen(false)}
+                appDetails={app}
             />
         </>
     )
