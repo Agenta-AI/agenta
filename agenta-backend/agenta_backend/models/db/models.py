@@ -27,6 +27,7 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
+        ProjectDB,
         DockerImageDB,
         TestSetDB,
         EvaluationDB,
@@ -49,6 +50,7 @@ from agenta_backend.models.db_models import (
 models = [
     AppDB,
     UserDB,
+    ProjectDB,
     DockerImageDB,
     TestSetDB,
     TemplateDB,
