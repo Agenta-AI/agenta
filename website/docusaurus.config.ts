@@ -131,10 +131,13 @@ const config: Config = {
       ],
     },
     prism: {
+      theme: prismThemes.github,
+      darkTheme: prismThemes.vsDark,
+      
       prism: {
-        theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
+
         additionalLanguages: ["ruby", "csharp", "php", "java", "powershell", "json", "bash"],
+        
         magicComments: [
           // Remember to extend the default highlight class name as well!
           {
@@ -243,7 +246,7 @@ const config: Config = {
     [
       "posthog-docusaurus",
       {
-        apiKey: process.env.POSTHOG_API_KEY,
+        apiKey: process.env.POSTHOG_API_KEY || "dummy",  // Posthog is only available on the prod website
         appUrl: "https://docs.agenta.ai",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
