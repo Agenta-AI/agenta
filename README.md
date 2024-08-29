@@ -108,7 +108,7 @@ Agenta allows developers and product teams to collaborate in building production
 
 ### With Agenta, you can:
 
-- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
+- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
 - ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets) for evaluation
 - 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator)
 - [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation) your applications with **human feedback**
