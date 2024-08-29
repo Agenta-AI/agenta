@@ -4,12 +4,13 @@ from time import sleep
 from typing import List
 
 import docker
-from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     Image,
     DockerEnvVars,
     Dict,
 )
+
+agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
 
 client = docker.from_env()
 
@@ -55,7 +56,7 @@ def list_images() -> List[Image]:
     registry_images = [
         Image(type="image", docker_id=image.id, tags=image.tags[0])
         for image in all_images
-        if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)
+        if len(image.tags) > 0 and image.tags[0].startswith(agenta_registry_repo)
     ]
     return registry_images
 
@@ -80,7 +81,7 @@ def start_container(
         }
 
         # Merge the default labels with environment-specific labels
-        if os.environ["ENVIRONMENT"] == "production":
+        if os.environ.get("ENVIRONMENT") == "production":
             # Production specific labels
             production_labels = {
                 f"traefik.http.routers.{container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{uri_path}`)",

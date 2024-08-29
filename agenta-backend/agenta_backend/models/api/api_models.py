@@ -1,9 +1,26 @@
-from datetime import datetime
-from agenta_backend.models.db_models import ConfigDB
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from agenta_backend.models.shared_models import ConfigDB
+
+
+class PaginationParam(BaseModel):
+    page: int = Field(default=1, ge=1)
+    pageSize: int = Field(default=10, ge=1)
+
+
+class SorterParams(BaseModel):
+    created_at: str = Field("desc")
+
+
+class WithPagination(BaseModel):
+    data: List[Any]
+    total: int
+    page: int
+    pageSize: int
 
 
 class Error(BaseModel):
@@ -18,7 +35,6 @@ class Result(BaseModel):
 
 
 class GetConfigResponse(BaseModel):
-    config_id: Optional[str]
     config_name: str
     current_version: int
     parameters: Dict[str, Any]
@@ -49,6 +65,14 @@ class CreateAppOutput(BaseModel):
     app_name: str
 
 
+class UpdateApp(BaseModel):
+    app_name: str
+
+
+class UpdateAppOutput(CreateAppOutput):
+    pass
+
+
 class AppOutput(CreateAppOutput):
     pass
 
@@ -77,20 +101,22 @@ class AppVariantResponse(BaseModel):
     variant_id: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]
-    previous_variant_name: Optional[str]
     user_id: str
     base_name: str
     base_id: str
     config_name: str
     uri: Optional[str]
     revision: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    modified_by_id: Optional[str] = None
 
 
 class AppVariantRevision(BaseModel):
     revision: int
     modified_by: str
     config: ConfigDB
-    created_at: datetime
+    created_at: str
 
 
 class AppVariantOutputExtended(BaseModel):
@@ -124,7 +150,7 @@ class EnvironmentRevision(BaseModel):
     modified_by: str
     deployed_app_variant_revision: Optional[str]
     deployment: Optional[str]
-    created_at: datetime
+    created_at: str
 
 
 class EnvironmentOutputExtended(EnvironmentOutput):
@@ -196,6 +222,7 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+    updated_at: str
 
 
 class RemoveApp(BaseModel):

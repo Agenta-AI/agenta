@@ -20,7 +20,7 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import docker_utils
-from agenta_backend.utils.common import isCloud
+from agenta_backend.utils.common import isCloudProd
 
 client = docker.from_env()
 
@@ -30,7 +30,7 @@ logger.setLevel(logging.INFO)
 
 async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Image:
     app_name = app_db.app_name
-    user_id = app_db.user.id
+    user_id = str(app_db.user_id)
 
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
     # Get event loop
@@ -100,10 +100,11 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
-        if isCloud():
+        if isCloudProd():
             dockerfile = "Dockerfile.cloud"
         else:
             dockerfile = "Dockerfile"
+
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
@@ -114,6 +115,7 @@ def build_image_job(
         )
         for line in build_log:
             logger.info(line)
+
         pydantic_image = Image(
             type="image",
             docker_id=image.id,

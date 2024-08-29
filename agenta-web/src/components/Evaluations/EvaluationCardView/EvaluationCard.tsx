@@ -64,7 +64,7 @@ const EvaluationCard: React.FC<Props> = ({
                         showVariantName={showVariantName}
                         evaluation={evaluation}
                         //random image from unsplash
-                        // outputImg={`https://source.unsplash.com/random/?sig=${ix}`}
+                        // outputImg={`https://fps.cdnpk.net/images/home/subhome-ai.webp?w=649&h=649`}
                     />
                 ),
             )}

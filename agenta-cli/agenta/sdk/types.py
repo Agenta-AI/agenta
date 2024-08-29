@@ -1,7 +1,14 @@
 import json
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Any, Union
 
-from pydantic import BaseModel, Extra, HttpUrl, Field
+from pydantic import ConfigDict, BaseModel, HttpUrl
+from dataclasses import dataclass
+from typing import Union
+
+
+@dataclass
+class MultipleChoice:
+    choices: Union[List[str], Dict[str, List[str]]]
 
 
 class InFile:
@@ -16,95 +23,82 @@ class LLMTokenUsage(BaseModel):
     total_tokens: int
 
 
-class FuncResponse(BaseModel):
-    message: str
-    usage: Optional[LLMTokenUsage]
-    cost: Optional[float]
-    latency: float
+class BaseResponse(BaseModel):
+    version: Optional[str] = "2.0"
+    data: Optional[Union[str, Dict[str, Any]]]
+    trace: Optional[Dict[str, Any]]
 
 
 class DictInput(dict):
-    def __new__(cls, default_keys=None):
+    def __new__(cls, default_keys: Optional[List[str]] = None):
         instance = super().__new__(cls, default_keys)
         if default_keys is None:
             default_keys = []
-        instance.data = [key for key in default_keys]
+        instance.data = [key for key in default_keys]  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "dict"})
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "dict"}
 
 
 class TextParam(str):
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "text"})
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "text", "type": "string"}
 
 
 class BinaryParam(int):
     def __new__(cls, value: bool = False):
         instance = super().__new__(cls, int(value))
-        instance.default = value
+        instance.default = value  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(
-            {
-                "x-parameter": "bool",
-                "type": "boolean",
-            }
-        )
+    def __schema_type_properties__(cls) -> dict:
+        return {
+            "x-parameter": "bool",
+            "type": "boolean",
+        }
 
 
 class IntParam(int):
     def __new__(cls, default: int = 6, minval: float = 1, maxval: float = 10):
         instance = super().__new__(cls, default)
-        instance.minval = minval
-        instance.maxval = maxval
+        instance.minval = minval  # type: ignore
+        instance.maxval = maxval  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(
-            {
-                "x-parameter": "int",
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-            }
-        )
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "int", "type": "integer"}
 
 
 class FloatParam(float):
     def __new__(cls, default: float = 0.5, minval: float = 0.0, maxval: float = 1.0):
         instance = super().__new__(cls, default)
-        instance.minval = minval
-        instance.maxval = maxval
+        instance.default = default  # type: ignore
+        instance.minval = minval  # type: ignore
+        instance.maxval = maxval  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(
-            {
-                "x-parameter": "float",
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-            }
-        )
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "float", "type": "number"}
 
 
 class MultipleChoiceParam(str):
-    def __new__(cls, default: str = None, choices: List[str] = None):
-        if type(default) is list:
+    def __new__(
+        cls, default: Optional[str] = None, choices: Optional[List[str]] = None
+    ):
+        if default is not None and type(default) is list:
             raise ValueError(
                 "The order of the parameters for MultipleChoiceParam is wrong! It's MultipleChoiceParam(default, choices) and not the opposite"
             )
-        if default is None and choices:
+
+        if not default and choices is not None:
             # if a default value is not provided,
-            # uset the first value in the choices list
+            # set the first value in the choices list
             default = choices[0]
 
         if default is None and not choices:
@@ -112,24 +106,53 @@ class MultipleChoiceParam(str):
             raise ValueError("You must provide either a default value or choices")
 
         instance = super().__new__(cls, default)
-        instance.choices = choices
-        instance.default = default
+        instance.choices = choices  # type: ignore
+        instance.default = default  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema: dict[str, Any]):
-        field_schema.update(
-            {
-                "x-parameter": "choice",
-                "type": "string",
-                "enum": [],
-            }
-        )
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "choice", "type": "string", "enum": []}
 
 
-class Message(BaseModel):
-    role: str
-    content: str
+class GroupedMultipleChoiceParam(str):
+    def __new__(
+        cls,
+        default: Optional[str] = None,
+        choices: Optional[Dict[str, List[str]]] = None,
+    ):
+        if choices is None:
+            choices = {}
+        if default and not any(
+            default in choice_list for choice_list in choices.values()
+        ):
+            if not choices:
+                print(
+                    f"Warning: Default value {default} provided but choices are empty."
+                )
+            else:
+                raise ValueError(
+                    f"Default value {default} is not in the provided choices"
+                )
+
+        if not default:
+            default_selected_choice = next(
+                (choices for choices in choices.values()), None
+            )
+            if default_selected_choice:
+                default = default_selected_choice[0]
+
+        instance = super().__new__(cls, default)
+        instance.choices = choices  # type: ignore
+        instance.default = default  # type: ignore
+        return instance
+
+    @classmethod
+    def __schema_type_properties__(cls) -> dict:
+        return {
+            "x-parameter": "grouped_choice",
+            "type": "string",
+        }
 
 
 class MessagesInput(list):
@@ -144,28 +167,32 @@ class MessagesInput(list):
 
     """
 
-    def __new__(cls, messages: List[Dict[str, str]] = None):
-        instance = super().__new__(cls, messages)
-        instance.default = messages
+    def __new__(cls, messages: List[Dict[str, str]] = []):
+        instance = super().__new__(cls)
+        instance.default = messages  # type: ignore
         return instance
 
     @classmethod
-    def __modify_schema__(cls, field_schema: dict[str, Any]):
-        field_schema.update({"x-parameter": "messages", "type": "array"})
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "messages", "type": "array"}
 
 
 class FileInputURL(HttpUrl):
+    def __new__(cls, url: str):
+        instance = super().__new__(cls, url)
+        instance.default = url  # type: ignore
+        return instance
+
     @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        field_schema.update({"x-parameter": "file_url", "type": "string"})
+    def __schema_type_properties__(cls) -> dict:
+        return {"x-parameter": "file_url", "type": "string"}
 
 
 class Context(BaseModel):
-    class Config:
-        extra = Extra.allow
+    model_config = ConfigDict(extra="allow")
 
     def to_json(self):
-        return self.json()
+        return self.model_dump()
 
     @classmethod
     def from_json(cls, json_str: str):

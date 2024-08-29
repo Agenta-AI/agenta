@@ -1,13 +1,10 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Evaluation, Variant} from "@/lib/Types"
+import {Evaluation, Variant, StyleProps} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
+import Image from "next/image"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     root: ({themeMode}: StyleProps) => ({
@@ -88,13 +85,15 @@ const EvaluationVariantCard: React.FC<Props> = ({
                     </div>
                     <Typography.Text className={classes.title}>
                         {variant.variantName}{" "}
-                        <span style={{color: "#656d76", fontSize: 14}}>
-                            #{evaluation.revisions[index]}
-                        </span>
+                        {evaluation.revisions[index] && (
+                            <span style={{color: "#656d76", fontSize: 14}}>
+                                v{evaluation.revisions[index]}
+                            </span>
+                        )}
                     </Typography.Text>{" "}
                 </>
             )}
-            {outputImg && <img alt="output" src={outputImg} />}
+            {outputImg && <Image alt="output" src={outputImg} width={300} height={300} />}
             <Typography.Text className={classes.output} type={outputText ? undefined : "secondary"}>
                 {outputText || <em>Click the "Run" icon to get variant output</em>}
             </Typography.Text>

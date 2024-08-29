@@ -390,6 +390,73 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "eltociear",
+      "name": "Ikko Eltociear Ashimine",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22633385?v=4",
+      "profile": "https://speakerdeck.com/eltociear",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "vishalvanpariya",
+      "name": "Vishal Vanpariya",
+      "avatar_url": "https://avatars.githubusercontent.com/u/27823328?v=4",
+      "profile": "https://github.com/vishalvanpariya",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "youcefs21",
+      "name": "Youcef Boumar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/34604972?v=4",
+      "profile": "https://github.com/youcefs21",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "LucasTrg",
+      "name": "LucasTrg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47852577?v=4",
+      "profile": "https://github.com/LucasTrg",
+      "contributions": [
+        "code",
+        "bug"
+      ]
+    },
+    {
+      "login": "ashrafchowdury",
+      "name": "Ashraf Chowdury",
+      "avatar_url": "https://avatars.githubusercontent.com/u/87828904?v=4",
+      "profile": "https://ashrafchowdury.me",
+      "contributions": [
+        "bug",
+        "code"
+      ]
+    },
+    {
+      "login": "jp-agenta",
+      "name": "jp-agenta",
+      "avatar_url": "https://avatars.githubusercontent.com/u/174311389?v=4",
+      "profile": "https://github.com/jp-agenta",
+      "contributions": [
+        "code",
+        "bug"
+      ]
+    },
+    {
+      "login": "mrunhap",
+      "name": "Mr Unhappy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24653356?v=4",
+      "profile": "https://mrunhap.github.io",
+      "contributions": [
+        "bug",
+        "infra"
+      ]
     }
   ],
   "contributorsPerLine": 7,

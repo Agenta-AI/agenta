@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Result} from "antd"
+import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -8,14 +8,17 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {
-    getAppContainerURL,
-    removeVariant,
-    restartAppVariantContainer,
-    waitForAppToStart,
-} from "@/lib/services/api"
+import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
+import ResultComponent from "../ResultComponent/ResultComponent"
+import {
+    deleteSingleVariant,
+    fetchVariantLogs,
+    restartAppVariantContainer,
+} from "@/services/playground/api"
+
+const {Text} = Typography
 
 interface Props {
     variant: Variant
@@ -34,6 +37,9 @@ const useStyles = createUseStyles({
     },
     restartBtnMargin: {
         marginRight: "10px",
+    },
+    errorLogs: {
+        whiteSpace: "pre-wrap",
     },
 })
 
@@ -63,6 +69,11 @@ const ViewNavigation: React.FC<Props> = ({
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
+        setIsLogsLoading,
+        onClickShowLogs,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
@@ -73,6 +84,9 @@ const ViewNavigation: React.FC<Props> = ({
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+    const stopperRef = useRef<Function | null>(null)
+    const [isDelayed, setIsDelayed] = useState(false)
+    const hasError = netWorkError || (isDemo() ? netWorkError : isError)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -82,39 +96,96 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     useEffect(() => {
-        if (netWorkError) {
+        if (hasError) {
             retriedOnce.current = true
             setRetrying(true)
-            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
-                .then(() => {
-                    refetch()
+            const startApp = async () => {
+                const {stopper, promise} = await waitForAppToStart({
+                    appId,
+                    variant,
+                    timeout: isDemo() ? 40000 : 10000,
                 })
-                .catch(() => {
-                    showNotification({
-                        type: "error",
-                        message: "Variant unreachable",
-                        description: `Unable to connect to the variant.`,
+                stopperRef.current = stopper
+
+                promise
+                    .then(() => {
+                        if (!onClickShowLogs.current) {
+                            refetch()
+                        }
                     })
-                })
-                .finally(() => {
-                    setRetrying(false)
-                })
+                    .catch(() => {
+                        getVariantLogs()
+
+                        showNotification({
+                            type: "error",
+                            message: "Variant unreachable",
+                            description: `Unable to connect to the variant.`,
+                        })
+                    })
+                    .finally(() => {
+                        setRetrying(false)
+                        setIsDelayed(false)
+                    })
+            }
+            startApp()
         }
-    }, [netWorkError])
+    }, [netWorkError, isError, variant.variantId])
+
+    useEffect(() => {
+        if (retrying) {
+            const timeout = setTimeout(
+                () => {
+                    setIsDelayed(true)
+                },
+                isDemo() ? 15000 : 5000,
+            )
+            return () => clearTimeout(timeout)
+        }
+    }, [retrying])
+
+    const handleStopPolling = () => {
+        setIsLogsLoading(true)
+        if (stopperRef.current) {
+            onClickShowLogs.current = true
+            stopperRef.current()
+            getVariantLogs()
+        }
+    }
+
+    if (isLoading)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
+
+    if (isLogsLoading && isError)
+        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
 
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <Result
-                status="info"
-                title="Waiting for the variant to start"
-                extra={<Spin spinning={retrying} />}
-            />
+            <>
+                <div className="grid place-items-center">
+                    <ResultComponent
+                        status={"info"}
+                        title="Waiting for the variant to start"
+                        subtitle={isDelayed ? "This is taking longer than expected" : ""}
+                        spinner={retrying}
+                    />
+                    {isDelayed && (
+                        <Button
+                            loading={isLogsLoading}
+                            onClick={() => handleStopPolling()}
+                            type="primary"
+                        >
+                            Show Logs
+                        </Button>
+                    )}
+                </div>
+            </>
         )
     }
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
-        let imageName = `agentaai/${(currentApp?.app_name || "").toLowerCase()}_`
+        let appName = currentApp?.app_name || ""
+        let imageName = `agentaai/${appName.toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -124,7 +195,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
+            const url = await fetchAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURI(url)
         }
         if (!containerURI) {
@@ -164,52 +235,57 @@ const ViewNavigation: React.FC<Props> = ({
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
                             {(axios.isAxiosError(error) && error.response?.status === 404 && (
-                                <span>Container is not running.</span>
+                                <span>
+                                    Container is not running. <b>See logs below:</b>
+                                </span>
                             )) || <span>{error.message}</span>}
                         </p>
-                        <p>To debug this issue, please follow the steps below:</p>
                         <ul>
-                            <li>
-                                Verify whether the API is up by checking if {apiAddress} is
-                                accessible.
-                            </li>
-                            <li>
-                                Check if the Docker container for the variant {variantDesignator} is
-                                running. The image should be called {imageName}.
-                            </li>
+                            <div>
+                                <Text code className={classes.errorLogs}>
+                                    {variantErrorLogs}
+                                </Text>
+                            </div>
                         </ul>
                         <p>
-                            {" "}
-                            In case the docker container is not running. Please check the logs from
-                            docker to understand the issue. Most of the time it is a missing
-                            requirements. Also, please attempt restarting it (using cli or docker
-                            desktop)
+                            Verify API accessibility at{" "}
+                            <a href={apiAddress} target="_blank">
+                                {apiAddress}
+                            </a>
                         </p>
                         <p>
                             {" "}
-                            If the issue persists please file an issue in github here:
-                            https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
+                            If the issue persists please file an issue in github
+                            <a
+                                href="https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx"
+                                target="_blank"
+                            >
+                                {" "}
+                                here
+                            </a>
                         </p>
 
-                        <Button
-                            type="primary"
-                            onClick={() => {
-                                restartContainerHandler()
-                            }}
-                            disabled={restarting}
-                            loading={restarting}
-                            className={classes.restartBtnMargin}
-                        >
-                            <Tooltip placement="bottom" title="Restart the variant container">
-                                Restart Container
-                            </Tooltip>
-                        </Button>
+                        {!isDemo() && (
+                            <Button
+                                type="primary"
+                                onClick={() => {
+                                    restartContainerHandler()
+                                }}
+                                disabled={restarting}
+                                loading={restarting}
+                                className={classes.restartBtnMargin}
+                            >
+                                <Tooltip placement="bottom" title="Restart the variant container">
+                                    Restart Container
+                                </Tooltip>
+                            </Button>
+                        )}
 
                         <Button
                             type="primary"
                             danger
                             onClick={() => {
-                                deleteVariant(() => removeVariant(variant.variantId))
+                                deleteVariant(() => deleteSingleVariant(variant.variantId))
                             }}
                         >
                             <Tooltip placement="bottom" title="Delete the variant permanently">
@@ -223,7 +299,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     return (
-        <Spin spinning={isLoading}>
+        <>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -258,13 +334,12 @@ const ViewNavigation: React.FC<Props> = ({
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        onStateChange={onStateChange}
                         setPromptOptParams={setPromptOptParams}
                         promptOptParams={promptOptParams}
                     />
                 </Col>
             </Row>
-        </Spin>
+        </>
     )
 }
 

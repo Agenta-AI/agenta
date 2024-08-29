@@ -9,13 +9,15 @@ from requests.exceptions import ConnectionError
 import click
 import questionary
 import toml
+
 from agenta.cli import helper
 from agenta.cli.telemetry import event_track
+from agenta.client.backend.client import AgentaApi
+from agenta.client.api import add_variant_to_server
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
+from agenta.client.backend.types.variant_action import VariantAction
 
-from agenta.client.api import add_variant_to_server
-from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
@@ -27,7 +29,7 @@ def variant():
 
 
 def add_variant(
-    app_folder: str, file_name: str, host: str, config_name="default"
+    app_folder: str, file_name: str, host: str, overwrite: bool, config_name="default"
 ) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
@@ -95,20 +97,20 @@ def add_variant(
 
     # update the config file with the variant names from the backend
     variant_name = f"{base_name}.{config_name}"
-    overwrite = False
 
     client = AgentaApi(
         base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
     )
 
-    if variant_name in config["variants"]:
-        overwrite = questionary.confirm(
-            "This variant already exists. Do you want to overwrite it?"
-        ).ask()
+    if variant_name in config["variants"] and not overwrite:
         if not overwrite:
-            click.echo("Operation cancelled.")
-            sys.exit(0)
+            overwrite = questionary.confirm(
+                "This variant already exists. Do you want to overwrite it?"
+            ).ask()
+            if not overwrite:
+                click.echo("Operation cancelled.")
+                return
 
     try:
         click.echo(
@@ -126,7 +128,7 @@ def add_variant(
             )
         )
         with tar_path.open("rb") as tar_file:
-            built_image: Image = client.build_image(
+            built_image: Image = client.containers.build_image(
                 app_id=app_id,
                 base_name=base_name,
                 tar_file=tar_file,
@@ -137,7 +139,7 @@ def add_variant(
 
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg="red"))
-        return None
+        raise
     try:
         if overwrite:
             click.echo(
@@ -147,14 +149,20 @@ def add_variant(
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image(
+            client.variants.update_variant_image(
                 variant_id=variant_id,
-                request=image,  # because Fern code uses "request: Image" instead of "image: Image"
+                docker_id=image.docker_id,
+                tags=image.tags,
+                type=image.type,
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = add_variant_to_server(
-                app_id, base_name, image, f"{host}/{BACKEND_URL_SUFFIX}", api_key
+                app_id,
+                base_name,
+                image,
+                f"{host}/{BACKEND_URL_SUFFIX}",
+                api_key,
             )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
@@ -164,7 +172,7 @@ def add_variant(
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
         else:
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
-        return None
+        raise
 
     agenta_dir = Path.home() / ".agenta"
     global_toml_file = toml.load(agenta_dir / "config.toml")
@@ -172,7 +180,7 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -194,7 +202,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -259,7 +267,11 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.start_variant(variant_id=variant_id, action={"action": "START"})
+    variant = client.variants.start_variant(
+        variant_id=variant_id,
+        action=VariantAction(action="START"),
+    )
+    endpoint = variant.uri
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -327,7 +339,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     )
 
     try:
-        client.remove_variant(variant_id=variant_id)
+        client.variants.remove_variant(variant_id=variant_id)
     except Exception as ex:
         click.echo(
             click.style(
@@ -365,7 +377,7 @@ def list_variants(app_folder: str, host: str):
     )
 
     try:
-        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
+        variants: List[AppVariant] = client.apps.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 
@@ -436,9 +448,14 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 )
 @click.option("--app_folder", default=".")
 @click.option("--file_name", default=None, help="The name of the file to run")
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite the existing variant if it exists",
+)
 @click.pass_context
-def serve_cli(ctx, app_folder: str, file_name: str):
-    """Adds a variant to the web ui and serves the API locally."""
+def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
+    """Adds a variant to the web UI and serves the API locally."""
 
     if not file_name:
         if ctx.args:
@@ -449,35 +466,37 @@ def serve_cli(ctx, app_folder: str, file_name: str):
             error_msg += "or\n"
             error_msg += ">>> agenta variant serve <filename>.py"
             click.echo(click.style(f"{error_msg}", fg="red"))
-            sys.exit(0)
+            sys.exit(1)
 
     try:
         config_check(app_folder)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         host = get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         api_key = helper.get_global_config("api_key")
     except Exception as e:
         click.echo(click.style("Failed to retrieve the api key.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
-        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
+        variant_id = add_variant(
+            app_folder=app_folder, file_name=file_name, host=host, overwrite=overwrite
+        )
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     if variant_id:
         try:
@@ -489,9 +508,11 @@ def serve_cli(ctx, app_folder: str, file_name: str):
                 "- Second, try restarting the containers (if using Docker Compose)."
             )
             click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(1)
         except Exception as e:
             click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+            sys.exit(1)
 
 
 @variant.command(name="list")

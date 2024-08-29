@@ -1,5 +1,6 @@
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple, Union
+from datetime import datetime, timedelta, timezone
 
 
 def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
@@ -56,3 +57,22 @@ def include_dynamic_values(json_data: Dict, inputs: Dict[str, Any]) -> Dict:
         json_data = json_data.replace(f"{key}", value)
 
     return json_data
+
+
+def convert_to_utc_datetime(dt: Union[datetime, str, None]) -> datetime:
+    """
+    Converts a datetime object, a datetime string, or None into a UTC timezone-aware datetime object.
+
+    Args:
+        dt (Union[datetime, str, None]): The input datetime, which can be a datetime object, a string, or None.
+
+    Returns:
+        datetime: A UTC timezone-aware datetime object.
+    """
+    if dt is None:
+        return datetime.now(timezone.utc)
+    if isinstance(dt, str):
+        return datetime.fromisoformat(dt).astimezone(timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt

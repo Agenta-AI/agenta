@@ -6,10 +6,11 @@ import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
 import Image from "next/image"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
-import {deleteEvaluatorConfig} from "@/services/evaluations"
+import {deleteEvaluatorConfig} from "@/services/evaluations/api"
 import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import ResultComponent from "@/components/ResultComponent/ResultComponent"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
@@ -81,25 +82,21 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
         })
     }
 
+    if (!evaluator) {
+        return null
+    }
+
     return (
         <Card
             className={classes.card}
-            actions={
-                evaluator.direct_use
-                    ? []
-                    : [
-                          <EditOutlined
-                              key="edit"
-                              data-cy="evaluator-card-edit-button"
-                              onClick={onEdit}
-                          />,
-                          <DeleteOutlined
-                              key="delete"
-                              data-cy="evaluator-card-delete-button"
-                              onClick={onDelete}
-                          />,
-                      ]
-            }
+            actions={[
+                <EditOutlined key="edit" data-cy="evaluator-card-edit-button" onClick={onEdit} />,
+                <DeleteOutlined
+                    key="delete"
+                    data-cy="evaluator-card-delete-button"
+                    onClick={onDelete}
+                />,
+            ]}
             data-cy="evaluator-card"
         >
             <div className={classes.body}>

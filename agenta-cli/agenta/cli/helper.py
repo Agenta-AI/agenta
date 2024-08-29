@@ -97,7 +97,7 @@ def get_api_key(backend_host: str) -> str:
     ).ask()
 
     if api_key:
-        set_global_config("api_key", api_key)
+        set_global_config("api_key", api_key.strip())
 
         return api_key
     elif api_key is None:  # User pressed Ctrl+C
@@ -137,7 +137,7 @@ def update_variants_from_backend(
     )
 
     try:
-        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
+        variants: List[AppVariant] = client.apps.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 

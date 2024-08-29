@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 import type {AppProps} from "next/app"
 import {useRouter} from "next/router"
+import Head from "next/head"
 
 import posthog from "posthog-js"
 import {PostHogProvider} from "posthog-js/react"
@@ -12,6 +13,9 @@ import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
+import {Inter} from "next/font/google"
+
+const inter = Inter({subsets: ["latin"]})
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {
@@ -39,16 +43,24 @@ export default function App({Component, pageProps}: AppProps) {
         }
     }, [])
     return (
-        <PostHogProvider client={posthog}>
-            <ThemeContextProvider>
-                <ProfileContextProvider>
-                    <AppContextProvider>
-                        <Layout>
-                            <Component {...pageProps} />
-                        </Layout>
-                    </AppContextProvider>
-                </ProfileContextProvider>
-            </ThemeContextProvider>
-        </PostHogProvider>
+        <>
+            <Head>
+                <title>Agenta: The LLMOps platform.</title>
+                <link rel="shortcut icon" href="/assets/favicon.ico" />
+            </Head>
+            <main className={inter.className}>
+                <PostHogProvider client={posthog}>
+                    <ThemeContextProvider>
+                        <ProfileContextProvider>
+                            <AppContextProvider>
+                                <Layout>
+                                    <Component {...pageProps} />
+                                </Layout>
+                            </AppContextProvider>
+                        </ProfileContextProvider>
+                    </ThemeContextProvider>
+                </PostHogProvider>
+            </main>
+        </>
     )
 }

@@ -8,15 +8,15 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
-import {fetchAllComparisonResults} from "@/services/evaluations"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ICellRendererParams} from "ag-grid-community"
+import {fetchAllComparisonResults} from "@/services/evaluations/api"
 import {AgGridReact} from "ag-grid-react"
-import {Button, Space, Spin, Switch, Tag, Tooltip, Typography} from "antd"
+import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
+import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/lib/helpers/evaluate"
 import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
-import {CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
+import {CheckOutlined, CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
@@ -26,6 +26,13 @@ import {useAtom} from "jotai"
 import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
+import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import _ from "lodash"
+import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {escapeNewlines} from "@/lib/helpers/fileManipulations"
+import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
+import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -48,6 +55,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
+    dropdownMenu: {
+        "&>.ant-dropdown-menu-item": {
+            "& .anticon-check": {
+                display: "none",
+            },
+        },
+        "&>.ant-dropdown-menu-item-selected": {
+            "&:not(:hover)": {
+                backgroundColor: "transparent !important",
+            },
+            "& .anticon-check": {
+                display: "inline-flex !important",
+            },
+        },
+    },
 }))
 
 interface Props {}
@@ -57,14 +79,32 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = ""] = useQueryParam("evaluations")
-    const [evalIds, setEvalIds] = useState(evaluationIdsStr.split(",").filter((item) => !!item))
+    const evaluationIdsArray = evaluationIdsStr.split(",").filter((item) => !!item)
+    const [evalIds, setEvalIds] = useState(evaluationIdsArray)
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
-    const [showDiff, setShowDiff] = useQueryParam("showDiff", "show")
     const [fetching, setFetching] = useState(false)
+    const [scenarios, setScenarios] = useState<_Evaluation[]>([])
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
     const [evaluators] = useAtom(evaluatorsAtom)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
+    const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
+
+    const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsDiffDropdownOpen(nextOpen)
+        }
+    }
+
+    const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
 
     const variants = useMemo(() => {
         return rows[0]?.variants || []
@@ -92,9 +132,19 @@ const EvaluationCompareMode: React.FC<Props> = () => {
 
         if (!rows.length || !variants.length) return []
 
-        inputs.forEach((ip, ix) => {
+        inputs.forEach((input, ix) => {
             colDefs.push({
-                headerName: `Input: ${ip.name}`,
+                headerName: `Input: ${input.name}`,
+                headerComponent: (props: any) => {
+                    return (
+                        <AgCustomHeader {...props}>
+                            <Space direction="vertical" className="py-2">
+                                <span>{input.name}</span>
+                                <Tag color="blue">Input</Tag>
+                            </Space>
+                        </AgCustomHeader>
+                    )
+                },
                 minWidth: 200,
                 flex: 1,
                 field: `inputs.${ix}.value` as any,
@@ -104,19 +154,31 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             })
         })
 
-        colDefs.push({
-            headerName: "Expected Output",
-            minWidth: 280,
-            flex: 1,
-            field: "correctAnswer",
-            ...getFilterParams("text"),
-            pinned: "left",
-            cellRenderer: (params: any) => LongTextCellRenderer(params),
-        })
+        Object.keys(rows[0])
+            .filter((item) => item.startsWith("correctAnswer_"))
+            .forEach((key) =>
+                colDefs.push({
+                    headerName: `${removeCorrectAnswerPrefix(key)}`,
+                    hide: hiddenVariants.includes(`${removeCorrectAnswerPrefix(key)}`),
+                    headerComponent: (props: any) => {
+                        return (
+                            <AgCustomHeader {...props}>
+                                <Space direction="vertical" className="py-2">
+                                    <span>{removeCorrectAnswerPrefix(key)}</span>
+                                    <Tag color="green">Ground Truth</Tag>
+                                </Space>
+                            </AgCustomHeader>
+                        )
+                    },
+                    minWidth: 280,
+                    flex: 1,
+                    field: key,
+                    ...getFilterParams("text"),
+                    cellRenderer: (params: any) => LongTextCellRenderer(params),
+                }),
+            )
 
         variants.forEach((variant, vi) => {
-            const isHidden = evalIds.includes(variant.evaluationId)
-
             colDefs.push({
                 headerComponent: (props: any) => (
                     <AgCustomHeader {...props}>
@@ -126,44 +188,55 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
-                minWidth: 280,
+                headerName: "Output",
+                minWidth: 300,
                 flex: 1,
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
-                hide: !isHidden,
-                cellRenderer: (params: any) => {
+                hide: hiddenVariants.includes("Output"),
+                cellRenderer: (params: ICellRendererParams<ComparisonResultRow>) => {
+                    const result = params.data?.variants.find(
+                        (item: any) => item.evaluationId === variant.evaluationId,
+                    )?.output?.result
+
+                    if (result && result.error && result.type == "error") {
+                        return (
+                            <EvaluationErrorText
+                                text="Failed to invoke LLM app"
+                                handleOnClick={() => {
+                                    setModalErrorMsg({
+                                        message: result.error?.message || "",
+                                        stackTrace: result.error?.stacktrace || "",
+                                    })
+                                    setIsErrorModalOpen(true)
+                                }}
+                            />
+                        )
+                    }
+
                     return (
                         <>
-                            {showDiff === "show"
+                            {selectedCorrectAnswer[0] !== "noDiffColumnIsSelected"
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
-                                          variantOutput={getTypedValue(
-                                              params.data?.variants.find(
-                                                  (item: any) =>
-                                                      item.evaluationId === variant.evaluationId,
-                                              )?.output?.result,
-                                          )}
-                                          expectedOutput={params.data?.correctAnswer}
+                                          variantOutput={getStringOrJson(result?.value)}
+                                          expectedOutput={
+                                              params.data
+                                                  ? params.data[selectedCorrectAnswer[0]]
+                                                  : ""
+                                          }
                                       />,
                                   )
-                                : LongTextCellRenderer(
-                                      params,
-                                      getTypedValue(
-                                          params.data?.variants.find(
-                                              (item: any) =>
-                                                  item.evaluationId === variant.evaluationId,
-                                          )?.output?.result,
-                                      ),
-                                  )}
+                                : LongTextCellRenderer(params, getStringOrJson(result?.value))}
                         </>
                     )
                 },
                 valueGetter: (params) => {
-                    return getTypedValue(
+                    return getStringOrJson(
                         params.data?.variants.find(
                             (item) => item.evaluationId === variant.evaluationId,
-                        )?.output?.result,
+                        )?.output?.result.value,
                     )
                 },
             })
@@ -181,12 +254,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         Object.entries(confgisMap).forEach(([_, configs]) => {
-            configs.forEach(({config, variant, color}) => {
-                const isHidden = evalIds.includes(variant.evaluationId)
+            configs.forEach(({config, variant, color}, idx) => {
                 colDefs.push({
                     flex: 1,
                     minWidth: 200,
-                    headerName: config.name,
                     headerComponent: (props: any) => {
                         const evaluator = evaluators.find(
                             (item) => item.key === config.evaluator_key,
@@ -203,9 +274,33 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             </AgCustomHeader>
                         )
                     },
+                    headerName: config.name,
+                    type: `evaluator_${idx}`,
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
-                    hide: !isHidden,
+                    hide: hiddenVariants.includes(config.name),
+                    cellRenderer: (params: ICellRendererParams<ComparisonResultRow>) => {
+                        const result = params.data?.variants
+                            .find((item) => item.evaluationId === variant.evaluationId)
+                            ?.evaluatorConfigs.find(
+                                (item) => item.evaluatorConfig.id === config.id,
+                            )?.result
+
+                        return result?.type === "error" && result.error ? (
+                            <EvaluationErrorText
+                                text="Failure to compute evaluation"
+                                handleOnClick={() => {
+                                    setModalErrorMsg({
+                                        message: result.error?.message || "",
+                                        stackTrace: result.error?.stacktrace || "",
+                                    })
+                                    setIsErrorModalOpen(true)
+                                }}
+                            />
+                        ) : (
+                            <Typography.Text>{getTypedValue(result)}</Typography.Text>
+                        )
+                    },
                     valueGetter: (params) => {
                         return getTypedValue(
                             params.data?.variants
@@ -229,7 +324,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                hide: hiddenVariants.includes("Latency"),
                 minWidth: 120,
+                headerName: "Latency",
+                field: `latency.${vi}` as any,
                 flex: 1,
                 valueGetter: (params) => {
                     const latency = params.data?.variants.find(
@@ -251,7 +349,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         </Space>
                     </AgCustomHeader>
                 ),
+                field: `cost.${vi}` as any,
+                headerName: "Cost",
                 minWidth: 120,
+                hide: !evalIds.includes(variant.evaluationId) || hiddenVariants.includes("Cost"),
                 flex: 1,
                 valueGetter: (params) => {
                     const cost = params.data?.variants.find(
@@ -264,12 +365,13 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, showDiff, evalIds])
+    }, [rows, hiddenVariants, evalIds, selectedCorrectAnswer])
 
     const fetcher = () => {
         setFetching(true)
         fetchAllComparisonResults(evaluationIds)
-            .then(({rows, testset}) => {
+            .then(({rows, testset, evaluations}) => {
+                setScenarios(evaluations)
                 setRows(rows)
                 setTestset(testset)
                 setTimeout(() => {
@@ -292,22 +394,60 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     }, [appId, evaluationIdsStr])
 
     const handleToggleVariantVisibility = (evalId: string) => {
-        if (hiddenVariants.includes(evalId)) {
-            setHiddenVariants(hiddenVariants.filter((item) => item !== evalId))
-            setEvalIds([...evalIds, evalId])
-        } else {
+        if (!hiddenVariants.includes(evalId)) {
             setHiddenVariants([...hiddenVariants, evalId])
             setEvalIds(evalIds.filter((val) => val !== evalId))
+        } else {
+            setHiddenVariants(hiddenVariants.filter((item) => item !== evalId))
+            if (evaluationIdsArray.includes(evalId)) {
+                setEvalIds([...evalIds, evalId])
+            }
         }
     }
 
-    const onExport = () => {
-        if (!gridRef.current) return
+    const shownCols = useMemo(
+        () =>
+            colDefs
+                .map((item) => item.headerName)
+                .filter((item) => item !== undefined && !hiddenVariants.includes(item)) as string[],
+        [colDefs],
+    )
+
+    const getDynamicHeaderName = (params: ColDef): string => {
+        const {headerName, field, type}: any = params
+
+        const getVariantNameWithRev = (index: number): string => {
+            const scenario = scenarios[index]
+            const variantName = scenario?.variants[0]?.variantName ?? ""
+            const revision = scenario?.revisions[0] ?? ""
+            return variantNameWithRev({variant_name: variantName, revision})
+        }
+
+        if (headerName === "Output" || headerName === "Latency" || headerName === "Cost") {
+            const index = Number(field.split(".")[1])
+            return `${headerName} ${getVariantNameWithRev(index)}`
+        }
+
+        if (type && type.startsWith("evaluator")) {
+            const index = Number(type.split("_")[1])
+            return `${headerName} ${getVariantNameWithRev(index)}`
+        }
+
+        return headerName
+    }
+
+    const onExport = (): void => {
+        const gridApi = gridRef.current?.api
+        if (!gridApi) return
+
         const {currentApp} = getAppValues()
-        gridRef.current.api.exportDataAsCsv({
-            fileName: `${currentApp?.app_name}_${variants
-                .map(({variantName}) => variantName)
-                .join("_")}.csv`,
+        const fileName = `${currentApp?.app_name ?? "export"}_${variants.map(({variantName}) => variantName).join("_")}.csv`
+
+        gridApi.exportDataAsCsv({
+            fileName,
+            processHeaderCallback: (params) => getDynamicHeaderName(params.column.getColDef()),
+            processCellCallback: (params) =>
+                typeof params.value === "string" ? escapeNewlines(params.value) : params.value,
         })
     }
 
@@ -326,35 +466,29 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         <Space>
                             <Typography.Text strong>Variants:</Typography.Text>
                             <div>
-                                {variants?.map((v, vi) => (
+                                {scenarios?.map((v, vi) => (
                                     <Tag
                                         key={evaluationIds[vi]}
                                         color={colors[vi]}
                                         className={classes.tag}
                                         style={{
-                                            opacity: hiddenVariants.includes(v.evaluationId)
-                                                ? 0.4
-                                                : 1,
+                                            opacity: hiddenVariants.includes(v.id) ? 0.4 : 1,
                                         }}
                                         icon={
                                             evalIds.length < 2 &&
-                                            evalIds.includes(
-                                                v.evaluationId,
-                                            ) ? null : evalIds.includes(v.evaluationId) ? (
+                                            evalIds.includes(v.id) ? null : evalIds.includes(
+                                                  v.id,
+                                              ) ? (
                                                 <CloseCircleOutlined
                                                     onClick={() =>
-                                                        handleToggleVariantVisibility(
-                                                            v.evaluationId,
-                                                        )
+                                                        handleToggleVariantVisibility(v.id)
                                                     }
                                                     style={{cursor: "pointer"}}
                                                 />
                                             ) : (
                                                 <UndoOutlined
                                                     onClick={() =>
-                                                        handleToggleVariantVisibility(
-                                                            v.evaluationId,
-                                                        )
+                                                        handleToggleVariantVisibility(v.id)
                                                     }
                                                     style={{cursor: "pointer"}}
                                                 />
@@ -362,9 +496,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                         }
                                     >
                                         <Link
-                                            href={`/apps/${appId}/playground/?variant=${v.variantName}`}
+                                            href={`/apps/${appId}/playground/?variant=${v.variants[0].variantName}`}
                                         >
-                                            {v.variantName}
+                                            {variantNameWithRev({
+                                                variant_name: v.variants[0].variantName ?? "",
+                                                revision: v.revisions[0],
+                                            })}
                                         </Link>
                                     </Tag>
                                 ))}
@@ -373,13 +510,56 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     </Spin>
                 </Space>
                 <Space size={10}>
-                    <Space>
-                        <Typography.Text>Show Difference: </Typography.Text>
-                        <Switch
-                            value={showDiff === "show"}
-                            onClick={() => setShowDiff(showDiff === "show" ? "hide" : "show")}
-                        />
-                    </Space>
+                    <FilterColumns
+                        items={generateFilterItems(
+                            _.uniqBy(
+                                colDefs.filter((item) => !item.headerName?.startsWith("Input")),
+                                "headerName",
+                            ),
+                        )}
+                        isOpen={isFilterColsDropdownOpen}
+                        handleOpenChange={handleOpenChangeFilterCols}
+                        shownCols={shownCols}
+                        onClick={({key}) => {
+                            handleToggleVariantVisibility(key)
+                            setIsFilterColsDropdownOpen(true)
+                        }}
+                    />
+                    {!!rows.length && (
+                        <div className="flex items-center gap-2">
+                            <Typography.Text>Apply difference with: </Typography.Text>
+                            <FilterColumns
+                                items={Object.keys(rows[0])
+                                    .filter((item) => item.startsWith("correctAnswer_"))
+                                    .map((key) => ({
+                                        key: key as string,
+                                        label: (
+                                            <Space>
+                                                <CheckOutlined />
+                                                <>{removeCorrectAnswerPrefix(key)}</>
+                                            </Space>
+                                        ),
+                                    }))}
+                                buttonText={
+                                    removeCorrectAnswerPrefix(selectedCorrectAnswer[0]) ===
+                                    "noDiffColumnIsSelected"
+                                        ? "Select Ground Truth"
+                                        : removeCorrectAnswerPrefix(selectedCorrectAnswer[0])
+                                }
+                                isOpen={isDiffDropdownOpen}
+                                handleOpenChange={handleOpenChangeDiff}
+                                shownCols={selectedCorrectAnswer}
+                                onClick={({key}) => {
+                                    if (key === selectedCorrectAnswer[0]) {
+                                        setSelectedCorrectAnswer(["noDiffColumnIsSelected"])
+                                    } else {
+                                        setSelectedCorrectAnswer([key])
+                                    }
+                                    setIsDiffDropdownOpen(true)
+                                }}
+                            />
+                        </div>
+                    )}
                     <Tooltip title="Export as CSV">
                         <Button icon={<DownloadOutlined />} onClick={onExport}>
                             Export
@@ -399,11 +579,17 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         ref={gridRef as any}
                         rowData={rows}
                         columnDefs={colDefs}
-                        getRowId={(params) => params.data.id}
+                        getRowId={(params) => params.data.rowId}
                         headerHeight={64}
                     />
                 </div>
             </Spin>
+
+            <EvaluationErrorModal
+                isErrorModalOpen={isErrorModalOpen}
+                setIsErrorModalOpen={setIsErrorModalOpen}
+                modalErrorMsg={modalErrorMsg}
+            />
         </div>
     )
 }

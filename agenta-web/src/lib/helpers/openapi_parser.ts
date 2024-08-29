@@ -1,22 +1,25 @@
 // parser.ts
 
-import {GenericObject} from "../Types"
-
-export interface Parameter {
-    name: string
-    type: string
-    input: boolean
-    required: boolean
-    default?: any
-    enum?: Array<string>
-}
+import {GenericObject, Parameter} from "../Types"
 
 const getBodySchemaName = (schema: GenericObject): string => {
-    return (
-        schema?.paths?.["/generate"]?.post?.requestBody?.content["application/json"]?.schema["$ref"]
-            ?.split("/")
-            ?.pop() || ""
-    )
+    // Try v2 structure first
+    const v2BodySchemaRef =
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
+            "allOf"
+        ]?.[0]?.["$ref"]
+
+    // If v2 structure doesn't exist, fall back to v1 structure
+    const v1BodySchemaRef =
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
+            "$ref"
+        ]
+
+    // Determine the body schema reference to use
+    const bodySchemaRef = v2BodySchemaRef || v1BodySchemaRef
+
+    // Return the last part of the reference or an empty string
+    return bodySchemaRef?.split("/")?.pop() || ""
 }
 
 export const detectChatVariantFromOpenAISchema = (schema: GenericObject) => {
@@ -33,18 +36,28 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
     // get the actual schema for the body parameters
     Object.entries(schema.components.schemas[bodySchemaName].properties || {}).forEach(
         ([name, param]: [string, any]) => {
-            const parameter = {
+            let parameter: Parameter = {
                 name: name,
                 input:
                     !param["x-parameter"] || ["messages", "file_url"].includes(param["x-parameter"])
                         ? true
                         : false,
-                type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
+                type: param["x-parameter"]
+                    ? determineType(param["x-parameter"])
+                    : param["type"] || "string",
                 default: param.default,
-                enum: param["enum"] ? param.enum : [],
-                minimum: param["minimum"] ? param.minimum : 0,
-                maximum: param["maximum"] ? param.maximum : 1,
                 required: !!schema.components.schemas[bodySchemaName]?.required?.includes(name),
+            }
+
+            if (parameter.type === "array") {
+                parameter.enum = param["enum"]
+            }
+            if (parameter.type === "integer" || parameter.type === "number") {
+                parameter.minimum = param["minimum"]
+                parameter.maximum = param["maximum"]
+            }
+            if (parameter.type === "grouped_choice") {
+                parameter.choices = param["choices"]
             }
 
             parameters.push(parameter)
@@ -59,6 +72,8 @@ const determineType = (xParam: any): string => {
             return "string"
         case "choice":
             return "array"
+        case "grouped_choice":
+            return "grouped_choice"
         case "float":
             return "number"
         case "dict":

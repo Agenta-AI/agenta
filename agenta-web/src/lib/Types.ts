@@ -2,7 +2,7 @@ import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 import {GlobalToken} from "antd"
 
-export type JSSTheme = GlobalToken & {isDark: boolean}
+export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
     _id: string
@@ -21,6 +21,7 @@ export interface TestSet {
 export interface ListAppsItem {
     app_id: string
     app_name: string
+    updated_at: string
 }
 
 export interface AppVariant {
@@ -39,6 +40,10 @@ export interface Variant {
     baseId: string
     baseName: string
     configName: string
+    revision: number
+    updatedAt: string
+    createdAt: string
+    modifiedById: string
 }
 
 // Define the interface for the tabs item in playground page
@@ -167,6 +172,7 @@ export interface Parameter {
     enum?: Array<string>
     minimum?: number
     maximum?: number
+    choices?: {[key: string]: Array<string>}
 }
 
 export interface IPromptRevisions {
@@ -262,6 +268,8 @@ export interface LlmProvidersKeys {
     AZURE_API_BASE: string
     TOGETHERAI_API_KEY: string
     MISTRAL_API_KEY: string
+    GROQ_API_KEY: string
+    GEMINI_API_KEY: string
 }
 
 export interface AppTemplate {
@@ -336,6 +344,7 @@ export interface EvaluationSettingsTemplate {
     min?: number
     max?: number
     required?: boolean
+    advanced?: boolean
 }
 
 export interface Evaluator {
@@ -346,6 +355,7 @@ export interface Evaluator {
     color?: string
     direct_use?: boolean
     description: string
+    oss?: boolean
 }
 
 export interface EvaluatorConfig {
@@ -373,11 +383,17 @@ export enum EvaluationStatus {
     FINISHED = "EVALUATION_FINISHED",
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
+    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
 }
 
 export enum EvaluationStatusType {
     STATUS = "status",
     ERROR = "error",
+}
+
+export interface CorrectAnswer {
+    key: string
+    value: string
 }
 
 export interface _Evaluation {
@@ -407,6 +423,7 @@ export interface _Evaluation {
     revisions: string[]
     average_latency?: TypedValue & {error: null | EvaluationError}
     average_cost?: TypedValue & {error: null | EvaluationError}
+    total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
 }
 
@@ -417,7 +434,7 @@ export interface _EvaluationScenario {
     evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
     outputs: {result: TypedValue; cost?: number; latency?: number}[]
-    correct_answer?: string
+    correct_answers?: CorrectAnswer[]
     is_pinned?: boolean
     note?: string
     results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
@@ -448,7 +465,6 @@ export interface AnnotationScenario {
 
 export type ComparisonResultRow = {
     inputs: {name: string; value: string}[]
-    correctAnswer: string
     variants: {
         variantId: string
         variantName: string
@@ -460,4 +476,149 @@ export type ComparisonResultRow = {
         }[]
     }[]
     id: string
+} & {[key: string]: any}
+
+export type RequestMetadata = {
+    cost: number
+    latency: number
+    usage: {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
+}
+
+export type WithPagination<T> = {
+    data: T[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+export type PaginationQuery = {
+    page: number
+    pageSize: number
+}
+
+export type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
+export interface SingleModelEvaluationListTableDataType {
+    key: string
+    variants: Variant[]
+    testset: {
+        _id: string
+        name: string
+    }
+    evaluationType: string
+    status: EvaluationFlow
+    scoresData: {
+        nb_of_rows: number
+        wrong?: GenericObject[]
+        correct?: GenericObject[]
+        true?: GenericObject[]
+        false?: GenericObject[]
+        variant: string[]
+    }
+    avgScore: number
+    custom_code_eval_id: string
+    resultsData: {[key: string]: number}
+    createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+}
+
+export type FuncResponse = {
+    message: string
+    cost: number
+    latency: number
+    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+}
+
+export type BaseResponse = {
+    version: string
+    data: string | Record<string, any>
+    trace?: {
+        trace_id: string
+        cost?: number
+        latency?: number
+        usage?: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+        spans?: BaseResponseSpans[]
+    }
+}
+
+export type BaseResponseSpans = {
+    id: string
+    app_id?: string
+    variant_id?: string
+    variant_name?: string
+    inputs?: Record<string, any>
+    outputs?: Record<string, any> | string[]
+    internals?: Record<string, any> | null
+    config?: Record<string, any> | null
+    environment?: string
+    tags?: string[] | null
+    token_consumption?: number | null
+    name: string
+    parent_span_id?: string | null
+    attributes?: Record<string, any>
+    spankind: string
+    status: TraceSpanStatus
+    user?: string | null
+    start_time: string
+    end_time: string
+    tokens?: {
+        completion_tokens: number
+        prompt_tokens: number
+        total_tokens: number
+    } | null
+    cost?: number | null
+}
+
+export interface TraceSpan {
+    id: string
+    created_at: string
+    variant: {
+        variant_id: string | null
+        variant_name: string | null
+        revision: number | null
+    }
+    environment: string | null
+    status: TraceSpanStatus
+    error?: string
+    spankind: string
+    metadata?: TraceSpanMetadata
+    user_id?: string | null
+    children?: TraceSpan[] | null
+    parent_span_id?: string | null
+    name?: string
+    content: {
+        inputs: Record<string, any> | null
+        internals: Record<string, any> | null
+        outputs: string[] | Record<string, any> | null
+        role?: string | null
+    }
+}
+
+export enum TraceSpanStatus {
+    UNSET = "UNSET",
+    OK = "OK",
+    ERROR = "ERROR",
+}
+
+export type TraceSpanMetadata = {
+    cost?: number | null
+    latency?: number | null
+    usage?: {
+        completion_tokens: number
+        prompt_tokens: number
+        total_tokens: number
+    } | null
+}
+
+export interface TraceSpanDetails extends TraceSpan {
+    config?: GenericObject
+}
+
+export interface TraceSpanTreeNode {
+    title: React.ReactElement
+    key: string
+    children?: TraceSpanTreeNode[]
 }

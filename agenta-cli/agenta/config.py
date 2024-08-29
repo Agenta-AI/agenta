@@ -11,14 +11,12 @@ from pathlib import Path
 toml_config = toml.load(f"{Path(__file__).parent}/config.toml")
 
 # Set the environment variables from the TOML configurations
-os.environ["DATABASE_URL"] = toml_config["database_url"]
 os.environ["REGISTRY"] = toml_config["registry"]
 os.environ["BACKEND_URL_SUFFIX"] = toml_config["backend_url_suffix"]
 os.environ["ALLOW_ORIGINS"] = toml_config["allow_origins"]
 
 
 class Settings(BaseSettings):
-    database_url: str
     registry: str
     backend_url_suffix: str
     allow_origins: str
