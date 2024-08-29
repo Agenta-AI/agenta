@@ -131,10 +131,13 @@ const config: Config = {
       ],
     },
     prism: {
+      theme: prismThemes.github,
+      darkTheme: prismThemes.vsDark,
+      
       prism: {
-        theme: prismThemes.github,
-        darkTheme: prismThemes.dracula,
+
         additionalLanguages: ["ruby", "csharp", "php", "java", "powershell", "json", "bash"],
+        
         magicComments: [
           // Remember to extend the default highlight class name as well!
           {
