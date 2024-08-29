@@ -243,7 +243,7 @@ const config: Config = {
     [
       "posthog-docusaurus",
       {
-        apiKey: process.env.POSTHOG_API_KEY,
+        apiKey: process.env.POSTHOG_API_KEY || "dummy",  // Posthog is only available on the prod website
         appUrl: "https://docs.agenta.ai",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
