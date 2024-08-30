@@ -1,5 +1,6 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import React from "react"
+import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
 
 interface AbTestingEvaluationProps {
     evaluationList: HumanEvaluationListTableDataType[]
@@ -7,7 +8,7 @@ interface AbTestingEvaluationProps {
 }
 
 const AbTestingEvaluation = ({evaluationList, fetchingEvaluations}: AbTestingEvaluationProps) => {
-    return <div>AbTestingEvaluation</div>
+    return <AbTestingEvalOverview viewType="evaluation" />
 }
 
 export default AbTestingEvaluation
