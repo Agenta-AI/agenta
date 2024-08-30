@@ -113,7 +113,7 @@ article a:hover {
   }
 }
 @media (min-width: 995px) and (max-width: 1150px) {
-  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
+  .navbar__inner [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
   {
     display: none;
   }
@@ -188,8 +188,8 @@ article a:hover {
   .nav_slack_icons {
     left: 220px;
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"],
-  [href="https://cloud.agenta.ai/apps"]
+  .navbar-sidebar [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"],
+ .navbar-sidebar [href="https://cloud.agenta.ai/"]
   {
     padding: 0px;
     position: absolute;
@@ -198,14 +198,14 @@ article a:hover {
     left: 50%;
     transform: translateX(-50%);
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]
+  .navbar-sidebar [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]
   {
     bottom: 65px;
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]:hover,
-  [href="https://cloud.agenta.ai/apps"]:hover,
-  [href="https://github.com/Agenta-AI/agenta"]:hover,
-  [href="https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"]:hover
+  .navbar-sidebar [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]:hover,
+ .navbar-sidebar [href="https://cloud.agenta.ai/"]:hover,
+ .navbar-sidebar [href="https://github.com/Agenta-AI/agenta"]:hover,
+ .navbar-sidebar [href="https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"]:hover
   {
     background: transparent;
   }
