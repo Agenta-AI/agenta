@@ -165,9 +165,9 @@ export default function Overview() {
 
                 <AutomaticEvalOverview />
 
-                <AbTestingEvalOverview />
+                <AbTestingEvalOverview viewType="overview" />
 
-                <SingleModelEvalOverview />
+                <SingleModelEvalOverview viewType="overview" />
             </div>
             {currentApp && (
                 <DeleteAppModal

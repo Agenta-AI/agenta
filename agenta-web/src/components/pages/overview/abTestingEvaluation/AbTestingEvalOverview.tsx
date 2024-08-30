@@ -14,7 +14,7 @@ import {
     fetchEvaluationResults,
 } from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {ArrowsLeftRight, Database, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
 import {Avatar, Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
@@ -62,9 +62,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             color: theme.colorSuccess,
         },
     },
+    button: {
+        display: "flex",
+        alignItems: "center",
+    },
 }))
 
-const AbTestingEvalOverview = () => {
+const AbTestingEvalOverview = ({viewType}: {viewType: "evaluation" | "overview"}) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
@@ -74,6 +78,8 @@ const AbTestingEvalOverview = () => {
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
     const [selectedEvalRecord, setSelectedEvalRecord] = useState<HumanEvaluationListTableDataType>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
+    const [isDeleteMultipleEvalModalOpen, setIsDeleteMultipleEvalModalOpen] = useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
     useEffect(() => {
         if (!appId) return
@@ -102,9 +108,8 @@ const AbTestingEvalOverview = () => {
                             new Date(b.createdAt || 0).getTime() -
                             new Date(a.createdAt || 0).getTime(),
                     )
-                    .slice(0, 5)
 
-                setEvaluationsList(results)
+                setEvaluationsList(viewType === "overview" ? results.slice(0, 5) : results)
             } catch (error) {
                 console.error(error)
             } finally {
@@ -117,6 +122,31 @@ const AbTestingEvalOverview = () => {
 
     const handleNavigation = (variantName: string, revisionNum: string) => {
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
+    const rowSelection = {
+        onChange: (selectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(selectedRowKeys)
+        },
+    }
+
+    const handleDeleteMultipleEvaluations = async () => {
+        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
+        try {
+            setFetchingEvaluations(true)
+            await deleteEvaluations(evaluationsIds)
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
+            )
+            setSelectedRowKeys([])
+            message.success("Evaluations Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetchingEvaluations(false)
+        }
     }
 
     const handleDeleteEvaluation = async (record: HumanEvaluationListTableDataType) => {
@@ -381,25 +411,68 @@ const AbTestingEvalOverview = () => {
 
     return (
         <div className={classes.container}>
-            <div className="flex items-center justify-between">
-                <Space>
-                    <Title>A/B Testing Evaluations</Title>
-                    <Button size="small" href={`/apps/${appId}/annotations/human_a_b_testing`}>
-                        View all
-                    </Button>
-                </Space>
+            {viewType === "overview" ? (
+                <div className="flex items-center justify-between">
+                    <Space>
+                        <Title>A/B Testing Evaluations</Title>
+                        <Button size="small" href={`/apps/${appId}/annotations/human_a_b_testing`}>
+                            View all
+                        </Button>
+                    </Space>
 
-                <Button
-                    icon={<PlusOutlined />}
-                    size="small"
-                    onClick={() => setIsEvalModalOpen(true)}
-                >
-                    Create new
-                </Button>
-            </div>
+                    <Button
+                        icon={<PlusOutlined />}
+                        size="small"
+                        onClick={() => setIsEvalModalOpen(true)}
+                    >
+                        Create new
+                    </Button>
+                </div>
+            ) : (
+                <div className="flex items-center justify-between">
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        className={classes.button}
+                        onClick={() => setIsEvalModalOpen(true)}
+                    >
+                        Start new evaluation
+                    </Button>
+
+                    <Space>
+                        <Button
+                            danger
+                            type="text"
+                            icon={<Trash size={14} />}
+                            className={classes.button}
+                            onClick={() => setIsDeleteMultipleEvalModalOpen(true)}
+                            disabled={selectedRowKeys.length == 0}
+                        >
+                            Delete
+                        </Button>
+                        <Button
+                            type="text"
+                            icon={<ArrowsLeftRight size={14} />}
+                            className={classes.button}
+                            disabled
+                        >
+                            Compare
+                        </Button>
+                    </Space>
+                </div>
+            )}
 
             <Spin spinning={fetchingEvaluations}>
                 <Table
+                    rowSelection={
+                        viewType === "evaluation"
+                            ? {
+                                  type: "checkbox",
+                                  columnWidth: 48,
+                                  ...rowSelection,
+                              }
+                            : undefined
+                    }
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={evaluationsList}
@@ -429,6 +502,18 @@ const AbTestingEvalOverview = () => {
                     onOk={async () => {
                         await handleDeleteEvaluation(selectedEvalRecord)
                         setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"a/b testing evaluation"}
+                />
+            )}
+
+            {isDeleteMultipleEvalModalOpen && (
+                <DeleteEvaluationModal
+                    open={isDeleteMultipleEvalModalOpen}
+                    onCancel={() => setIsDeleteMultipleEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteMultipleEvaluations()
+                        setIsDeleteMultipleEvalModalOpen(false)
                     }}
                     evaluationType={"a/b testing evaluation"}
                 />

@@ -1,5 +1,6 @@
 import {SingleModelEvaluationListTableDataType} from "@/lib/Types"
 import React from "react"
+import SingleModelEvalOverview from "@/components/pages/overview/singleModelEvaluation/SingleModelEvalOverview"
 
 interface SingleModelEvaluationProps {
     evaluationList: SingleModelEvaluationListTableDataType[]
@@ -10,7 +11,7 @@ const SingleModelEvaluation = ({
     evaluationList,
     fetchingEvaluations,
 }: SingleModelEvaluationProps) => {
-    return <div>SingleModelEvaluation</div>
+    return <SingleModelEvalOverview viewType="evaluation" />
 }
 
 export default SingleModelEvaluation
