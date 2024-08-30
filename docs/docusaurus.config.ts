@@ -36,7 +36,7 @@ const config: Config = {
           path: "docs",
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/website",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           docItemComponent: "@theme/ApiItem",
           breadcrumbs: false,
         },
@@ -47,7 +47,7 @@ const config: Config = {
             type: ["rss", "atom"],
           },
           blogSidebarCount: 0,
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/website",
+          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           onInlineTags: "ignore",
         },
         theme: {
