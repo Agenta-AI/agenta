@@ -357,6 +357,15 @@ export interface Evaluator {
     oss?: boolean
 }
 
+export interface EvaluatorMappingInput {
+    inputs: Record<string, any>
+    mapping: Record<string, any>
+}
+
+export interface EvaluatorMappingOutput {
+    outputs: Record<string, any>
+}
+
 export interface EvaluatorConfig {
     id: string
     evaluator_key: string
