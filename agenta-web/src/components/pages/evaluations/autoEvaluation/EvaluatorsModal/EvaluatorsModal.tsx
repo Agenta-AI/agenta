@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {Evaluator, JSSTheme, Variant} from "@/lib/Types"
+import {Evaluator, JSSTheme, TestSet, Variant} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -10,6 +10,8 @@ import ConfigureEvaluators from "./ConfigureEvaluators"
 import CreateNewEvaluator from "./CreateNewEvaluator"
 import ConfigureNewEvaluator from "./ConfigureNewEvaluator"
 import {fetchVariants} from "@/services/api"
+import {fetchTestsets} from "@/services/testsets/api"
+import TestcaseTab from "./TestcaseTab/TestcaseTab"
 
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
@@ -32,16 +34,28 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
     const [variants, setVariants] = useState<Variant[] | null>(null)
+    const [testsets, setTestsets] = useState<TestSet[] | null>(null)
+    const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
+
+    const evalConfigFetcher = () => {
+        setFetchingEvalConfigs(true)
+        fetchAllEvaluatorConfigs(appId)
+            .then(setEvaluatorConfigs)
+            .catch(console.error)
+            .finally(() => setFetchingEvalConfigs(false))
+    }
 
     useEffect(() => {
         Promise.all([
             fetchAllEvaluators(),
             fetchAllEvaluatorConfigs(appId),
             fetchVariants(appId),
-        ]).then(([evaluators, configs, variants]) => {
+            fetchTestsets(appId),
+        ]).then(([evaluators, configs, variants, testsets]) => {
             setEvaluators(evaluators)
             setEvaluatorConfigs(configs)
             setVariants(variants)
+            setTestsets(testsets)
         })
     }, [appId])
 
@@ -53,6 +67,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     handleOnCancel={() => props.onCancel?.({} as any)}
                     setCurrent={setCurrent}
                     setSelectedEvaluator={setSelectedEvaluator}
+                    fetchingEvalConfigs={fetchingEvalConfigs}
                 />
             ),
         },
@@ -69,16 +84,28 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     ]
 
     if (selectedEvaluator) {
-        steps.push({
-            content: (
-                <ConfigureNewEvaluator
-                    selectedEvaluator={selectedEvaluator}
-                    setCurrent={setCurrent}
-                    handleOnCancel={() => props.onCancel?.({} as any)}
-                    variants={variants}
-                />
-            ),
-        })
+        steps.push(
+            ...[
+                {
+                    content: (
+                        <ConfigureNewEvaluator
+                            selectedEvaluator={selectedEvaluator}
+                            setCurrent={setCurrent}
+                            handleOnCancel={() => props.onCancel?.({} as any)}
+                            variants={variants}
+                            testsets={testsets}
+                            onSuccess={() => {
+                                evalConfigFetcher()
+                                setCurrent(0)
+                            }}
+                        />
+                    ),
+                },
+                {
+                    content: <TestcaseTab handleOnCancel={() => setCurrent(2)} />,
+                },
+            ],
+        )
     }
 
     return (

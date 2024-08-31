@@ -1,7 +1,7 @@
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
-import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
+import {Button, Divider, Flex, Input, Radio, Space, Spin, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
@@ -12,6 +12,7 @@ type ConfigureEvaluatorModalProps = {
     handleOnCancel: () => void
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    fetchingEvalConfigs: boolean
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -55,6 +56,7 @@ const ConfigureEvaluatorModal = ({
     handleOnCancel,
     setCurrent,
     setSelectedEvaluator,
+    fetchingEvalConfigs,
 }: ConfigureEvaluatorModalProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
@@ -126,13 +128,13 @@ const ConfigureEvaluatorModal = ({
                 </div>
             </div>
 
-            <div>
+            <Spin spinning={fetchingEvalConfigs}>
                 {evaluatorsDisplay === "list" ? (
                     <EvaluatorList evaluatorConfigs={filteredEvalConfigs} />
                 ) : (
                     <EvaluatorCard evaluatorConfigs={filteredEvalConfigs} />
                 )}
-            </div>
+            </Spin>
         </div>
     )
 }

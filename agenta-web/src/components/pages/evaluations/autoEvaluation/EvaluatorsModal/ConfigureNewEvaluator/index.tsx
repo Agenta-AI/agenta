@@ -1,4 +1,4 @@
-import {Evaluator, JSSTheme, Variant} from "@/lib/Types"
+import {Evaluator, JSSTheme, TestSet, Variant} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
@@ -9,18 +9,28 @@ import {
     Lightning,
     Play,
 } from "@phosphor-icons/react"
-import {Button, Divider, Flex, Form, Input, Select, Space, Tag, Typography} from "antd"
+import {Button, Divider, Flex, Form, Input, message, Select, Space, Tag, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
+import {
+    CreateEvaluationConfigData,
+    createEvaluatorConfig,
+    updateEvaluatorConfig,
+} from "@/services/evaluations/api"
+import {useAppId} from "@/hooks/useAppId"
+import {useVariant} from "@/lib/hooks/useVariant"
+import {useLocalStorage} from "usehooks-ts"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     handleOnCancel: () => void
+    onSuccess: () => void
     selectedEvaluator: Evaluator
     variants: Variant[] | null
+    testsets: TestSet[] | null
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -61,11 +71,16 @@ const ConfigureNewEvaluator = ({
     selectedEvaluator,
     handleOnCancel,
     variants,
+    testsets,
+    onSuccess,
 }: ConfigureNewEvaluatorProps) => {
+    const appId = useAppId()
     const classes = useStyles()
     const [form] = Form.useForm()
-    const [debugEvaluator, setDebugEvaluator] = useState(false)
+    const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [openVariantModal, setOpenVariantModal] = useState(false)
+    const [submitLoading, setSubmitLoading] = useState(false)
+    const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
 
     const evalFields = useMemo(
         () =>
@@ -82,9 +97,29 @@ const ConfigureNewEvaluator = ({
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
-    const onSubmit = () => {
+    const onSubmit = (values: CreateEvaluationConfigData) => {
         try {
-        } catch (error: any) {}
+            setSubmitLoading(true)
+            if (!selectedEvaluator.key) throw new Error("No selected key")
+            const settingsValues = values.settings_values || {}
+
+            const data = {
+                ...values,
+                evaluator_key: selectedEvaluator.key,
+                settings_values: settingsValues,
+            }
+            ;(false
+                ? updateEvaluatorConfig("initialValues?.id"!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
+        } catch (error: any) {
+            setSubmitLoading(false)
+            console.error(error)
+            message.error(error.message)
+        }
     }
 
     return (
@@ -148,7 +183,7 @@ const ConfigureNewEvaluator = ({
                             requiredMark={false}
                             form={form}
                             name="new-evaluator"
-                            onFinish={() => onSubmit}
+                            onFinish={onSubmit}
                             layout="vertical"
                             className={classes.formContainer}
                         >
@@ -214,8 +249,12 @@ const ConfigureNewEvaluator = ({
                     </div>
 
                     <Flex gap={8} justify="end">
-                        <Button type="text">Reset</Button>
-                        <Button type="primary">Save configuration</Button>
+                        <Button type="text" onClick={() => form.resetFields()}>
+                            Reset
+                        </Button>
+                        <Button type="primary" loading={submitLoading} onClick={form.submit}>
+                            Save configuration
+                        </Button>
                     </Flex>
                 </div>
 
@@ -238,7 +277,11 @@ const ConfigureNewEvaluator = ({
                                     Generate test data
                                 </Typography.Text>
                                 <Space>
-                                    <Button size="small" className="flex items-center gap-2">
+                                    <Button
+                                        size="small"
+                                        className="flex items-center gap-2"
+                                        onClick={() => setCurrent(3)}
+                                    >
                                         <Database />
                                         Load test case
                                     </Button>
@@ -289,6 +332,8 @@ const ConfigureNewEvaluator = ({
                 variants={variants}
                 open={openVariantModal}
                 onCancel={() => setOpenVariantModal(false)}
+                setSelectedVariant={setSelectedVariant}
+                selectedVariant={selectedVariant}
             />
         </div>
     )

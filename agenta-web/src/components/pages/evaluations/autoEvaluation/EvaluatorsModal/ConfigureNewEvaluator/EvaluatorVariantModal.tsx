@@ -1,12 +1,26 @@
 import {formatVariantIdWithHash} from "@/lib/helpers/utils"
 import {JSSTheme, Variant} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
-import {Badge, Button, Divider, Input, Modal, Table, Tag, theme, Typography} from "antd"
+import {
+    Badge,
+    Button,
+    Divider,
+    Flex,
+    Input,
+    Modal,
+    Space,
+    Table,
+    Tag,
+    theme,
+    Typography,
+} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 type EvaluatorVariantModalProps = {
     variants: Variant[] | null
+    setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
+    selectedVariant: Variant | null
 } & React.ComponentProps<typeof Modal>
 
 const {useToken} = theme
@@ -25,8 +39,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-modal-body": {
             paddingLeft: 24,
             paddingRight: 24,
-            height: 300,
-            overflowY: "auto",
         },
     },
     table: {
@@ -41,11 +53,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const EvaluatorVariantModal = ({variants, ...props}: EvaluatorVariantModalProps) => {
+const EvaluatorVariantModal = ({
+    variants,
+    setSelectedVariant,
+    selectedVariant,
+    ...props
+}: EvaluatorVariantModalProps) => {
     const classes = useStyles()
     const {token} = useToken()
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedVariant, setSelectedVariant] = useState<Variant>()
 
     const filtered = useMemo(() => {
         if (!searchTerm) return variants
@@ -100,7 +116,16 @@ const EvaluatorVariantModal = ({variants, ...props}: EvaluatorVariantModalProps)
                         render: (_, record) => {
                             return (
                                 <div className="flex items-center justify-between">
-                                    <div>{record.variantName}</div>
+                                    <Space>
+                                        <div>{record.variantName}</div>
+                                        {selectedVariant?.variantId === record.variantId ? (
+                                            <Tag bordered={false} color="green">
+                                                Selected
+                                            </Tag>
+                                        ) : (
+                                            ""
+                                        )}
+                                    </Space>
 
                                     <Tag>
                                         <Badge
@@ -123,6 +148,26 @@ const EvaluatorVariantModal = ({variants, ...props}: EvaluatorVariantModalProps)
                 scroll={{y: 300}}
                 style={{height: 330}}
             />
+
+            <Flex gap={8} justify="end" className="mt-4">
+                <Button
+                    onClick={() => {
+                        props.onCancel?.({} as any)
+                        setSelectedVariant(null)
+                    }}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    disabled={!selectedVariant}
+                    type="primary"
+                    onClick={() => {
+                        props.onCancel?.({} as any)
+                    }}
+                >
+                    Select Variant
+                </Button>
+            </Flex>
         </Modal>
     )
 }
