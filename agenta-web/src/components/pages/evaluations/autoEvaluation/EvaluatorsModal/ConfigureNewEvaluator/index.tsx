@@ -1,4 +1,4 @@
-import {Evaluator, JSSTheme, TestSet, Variant} from "@/lib/Types"
+import {Evaluator, JSSTheme, testset, Variant} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
@@ -9,8 +9,20 @@ import {
     Lightning,
     Play,
 } from "@phosphor-icons/react"
-import {Button, Divider, Flex, Form, Input, message, Select, Space, Tag, Typography} from "antd"
-import React, {useMemo, useState} from "react"
+import {
+    Button,
+    Divider,
+    Flex,
+    Form,
+    Input,
+    message,
+    Select,
+    Space,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd"
+import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
@@ -23,6 +35,7 @@ import {
 import {useAppId} from "@/hooks/useAppId"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useLocalStorage} from "usehooks-ts"
+import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -30,7 +43,8 @@ type ConfigureNewEvaluatorProps = {
     onSuccess: () => void
     selectedEvaluator: Evaluator
     variants: Variant[] | null
-    testsets: TestSet[] | null
+    testsets: testset[] | null
+    selectedTestcase: Record<string, any> | null
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -73,6 +87,7 @@ const ConfigureNewEvaluator = ({
     variants,
     testsets,
     onSuccess,
+    selectedTestcase,
 }: ConfigureNewEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -121,6 +136,20 @@ const ConfigureNewEvaluator = ({
             message.error(error.message)
         }
     }
+
+    useEffect(() => {
+        if (!selectedVariant) return
+
+        const fetchParameters = async () => {
+            try {
+                const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
+            } catch (error) {
+                console.error(error)
+            }
+        }
+
+        fetchParameters()
+    }, [selectedVariant])
 
     return (
         <div className="flex flex-col gap-6 h-full">
@@ -277,14 +306,20 @@ const ConfigureNewEvaluator = ({
                                     Generate test data
                                 </Typography.Text>
                                 <Space>
-                                    <Button
-                                        size="small"
-                                        className="flex items-center gap-2"
-                                        onClick={() => setCurrent(3)}
+                                    <Tooltip
+                                        title={testsets?.length === 0 ? "No testset" : ""}
+                                        placement="bottom"
                                     >
-                                        <Database />
-                                        Load test case
-                                    </Button>
+                                        <Button
+                                            size="small"
+                                            className="flex items-center gap-2"
+                                            onClick={() => setCurrent(3)}
+                                            disabled={testsets?.length === 0}
+                                        >
+                                            <Database />
+                                            Load test case
+                                        </Button>
+                                    </Tooltip>
                                     <Button
                                         size="small"
                                         className="flex items-center gap-2"
