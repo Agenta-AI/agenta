@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {Evaluator, JSSTheme, TestSet, Variant} from "@/lib/Types"
+import {Evaluator, JSSTheme, testset, Variant} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -34,8 +34,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
     const [variants, setVariants] = useState<Variant[] | null>(null)
-    const [testsets, setTestsets] = useState<TestSet[] | null>(null)
+    const [testsets, setTestsets] = useState<testset[] | null>(null)
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
+    const [selectedTestcase, setSelectedTestcase] = useState<Record<string, any> | null>(null)
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -84,28 +85,35 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     ]
 
     if (selectedEvaluator) {
-        steps.push(
-            ...[
-                {
-                    content: (
-                        <ConfigureNewEvaluator
-                            selectedEvaluator={selectedEvaluator}
-                            setCurrent={setCurrent}
-                            handleOnCancel={() => props.onCancel?.({} as any)}
-                            variants={variants}
-                            testsets={testsets}
-                            onSuccess={() => {
-                                evalConfigFetcher()
-                                setCurrent(0)
-                            }}
-                        />
-                    ),
-                },
-                {
-                    content: <TestcaseTab handleOnCancel={() => setCurrent(2)} />,
-                },
-            ],
-        )
+        steps.push({
+            content: (
+                <ConfigureNewEvaluator
+                    selectedEvaluator={selectedEvaluator}
+                    setCurrent={setCurrent}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                    variants={variants}
+                    testsets={testsets}
+                    onSuccess={() => {
+                        evalConfigFetcher()
+                        setCurrent(0)
+                    }}
+                    selectedTestcase={selectedTestcase}
+                />
+            ),
+        })
+
+        if (testsets && testsets.length) {
+            steps.push({
+                content: (
+                    <TestcaseTab
+                        handleOnCancel={() => setCurrent(2)}
+                        testsets={testsets}
+                        setSelectedTestcase={setSelectedTestcase}
+                        selectedTestcase={selectedTestcase}
+                    />
+                ),
+            })
+        }
     }
 
     return (
