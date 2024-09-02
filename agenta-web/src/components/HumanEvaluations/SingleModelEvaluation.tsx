@@ -14,7 +14,7 @@ import {
     fetchEvaluationResults,
 } from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {ArrowsLeftRight, Database, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
+import {Database, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
@@ -48,7 +48,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const SingleModelEvalOverview = ({viewType}: {viewType: "evaluation" | "overview"}) => {
+const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
@@ -346,14 +346,6 @@ const SingleModelEvalOverview = ({viewType}: {viewType: "evaluation" | "overview
                         >
                             Delete
                         </Button>
-                        <Button
-                            type="text"
-                            icon={<ArrowsLeftRight size={14} />}
-                            className={classes.button}
-                            disabled
-                        >
-                            Compare
-                        </Button>
                     </Space>
                 </div>
             )}
@@ -417,4 +409,4 @@ const SingleModelEvalOverview = ({viewType}: {viewType: "evaluation" | "overview
     )
 }
 
-export default SingleModelEvalOverview
+export default SingleModelEvaluation
