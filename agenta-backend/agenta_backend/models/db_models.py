@@ -58,8 +58,6 @@ class ProjectDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    app = relationship("AppDB", cascade="all, delete-orphan", back_populates="project")
-
 
 class DockerImageDB(Base):
     __tablename__ = "docker_images"
@@ -98,9 +96,6 @@ class AppDB(Base):
     )
     app_name = Column(String)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
-    )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -109,7 +104,6 @@ class AppDB(Base):
     )
 
     user = relationship("UserDB")
-    project = relationship("ProjectDB")
     variant = relationship(
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
