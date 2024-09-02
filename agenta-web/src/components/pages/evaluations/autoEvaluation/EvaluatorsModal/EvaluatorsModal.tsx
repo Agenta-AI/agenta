@@ -6,12 +6,12 @@ import {Modal} from "antd"
 import {useAtom} from "jotai"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import ConfigureEvaluators from "./ConfigureEvaluators"
-import CreateNewEvaluator from "./CreateNewEvaluator"
-import ConfigureNewEvaluator from "./ConfigureNewEvaluator"
 import {fetchVariants} from "@/services/api"
 import {fetchTestsets} from "@/services/testsets/api"
 import TestcaseTab from "./TestcaseTab/TestcaseTab"
+import ConfigureEvaluator from "./ConfigureEvaluator"
+import NewEvaluator from "./NewEvaluator"
+import Evaluators from "./Evaluators"
 
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
@@ -64,7 +64,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const steps = [
         {
             content: (
-                <ConfigureEvaluators
+                <Evaluators
                     evaluatorConfigs={evaluatorConfigs}
                     handleOnCancel={() => props.onCancel?.({} as any)}
                     setCurrent={setCurrent}
@@ -75,7 +75,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
         },
         {
             content: (
-                <CreateNewEvaluator
+                <NewEvaluator
                     evaluators={evaluators}
                     setCurrent={setCurrent}
                     handleOnCancel={() => props.onCancel?.({} as any)}
@@ -88,7 +88,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     if (selectedEvaluator) {
         steps.push({
             content: (
-                <ConfigureNewEvaluator
+                <ConfigureEvaluator
                     selectedEvaluator={selectedEvaluator}
                     setCurrent={setCurrent}
                     handleOnCancel={() => props.onCancel?.({} as any)}

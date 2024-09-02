@@ -4,8 +4,8 @@ import {ArrowLeft, Cards, Table} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
-import CreateEvaluatorList from "./CreateEvaluatorList"
-import CreateEvaluatorCard from "./CreateEvaluatorCard"
+import NewEvaluatorList from "./NewEvaluatorList"
+import NewEvaluatorCard from "./NewEvaluatorCard"
 
 type CreateNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -145,13 +145,13 @@ const CreateNewEvaluator = ({
 
             <div>
                 {evaluatorsDisplay === "list" ? (
-                    <CreateEvaluatorList
+                    <NewEvaluatorList
                         evaluators={filteredEvaluators}
                         setSelectedEvaluator={setSelectedEvaluator}
                         setCurrent={setCurrent}
                     />
                 ) : (
-                    <CreateEvaluatorCard
+                    <NewEvaluatorCard
                         evaluators={filteredEvaluators}
                         setSelectedEvaluator={setSelectedEvaluator}
                         setCurrent={setCurrent}
