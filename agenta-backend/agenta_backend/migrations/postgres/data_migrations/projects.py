@@ -14,7 +14,7 @@ from agenta_backend.models.db_models import AppDB, ProjectDB
 
 def assign_default_project():
     # Define the project name that was used as default
-    PROJECT_NAME = "Default Project"
+    PROJECT_NAME = "Default"
 
     # Create engine for db connection
     engine = create_engine(url=os.environ["POSTGRES_URI"])
@@ -76,7 +76,7 @@ def assign_default_project():
 
 def revert_default_project():
     # Define the project name that was used as default
-    PROJECT_NAME = "Default Project"
+    PROJECT_NAME = "Default"
 
     # Create engine for db connection
     engine = create_engine(url=os.environ["POSTGRES_URI"])
