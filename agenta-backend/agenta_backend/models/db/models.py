@@ -6,7 +6,7 @@ if isCloudEE():
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,
-        UserOrganizationDB,
+        OrganizationMemberDB,
         WorkspaceMemberDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
@@ -68,4 +68,4 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, UserOrganizationDB, WorkspaceMemberDB])  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, WorkspaceMemberDB])  # type: ignore
