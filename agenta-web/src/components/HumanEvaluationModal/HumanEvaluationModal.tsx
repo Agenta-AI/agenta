@@ -5,7 +5,6 @@ import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
 import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import {DownOutlined} from "@ant-design/icons"
 import {EvaluationType} from "@/lib/enums"
 import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
@@ -15,6 +14,7 @@ import {createUseStyles} from "react-jss"
 import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLoadTestsetsList} from "@/services/testsets/api"
+import {CaretDown, Play} from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {
@@ -356,7 +356,7 @@ const HumanEvaluationModal = ({
                     setSelectedTestset({name: "Select a Test set"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
-                title="Start a New Evaluation"
+                title="New Evaluation"
                 footer={null}
             >
                 <Spin spinning={areAppVariantsLoading}>
@@ -373,7 +373,7 @@ const HumanEvaluationModal = ({
                                     >
                                         <div className={classes.dropdownStyles}>
                                             {selectedTestset.name}
-                                            <DownOutlined />
+                                            <CaretDown size={16} />
                                         </div>
                                     </Button>
                                 </Dropdown>
@@ -393,7 +393,7 @@ const HumanEvaluationModal = ({
                                             <div className={classes.dropdownStyles}>
                                                 {selectedVariants[index]?.variantName ||
                                                     "Select a variant"}
-                                                <DownOutlined />
+                                                <CaretDown size={16} />
                                             </div>
                                         </Button>
                                     </Dropdown>
@@ -430,6 +430,8 @@ const HumanEvaluationModal = ({
                                         onClick={onStartEvaluation}
                                         type="primary"
                                         data-cy="start-new-evaluation-button"
+                                        icon={<Play size={14} />}
+                                        className="flex items-center"
                                     >
                                         Start
                                     </Button>
