@@ -37,6 +37,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [testsets, setTestsets] = useState<testset[] | null>(null)
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
     const [selectedTestcase, setSelectedTestcase] = useState<Record<string, any> | null>(null)
+    const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -98,6 +99,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                         setCurrent(0)
                     }}
                     selectedTestcase={selectedTestcase}
+                    setSelectedTestcase={setSelectedTestcase}
+                    selectedVariant={selectedVariant}
+                    setSelectedVariant={setSelectedVariant}
                 />
             ),
         })

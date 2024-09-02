@@ -1,5 +1,5 @@
-import {Evaluator, JSSTheme, testset, Variant} from "@/lib/Types"
-import {CloseOutlined} from "@ant-design/icons"
+import {Evaluator, GenericObject, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
+import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
     CaretDoubleLeft,
@@ -22,7 +22,7 @@ import {
     Tooltip,
     Typography,
 } from "antd"
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
@@ -33,9 +33,10 @@ import {
     updateEvaluatorConfig,
 } from "@/services/evaluations/api"
 import {useAppId} from "@/hooks/useAppId"
-import {useVariant} from "@/lib/hooks/useVariant"
 import {useLocalStorage} from "usehooks-ts"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
+import {randString, removeKeys} from "@/lib/helpers/utils"
+import {callVariant} from "@/services/api"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -45,6 +46,9 @@ type ConfigureNewEvaluatorProps = {
     variants: Variant[] | null
     testsets: testset[] | null
     selectedTestcase: Record<string, any> | null
+    setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
+    setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
+    selectedVariant: Variant | null
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -88,6 +92,9 @@ const ConfigureNewEvaluator = ({
     testsets,
     onSuccess,
     selectedTestcase,
+    setSelectedTestcase,
+    selectedVariant,
+    setSelectedVariant,
 }: ConfigureNewEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -95,7 +102,11 @@ const ConfigureNewEvaluator = ({
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [openVariantModal, setOpenVariantModal] = useState(false)
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
+    const [optInputs, setOptInputs] = useState<Parameter[] | null>(null)
+    const [optParams, setOptParams] = useState<Parameter[] | null>(null)
+    const [isChatVariant, setIsChatVariant] = useState(false)
+    const abortControllersRef = useRef<AbortController | null>(null)
+    const [isRunningVariant, setIsRunningVariant] = useState(false)
 
     const evalFields = useMemo(
         () =>
@@ -138,11 +149,35 @@ const ConfigureNewEvaluator = ({
     }
 
     useEffect(() => {
-        if (!selectedVariant) return
+        if (optInputs && selectedTestcase) {
+            setSelectedTestcase(() => {
+                let result: GenericObject = {}
+
+                optInputs.forEach((data) => {
+                    if (selectedTestcase.hasOwnProperty(data.name)) {
+                        result[data.name] = selectedTestcase[data.name]
+                    }
+                })
+
+                result["id"] = randString(6)
+
+                return result
+            })
+        }
+    }, [optInputs])
+
+    useEffect(() => {
+        if (!selectedVariant || !selectedTestcase) return
 
         const fetchParameters = async () => {
             try {
-                const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
+                const {parameters, inputs, isChatVariant} = await getAllVariantParameters(
+                    appId,
+                    selectedVariant,
+                )
+                setOptInputs(inputs)
+                setOptParams(parameters)
+                setIsChatVariant(isChatVariant)
             } catch (error) {
                 console.error(error)
             }
@@ -150,6 +185,31 @@ const ConfigureNewEvaluator = ({
 
         fetchParameters()
     }, [selectedVariant])
+
+    const handleRunVariant = async () => {
+        if (!selectedTestcase || !selectedVariant) return
+        const controller = new AbortController()
+        abortControllersRef.current = controller
+
+        try {
+            setIsRunningVariant(true)
+            const data = await callVariant(
+                isChatVariant ? removeKeys(selectedTestcase, ["chat"]) : selectedTestcase,
+                optInputs || [],
+                optParams || [],
+                appId,
+                selectedVariant.baseId,
+                isChatVariant ? selectedTestcase.chat || [{}] : [],
+                controller.signal,
+                true,
+            )
+            console.log(data)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsRunningVariant(false)
+        }
+    }
 
     return (
         <div className="flex flex-col gap-6 h-full">
@@ -328,10 +388,32 @@ const ConfigureNewEvaluator = ({
                                         <Lightning />
                                         Select variant
                                     </Button>
-                                    <Button size="small" className="flex items-center gap-2">
-                                        <Play />
-                                        Run variant
-                                    </Button>
+                                    {isRunningVariant ? (
+                                        <Button
+                                            size="small"
+                                            danger
+                                            onClick={() => {
+                                                if (abortControllersRef.current) {
+                                                    abortControllersRef.current.abort()
+                                                }
+                                            }}
+                                            type="primary"
+                                        >
+                                            <CloseCircleOutlined />
+                                            Cancel
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            size="small"
+                                            className="flex items-center gap-2"
+                                            disabled={!selectedTestcase || !selectedVariant}
+                                            onClick={handleRunVariant}
+                                            loading={isRunningVariant}
+                                        >
+                                            <Play />
+                                            Run variant
+                                        </Button>
+                                    )}
                                 </Space>
                             </Flex>
 
