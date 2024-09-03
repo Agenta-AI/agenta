@@ -16,9 +16,9 @@ describe("Single Model Test workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
-            cy.url().should("include", "/annotations/single_model_test")
-            cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
+            cy.visit(`/apps/${app_id}/evaluations?selectedEvaluation=single_model_evaluation`)
+            cy.url().should("include", "/evaluations?selectedEvaluation=single_model_evaluation")
+            cy.clickLinkAndWait('[data-cy="new-human-eval-modal-button"]')
 
             cy.get(".ant-modal-content").should("exist")
 
@@ -49,10 +49,10 @@ describe("Single Model Test workflow", () => {
         })
 
         it("Should modify the evaluation vote scores", () => {
-            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
-            cy.url().should("include", "/annotations/single_model_test")
+            cy.visit(`/apps/${app_id}/evaluations?selectedEvaluation=single_model_evaluation`)
+            cy.url().should("include", "/evaluations?selectedEvaluation=single_model_evaluation")
             cy.wait(1000)
-            cy.clickLinkAndWait('[data-cy="single-model-view-evaluation-button"]')
+            cy.clickLinkAndWait(".ant-table-row").eq(0)
             cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').clear()
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("85")
