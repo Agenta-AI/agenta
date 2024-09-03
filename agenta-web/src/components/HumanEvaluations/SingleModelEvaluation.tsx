@@ -252,7 +252,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
                                         router.push(
-                                            `/apps/${appId}/annotations/single_model_test/${record.key}`,
+                                            `/apps/${appId}/evaluations/single_model_test/${record.key}`,
                                         )
                                     },
                                 },
@@ -311,7 +311,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                     <Space>
                         <Title>Single Model Evaluations</Title>
 
-                        <Button size="small" href={`/apps/${appId}/annotations/single_model_test`}>
+                        <Button size="small" href={`/apps/${appId}/evaluations/single_model_test`}>
                             View all
                         </Button>
                     </Space>
@@ -372,7 +372,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                         style: {cursor: "pointer"},
                         onClick: () =>
                             router.push(
-                                `/apps/${appId}/annotations/single_model_test/${record.key}`,
+                                `/apps/${appId}/evaluations/single_model_test/${record.key}`,
                             ),
                     })}
                 />

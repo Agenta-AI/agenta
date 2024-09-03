@@ -1,4 +1,4 @@
-import {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
+import type {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
 import {
     fetchLoadEvaluation,
     fetchAllLoadEvaluationsScenarios,

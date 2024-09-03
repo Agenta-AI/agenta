@@ -341,7 +341,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
                                             router.push(
-                                                `/apps/${appId}/annotations/human_a_b_testing/${record.key}`,
+                                                `/apps/${appId}/evaluations/human_a_b_testing/${record.key}`,
                                             )
                                         },
                                     },
@@ -414,7 +414,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                 <div className="flex items-center justify-between">
                     <Space>
                         <Title>A/B Testing Evaluations</Title>
-                        <Button size="small" href={`/apps/${appId}/annotations/human_a_b_testing`}>
+                        <Button size="small" href={`/apps/${appId}/evaluations/human_a_b_testing`}>
                             View all
                         </Button>
                     </Space>
@@ -475,7 +475,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                         style: {cursor: "pointer"},
                         onClick: () =>
                             router.push(
-                                `/apps/${appId}/annotations/human_a_b_testing/${record.key}`,
+                                `/apps/${appId}/evaluations/human_a_b_testing/${record.key}`,
                             ),
                     })}
                 />
