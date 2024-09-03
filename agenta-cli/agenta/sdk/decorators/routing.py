@@ -1,6 +1,5 @@
 """The code for the Agenta SDK"""
 
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
 import os
 import sys
 import time
@@ -19,13 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta as ag
-from agenta.sdk.context import save_context
 from agenta.sdk.router import router as router
-from agenta.sdk.tracing.logger import llm_logger as logging
-from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
-from agenta.sdk.decorators.base import BaseDecorator
+from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
-    Context,
     DictInput,
     FloatParam,
     InFile,
@@ -67,7 +62,7 @@ app.add_middleware(
 app.include_router(router, prefix="")
 
 
-logging.setLevel("DEBUG")
+log.setLevel("DEBUG")
 
 route_context = contextvars.ContextVar("route_context", default={})
 
@@ -96,7 +91,7 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-class route(BaseDecorator):
+class route:
     # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
     # as independent endpoints. It is designed for backward compatibility with existing code that uses
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
@@ -118,7 +113,7 @@ class route(BaseDecorator):
         return f
 
 
-class entrypoint(BaseDecorator):
+class entrypoint:
     """
     Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
@@ -154,8 +149,6 @@ class entrypoint(BaseDecorator):
     def __init__(
         self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None
     ):
-        logging.info(f"Using Agenta Python SDK version {version('agenta')}")
-
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -176,8 +169,9 @@ class entrypoint(BaseDecorator):
         config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        self.route_path = route_path
+
         ### --- Playground  --- #
-        @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
@@ -185,10 +179,6 @@ class entrypoint(BaseDecorator):
             if not config_schema:
                 ag.config.set(**api_config_params)
 
-            # Set the configuration and environment of the LLM app parent span at run-time
-            ag.tracing.update_baggage(
-                {"config": config_params, "environment": "playground"}
-            )
             with route_context_manager(config=api_config_params):
                 entrypoint_result = await self.execute_function(
                     func,
@@ -216,9 +206,11 @@ class entrypoint(BaseDecorator):
                 {
                     "func": func.__name__,
                     "endpoint": route,
-                    "params": {**config_params, **func_signature.parameters}
-                    if not config
-                    else func_signature.parameters,
+                    "params": (
+                        {**config_params, **func_signature.parameters}
+                        if not config
+                        else func_signature.parameters
+                    ),
                     "config": config,
                 }
             )
@@ -229,16 +221,17 @@ class entrypoint(BaseDecorator):
             {
                 "func": func.__name__,
                 "endpoint": route,
-                "params": {**config_params, **func_signature.parameters}
-                if not config
-                else func_signature.parameters,
+                "params": (
+                    {**config_params, **func_signature.parameters}
+                    if not config
+                    else func_signature.parameters
+                ),
                 "config": config,
             }
         )
         ### ---------------------------- #
 
         ### --- Deployed / Published --- #
-        @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
@@ -252,10 +245,6 @@ class entrypoint(BaseDecorator):
                 else:
                     ag.config.pull(config_name="default")
 
-            # Set the configuration and environment of the LLM app parent span at run-time
-            ag.tracing.update_baggage(
-                {"config": config_params, "environment": kwargs["environment"]}
-            )
             with route_context_manager(
                 variant=kwargs["config"], environment=kwargs["environment"]
             ):
@@ -347,84 +336,86 @@ class entrypoint(BaseDecorator):
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
+    def patch_result(self, result):
+        data = (
+            result["message"]
+            if isinstance(result, dict)
+            and all(key in result for key in ["message", "cost", "usage"])
+            else result
+        )
+
+        if data is None:
+            data = (
+                "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
+            )
+
+        if not isinstance(result, dict):
+            data = str(data)
+
+        return data
+
     async def execute_function(
-        self, func: Callable[..., Any], inline_trace, *args, **func_params
+        self,
+        func: Callable[..., Any],
+        inline_trace,
+        *args,
+        **func_params,
     ):
-        """Execute the function and handle any exceptions."""
+        log.info(f"\n--------------------------")
+        log.info(
+            f"Running application route: {repr(self.route_path if self.route_path != '' else '/')}"
+        )
+        log.info(f"--------------------------\n")
+
+        WAIT_FOR_SPANS = True
+        TIMEOUT = 1
+        TIMESTEP = 0.1
+        FINALSTEP = 0.001
+        NOFSTEPS = TIMEOUT / TIMESTEP
 
         try:
-            """Note: The following block is for backward compatibility.
-            It allows functions to work seamlessly whether they are synchronous or asynchronous.
-            For synchronous functions, it calls them directly, while for asynchronous functions,
-            it awaits their execution.
-            """
-            logging.info(f"Using Agenta Python SDK version {version('agenta')}")
+            result = (
+                await func(*args, **func_params["params"])
+                if inspect.iscoroutinefunction(func)
+                else func(*args, **func_params["params"])
+            )
 
-            WAIT_FOR_SPANS = True
-            TIMEOUT = 1
-            TIMESTEP = 0.1
-            NOFSTEPS = TIMEOUT / TIMESTEP
+            data = self.patch_result(result)
 
-            data = None
-            trace = None
+            if WAIT_FOR_SPANS:
+                remaining_steps = NOFSTEPS
 
-            token = None
-            if tracing_context.get() is None:
-                token = tracing_context.set(TracingContext())
+                while ag.tracing.is_processing() and remaining_steps > 0:
+                    await asyncio.sleep(TIMESTEP)
+                    remaining_steps -= 1
 
-            is_coroutine_function = inspect.iscoroutinefunction(func)
+                await asyncio.sleep(FINALSTEP)
 
-            if is_coroutine_function:
-                result = await func(*args, **func_params["params"])
-            else:
-                result = func(*args, **func_params["params"])
-
-            if token is not None:
-                if WAIT_FOR_SPANS:
-                    remaining_steps = NOFSTEPS
-
-                    while not ag.tracing.is_trace_ready() and remaining_steps > 0:
-                        await asyncio.sleep(TIMESTEP)
-                        remaining_steps -= 1
-
-                trace = ag.tracing.dump_trace()
-
-                if not inline_trace:
-                    trace = {"trace_id": trace["trace_id"]}
-
-                ag.tracing.flush_spans()
-                tracing_context.reset(token)
-
-            if isinstance(result, Context):
-                save_context(result)
-
-            data = result
-
-            # PATCH : if result is not a dict, make it a dict
-            if not isinstance(result, dict):
-                data = result
-            else:
-                # PATCH : if result is a legacy dict, clean it up
-                if (
-                    "message" in result.keys()
-                    and "cost" in result.keys()
-                    and "usage" in result.keys()
-                ):
-                    data = result["message"]
-            # END OF PATH
-
-            if data is None:
-                data = (
-                    "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
-                )
+            trace = ag.tracing.get_inline_trace(trace_id_only=(not inline_trace))
 
             response = BaseResponse(data=data, trace=trace)
-
-            # logging.debug(response)
 
             return response
 
         except Exception as e:
+            if WAIT_FOR_SPANS:
+                remaining_steps = NOFSTEPS
+
+                while ag.tracing.is_processing() and remaining_steps > 0:
+                    await asyncio.sleep(TIMESTEP)
+                    remaining_steps -= 1
+
+                await asyncio.sleep(FINALSTEP)
+
+            trace = ag.tracing.get_inline_trace(trace_id_only=(not inline_trace))
+
+            log.info("========= Error ==========")
+            log.info("")
+
+            print("-> trace")
+            log.info(trace)
+            print("-> exception")
+
             self.handle_exception(e)
 
     def handle_exception(self, e: Exception):
@@ -639,9 +630,6 @@ class entrypoint(BaseDecorator):
             }
         )
 
-        # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage({"config": args_config_params, "environment": "bash"})
-
         loop = asyncio.get_event_loop()
 
         result = loop.run_until_complete(
@@ -652,15 +640,15 @@ class entrypoint(BaseDecorator):
             )
         )
 
-        print("\n========== Result ==========\n")
+        log.info("========= Result =========")
+        log.info("")
 
         print("-> data")
         print(json.dumps(result.data, indent=2))
         print("-> trace")
         print(json.dumps(result.trace, indent=2))
-
-        with open("trace.json", "w") as trace_file:
-            json.dump(result.trace, trace_file, indent=4)
+        log.info("")
+        log.info("==========================")
 
     def override_config_in_schema(
         self,
