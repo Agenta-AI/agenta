@@ -21,6 +21,7 @@ export interface TestSet {
 export interface ListAppsItem {
     app_id: string
     app_name: string
+    updated_at: string
 }
 
 export interface AppVariant {
