@@ -5,6 +5,7 @@ import os
 import uuid
 import logging
 from urllib.parse import urlparse
+from datetime import datetime, timezone
 from typing import List, Any, Dict, Optional
 
 from agenta_backend.models.api.api_models import (
@@ -181,6 +182,64 @@ async def update_variant_image(
 
     # Start variant
     await start_variant(app_variant_db)
+
+
+async def update_last_modified_by(
+    user_uid: str,
+    object_id: str,
+    object_type: str,
+) -> None:
+    """Updates the last_modified_by field in the app variant table.
+
+    Args:
+        object_id (str): The object ID to update.
+        object_type (str): The type of object to update.
+        user_uid (str): The user UID to update.
+    """
+
+    async def get_appdb_str_by_id(object_id: str, object_type: str) -> str:
+        if object_type == "app":
+            return object_id
+        elif object_type == "variant":
+            app_variant_db = await db_manager.fetch_app_variant_by_id(object_id)
+            if app_variant_db is None:
+                raise db_manager.NoResultFound(f"Variant with id {object_id} not found")
+            return str(app_variant_db.app_id)
+        elif object_type == "evaluation":
+            evaluation_db = await db_manager.fetch_evaluation_by_id(object_id)
+            if evaluation_db is None:
+                raise db_manager.NoResultFound(
+                    f"Evaluation with id {object_id} not found"
+                )
+            return str(evaluation_db.app_id)
+        elif object_type == "human_evaluation":
+            human_evaluation_db = await db_manager.fetch_human_evaluation_by_id(
+                object_id
+            )
+            if human_evaluation_db is None:
+                raise db_manager.NoResultFound(
+                    f"Human Evaluation with id {object_id} not found"
+                )
+            return str(human_evaluation_db.app_id)
+        elif object_type == "evaluator_config":
+            evaluator_config_db = await db_manager.fetch_evaluator_config(object_id)
+            if evaluator_config_db is None:
+                raise db_manager.NoResultFound(
+                    f"Evaluator Config with id {str(object_id)} not found"
+                )
+            return str(evaluator_config_db.app_id)
+        else:
+            raise ValueError(f"Unsupported object type: {object_type}")
+
+    user = await db_manager.get_user(user_uid=user_uid)
+    app_id = await get_appdb_str_by_id(object_id=object_id, object_type=object_type)
+    await db_manager.update_app(
+        app_id=app_id,
+        values_to_update={
+            "modified_by_id": user.id,
+            "updated_at": datetime.now(timezone.utc),
+        },
+    )
 
 
 async def terminate_and_remove_app_variant(
