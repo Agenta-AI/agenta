@@ -1,5 +1,5 @@
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import {HumanEvaluationListTableDataType, JSSTheme} from "@/lib/Types"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
 import {getColorFromStr} from "@/lib/helpers/colors"
@@ -7,7 +7,6 @@ import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {abTestingEvaluationTransformer} from "@/lib/transformers"
-import {JSSTheme} from "@/lib/Types"
 import {
     deleteEvaluations,
     fetchAllLoadEvaluations,
@@ -435,6 +434,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                         icon={<Plus size={14} />}
                         className={classes.button}
                         onClick={() => setIsEvalModalOpen(true)}
+                        data-cy="new-human-eval-modal-button"
                     >
                         Start new evaluation
                     </Button>
