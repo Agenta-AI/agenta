@@ -213,7 +213,7 @@ export const fromBaseResponseToTraceSpanType = (
 export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
     const nodeMap: Record<string, any> = {}
 
-    function addNode(item: TraceSpan) {
+    function addTree(item: TraceSpan) {
         if (item.name) {
             if (!nodeMap[item.name]) {
                 nodeMap[item.name] = {
@@ -233,7 +233,7 @@ export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
     }
 
     tree.forEach((item) => {
-        addNode(item)
+        addTree(item)
     })
 
     return nodeMap
