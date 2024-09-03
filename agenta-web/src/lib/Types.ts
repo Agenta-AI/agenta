@@ -21,6 +21,7 @@ export interface TestSet {
 export interface ListAppsItem {
     app_id: string
     app_name: string
+    updated_at: string
 }
 
 export interface AppVariant {
@@ -355,6 +356,15 @@ export interface Evaluator {
     direct_use?: boolean
     description: string
     oss?: boolean
+}
+
+export interface EvaluatorMappingInput {
+    inputs: Record<string, any>
+    mapping: Record<string, any>
+}
+
+export interface EvaluatorMappingOutput {
+    outputs: Record<string, any>
 }
 
 export interface EvaluatorConfig {
