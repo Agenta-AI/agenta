@@ -41,6 +41,7 @@ import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
+import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -118,6 +119,7 @@ const ConfigureNewEvaluator = ({
     const abortControllersRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
     const [variantResult, setVariantResult] = useState("")
+    const [traceTree, setTraceTree] = useState<Record<string, any>>({})
 
     const evalFields = useMemo(
         () =>
@@ -229,6 +231,13 @@ const ConfigureNewEvaluator = ({
                         latency: formatLatency(trace?.latency),
                     }),
                 )
+                if (trace?.spans) {
+                    setTraceTree(
+                        transformTraceTreeToJson(
+                            fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
+                        ),
+                    )
+                }
             } else {
                 console.error("Unknown response type:", result)
             }
@@ -458,6 +467,10 @@ const ConfigureNewEvaluator = ({
                                     width="100%"
                                     language="json"
                                     theme={`vs-${appTheme}`}
+                                    value={getStringOrJson(traceTree)}
+                                    // onChange={(value) => {
+                                    //     console.log(value)
+                                    // }}
                                     options={{wordWrap: "on"}}
                                 />
                             </div>
