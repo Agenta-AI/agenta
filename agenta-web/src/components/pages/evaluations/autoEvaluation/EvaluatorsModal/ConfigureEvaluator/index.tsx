@@ -35,8 +35,12 @@ import {
 import {useAppId} from "@/hooks/useAppId"
 import {useLocalStorage} from "usehooks-ts"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-import {randString, removeKeys} from "@/lib/helpers/utils"
+import {getStringOrJson, randString, removeKeys} from "@/lib/helpers/utils"
 import {callVariant} from "@/services/api"
+import {Editor} from "@monaco-editor/react"
+import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
+import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 
 type ConfigureNewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -82,6 +86,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: theme.lineHeight,
         fontWeight: theme.fontWeightMedium,
     },
+    editor: {
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        overflow: "hidden",
+    },
 }))
 
 const ConfigureNewEvaluator = ({
@@ -98,6 +107,7 @@ const ConfigureNewEvaluator = ({
 }: ConfigureNewEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
+    const {appTheme} = useAppTheme()
     const [form] = Form.useForm()
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [openVariantModal, setOpenVariantModal] = useState(false)
@@ -107,6 +117,7 @@ const ConfigureNewEvaluator = ({
     const [isChatVariant, setIsChatVariant] = useState(false)
     const abortControllersRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
+    const [variantResult, setVariantResult] = useState("")
 
     const evalFields = useMemo(
         () =>
@@ -193,7 +204,7 @@ const ConfigureNewEvaluator = ({
 
         try {
             setIsRunningVariant(true)
-            const data = await callVariant(
+            const result = await callVariant(
                 isChatVariant ? removeKeys(selectedTestcase, ["chat"]) : selectedTestcase,
                 optInputs || [],
                 optParams || [],
@@ -203,9 +214,30 @@ const ConfigureNewEvaluator = ({
                 controller.signal,
                 true,
             )
-            console.log(data)
-        } catch (error) {
-            console.error(error)
+
+            if (typeof result === "string") {
+                setVariantResult(getStringOrJson({data: result}))
+            } else if (isFuncResponse(result)) {
+                setVariantResult(getStringOrJson(result))
+            } else if (isBaseResponse(result)) {
+                const {trace, data} = result
+                setVariantResult(
+                    getStringOrJson({
+                        ...(typeof data === "string" ? {message: data} : data),
+                        cost: formatCurrency(trace?.cost),
+                        usage: trace?.usage,
+                        latency: formatLatency(trace?.latency),
+                    }),
+                )
+            } else {
+                console.error("Unknown response type:", result)
+            }
+        } catch (error: any) {
+            if (!controller.signal.aborted) {
+                console.error(error)
+                message.error(error.message)
+                setVariantResult("")
+            }
         } finally {
             setIsRunningVariant(false)
         }
@@ -421,10 +453,30 @@ const ConfigureNewEvaluator = ({
                                 <Typography.Text className={classes.formTitleText}>
                                     JSON
                                 </Typography.Text>
-                                <Input.TextArea className="h-full flex-1" placeholder="Textarea" />
+                                <Editor
+                                    className={classes.editor}
+                                    width="100%"
+                                    language="json"
+                                    theme={`vs-${appTheme}`}
+                                    options={{wordWrap: "on"}}
+                                />
                             </div>
 
-                            <div className="flex flex-col gap-2">
+                            <div className="flex-1 flex flex-col h-full">
+                                <Typography.Text className={classes.formTitleText}>
+                                    App Output
+                                </Typography.Text>
+                                <Editor
+                                    className={classes.editor}
+                                    width="100%"
+                                    language="json"
+                                    theme={`vs-${appTheme}`}
+                                    value={variantResult}
+                                    options={{wordWrap: "on"}}
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-2 flex-1 h-full">
                                 <Flex justify="space-between">
                                     <Typography.Text className={classes.formTitleText}>
                                         Output
@@ -434,10 +486,12 @@ const ConfigureNewEvaluator = ({
                                     </Button>
                                 </Flex>
 
-                                <Input.TextArea
-                                    className="h-full flex-1"
-                                    placeholder="Result"
-                                    autoSize={{minRows: 4}}
+                                <Editor
+                                    className={classes.editor}
+                                    width="100%"
+                                    language="json"
+                                    theme={`vs-${appTheme}`}
+                                    options={{wordWrap: "on"}}
                                 />
                             </div>
                         </div>

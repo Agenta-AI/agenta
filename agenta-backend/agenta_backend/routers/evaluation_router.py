@@ -15,9 +15,6 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
 )
-from agenta_backend.services.evaluator_manager import (
-    check_ai_critique_inputs,
-)
 from agenta_backend.services import evaluation_service, db_manager, app_manager
 
 if isCloudEE():
