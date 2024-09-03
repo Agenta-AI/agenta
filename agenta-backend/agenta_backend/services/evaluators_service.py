@@ -299,7 +299,7 @@ def auto_ai_critique(
 
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo", messages=messages, temperature=0.8
+            model="gpt-3.5-turbo", messages=messages, temperature=0.01
         )
 
         evaluation_output = response.choices[0].message.content.strip()
@@ -621,9 +621,25 @@ def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
+        output = output.get("data", "") if isinstance(output, dict) else output
+
+        if isinstance(output, dict):
+            output = json.dumps(output)
+        elif isinstance(output, str):
+            try:
+                json.loads(output)
+            except:
+                raise Exception(
+                    f"Evaluator 'auto_json_diff' requires string outputs to be JSON strings."
+                )
+        else:
+            raise Exception(
+                f"Evaluator 'auto_json_diff' requires the output to be either a JSON string or a JSON object, but received {type(output).__name__} instead."
+            )
+
         correct_answer = get_correct_answer(data_point, settings_values)
         average_score = compare_jsons(
-            ground_truth=correct_answer,
+            ground_truth=json.loads(correct_answer),
             app_output=json.loads(output),
             settings_values=settings_values,
         )

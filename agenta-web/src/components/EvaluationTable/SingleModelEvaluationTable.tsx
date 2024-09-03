@@ -344,15 +344,18 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
 
                     let res: BaseResponse | undefined
 
-                    if (isFuncResponse(result)) {
+                    if (typeof result === "string") {
+                        res = {version: "2.0", data: result} as BaseResponse
+                    } else if (isFuncResponse(result)) {
                         res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
                     } else {
-                        res = {version: "2.0", data: result} as BaseResponse
+                        res = {version: "2.0", data: ""} as BaseResponse
+                        console.error("Unknown response type:", result)
                     }
 
-                    let _result = getStringOrJson(res)
+                    let _result = getStringOrJson(res.data)
 
                     setRowValue(rowIndex, variant.variantId, _result)
                     ;(outputs as KeyValuePair)[variant.variantId] = _result
@@ -572,6 +575,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 size="large"
                                 onClick={() => setIsTestsetModalOpen(true)}
                                 disabled={false}
+                                data-cy="single-model-save-testset-button"
                             >
                                 Save Testset
                             </Button>
