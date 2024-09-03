@@ -1,4 +1,4 @@
-import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import {HumanEvaluationListTableDataType} from "@/lib/Types"
 import {
     Evaluation,
     GenericObject,
