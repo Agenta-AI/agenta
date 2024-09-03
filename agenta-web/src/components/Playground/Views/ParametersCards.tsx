@@ -287,7 +287,6 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                                             placeholder={"variable name"}
                                             maxLength={200}
                                             autoSize={false}
-                                            size="small"
                                             onChange={(e) =>
                                                 handleVariableNameChange(
                                                     param,

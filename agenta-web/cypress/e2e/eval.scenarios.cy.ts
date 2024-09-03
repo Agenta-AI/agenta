@@ -5,7 +5,6 @@ describe("Evaluation Scenarios Test", function () {
         cy.get("@app_id").then((appId) => {
             app_id = appId
         })
-        cy.get('[data-cy="playground-save-changes-button"]').eq(0).click()
     })
 
     context("Executing Evaluation Scenarios Workflow", () => {
