@@ -1,11 +1,12 @@
 import random
+import logging
 from typing import List, Dict
 from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
-from agenta_backend.services import db_manager
 from agenta_backend.services import results_service
 from agenta_backend.services import evaluation_service
+from agenta_backend.services import db_manager, app_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
 
 from agenta_backend.models.api.evaluation_model import (
@@ -35,6 +36,8 @@ if isCloudEE():
     )  # noqa pylint: disable-all
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @router.post(
@@ -72,6 +75,15 @@ async def create_evaluation(
         new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
             payload, request.state.user_id
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         return await converters.human_evaluation_db_to_simple_evaluation_output(
             new_human_evaluation_db
         )
@@ -253,6 +265,15 @@ async def update_human_evaluation(
                 )
 
         await update_human_evaluation_service(human_evaluation, update_data)
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(human_evaluation.app_id),
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except KeyError:
@@ -308,6 +329,15 @@ async def update_evaluation_scenario_router(
             payload,
             evaluation_type,
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(evaluation_scenario_db.evaluation_id),
+            object_type="human_evaluation",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except UpdateEvaluationScenarioError as e:
         import traceback
@@ -379,7 +409,7 @@ async def update_evaluation_scenario_score_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
+        evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
             evaluation_scenario_id
         )
         if evaluation_scenario is None:
@@ -405,6 +435,14 @@ async def update_evaluation_scenario_score_router(
             evaluation_scenario_id=str(evaluation_scenario.id),  # type: ignore
             values_to_update=payload.dict(),
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(evaluation_scenario.evaluation_id),
+            object_type="human_evaluation",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -493,6 +531,14 @@ async def delete_evaluations(
                     detail=error_msg,
                     status_code=403,
                 )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=random.choice(delete_evaluations.evaluations_ids),
+            object_type="human_evaluation",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         await evaluation_service.delete_human_evaluations(
             delete_evaluations.evaluations_ids

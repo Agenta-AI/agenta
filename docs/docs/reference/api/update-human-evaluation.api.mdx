@@ -1,0 +1,402 @@
+---
+id: update-human-evaluation
+title: "Update Human Evaluation"
+description: "Updates an evaluation's status."
+sidebar_label: "Update Human Evaluation"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVt9v4kYQ/ldW+9KrRCCN7slP9d1RYTVNIiBXqUmEJvaA985eu7vrJBT5f+/M2mADAV2fy0NiZmfnxzfffGYjHaysDB7kpMpBX4xfIKvAqUJb+TSQCdrYqJK/y0Delwk4tAK0wJ3fT1ZYB66yw0f9qKegLNrgUQv6TObzu/FbjP5+IKKlcCmKuMiqXFuhtP9KAZ2w6ERSCF04kYOLU/GqXOqPlS4rt3N+AaNAuyYVusroba6bQmMgQnF1+ZGexedCO9SuLY1yJjigIImKqWi9omDgfMTK9yRegdqo4hitXVbZUA5kUaLxDUYJtd64LVIGadE1T34lGMjRoWEUN9Lg35UySHecqXAgbZxiDjLYSLcukSJZZ6gAuuiUy9jQQS4oVT2QmuKRvcuyUAn5Kx5BCS6VNU2G8xByn4pkzcHjpl9+hLLMfJuFHn2zPLhNr4rScGNOofV2D8971aGucqbF+Gt4fR/Oo9ubRXQTzaPwOvpr/IUcegezeTidHxp/I/fZ5JR18Wc0nyzG0+ntdHbgEUbXdOvpPYBmvtwxl3bIzZA4SfZ2ZkNZE5BtT8XzN4xdD3FP9S5qQ2u6UQ8OxucNtqRlaOC6urzkf/uZZzvaiGnrTLl+dCC1T/vx6uo48FfIVNIQY2xMYf5D1IMxJ+hAZfykHOb22CEr4r1T0OvbpefzPi/qwc6iqJIVGiJjhzQYA+se0NdFUyCzOrerc1vwB0EIK5S7YGcWhsEQcz59b8rdCB98X03q1q9Hqw7eBt3TbXxp4DtLKZK6o4DNbEkc0oI1hITM6wVtcCBHXkouuiW3o83extfka9G8bIWlMjRAmTpX2mA0irOiSoYEmHYwBDWCUh2vhD8Vn9nVa4bFuDLKrX288C76HdcThISGGDw89R1mzKOGGftuu6FQPjLLnViFFTVp1D9bVfRilTa3GARm6LSTrPEb5GWGfQk6pTQ1B1sWPncLdtvYJ4i/o2ZpZJCani+HvwwvTyHRXhDUU7tLEPtd2jbh3ehoH+sdyiyLuV8k6RDyX7sDbrEsrKOR9uI1wiK83Ihx/6WxV15Pvf9fr9iWSw7f3KjMQHmd8Nhv2jV5kEdrQveC/VcjETcl7Nl7s3kGi/cmq2s2E98Ms50efVvPTB/ifqIsP9NSLiGzeGYeH6atmvwsThW83QjN68CF8Td6/E77cfgW92KZbndu0/q0SF54SetiHCk8q29zI4x55Gd9n3rKc3c/J9/n9rdCTpMio4FXVkv668stygZecvA2eimAXlWsyYFsQvLnXygzffg=
+sidebar_class_name: "put api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update Human Evaluation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/human-evaluations/{evaluation_id}"}
+>
+  
+</MethodEndpoint>
+
+
+
+Updates an evaluation's status.
+
+Raises:
+    HTTPException: If the columns in the test set do not match with the inputs in the variant.
+
+Returns:
+    None: A 204 No Content status code, indicating that the update was successful.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<details
+  style={{"marginBottom":"1rem"}}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
+>
+  <summary
+    style={{}}
+  >
+    <h3
+      className={"openapi-markdown__details-summary-header-params"}
+    >
+      Path Parameters
+    </h3>
+  </summary><div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{"required":true,"schema":{"type":"string","title":"Evaluation Id"},"name":"evaluation_id","in":"path"}}
+      >
+        
+      </ParamsItem>
+    </ul>
+  </div>
+</details><MimeTabs
+  className={"openapi-tabs__mime"}
+>
+  <TabItem
+    label={"application/json"}
+    value={"application/json-schema"}
+  >
+    <details
+      style={{}}
+      className={"openapi-markdown__details mime"}
+      data-collapsed={false}
+      open={true}
+    >
+      <summary
+        style={{}}
+        className={"openapi-markdown__details-summary-mime"}
+      >
+        <h3
+          className={"openapi-markdown__details-summary-header-body"}
+        >
+          Body
+        </h3><strong
+          className={"openapi-schema__required"}
+        >
+          required
+        </strong>
+      </summary><div
+        style={{"textAlign":"left","marginLeft":"1rem"}}
+      >
+        
+      </div><ul
+        style={{"marginLeft":"1rem"}}
+      >
+        <SchemaItem
+          collapsible={false}
+          name={"status"}
+          required={false}
+          schemaName={"EvaluationStatusEnum (string)"}
+          qualifierMessage={"**Possible values:** [`EVALUATION_INITIALIZED`, `EVALUATION_STARTED`, `EVALUATION_FINISHED`, `EVALUATION_FINISHED_WITH_ERRORS`, `EVALUATION_FAILED`]"}
+          schema={{"type":"string","enum":["EVALUATION_INITIALIZED","EVALUATION_STARTED","EVALUATION_FINISHED","EVALUATION_FINISHED_WITH_ERRORS","EVALUATION_FAILED"],"title":"EvaluationStatusEnum","description":"An enumeration."}}
+        >
+          
+        </SchemaItem>
+      </ul>
+    </details>
+  </TabItem>
+</MimeTabs><div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      any
+                    </ul>
+                  </details>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem><TabItem
+        label={"422"}
+        value={"422"}
+      >
+        <div>
+          
+          
+          Validation Error
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <SchemaItem
+                        collapsible={true}
+                        className={"schemaItem"}
+                      >
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary
+                            style={{}}
+                          >
+                            <span
+                              className={"openapi-schema__container"}
+                            >
+                              <strong
+                                className={"openapi-schema__property"}
+                              >
+                                detail
+                              </strong><span
+                                className={"openapi-schema__name"}
+                              >
+                                 object[]
+                              </span>
+                            </span>
+                          </summary><div
+                            style={{"marginLeft":"1rem"}}
+                          >
+                            <li>
+                              <div
+                                style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                              >
+                                Array [
+                              </div>
+                            </li><SchemaItem
+                              collapsible={true}
+                              className={"schemaItem"}
+                            >
+                              <details
+                                style={{}}
+                                className={"openapi-markdown__details"}
+                              >
+                                <summary
+                                  style={{}}
+                                >
+                                  <span
+                                    className={"openapi-schema__container"}
+                                  >
+                                    <strong
+                                      className={"openapi-schema__property"}
+                                    >
+                                      loc
+                                    </strong><span
+                                      className={"openapi-schema__name"}
+                                    >
+                                       object[]
+                                    </span><span
+                                      className={"openapi-schema__divider"}
+                                    >
+                                      
+                                    </span><span
+                                      className={"openapi-schema__required"}
+                                    >
+                                      required
+                                    </span>
+                                  </span>
+                                </summary><div
+                                  style={{"marginLeft":"1rem"}}
+                                >
+                                  <li>
+                                    <div
+                                      style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                                    >
+                                      Array [
+                                    </div>
+                                  </li><div>
+                                    <span
+                                      className={"badge badge--info"}
+                                    >
+                                      anyOf
+                                    </span><SchemaTabs>
+                                      <TabItem
+                                        label={"MOD1"}
+                                        value={"0-item-properties"}
+                                      >
+                                        <div
+                                          style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                        >
+                                          
+                                          
+                                          string
+                                          
+                                          
+                                        </div>
+                                      </TabItem><TabItem
+                                        label={"MOD2"}
+                                        value={"1-item-properties"}
+                                      >
+                                        <div
+                                          style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                        >
+                                          
+                                          
+                                          integer
+                                          
+                                          
+                                        </div>
+                                      </TabItem>
+                                    </SchemaTabs>
+                                  </div><li>
+                                    <div
+                                      style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                                    >
+                                      ]
+                                    </div>
+                                  </li>
+                                </div>
+                              </details>
+                            </SchemaItem><SchemaItem
+                              collapsible={false}
+                              name={"msg"}
+                              required={true}
+                              schemaName={"Message (string)"}
+                              qualifierMessage={undefined}
+                              schema={{"type":"string","title":"Message"}}
+                            >
+                              
+                            </SchemaItem><SchemaItem
+                              collapsible={false}
+                              name={"type"}
+                              required={true}
+                              schemaName={"Error Type (string)"}
+                              qualifierMessage={undefined}
+                              schema={{"type":"string","title":"Error Type"}}
+                            >
+                              
+                            </SchemaItem><li>
+                              <div
+                                style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                              >
+                                ]
+                              </div>
+                            </li>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"string\",\n        0\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\"\n    }\n  ]\n}"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      

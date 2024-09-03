@@ -1,5 +1,8 @@
-import {fetchData} from "@/services/api"
-import {deleteEvaluations} from "@/services/human-evaluations/api"
+import {
+    deleteEvaluations,
+    fetchAllLoadEvaluations,
+    fetchEvaluationResults,
+} from "@/services/human-evaluations/api"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -8,11 +11,11 @@ import {EvaluationResponseType, StyleProps} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {abTestingEvaluationTransformer} from "@/lib/transformers"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -126,34 +129,14 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
         const fetchEvaluations = async () => {
             try {
                 setFetchingEvaluations(true)
-                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
+                fetchAllLoadEvaluations(app_id)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
-                            return fetchData(
-                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
-                            )
+                            return fetchEvaluationResults(item.id)
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
                                         if (Object.keys(results.votes_data).length > 0) {
-                                            return {
-                                                key: item.id,
-                                                createdAt: formatDate(item.created_at),
-                                                variants: item.variant_ids,
-                                                variantNames: item.variant_names,
-                                                votesData: results.votes_data,
-                                                evaluationType: item.evaluation_type,
-                                                status: item.status,
-                                                user: {
-                                                    id: item.user_id,
-                                                    username: item.user_username,
-                                                },
-                                                testset: {
-                                                    _id: item.testset_id,
-                                                    name: item.testset_name,
-                                                },
-                                                revisions: item.revisions,
-                                                variant_revision_ids: item.variants_revision_ids,
-                                            }
+                                            return abTestingEvaluationTransformer({item, results})
                                         }
                                     }
                                 })
