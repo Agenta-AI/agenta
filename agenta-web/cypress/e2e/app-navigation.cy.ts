@@ -35,7 +35,7 @@ describe("App Navigation without errors", () => {
 
         cy.get(".ant-tabs-tab").eq(1).click()
         cy.url().should("include", "/evaluations?selectedEvaluation=ab_testing_evaluation")
-        
+
         cy.get(".ant-tabs-tab").eq(2).click()
         cy.url().should("include", "/evaluations?selectedEvaluation=single_model_evaluation")
 
