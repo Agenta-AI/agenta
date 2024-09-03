@@ -6,6 +6,8 @@ import {
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
+    EvaluatorMappingInput,
+    EvaluatorMappingOutput,
     KeyValuePair,
     LLMRunRateLimit,
     TestSet,
@@ -63,6 +65,18 @@ export const fetchAllEvaluators = async () => {
         })) as Evaluator[]
 
     return evaluators
+}
+
+export const createEvaluatorDataMapping = async (
+    config: EvaluatorMappingInput,
+): Promise<EvaluatorMappingOutput> => {
+    const response = await axios.post("/api/evaluators/map/", {...config})
+    return response.data
+}
+
+export const createEvaluatorRunExecution = async (evaluatorKey: string) => {
+    const response = await axios.post(`/api/evaluators/${evaluatorKey}/run/`)
+    return response.data
 }
 
 // Evaluator Configs
