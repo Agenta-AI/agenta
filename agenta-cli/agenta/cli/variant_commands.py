@@ -16,7 +16,7 @@ from agenta.client.backend.client import AgentaApi
 from agenta.client.api import add_variant_to_server
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
-from agenta.client.backend.types.variant_action import VariantActionEnum, VariantAction
+from agenta.client.backend.types.variant_action import VariantAction
 
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
@@ -151,12 +151,18 @@ def add_variant(
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.variants.update_variant_image(
                 variant_id=variant_id,
-                request=image,  # because Fern code uses "request: Image" instead of "image: Image"
+                docker_id=image.docker_id,
+                tags=image.tags,
+                type=image.type,
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = add_variant_to_server(
-                app_id, base_name, image, f"{host}/{BACKEND_URL_SUFFIX}", api_key
+                app_id,
+                base_name,
+                image,
+                f"{host}/{BACKEND_URL_SUFFIX}",
+                api_key,
             )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
@@ -174,7 +180,7 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -196,7 +202,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -261,12 +267,11 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.variants.start_variant(
+    variant = client.variants.start_variant(
         variant_id=variant_id,
-        action=VariantAction(
-            action=VariantActionEnum.START,
-        ),
-    ).uri
+        action=VariantAction(action="START"),
+    )
+    endpoint = variant.uri
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
