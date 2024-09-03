@@ -32,6 +32,15 @@ describe("App Navigation without errors", () => {
         cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         cy.url().should("include", "/evaluations")
         cy.contains(/evaluations/i)
+
+        cy.get(".ant-tabs-tab").eq(1).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=ab_testing_evaluation")
+        
+        cy.get(".ant-tabs-tab").eq(2).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=single_model_evaluation")
+
+        cy.get(".ant-tabs-tab").eq(0).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=auto_evaluation")
     })
 
     if (isDemo()) {
