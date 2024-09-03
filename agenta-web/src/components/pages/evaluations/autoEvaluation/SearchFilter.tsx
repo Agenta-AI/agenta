@@ -8,7 +8,10 @@ type DataIndex = keyof _Evaluation
 
 type CellDataType = "number" | "text" | "date"
 
-export function getFilterParams(dataIndex: DataIndex, type: CellDataType): TableColumnType<_Evaluation> {
+export function getFilterParams(
+    dataIndex: DataIndex,
+    type: CellDataType,
+): TableColumnType<_Evaluation> {
     const searchInput = useRef<InputRef>(null)
 
     const filterDropdown = ({setSelectedKeys, selectedKeys, confirm}: FilterDropdownProps) => {
@@ -32,6 +35,7 @@ export function getFilterParams(dataIndex: DataIndex, type: CellDataType): Table
                             confirm({closeDropdown: false})
                         }}
                         style={{display: "block"}}
+                        type={type}
                     />
                 )}
             </div>
@@ -51,9 +55,9 @@ export function getFilterParams(dataIndex: DataIndex, type: CellDataType): Table
                         item.variantName?.toLowerCase().includes(value.toLowerCase()),
                     )
                 } else if (cellValue.hasOwnProperty("name")) {
-                    return cellValue.name.toLowerCase().includes(value.toLowerCase())
+                    return cellValue.name.toString().toLowerCase().includes(value.toLowerCase())
                 } else if (cellValue.hasOwnProperty("value")) {
-                    return cellValue.value.toLowerCase().includes(value.toLowerCase())
+                    return cellValue.value.toString().toLowerCase().includes(value.toLowerCase())
                 }
             }
             return cellValue?.toString().toLowerCase().includes(value.toLowerCase())
