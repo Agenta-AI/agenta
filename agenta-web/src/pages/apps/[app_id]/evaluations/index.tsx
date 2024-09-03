@@ -83,6 +83,7 @@ const EvaluationsPage = () => {
                 <AutoEvaluation
                     evaluationList={autoEvaluationList}
                     fetchingEvaluations={fetchingEvaluations}
+                    setEvaluationList={setAutoEvaluationList}
                 />
             ),
         },
