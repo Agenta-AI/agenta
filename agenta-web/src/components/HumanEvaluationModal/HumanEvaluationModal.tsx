@@ -111,6 +111,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         justifyContent: "space-between",
     },
+    dropdownItemLabels: {
+        fontSize: theme.fontSizeSM,
+        lineHeight: theme.lineHeightSM,
+        color: theme.colorTextDescription,
+    },
 }))
 
 interface HumanEvaluationModalProps {
@@ -278,7 +283,15 @@ const HumanEvaluationModal = ({
                 filteredVariants.push({
                     label: (
                         <>
-                            <div data-cy={`variant-${idx}`}>{variant.variantName}</div>
+                            <div
+                                data-cy={`variant-${idx}`}
+                                className="flex items-center justify-between"
+                            >
+                                <span>{variant.variantName}</span>
+                                <span className={classes.dropdownItemLabels}>
+                                    #{variant.variantId.split("-")[0]}
+                                </span>
+                            </div>
                         </>
                     ),
                     key: label,
