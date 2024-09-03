@@ -3,7 +3,7 @@ import logging
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
-from agenta_backend.services import db_manager
+from agenta_backend.services import db_manager, app_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import DeployToEnvironmentPayload
 
@@ -53,6 +53,14 @@ async def deploy_to_environment(
             variant_id=payload.variant_id,
             user_uid=request.state.user_id,
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.variant_id,
+            object_type="variant",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
