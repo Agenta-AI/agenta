@@ -1,36 +1,14 @@
-import os
-import copy
 import json
-from uuid import uuid4
 
-import traceback
 from threading import Lock
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List, Literal
-
+from typing import Optional, Dict, Any, List, Literal, Sequence
 from contextlib import contextmanager, suppress
-
-import agenta as ag
-
 from importlib.metadata import version
 
 from agenta.sdk.utils.logging import log
-from agenta.client.backend.client import AsyncAgentaApi
-from agenta.client.backend.client import AsyncObservabilityClient
-from agenta.client.backend.types.create_span import (
-    CreateSpan,
-    LlmTokens,
-)
+from agenta.client.backend.types.create_span import CreateSpan, LlmTokens
 
-from agenta.client.backend.types.span_status_code import SpanStatusCode
-
-from bson.objectid import ObjectId
-
-VARIANT_TRACKING_FEATURE_FLAG = False
-
-from agenta.sdk.utils.debug import debug
-
-from typing import Sequence
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import (
     Span,
