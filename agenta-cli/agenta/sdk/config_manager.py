@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from agenta.client.backend.client import AgentaApi
-from agenta.sdk.decorators.llm_entrypoint import route_context
+from agenta.sdk.decorators.routing import route_context
 
 from . import AgentaSingleton
 
