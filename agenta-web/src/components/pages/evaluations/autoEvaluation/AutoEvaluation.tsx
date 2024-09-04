@@ -1,4 +1,4 @@
-import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {
     ArrowsLeftRight,
     Database,
@@ -9,11 +9,11 @@ import {
     Rocket,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, DropdownProps, message, Space, Table} from "antd"
+import {Button, Dropdown, DropdownProps, message, Popover, Space, Table, Tag} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
-import {MoreOutlined} from "@ant-design/icons"
+import {EditOutlined, InfoCircleOutlined, MoreOutlined} from "@ant-design/icons"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
@@ -38,47 +38,57 @@ import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./SearchFilter"
-
-interface AutoEvaluationProps {
-    evaluationList: _Evaluation[]
-    fetchingEvaluations: boolean
-    setEvaluationList: React.Dispatch<React.SetStateAction<_Evaluation[]>>
-}
+import {uniqBy} from "lodash"
+import NewEvaluatorModal from "../evaluators/NewEvaluatorModal"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
+    resultTag: {
+        minWidth: 150,
+        display: "flex",
+        cursor: "pointer",
+        alignItems: "stretch",
+        borderRadius: theme.borderRadiusSM,
+        border: `1px solid ${theme.colorBorder}`,
+        textAlign: "center",
+        "& > div:nth-child(1)": {
+            backgroundColor: "rgba(0, 0, 0, 0.02)",
+            lineHeight: theme.lineHeight,
+            flex: 1,
+            borderRight: `1px solid ${theme.colorBorder}`,
+            padding: "0 7px",
+        },
+        "& > div:nth-child(2)": {
+            padding: "0 7px",
+        },
+    },
     button: {
         display: "flex",
         alignItems: "center",
     },
 }))
 
-const AutoEvaluation = ({
-    evaluationList,
-    fetchingEvaluations,
-    setEvaluationList,
-}: AutoEvaluationProps) => {
+const AutoEvaluation = () => {
     const classes = useStyles()
     const appId = useAppId()
     const router = useRouter()
 
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
-        "configureEvaluatorModal",
-        "",
-    )
-    // create new evaluation
+    const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
-    // delete evaluation
     const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
-    //edit columns
     const [editColumns, setEditColumns] = useState<string[]>([])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    //
+    const [selectedConfigEdit, setSelectedConfigEdit] = useState<EvaluatorConfig>()
+    const [isEditEvalConfigOpen, setIsEditEvalConfigOpen] = useState(false)
+    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
+        "configureEvaluatorModal",
+        "",
+    )
     const stoppers = useRef<Function>()
 
     const fetchEvaluations = async () => {
@@ -166,6 +176,24 @@ const AutoEvaluation = ({
         router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
+    const evaluatorConfigs = useMemo(
+        () =>
+            uniqBy(
+                evaluationList
+                    .map((item) =>
+                        item.aggregated_results.map((item) => ({
+                            ...item.evaluator_config,
+                            evaluator: evaluators.find(
+                                (e) => e.key === item.evaluator_config.evaluator_key,
+                            ),
+                        })),
+                    )
+                    .flat(),
+                "id",
+            ),
+        [evaluationList],
+    )
+
     const columns: ColumnsType<_Evaluation> = [
         {
             title: "Variant",
@@ -214,32 +242,110 @@ const AutoEvaluation = ({
         {
             title: "Results",
             key: "results",
-            children: [
-                {
-                    title: "Evaluator 1",
-                    // dataIndex: "aggregated_results",
-                    key: "results",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 240},
-                    }),
+            onHeaderCell: () => ({style: {minWidth: 240}}),
+            children: evaluatorConfigs.map((evaluator, idx) => ({
+                title: evaluator.name,
+                key: `results-${idx}`,
+                onHeaderCell: () => ({style: {minWidth: 240}}),
+                showSorterTooltip: false,
+                sorter: {
+                    compare: (a, b) => {
+                        const getSortValue = (item: _Evaluation) => {
+                            if (item.aggregated_results && item.aggregated_results.length > 0) {
+                                const result = item.aggregated_results[0].result
+                                if (result && typeof result.value === "number") {
+                                    return result.value
+                                }
+                            }
+                            return 0
+                        }
+                        return getSortValue(a) - getSortValue(b)
+                    },
                 },
-                {
-                    title: "Evaluator 2",
-                    // dataIndex: "aggregated_results",
-                    key: "results",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 240},
-                    }),
+                render: (_, record) => {
+                    if (!evaluators?.length) return
+
+                    const matchingResults = record.aggregated_results.filter(
+                        (result) => result.evaluator_config.id === evaluator.id,
+                    )
+
+                    return (
+                        <Space>
+                            {matchingResults.map((result, index) =>
+                                result.result.error ? (
+                                    <Popover
+                                        key={index}
+                                        placement="bottom"
+                                        trigger={"click"}
+                                        arrow={false}
+                                        content={
+                                            <div className="w-[256px]">
+                                                {result.result.error?.stacktrace}
+                                            </div>
+                                        }
+                                        title={result.result.error?.message}
+                                    >
+                                        <Button
+                                            onClick={(e) => e.stopPropagation()}
+                                            icon={<InfoCircleOutlined />}
+                                            type="link"
+                                        >
+                                            Read more
+                                        </Button>
+                                    </Popover>
+                                ) : (
+                                    <Popover
+                                        key={index}
+                                        placement="bottom"
+                                        trigger={"hover"}
+                                        arrow={false}
+                                        content={
+                                            <div
+                                                className="w-[256px] flex flex-col gap-1"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="font-[500]">
+                                                    {result.evaluator_config.name}
+                                                </div>
+                                                <div>{getTypedValue(result.result)}</div>
+                                            </div>
+                                        }
+                                        title={
+                                            <div
+                                                className="flex items-center justify-between"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <Tag color={evaluator?.evaluator?.color}>
+                                                    {evaluator?.name}
+                                                </Tag>
+                                                <Button
+                                                    icon={<EditOutlined />}
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setSelectedConfigEdit(
+                                                            result.evaluator_config,
+                                                        )
+                                                        setIsEditEvalConfigOpen(true)
+                                                    }}
+                                                />
+                                            </div>
+                                        }
+                                    >
+                                        <div
+                                            onClick={(e) => e.stopPropagation()}
+                                            className={classes.resultTag}
+                                        >
+                                            <div>{result.evaluator_config.name}</div>
+                                            <div>{getTypedValue(result.result)}</div>
+                                        </div>
+                                    </Popover>
+                                ),
+                            )}
+                        </Space>
+                    )
                 },
-                {
-                    title: "Evaluator 3",
-                    // dataIndex: "aggregated_results",
-                    key: "results",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 240},
-                    }),
-                },
-            ],
+            })),
         },
         {
             title: "Created on",
@@ -357,6 +463,12 @@ const AutoEvaluation = ({
         [evaluationList],
     )
 
+    useEffect(() => {
+        if (!appId) return
+
+        fetchEvaluations()
+    }, [appId])
+
     useUpdateEffect(() => {
         stoppers.current?.()
 
@@ -459,7 +571,7 @@ const AutoEvaluation = ({
             </div>
 
             <Table
-                loading={fetchingEvaluations || isEvalLoading}
+                loading={isEvalLoading}
                 rowSelection={{
                     type: "checkbox",
                     columnWidth: 48,
@@ -501,6 +613,19 @@ const AutoEvaluation = ({
                     onCancel={() => setIsConfigEvaluatorModalOpen("")}
                 />
             )}
+
+            <NewEvaluatorModal
+                open={false}
+                onSuccess={() => {
+                    setIsEditEvalConfigOpen(false)
+                    fetchEvaluations()
+                }}
+                newEvalModalConfigOpen={isEditEvalConfigOpen}
+                setNewEvalModalConfigOpen={setIsEditEvalConfigOpen}
+                setNewEvalModalOpen={() => {}}
+                editMode={true}
+                initialValues={selectedConfigEdit}
+            />
 
             {selectedEvalRecord && (
                 <DeleteEvaluationModal

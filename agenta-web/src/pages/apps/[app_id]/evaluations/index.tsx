@@ -1,13 +1,10 @@
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutoEvaluation from "@/components/pages/evaluations/autoEvaluation/AutoEvaluation"
 import SingleModelEvaluation from "@/components/HumanEvaluations/SingleModelEvaluation"
-import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {_Evaluation, JSSTheme} from "@/lib/Types"
-import {fetchAllEvaluations} from "@/services/evaluations/api"
 import {ChartDonut, ListChecks, TestTube} from "@phosphor-icons/react"
 import {Tabs, TabsProps, Typography} from "antd"
-import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -36,40 +33,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const EvaluationsPage = () => {
-    const appId = useAppId()
     const classes = useStyles()
-    const [autoEvaluationList, setAutoEvaluationList] = useState<_Evaluation[]>([])
     const [selectedEvaluation, setSelectedEvaluation] = useQueryParam(
         "selectedEvaluation",
         "auto_evaluation",
     )
-    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
-
-    useEffect(() => {
-        if (!appId) return
-
-        setFetchingEvaluations(true)
-
-        fetchAllEvaluations(appId)
-            .then((autoEvalResult) => {
-                setAutoEvaluationList(autoEvalResult)
-            })
-            .catch(console.error)
-            .finally(() => setFetchingEvaluations(false))
-    }, [appId])
 
     const items: TabsProps["items"] = [
         {
             key: "auto_evaluation",
             label: "Automatic Evaluation",
             icon: <ChartDonut size={16} />,
-            children: (
-                <AutoEvaluation
-                    evaluationList={autoEvaluationList}
-                    fetchingEvaluations={fetchingEvaluations}
-                    setEvaluationList={setAutoEvaluationList}
-                />
-            ),
+            children: <AutoEvaluation />,
         },
         {
             key: "ab_testing_evaluation",
