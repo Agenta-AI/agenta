@@ -1,4 +1,5 @@
 import json
+import requests
 
 from threading import Lock
 from datetime import datetime
@@ -213,10 +214,17 @@ class Tracing:
         self.inline_processor = TraceProcessor(InlineTraceExporter(registry=self.spans))
         self.tracer_provider.add_span_processor(self.inline_processor)
 
-        self.remote_processor = TraceProcessor(
-            OTLPSpanExporter(endpoint=self.url, headers=self.headers)
-        )
-        self.tracer_provider.add_span_processor(self.remote_processor)
+        try:
+            requests.post(self.url)
+
+            self.remote_processor = TraceProcessor(
+                OTLPSpanExporter(endpoint=self.url, headers=self.headers)
+            )
+            self.tracer_provider.add_span_processor(self.remote_processor)
+        except requests.exceptions.ConnectionError:
+            log.error(
+                f"Warning: Your traces will not be exported since {self.url} is unreachable."
+            )
 
         # GLOBAL TRACER PROVIDER
         set_tracer_provider(self.tracer_provider)
@@ -224,7 +232,6 @@ class Tracing:
         # TRACER
         self.tracer = self.tracer_provider.get_tracer("agenta.tracer")
 
-    # @suppress(Exception)
     @contextmanager
     def start_as_current_span(self, name: str, kind: str):
         with self.tracer.start_as_current_span(name) as span:
@@ -238,7 +245,6 @@ class Tracing:
             )
             yield span
 
-    # @suppress(Exception)
     def start_span(self, name: str, kind: str):
         span = self.tracer.start_span(name)
 
