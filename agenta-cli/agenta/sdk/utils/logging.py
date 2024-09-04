@@ -2,7 +2,7 @@ import logging
 
 
 class Logger:
-    def __init__(self, name="ag.logger", level=logging.DEBUG):
+    def __init__(self, name="agenta.logger", level=logging.DEBUG):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
 
