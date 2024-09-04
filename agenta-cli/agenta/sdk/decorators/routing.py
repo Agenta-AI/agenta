@@ -640,20 +640,20 @@ class entrypoint:
             )
         )
 
-        log.info("")
-        log.info("========= Result =========")
-        log.info("")
+        log.info("\n========= Result =========\n")
 
-        # print("-> data")
-        # print(json.dumps(result.data, indent=2))
-        # print("-> trace")
-        # print(json.dumps(result.trace, indent=2))
+        log.info(result.trace["trace_id"])
+
+        # log.info("")
+        # log.info(json.dumps(result.data, indent=2))
+        # log.info(json.dumps(result.trace, indent=2))
+
+        log.info("")
         for span in result.trace["spans"]:
             log.info(
                 f"{span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
             )
-        log.info("")
-        log.info("==========================")
+        log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,
