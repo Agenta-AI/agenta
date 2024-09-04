@@ -640,13 +640,18 @@ class entrypoint:
             )
         )
 
+        log.info("")
         log.info("========= Result =========")
         log.info("")
 
-        print("-> data")
-        print(json.dumps(result.data, indent=2))
-        print("-> trace")
-        print(json.dumps(result.trace, indent=2))
+        # print("-> data")
+        # print(json.dumps(result.data, indent=2))
+        # print("-> trace")
+        # print(json.dumps(result.trace, indent=2))
+        for span in result.trace["spans"]:
+            log.info(
+                f"{span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
+            )
         log.info("")
         log.info("==========================")
 
