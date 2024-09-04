@@ -50,7 +50,7 @@ class ProjectDB(Base):
         nullable=False,
     )
     project_name = Column(String, nullable=False, unique=True)
-    slug_name = Column(String, nullable=False, index=True, unique=True)
+    is_default = Column(Boolean, default=False)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
