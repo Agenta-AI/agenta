@@ -9,6 +9,7 @@ from importlib.metadata import version
 from agenta.sdk.utils.logging import log
 from agenta.client.backend.types.create_span import CreateSpan, LlmTokens
 
+from opentelemetry.trace import set_tracer_provider
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import (
     Span,
@@ -166,6 +167,7 @@ class Tracing:
         project_id: Optional[str] = None,
         api_key: Optional[str] = None,
         experiment_id: Optional[str] = None,
+        set_global_tracer_provider: Optional[bool] = True,
     ) -> None:
         # ENDPOINT
         self.url = url
@@ -195,6 +197,7 @@ class Tracing:
             #    num_threads=2,  # inline_processor + remote_processor
             # )
         )
+
         # self.tracer_provider.add_span_processor(
         #    TraceProcessor(
         #        OTLPSpanExporter(
@@ -205,6 +208,10 @@ class Tracing:
         # )
         self.inline_processor = TraceProcessor(InlineTraceExporter(registry=self.spans))
         self.tracer_provider.add_span_processor(self.inline_processor)
+
+        if set_global_tracer_provider is True:
+            set_tracer_provider(self.tracer_provider)
+
         # TRACER
         self.tracer = self.tracer_provider.get_tracer("ag.tracing")
 
