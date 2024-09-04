@@ -19,7 +19,7 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-import NewEvaluationModal from "./NewEvaluationModel"
+import NewEvaluationModal from "@/components/pages/evaluations/NewEvaluation/NewEvaluationModal"
 import {
     deleteEvaluations,
     fetchAllEvaluations,
@@ -594,10 +594,6 @@ const AutoEvaluation = () => {
 
             <NewEvaluationModal
                 open={newEvalModalOpen}
-                onOpenEvaluatorModal={() => {
-                    setIsConfigEvaluatorModalOpen("open")
-                    setNewEvalModalOpen(false)
-                }}
                 onCancel={() => {
                     setNewEvalModalOpen(false)
                 }}
