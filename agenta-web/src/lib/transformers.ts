@@ -209,3 +209,32 @@ export const fromBaseResponseToTraceSpanType = (
 
     return [top_level_spans, spans_dict]
 }
+
+export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
+    const nodeMap: Record<string, any> = {}
+
+    function addTree(item: TraceSpan) {
+        if (item.name) {
+            if (!nodeMap[item.name]) {
+                nodeMap[item.name] = {
+                    ...item.content,
+                    ...(item.children ? transformTraceTreeToJson(item.children) : null),
+                }
+            } else {
+                if (!Array.isArray(nodeMap[item.name])) {
+                    nodeMap[item.name] = [nodeMap[item.name]]
+                }
+                nodeMap[item.name].push({
+                    ...item.content,
+                    ...(item.children ? transformTraceTreeToJson(item.children) : null),
+                })
+            }
+        }
+    }
+
+    tree.forEach((item) => {
+        addTree(item)
+    })
+
+    return nodeMap
+}
