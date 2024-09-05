@@ -51,11 +51,56 @@ async def test_create_app():
 
 
 @pytest.mark.asyncio
+async def test_create_app_for_renaming():
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/apps/",
+        json={
+            "app_name": "app_test",
+        },
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert response.json()["app_name"] == "app_test"
+
+
+@pytest.mark.asyncio
+async def test_update_app():
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(AppDB).filter_by(app_name="app_test"))
+        app = result.scalars().first()
+
+    response = await test_client.patch(
+        f"{BACKEND_API_HOST}/apps/{str(app.id)}/",
+        json={
+            "app_name": "test_app",
+        },
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert response.json()["app_id"] == str(app.id)
+    assert response.json()["app_name"] == "test_app"
+
+
+@pytest.mark.asyncio
+async def test_update_app_does_not_exist():
+    APP_ID_NOT_FOUND = "5da3bfe7-bc4b-4713-928e-48275126a1c2"
+    response = await test_client.patch(
+        f"{BACKEND_API_HOST}/apps/{APP_ID_NOT_FOUND}/",
+        json={
+            "app_name": "test_app",
+        },
+        timeout=timeout,
+    )
+    assert response.status_code == 500
+    assert response.json()["detail"] == f"App with {APP_ID_NOT_FOUND} not found"
+
+
+@pytest.mark.asyncio
 async def test_list_apps():
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert len(response.json()) == 2
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,14 @@
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
+from dataclasses import dataclass
+from typing import Union
+
+
+@dataclass
+class MultipleChoice:
+    choices: Union[List[str], Dict[str, List[str]]]
 
 
 class InFile:
@@ -16,11 +23,10 @@ class LLMTokenUsage(BaseModel):
     total_tokens: int
 
 
-class FuncResponse(BaseModel):
-    message: str
-    usage: Optional[LLMTokenUsage]
-    cost: Optional[float]
-    latency: float
+class BaseResponse(BaseModel):
+    version: Optional[str] = "2.0"
+    data: Optional[Union[str, Dict[str, Any]]]
+    trace: Optional[Dict[str, Any]]
 
 
 class DictInput(dict):
