@@ -1,4 +1,18 @@
+  <div align="center" style="margin: 30px">
+  <a href="https://docs.agenta.ai/self-host/migration/migration-to-postgres">
+    Important: We are migrating from MongoDB to PostgreSQL in v0.19! Follow this guide to migrate your data.
+  </a>
+  </div>
+  </br>
+  </br>
+
 <div align="center" style="margin: 30px">
+  <div>
+    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
+      <img src="https://github.com/Agenta-AI/agenta/raw/main/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
+    </a> 
+  </div>
+
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -37,7 +51,6 @@
 </br>
 </p>
 
-
 <p align="center">
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
         <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
@@ -50,7 +63,6 @@
     </a>
 </p>
 
-
 </br>
 
 <a href="https://cloud.agenta.ai">
@@ -58,7 +70,6 @@
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/d622f268-c295-42d4-a43c-548b611ff6f2" />
   </picture>
 </a>
-
 
 <br>
   <br />
@@ -91,54 +102,58 @@
 
 # ⭐️ Why Agenta?
 
-Agenta is an end-to-end LLM developer platform. It provides the tools for **prompt engineering and management**,  ⚖️ **evaluation**, **human annotation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model. 
+Agenta is an end-to-end LLM developer platform. It provides the tools for **prompt engineering and management**, ⚖️ **evaluation**, **human annotation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model.
 
-Agenta allows developers and product teams to collaborate in building production-grade LLM-powered applications in less time. 
+Agenta allows developers and product teams to collaborate in building production-grade LLM-powered applications in less time.
 
 ### With Agenta, you can:
 
-- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/basic_guides/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/advanced_guides/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...) 
-- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/basic_guides/test_sets) for evaluation
-- 📈 [**Evaluate** your application](https://docs.agenta.ai/basic_guides/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/advanced_guides/using_custom_evaluators)
-- [🔍 **Annotate** and **A/B test**](https://docs.agenta.aibasic_guides/human_evaluation) your applications with **human feedback**
-- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/basic_guides/team_management) for prompt engineering and evaluation
-- [🚀 **Deploy your application**](https://docs.agenta.ai/basic_guides/deployment) in one-click in the UI,  through CLI, or through github workflows. 
+- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
+- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets) for evaluation
+- 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator)
+- [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation) your applications with **human feedback**
+- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management) for prompt engineering and evaluation
+- [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment) in one-click in the UI, through CLI, or through github workflows.
 
 ### Works with any LLM app workflow
 
 Agenta enables prompt engineering and evaluation on any LLM app architecture:
+
 - Chain of prompts
 - RAG
 - Agents
-- ...
 
-It works with any framework such as [Langchain](https://langchain.com), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral). 
-
-[Jump here to see how to use your own custom application with agenta](/advanced_guides/custom_applications)
+It works with any framework such as [Langchain](https://www.langchain.com/), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral).
 
 # Quick Start
 
 ### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
-### [Explore the Docs](https://docs.agenta.ai)
-### [Create your first application in one-minute](https://docs.agenta.ai/quickstart/getting-started-ui)
-### [Create an application using Langchain](https://docs.agenta.ai/tutorials/first-app-with-langchain)
+
+### [Explore the Docs](https://docs.agenta.ai/)
+
+### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start)
+
+### [Create an application using Langchain](https://docs.agenta.ai/guides/tutorials/first-app-with-langchain)
+
 ### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
-### [Check the Cookbook](https://docs.agenta.ai/cookbook)
+
+### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk)
 
 # Features
 
-
-| Playground | Evaluation |
-| ------- | ------- |
-| Compare and version prompts for any LLM app, from single prompt to agents. <br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c" controls="controls" style="max-width:100%;"> | Define test sets, then evaluate manually or programmatically your different variants.<br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8c6997c6-da87-46ad-a81f-e15e277263d2" controls="controls" style="max-width:100%;">|
-| Human annotation | Deployment |
-| Use Human annotator to A/B test and score your LLM apps. <br/>  <img width="750" alt="Screenshot 2024-01-28 at 12 57 46" src="https://github.com/Agenta-AI/agenta/assets/4510758/bf62a697-bf19-4ba9-850e-742fbfb75424"> | When you are ready, deploy your LLM applications as APIs in one click.<br/>![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif) |
+| Playground                                                                                                                                                                                                                         | Evaluation                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compare and version prompts for any LLM app, from single prompt to agents. <br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c" controls="controls" style="max-width:100%;"> | Define test sets, then evaluate manually or programmatically your different variants.<br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8c6997c6-da87-46ad-a81f-e15e277263d2" controls="controls" style="max-width:100%;"> |
+| Human annotation                                                                                                                                                                                                                   | Deployment                                                                                                                                                                                                                                   |
+| Use Human annotator to A/B test and score your LLM apps. <br/> <img width="750" alt="Screenshot 2024-01-28 at 12 57 46" src="https://github.com/Agenta-AI/agenta/assets/4510758/bf62a697-bf19-4ba9-850e-742fbfb75424">             | When you are ready, deploy your LLM applications as APIs in one click.<br/>![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif)                                                                                       |
 
 # Enterprise Support
+
 Contact us here for enterprise support and early access to agenta self-managed enterprise with Kubernetes support. <br/><br/>
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
 # Disabling Anonymized Tracking
+
 By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information.
 
 To disable anonymized telemetry, follow these steps:
@@ -148,18 +163,24 @@ To disable anonymized telemetry, follow these steps:
 
 After making this change, restart Agenta Compose.
 
+# ⭐️ Join Our Team
+
+- [Founding Product Engineer Frontend](https://agentaai.notion.site/Founding-Product-Engineer-Frontend-b6d26a3e9b254be6b6c2bfffbf0b53c5)
+
 # Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
 We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
 
-Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-started) for more information.
+Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started) for more information.
 
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-41-orange.svg?style=flat-square)](#contributors-)
+
+[![All Contributors](https://img.shields.io/badge/all_contributors-48-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -221,6 +242,15 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/romainrbr"><img src="https://avatars.githubusercontent.com/u/10381609?v=4?s=100" width="100px;" alt="Romain Brucker"/><br /><sub><b>Romain Brucker</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=romainrbr" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://heonheo.com"><img src="https://avatars.githubusercontent.com/u/76820291?v=4?s=100" width="100px;" alt="Heon Heo"/><br /><sub><b>Heon Heo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=HeonHeo23" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Drewski2222"><img src="https://avatars.githubusercontent.com/u/39228951?v=4?s=100" width="100px;" alt="Drew Reisner"/><br /><sub><b>Drew Reisner</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Drewski2222" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://speakerdeck.com/eltociear"><img src="https://avatars.githubusercontent.com/u/22633385?v=4?s=100" width="100px;" alt="Ikko Eltociear Ashimine"/><br /><sub><b>Ikko Eltociear Ashimine</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=eltociear" title="Documentation">📖</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/vishalvanpariya"><img src="https://avatars.githubusercontent.com/u/27823328?v=4?s=100" width="100px;" alt="Vishal Vanpariya"/><br /><sub><b>Vishal Vanpariya</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=vishalvanpariya" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/youcefs21"><img src="https://avatars.githubusercontent.com/u/34604972?v=4?s=100" width="100px;" alt="Youcef Boumar"/><br /><sub><b>Youcef Boumar</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=youcefs21" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LucasTrg"><img src="https://avatars.githubusercontent.com/u/47852577?v=4?s=100" width="100px;" alt="LucasTrg"/><br /><sub><b>LucasTrg</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=LucasTrg" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3ALucasTrg" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://ashrafchowdury.me"><img src="https://avatars.githubusercontent.com/u/87828904?v=4?s=100" width="100px;" alt="Ashraf Chowdury"/><br /><sub><b>Ashraf Chowdury</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aashrafchowdury" title="Bug reports">🐛</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=ashrafchowdury" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/jp-agenta"><img src="https://avatars.githubusercontent.com/u/174311389?v=4?s=100" width="100px;" alt="jp-agenta"/><br /><sub><b>jp-agenta</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=jp-agenta" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Ajp-agenta" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://mrunhap.github.io"><img src="https://avatars.githubusercontent.com/u/24653356?v=4?s=100" width="100px;" alt="Mr Unhappy"/><br /><sub><b>Mr Unhappy</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amrunhap" title="Bug reports">🐛</a> <a href="#infra-mrunhap" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
     </tr>
   </tbody>
 </table>
