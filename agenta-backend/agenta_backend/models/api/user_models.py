@@ -12,8 +12,9 @@ class TimestampModel(BaseModel):
 class User(TimestampModel):
     id: Optional[str] = None
     uid: str
-    username: str
     email: str
+    username: str
+    profile_picture: Optional[str] = None
     organizations: Optional[List[str]] = None
 
 

@@ -21,16 +21,16 @@ describe("Testsets crud and UI functionality", () => {
             cy.visit(`/apps/${app_id}/testsets/new/manual`)
         })
 
-        it("navigates successfully to the new testset page", () => {
+        it("Should navigates successfully to the new testset page", () => {
             cy.url().should("include", "/testsets/new/manual")
         })
 
-        it("don't allow creation of a testset without a name", () => {
+        it("Should not allow creation of a testset without a name", () => {
             cy.get('[data-cy="testset-save-button"]').click()
             cy.get('[data-cy="testset-name-reqd-error"]').should("be.visible")
         })
 
-        it("successfully creates the testset and navigates to the list", () => {
+        it("Should successfully creates the testset and navigates to the list", () => {
             const testsetName = randString(8)
             cy.get('[data-cy="testset-name-input"]').type(testsetName)
             cy.get(".ag-row").should("have.length", 3)
@@ -53,6 +53,31 @@ describe("Testsets crud and UI functionality", () => {
             cy.get('[data-cy="app-testset-list"]').as("table")
             cy.get("@table").get(".ant-table-pagination li a").last().click()
             cy.get("@table").contains(testsetName).as("tempTestSet").should("be.visible")
+        })
+    })
+
+    context("When uploading testset", () => {
+        const testset_name = randString(8)
+        beforeEach(() => {
+            cy.visit(`/apps/${app_id}/testsets`)
+        })
+
+        it("Should successfully upload a testset", () => {
+            cy.url().should("include", "/testsets")
+            cy.clickLinkAndWait('[data-cy="testset-new-upload-link"]')
+            cy.url().should("include", "/testsets/new/upload")
+            cy.get('[data-cy="upload-testset-file-name"]').type(testset_name)
+            cy.get('[type="file"]').selectFile("cypress/data/countries-genders.csv", {force: true})
+            cy.wait(1000)
+            cy.contains("countries-genders.csv").should("be.visible")
+            cy.get('[data-cy="testset-upload-button"]').click()
+        })
+
+        it("Should check the uploaded testset is present", () => {
+            cy.url().should("include", "/testsets")
+            cy.get('[data-cy="app-testset-list"]').as("table")
+            cy.get("@table").get(".ant-table-pagination li a").last().click()
+            cy.get("@table").contains(testset_name).as("tempTestSet").should("be.visible")
         })
     })
 

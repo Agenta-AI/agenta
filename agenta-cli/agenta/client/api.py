@@ -55,7 +55,7 @@ def add_variant_to_server(
                 docker_id=image.docker_id,
                 tags=image.tags,
             )
-            click.echo(click.style("\nVariant added successfully.", fg="green"))
+            click.echo(click.style("\nVariant added successfully!", fg="green"))
             return response
         except RequestException as e:
             if attempt < retries - 1:
