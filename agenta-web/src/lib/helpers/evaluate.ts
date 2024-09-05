@@ -359,16 +359,14 @@ export const mapTestcaseAndEvalValues = (
 ) => {
     let testcaseObj: Record<string, any> = {}
     let evalMapObj: Record<string, any> = {}
-    let testcaseMappingKeys: Record<string, any> = {}
 
     Object.entries(settingsValues).forEach(([key, value]) => {
         if (typeof value === "string" && value.startsWith("testcase.")) {
             testcaseObj[key] = selectedTestcase[value.split(".")[1]]
-            testcaseMappingKeys[key] = value.split(".")[1]
         } else {
             evalMapObj[key] = value
         }
     })
 
-    return {testcaseObj, evalMapObj, testcaseMappingKeys}
+    return {testcaseObj, evalMapObj}
 }
