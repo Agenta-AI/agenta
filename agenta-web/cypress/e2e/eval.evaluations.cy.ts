@@ -36,7 +36,7 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.get('[data-cy="delete-evaluation-button"]').click()
 
             cy.get(".ant-modal-content").should("exist")
-           cy.get(".ant-modal-footer > .ant-btn-primary").click()
+            cy.get(".ant-modal-footer > .ant-btn-primary").click()
         })
     })
 
