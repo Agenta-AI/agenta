@@ -311,7 +311,10 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                     <Space>
                         <Title>Single Model Evaluations</Title>
 
-                        <Button size="small" href={`/apps/${appId}/evaluations/single_model_test`}>
+                        <Button
+                            size="small"
+                            href={`/apps/${appId}/evaluations?selectedEvaluation=single_model_evaluation`}
+                        >
                             View all
                         </Button>
                     </Space>

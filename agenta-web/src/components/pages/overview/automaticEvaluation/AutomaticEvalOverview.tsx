@@ -430,7 +430,7 @@ const AutomaticEvalOverview = () => {
             <div className="flex items-center justify-between">
                 <Space>
                     <Title>Automatic Evaluations</Title>
-                    <Button size="small" href={`/apps/${appId}/evaluations/results`}>
+                    <Button size="small" href={`/apps/${appId}/evaluations`}>
                         View all
                     </Button>
                 </Space>

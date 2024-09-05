@@ -35,6 +35,7 @@ export function getFilterParams(
                             confirm({closeDropdown: false})
                         }}
                         style={{display: "block"}}
+                        step={0.1}
                         type={type}
                     />
                 )}
