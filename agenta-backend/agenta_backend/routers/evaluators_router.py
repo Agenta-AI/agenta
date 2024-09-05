@@ -5,7 +5,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluator_manager, db_manager
+from agenta_backend.services import evaluator_manager, db_manager, app_manager
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
@@ -150,8 +150,20 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
             evaluator_key=payload.evaluator_key,
             settings_values=payload.settings_values,
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         return evaluator_config
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Error creating evaluator configuration: {str(e)}"
         )
@@ -186,6 +198,14 @@ async def update_evaluator_config(
         evaluators_configs = await evaluator_manager.update_evaluator_config(
             evaluator_config_id=evaluator_config_id, updates=payload.dict()
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=evaluator_config_id,
+            object_type="evaluator_config",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
         return evaluators_configs
     except Exception as e:
         import traceback
@@ -221,6 +241,14 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
                     {"detail": error_msg},
                     status_code=403,
                 )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=evaluator_config_id,
+            object_type="evaluator_config",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success

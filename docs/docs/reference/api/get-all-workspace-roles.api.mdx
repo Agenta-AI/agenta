@@ -1,0 +1,158 @@
+---
+id: get-all-workspace-roles
+title: "Get All Workspace Roles"
+description: "Get all workspace roles."
+sidebar_label: "Get All Workspace Roles"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVMlu2zAQ/RWCZ8Nye9SpbhskQXsInBQ9OIYxpiYWE4pkSMqOK+jfO6QW2wnS/EB1EZc325vHaXiBXjhpgzSa5/wSAwOl2N64J29BIHNGoZ/e63u9wFA77RkwJX1g5iEhYQdSwUbhv2zye83o+0l2y98DbEGoBXprtMdVzuaj2zMEM5tHFMEzh9ahRx2k3rJQ4keRQXocAl/d3d1cvAhMZebsmlLXDJ0zjhkhaufZvpTkyGFwEndDhNd++YQbiw6il+uC6NpiWBMJ6xG4TkDCub4wz/OGf57N4u+c6ttaCPT+oVZsYIHshNGBaoxwsFZJkYJljz7aNNyLEiuIKxmwSs6tizkF2YWK8dcaKoybcLD0556K0ltyjrqueL7kZq/R0X4ncZ8WWMhg0mIHqoZufSwKikpqOinQKnOoKL91BRq2ZLua8CCDimHO2pbQp+XOiXAK37M35e2ky/UM9TblwXmSwvcTbEsOenCnkET6cy0dFrHGIxHvpTiyfvQEzsHhNGoPYfFdzEntowO2SI1u4zfhFYbS9IIgcwuhpE02MuizQRce3Q4dtWrZ8NopQpUhWJ9nmVCmLqZEqg4wBZmBlW9JTLfsW4TydhXdkXplOCR/85vrH3i4QiioMflydQq4jcLpJHIOGymneHRMITv18HlNNTn5J/WLjmVMoOysYs1SP5hk3nPV5/YVxBPqIqqL6uzSnk0/TWfvFdMbMEqr1z+IpP8hjwSjq3O6RqKiaiuaBHQXEKovx4uYpTU+kFZP/L3XylfpNcen+H8qfjQVewkFfAmZVUBSaft+Nf1jWB7HSRqPiXLSZ0n9ibdNswGPv5xq23j8XKOLoqblDpyM9SRFTwYFRr0/kVxJHyJWEPVGo6sT8qu5Gd/B+EIvL+5IGH8B1/N0HA==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get All Workspace Roles"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workspaces/roles"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get all workspace roles.
+
+Returns a list of all available workspace roles.
+
+Returns:
+    List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+
+Raises:
+    HTTPException: If an error occurs while retrieving the workspace roles.
+
+<div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                        >
+                          Array [
+                        </div>
+                      </li><SchemaItem
+                        collapsible={false}
+                        name={"role_name"}
+                        required={true}
+                        schemaName={"WorkspaceRole (string)"}
+                        qualifierMessage={"**Possible values:** [`owner`, `viewer`, `editor`, `evaluator`, `workspace_admin`, `deployment_manager`]"}
+                        schema={{"type":"string","enum":["owner","viewer","editor","evaluator","workspace_admin","deployment_manager"],"title":"WorkspaceRole","description":"An enumeration."}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"role_description"}
+                        required={false}
+                        schemaName={"Role Description (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Role Description"}}
+                      >
+                        
+                      </SchemaItem><li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"[\n  {\n    \"role_name\": \"owner\",\n    \"role_description\": \"string\"\n  }\n]"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      

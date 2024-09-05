@@ -27,14 +27,28 @@ import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
-import {Evaluation, EvaluationResult, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
-import {EvaluationTypeLabels, batchExecute, camelToSnake} from "@/lib/helpers/utils"
+import {
+    BaseResponse,
+    Evaluation,
+    EvaluationResult,
+    EvaluationScenario,
+    FuncResponse,
+    KeyValuePair,
+    Variant,
+} from "@/lib/Types"
+import {
+    EvaluationTypeLabels,
+    batchExecute,
+    camelToSnake,
+    getStringOrJson,
+} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
 import {debounce} from "lodash"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 
 const {Title} = Typography
 
@@ -294,12 +308,24 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
                     )
-                    if (typeof result !== "string") {
-                        result = result.message
+
+                    let res: BaseResponse | undefined
+
+                    if (typeof result === "string") {
+                        res = {version: "2.0", data: result} as BaseResponse
+                    } else if (isFuncResponse(result)) {
+                        res = {version: "2.0", data: result.message} as BaseResponse
+                    } else if (isBaseResponse(result)) {
+                        res = result as BaseResponse
+                    } else {
+                        res = {version: "2.0", data: ""} as BaseResponse
+                        console.error("Unknown response type:", result)
                     }
 
-                    setRowValue(rowIndex, variant.variantId, result)
-                    ;(outputs as KeyValuePair)[variant.variantId] = result
+                    let _result = getStringOrJson(res.data)
+
+                    setRowValue(rowIndex, variant.variantId, _result)
+                    ;(outputs as KeyValuePair)[variant.variantId] = _result
                     setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                     if (idx === variants.length - 1) {
                         if (count === 1 || count === rowIndex) {
@@ -307,7 +333,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         }
                     }
                 } catch (err) {
-                    console.log("Error running evaluation:", err)
+                    console.error("Error running evaluation:", err)
                     setRowValue(rowIndex, variant.variantId, "")
                 }
             }),

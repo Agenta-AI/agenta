@@ -8,6 +8,7 @@ from .app_variant_revision import AppVariantRevision
 from .base_output import BaseOutput
 from .body_import_testset import BodyImportTestset
 from .config_db import ConfigDb
+from .correct_answer import CorrectAnswer
 from .create_app_output import CreateAppOutput
 from .create_span import CreateSpan
 from .create_trace_response import CreateTraceResponse
@@ -24,10 +25,8 @@ from .evaluation_scenario_result import EvaluationScenarioResult
 from .evaluation_scenario_score_update import EvaluationScenarioScoreUpdate
 from .evaluation_status_enum import EvaluationStatusEnum
 from .evaluation_type import EvaluationType
-from .evaluation_webhook import EvaluationWebhook
 from .evaluator import Evaluator
 from .evaluator_config import EvaluatorConfig
-from .feedback import Feedback
 from .get_config_response import GetConfigResponse
 from .http_validation_error import HttpValidationError
 from .human_evaluation import HumanEvaluation
@@ -41,17 +40,18 @@ from .invite_request import InviteRequest
 from .list_api_keys_response import ListApiKeysResponse
 from .llm_run_rate_limit import LlmRunRateLimit
 from .llm_tokens import LlmTokens
+from .lm_providers_enum import LmProvidersEnum
 from .new_human_evaluation import NewHumanEvaluation
 from .new_testset import NewTestset
 from .organization import Organization
 from .organization_output import OrganizationOutput
+from .outputs import Outputs
 from .permission import Permission
 from .result import Result
 from .score import Score
 from .simple_evaluation_output import SimpleEvaluationOutput
 from .span import Span
 from .span_detail import SpanDetail
-from .span_kind import SpanKind
 from .span_status_code import SpanStatusCode
 from .span_variant import SpanVariant
 from .template import Template
@@ -59,6 +59,7 @@ from .template_image_info import TemplateImageInfo
 from .test_set_output_response import TestSetOutputResponse
 from .test_set_simple_response import TestSetSimpleResponse
 from .trace_detail import TraceDetail
+from .update_app_output import UpdateAppOutput
 from .uri import Uri
 from .validation_error import ValidationError
 from .validation_error_loc_item import ValidationErrorLocItem
@@ -80,6 +81,7 @@ __all__ = [
     "BaseOutput",
     "BodyImportTestset",
     "ConfigDb",
+    "CorrectAnswer",
     "CreateAppOutput",
     "CreateSpan",
     "CreateTraceResponse",
@@ -96,10 +98,8 @@ __all__ = [
     "EvaluationScenarioScoreUpdate",
     "EvaluationStatusEnum",
     "EvaluationType",
-    "EvaluationWebhook",
     "Evaluator",
     "EvaluatorConfig",
-    "Feedback",
     "GetConfigResponse",
     "HttpValidationError",
     "HumanEvaluation",
@@ -113,17 +113,18 @@ __all__ = [
     "ListApiKeysResponse",
     "LlmRunRateLimit",
     "LlmTokens",
+    "LmProvidersEnum",
     "NewHumanEvaluation",
     "NewTestset",
     "Organization",
     "OrganizationOutput",
+    "Outputs",
     "Permission",
     "Result",
     "Score",
     "SimpleEvaluationOutput",
     "Span",
     "SpanDetail",
-    "SpanKind",
     "SpanStatusCode",
     "SpanVariant",
     "Template",
@@ -131,6 +132,7 @@ __all__ = [
     "TestSetOutputResponse",
     "TestSetSimpleResponse",
     "TraceDetail",
+    "UpdateAppOutput",
     "Uri",
     "ValidationError",
     "ValidationErrorLocItem",
