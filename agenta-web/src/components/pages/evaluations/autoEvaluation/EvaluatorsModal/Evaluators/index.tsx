@@ -7,7 +7,7 @@ import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
 
-type ConfigureEvaluatorModalProps = {
+type EvaluatorsProps = {
     evaluatorConfigs: EvaluatorConfig[]
     handleOnCancel: () => void
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -51,13 +51,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ConfigureEvaluatorModal = ({
+const Evaluators = ({
     evaluatorConfigs,
     handleOnCancel,
     setCurrent,
     setSelectedEvaluator,
     fetchingEvalConfigs,
-}: ConfigureEvaluatorModalProps) => {
+}: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
@@ -139,4 +139,4 @@ const ConfigureEvaluatorModal = ({
     )
 }
 
-export default ConfigureEvaluatorModal
+export default Evaluators

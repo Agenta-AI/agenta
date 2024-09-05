@@ -1,4 +1,4 @@
-import {Evaluator, GenericObject, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
+import {BaseResponse, Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
@@ -30,12 +30,14 @@ import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
+    createEvaluatorDataMapping,
+    createEvaluatorRunExecution,
     updateEvaluatorConfig,
 } from "@/services/evaluations/api"
 import {useAppId} from "@/hooks/useAppId"
 import {useLocalStorage} from "usehooks-ts"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-import {getStringOrJson, randString, removeKeys} from "@/lib/helpers/utils"
+import {apiKeyObject, getStringOrJson, removeKeys} from "@/lib/helpers/utils"
 import {callVariant} from "@/services/api"
 import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
@@ -43,7 +45,7 @@ import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
 
-type ConfigureNewEvaluatorProps = {
+type ConfigureEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     handleOnCancel: () => void
     onSuccess: () => void
@@ -94,7 +96,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ConfigureNewEvaluator = ({
+const ConfigureEvaluator = ({
     setCurrent,
     selectedEvaluator,
     handleOnCancel,
@@ -105,7 +107,7 @@ const ConfigureNewEvaluator = ({
     setSelectedTestcase,
     selectedVariant,
     setSelectedVariant,
-}: ConfigureNewEvaluatorProps) => {
+}: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
@@ -119,7 +121,44 @@ const ConfigureNewEvaluator = ({
     const abortControllersRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
     const [variantResult, setVariantResult] = useState("")
-    const [traceTree, setTraceTree] = useState<Record<string, any>>({})
+    const [traceTree, setTraceTree] = useState<{
+        testcase: Record<string, any> | null
+    }>({
+        testcase: null,
+    })
+    const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
+    const [outputResult, setOutputResult] = useState("")
+    const [isLoadingResult, setIsLoadingResult] = useState(false)
+
+    const fetchEvalMapper = async () => {
+        if (!baseResponseData) return
+
+        try {
+            setIsLoadingResult(true)
+            const mapResponse = await createEvaluatorDataMapping({
+                inputs: baseResponseData,
+                mapping: {
+                    ...form.getFieldValue("settings_values"),
+                },
+            })
+
+            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
+                inputs: {...mapResponse.outputs},
+                settings: {
+                    ...form.getFieldValue("settings_values"),
+                },
+                ...(selectedEvaluator.requires_llm_api_keys ||
+                form.getFieldValue("settings_values")?.requires_llm_api_keys
+                    ? {credentials: apiKeyObject()}
+                    : {}),
+            })
+            setOutputResult(getStringOrJson(runResponse))
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsLoadingResult(false)
+        }
+    }
 
     const evalFields = useMemo(
         () =>
@@ -162,24 +201,6 @@ const ConfigureNewEvaluator = ({
     }
 
     useEffect(() => {
-        if (optInputs && selectedTestcase) {
-            setSelectedTestcase(() => {
-                let result: GenericObject = {}
-
-                optInputs.forEach((data) => {
-                    if (selectedTestcase.hasOwnProperty(data.name)) {
-                        result[data.name] = selectedTestcase[data.name]
-                    }
-                })
-
-                result["id"] = randString(6)
-
-                return result
-            })
-        }
-    }, [optInputs])
-
-    useEffect(() => {
         if (!selectedVariant || !selectedTestcase) return
 
         const fetchParameters = async () => {
@@ -219,9 +240,12 @@ const ConfigureNewEvaluator = ({
 
             if (typeof result === "string") {
                 setVariantResult(getStringOrJson({data: result}))
+                setTraceTree({...{data: result}, testcase: selectedTestcase})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
+                setTraceTree({...{data: result}, testcase: selectedTestcase})
             } else if (isBaseResponse(result)) {
+                setBaseResponseData(result)
                 const {trace, data} = result
                 setVariantResult(
                     getStringOrJson({
@@ -232,11 +256,13 @@ const ConfigureNewEvaluator = ({
                     }),
                 )
                 if (trace?.spans) {
-                    setTraceTree(
-                        transformTraceTreeToJson(
+                    setTraceTree({
+                        ...transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
                         ),
-                    )
+
+                        testcase: selectedTestcase,
+                    })
                 }
             } else {
                 console.error("Unknown response type:", result)
@@ -333,7 +359,7 @@ const ConfigureNewEvaluator = ({
                                     >
                                         <Input />
                                     </Form.Item>
-                                    <Form.Item
+                                    {/* <Form.Item
                                         name="label"
                                         label="Label"
                                         rules={[
@@ -351,7 +377,7 @@ const ConfigureNewEvaluator = ({
                                                 {label: "item2", value: "item2"},
                                             ]}
                                         />
-                                    </Form.Item>
+                                    </Form.Item> */}
                                 </div>
                             </Space>
 
@@ -360,20 +386,28 @@ const ConfigureNewEvaluator = ({
                                     <Typography.Text className={classes.formTitleText}>
                                         Parameters
                                     </Typography.Text>
-                                    {basicSettingsFields.map((field) => (
-                                        <DynamicFormField
-                                            {...field}
-                                            key={field.key}
-                                            name={["settings_values", field.key]}
-                                        />
-                                    ))}
+                                    {basicSettingsFields.map((field) => {
+                                        const {testcase, ...tree} = traceTree
+
+                                        return (
+                                            <DynamicFormField
+                                                {...field}
+                                                key={field.key}
+                                                traceTree={tree}
+                                                name={["settings_values", field.key]}
+                                            />
+                                        )
+                                    })}
                                 </Space>
                             ) : (
                                 ""
                             )}
 
                             {advancedSettingsFields.length > 0 && (
-                                <AdvancedSettings settings={advancedSettingsFields} />
+                                <AdvancedSettings
+                                    settings={advancedSettingsFields}
+                                    selectedTestcase={{testcase: traceTree.testcase}}
+                                />
                             )}
                         </Form>
                     </div>
@@ -468,9 +502,14 @@ const ConfigureNewEvaluator = ({
                                     language="json"
                                     theme={`vs-${appTheme}`}
                                     value={getStringOrJson(traceTree)}
-                                    // onChange={(value) => {
-                                    //     console.log(value)
-                                    // }}
+                                    onChange={(value) => {
+                                        try {
+                                            if (value) {
+                                                const parsedValue = JSON.parse(value)
+                                                setTraceTree(parsedValue)
+                                            }
+                                        } catch (error) {}
+                                    }}
                                     options={{wordWrap: "on"}}
                                 />
                             </div>
@@ -485,7 +524,7 @@ const ConfigureNewEvaluator = ({
                                     language="json"
                                     theme={`vs-${appTheme}`}
                                     value={variantResult}
-                                    options={{wordWrap: "on"}}
+                                    options={{wordWrap: "on", readOnly: true}}
                                 />
                             </div>
 
@@ -494,9 +533,20 @@ const ConfigureNewEvaluator = ({
                                     <Typography.Text className={classes.formTitleText}>
                                         Output
                                     </Typography.Text>
-                                    <Button className="flex items-center gap-2" size="small">
-                                        <Play /> Run evaluator
-                                    </Button>
+                                    <Tooltip
+                                        title={baseResponseData ? "" : "BaseResponse feature"}
+                                        placement="bottom"
+                                    >
+                                        <Button
+                                            className="flex items-center gap-2"
+                                            size="small"
+                                            onClick={fetchEvalMapper}
+                                            disabled={!baseResponseData}
+                                            loading={isLoadingResult}
+                                        >
+                                            <Play /> Run evaluator
+                                        </Button>
+                                    </Tooltip>
                                 </Flex>
 
                                 <Editor
@@ -504,7 +554,8 @@ const ConfigureNewEvaluator = ({
                                     width="100%"
                                     language="json"
                                     theme={`vs-${appTheme}`}
-                                    options={{wordWrap: "on"}}
+                                    options={{wordWrap: "on", readOnly: true}}
+                                    value={outputResult}
                                 />
                             </div>
                         </div>
@@ -523,4 +574,4 @@ const ConfigureNewEvaluator = ({
     )
 }
 
-export default ConfigureNewEvaluator
+export default ConfigureEvaluator

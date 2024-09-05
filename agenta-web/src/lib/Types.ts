@@ -356,6 +356,7 @@ export interface Evaluator {
     direct_use?: boolean
     description: string
     oss?: boolean
+    requires_llm_api_keys?: boolean
 }
 
 export interface EvaluatorMappingInput {
@@ -364,6 +365,16 @@ export interface EvaluatorMappingInput {
 }
 
 export interface EvaluatorMappingOutput {
+    outputs: Record<string, any>
+}
+
+export interface EvaluatorInputInterface {
+    inputs: Record<string, any>
+    settings?: Record<string, any>
+    credentials?: Record<string, any>
+}
+
+export interface EvaluatorOutputInterface {
     outputs: Record<string, any>
 }
 
