@@ -14,11 +14,15 @@ class instrument:
         self,
         kind: str = "UNKNOWN",
         config: Optional[Dict[str, Any]] = None,
-        ignore: Union[List[str], bool] = False,
+        ignore_inputs: Optional[bool] = None,
+        ignore_outputs: Optional[bool] = None,
+        # DEPRECATED
+        spankind: Optional[str] = "UNKNOWN",
     ) -> None:
-        self.kind = kind
+        self.kind = spankind if spankind is not None else kind
         self.config = config
-        self.ignore = ignore
+        self.ignore_inputs = ignore_inputs
+        self.ignore_outputs = ignore_outputs
 
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = inspect.iscoroutinefunction(func)
@@ -74,14 +78,14 @@ class instrument:
                         )
                         ag.tracing.set_attributes(
                             "data.inputs",
-                            redact(parse(*args, **kwargs), self.ignore),
+                            redact(parse(*args, **kwargs), self.ignore_inputs),
                         )
 
                         result = await func(*args, **kwargs)
 
                         ag.tracing.set_attributes(
                             "data.outputs",
-                            redact(patch(result), self.ignore),
+                            redact(patch(result), self.ignore_outputs),
                         )
                         ag.tracing.set_status("OK")
 
@@ -107,14 +111,14 @@ class instrument:
                         )
                         ag.tracing.set_attributes(
                             "data.inputs",
-                            redact(parse(*args, **kwargs), self.ignore),
+                            redact(parse(*args, **kwargs), self.ignore_inputs),
                         )
 
                         result = func(*args, **kwargs)
 
                         ag.tracing.set_attributes(
                             "data.outputs",
-                            redact(patch(result), self.ignore),
+                            redact(patch(result), self.ignore_outputs),
                         )
                         ag.tracing.set_status("OK")
 
