@@ -21,7 +21,7 @@ if isCloudEE():
         OrganizationDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
-        DockerImageDB_ as DockerImageDB,
+        ImageDB_ as ImageDB,
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
@@ -38,7 +38,7 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
-        DockerImageDB,
+        ImageDB,
         TestSetDB,
         EvaluationDB,
         DeploymentDB,
@@ -60,7 +60,7 @@ from agenta_backend.models.db_models import (
 models = [
     AppDB,
     UserDB,
-    DockerImageDB,
+    ImageDB,
     TestSetDB,
     TemplateDB,
     AppVariantDB,
