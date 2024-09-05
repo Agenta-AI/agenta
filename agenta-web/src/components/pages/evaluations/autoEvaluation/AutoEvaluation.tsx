@@ -247,19 +247,22 @@ const AutoEvaluation = () => {
                 title: evaluator.name,
                 key: `results-${idx}`,
                 onHeaderCell: () => ({style: {minWidth: 240}}),
-                showSorterTooltip: false,
+                sortDirections: ["descend", "ascend"],
                 sorter: {
                     compare: (a, b) => {
-                        const getSortValue = (item: _Evaluation) => {
-                            if (item.aggregated_results && item.aggregated_results.length > 0) {
-                                const result = item.aggregated_results[0].result
-                                if (result && typeof result.value === "number") {
-                                    return result.value
-                                }
+                        const getSortValue = (item: _Evaluation, evaluatorId: string) => {
+                            const matchingResult = item.aggregated_results.find(
+                                (result) => result.evaluator_config.id === evaluatorId,
+                            )
+
+                            if (matchingResult && typeof matchingResult.result.value === "number") {
+                                return matchingResult.result.value
                             }
+
                             return 0
                         }
-                        return getSortValue(a) - getSortValue(b)
+
+                        return getSortValue(a, evaluator.id) - getSortValue(b, evaluator.id)
                     },
                 },
                 render: (_, record) => {
@@ -269,6 +272,10 @@ const AutoEvaluation = () => {
                         (result) => result.evaluator_config.id === evaluator.id,
                     )
 
+                    if (matchingResults.length === 0) {
+                        return <span>-</span>
+                    }
+
                     return (
                         <Space>
                             {matchingResults.map((result, index) =>
@@ -276,7 +283,7 @@ const AutoEvaluation = () => {
                                     <Popover
                                         key={index}
                                         placement="bottom"
-                                        trigger={"click"}
+                                        trigger={"hover"}
                                         arrow={false}
                                         content={
                                             <div className="w-[256px]">
@@ -522,6 +529,7 @@ const AutoEvaluation = () => {
                         icon={<Plus size={14} />}
                         className={classes.button}
                         onClick={() => setNewEvalModalOpen(true)}
+                        data-cy="new-evaluation-button"
                     >
                         Start new evaluation
                     </Button>
@@ -541,6 +549,7 @@ const AutoEvaluation = () => {
                         className={classes.button}
                         onClick={() => setIsDeleteEvalMultipleModalOpen(true)}
                         disabled={selectedRowKeys.length == 0}
+                        data-cy="delete-evaluation-button"
                     >
                         Delete
                     </Button>
@@ -549,6 +558,7 @@ const AutoEvaluation = () => {
                         icon={<ArrowsLeftRight size={14} />}
                         className={classes.button}
                         disabled={compareDisabled}
+                        data-cy="evaluation-results-compare-button"
                         onClick={() =>
                             router.push(
                                 `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,
@@ -588,7 +598,7 @@ const AutoEvaluation = () => {
                 pagination={false}
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    onClick: () => {},
+                    onClick: () => router.push(`/apps/${appId}/evaluations/results/${record.id}`),
                 })}
             />
 
