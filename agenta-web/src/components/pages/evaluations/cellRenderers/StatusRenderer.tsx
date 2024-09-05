@@ -4,7 +4,7 @@ import {InfoCircleOutlined} from "@ant-design/icons"
 import {theme, Tooltip, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
-import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cellRenderers"
+import {runningStatuses, statusMapper} from "./cellRenderers"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     statusCell: {
