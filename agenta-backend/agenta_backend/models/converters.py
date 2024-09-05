@@ -26,7 +26,7 @@ if isCloudEE():
     from agenta_backend.commons.models.db_models import (
         AppDB_ as AppDB,
         UserDB_ as UserDB,
-        DockerImageDB_ as DockerImageDB,
+        ImageDB_ as ImageDB,
         TestSetDB_ as TestSetDB,
         EvaluationDB_ as EvaluationDB,
         AppVariantDB_ as AppVariantDB,
@@ -50,7 +50,7 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
-        DockerImageDB,
+        ImageDB,
         TestSetDB,
         EvaluationDB,
         AppVariantDB,
@@ -472,7 +472,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     return App(app_name=app_db.app_name, app_id=str(app_db.id))
 
 
-def image_db_to_pydantic(image_db: DockerImageDB) -> ImageExtended:
+def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     image = ImageExtended(
         docker_id=image_db.docker_id,
         tags=image_db.tags,

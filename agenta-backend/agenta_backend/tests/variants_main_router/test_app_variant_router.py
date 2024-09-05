@@ -12,7 +12,7 @@ from agenta_backend.models.db_models import (
     AppDB,
     DeploymentDB,
     VariantBaseDB,
-    DockerImageDB,
+    ImageDB,
     AppVariantDB,
 )
 
@@ -113,7 +113,7 @@ async def test_create_app_variant(get_first_user_object):
         )
         app = result.scalars().first()
 
-        db_image = DockerImageDB(
+        db_image = ImageDB(
             docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             tags="agentaai/templates_v2:local_test_prompt",
             user_id=user.id,
