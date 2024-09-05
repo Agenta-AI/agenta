@@ -137,7 +137,7 @@ const ConfigureEvaluator = ({
         try {
             setIsLoadingResult(true)
 
-            const settingsValues = form.getFieldValue("settings_values")
+            const settingsValues = form.getFieldValue("settings_values") || {}
             const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
                 settingsValues,
                 selectedTestcase,
@@ -158,13 +158,19 @@ const ConfigureEvaluator = ({
 
             if (!selectedEvaluator.key.startsWith("rag_")) {
                 const correctAnswerKey = settingsValues.correct_answer_key
-                const groundTruthKey = correctAnswerKey.startsWith("testcase.")
-                    ? correctAnswerKey.split(".")[1]
-                    : correctAnswerKey
+                const groundTruthKey =
+                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                        ? correctAnswerKey.split(".")[1]
+                        : correctAnswerKey
 
                 outputs = {
                     ground_truth: selectedTestcase[groundTruthKey],
-                    prediction: JSON.parse(variantResult)?.message,
+                    prediction:
+                        selectedEvaluator.key.includes("json") ||
+                        selectedEvaluator.key.includes("field_match_test")
+                            ? JSON.stringify({message: JSON.parse(variantResult)?.message})
+                            : JSON.parse(variantResult)?.message,
+                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
                 }
             }
 
