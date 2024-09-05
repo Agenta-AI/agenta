@@ -80,7 +80,7 @@ describe("Evaluation Comparison Test", function () {
         })
 
         it("Should select 2 evaluations, click on the compare button, and successfully navigate to the comparison page", () => {
-           cy.get(".ant-checkbox-input").eq(0).check()
+            cy.get(".ant-checkbox-input").eq(0).check()
 
             cy.get('[data-cy="evaluation-results-compare-button"]').should("not.be.disabled")
             cy.get('[data-cy="evaluation-results-compare-button"]').click()
