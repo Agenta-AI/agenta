@@ -35,7 +35,7 @@ from opentelemetry.sdk.trace.export import (
 
 _AGENTA_ROOT_SPAN_ID = "f" * 16
 
-_AGENTA_PROJECT_ID_HEADER = "project-id"
+_AGENTA_APP_ID_HEADER = "app-id"
 _AGENTA_API_KEY_HEADER = "api-key"
 
 _AGENTA_EXPERIMENT_ID_HEADER = "experiment-id"
@@ -169,7 +169,7 @@ class Tracing:
     def __init__(
         self,
         url: str,
-        project_id: Optional[str] = None,
+        app_id: Optional[str] = None,
         api_key: Optional[str] = None,
         experiment_id: Optional[str] = None,
     ) -> None:
@@ -177,7 +177,7 @@ class Tracing:
         # ENDPOINT
         self.url = "http://localhost:4318/v1/traces"  # url
         # AUTHENTICATION
-        self.project_id = project_id
+        self.app_id = app_id
         # AUTHORIZATION
         self.api_key = api_key
         # EXPERIMENT
@@ -185,8 +185,8 @@ class Tracing:
 
         # HEADERS
         self.headers = {}
-        if self.project_id:
-            self.headers.update(**{_AGENTA_PROJECT_ID_HEADER: self.project_id})
+        if self.app_id:
+            self.headers.update(**{_AGENTA_APP_ID_HEADER: self.app_id})
         if api_key:
             self.headers.update(**{_AGENTA_API_KEY_HEADER: self.api_key})
         if experiment_id:
