@@ -35,7 +35,6 @@ from opentelemetry.sdk.trace.export import (
 
 _AGENTA_ROOT_SPAN_ID = "f" * 16
 
-_AGENTA_APP_ID_HEADER = "app-id"
 _AGENTA_API_KEY_HEADER = "api-key"
 
 _AGENTA_EXPERIMENT_ID_HEADER = "experiment-id"
@@ -185,8 +184,6 @@ class Tracing:
 
         # HEADERS
         self.headers = {}
-        if self.app_id:
-            self.headers.update(**{_AGENTA_APP_ID_HEADER: self.app_id})
         if api_key:
             self.headers.update(**{_AGENTA_API_KEY_HEADER: self.api_key})
         if experiment_id:
@@ -448,7 +445,7 @@ class Tracing:
             ),
             cost=self._get_attributes("metrics.costs", span).get("marginal", 0.0),
             #
-            app_id="",
+            app_id=self.app_id,
             variant_id=None,
             variant_name=None,
             environment=None,
