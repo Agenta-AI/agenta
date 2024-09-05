@@ -137,14 +137,14 @@ const ConfigureEvaluator = ({
         try {
             setIsLoadingResult(true)
 
-            const {testcaseObj, evalMapObj, testcaseMappingKeys} = mapTestcaseAndEvalValues(
-                form.getFieldValue("settings_values"),
+            const settingsValues = form.getFieldValue("settings_values")
+            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+                settingsValues,
                 selectedTestcase,
             )
-
             let outputs = {}
 
-            if (!!Object.keys(evalMapObj).length) {
+            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
                 const mapResponse = await createEvaluatorDataMapping({
                     inputs: baseResponseData,
                     mapping: evalMapObj,
@@ -152,15 +152,26 @@ const ConfigureEvaluator = ({
                 outputs = {...outputs, ...mapResponse.outputs}
             }
 
-            if (!!Object.keys(testcaseObj).length) {
+            if (Object.keys(testcaseObj).length) {
                 outputs = {...outputs, ...testcaseObj}
+            }
+
+            if (!selectedEvaluator.key.startsWith("rag_")) {
+                const correctAnswerKey = settingsValues.correct_answer_key
+                const groundTruthKey = correctAnswerKey.startsWith("testcase.")
+                    ? correctAnswerKey.split(".")[1]
+                    : correctAnswerKey
+
+                outputs = {
+                    ground_truth: selectedTestcase[groundTruthKey],
+                    prediction: JSON.parse(variantResult)?.message,
+                }
             }
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
                 inputs: outputs,
-                settings: {...form.getFieldValue("settings_values"), ...testcaseMappingKeys},
-                ...(selectedEvaluator.requires_llm_api_keys ||
-                form.getFieldValue("settings_values")?.requires_llm_api_keys
+                settings: settingsValues,
+                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject()}
                     : {}),
             })
@@ -251,7 +262,9 @@ const ConfigureEvaluator = ({
             )
 
             if (typeof result === "string") {
-                setVariantResult(getStringOrJson({data: result}))
+                setVariantResult(
+                    getStringOrJson({...(typeof result === "string" ? {message: result} : result)}),
+                )
                 setTraceTree({...{data: result}, ...traceTree})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
