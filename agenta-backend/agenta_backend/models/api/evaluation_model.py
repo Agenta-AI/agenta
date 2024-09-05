@@ -14,6 +14,7 @@ class Evaluator(BaseModel):
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False
+    requires_llm_api_keys: Optional[bool] = False
 
 
 class EvaluatorConfig(BaseModel):
