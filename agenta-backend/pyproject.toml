@@ -43,6 +43,8 @@ alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
 
+protobuf = "^4.25.4"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 httpx = "^0.24.0"
