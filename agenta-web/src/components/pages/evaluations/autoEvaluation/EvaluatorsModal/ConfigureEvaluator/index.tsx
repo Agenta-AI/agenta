@@ -1,4 +1,4 @@
-import {Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
+import {BaseResponse, Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
@@ -31,12 +31,13 @@ import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     createEvaluatorDataMapping,
+    createEvaluatorRunExecution,
     updateEvaluatorConfig,
 } from "@/services/evaluations/api"
 import {useAppId} from "@/hooks/useAppId"
 import {useLocalStorage} from "usehooks-ts"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-import {getStringOrJson, removeKeys} from "@/lib/helpers/utils"
+import {apiKeyObject, getStringOrJson, removeKeys} from "@/lib/helpers/utils"
 import {callVariant} from "@/services/api"
 import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
@@ -125,16 +126,37 @@ const ConfigureEvaluator = ({
     }>({
         testcase: null,
     })
+    const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
+    const [outputResult, setOutputResult] = useState("")
+    const [isLoadingResult, setIsLoadingResult] = useState(false)
 
     const fetchEvalMapper = async () => {
+        if (!baseResponseData) return
+
         try {
-            const response = await createEvaluatorDataMapping({
-                inputs: {trace: traceTree},
-                mapping: form.getFieldValue("settings_values"),
+            setIsLoadingResult(true)
+            const mapResponse = await createEvaluatorDataMapping({
+                inputs: baseResponseData,
+                mapping: {
+                    ...form.getFieldValue("settings_values"),
+                },
             })
-            console.log(response)
+
+            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
+                inputs: {...mapResponse.outputs},
+                settings: {
+                    ...form.getFieldValue("settings_values"),
+                },
+                ...(selectedEvaluator.requires_llm_api_keys ||
+                form.getFieldValue("settings_values")?.requires_llm_api_keys
+                    ? {credentials: apiKeyObject()}
+                    : {}),
+            })
+            setOutputResult(getStringOrJson(runResponse))
         } catch (error) {
             console.error(error)
+        } finally {
+            setIsLoadingResult(false)
         }
     }
 
@@ -218,9 +240,12 @@ const ConfigureEvaluator = ({
 
             if (typeof result === "string") {
                 setVariantResult(getStringOrJson({data: result}))
+                setTraceTree({...{data: result}, testcase: selectedTestcase})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
+                setTraceTree({...{data: result}, testcase: selectedTestcase})
             } else if (isBaseResponse(result)) {
+                setBaseResponseData(result)
                 const {trace, data} = result
                 setVariantResult(
                     getStringOrJson({
@@ -499,7 +524,7 @@ const ConfigureEvaluator = ({
                                     language="json"
                                     theme={`vs-${appTheme}`}
                                     value={variantResult}
-                                    options={{wordWrap: "on"}}
+                                    options={{wordWrap: "on", readOnly: true}}
                                 />
                             </div>
 
@@ -508,13 +533,20 @@ const ConfigureEvaluator = ({
                                     <Typography.Text className={classes.formTitleText}>
                                         Output
                                     </Typography.Text>
-                                    <Button
-                                        className="flex items-center gap-2"
-                                        size="small"
-                                        onClick={() => fetchEvalMapper()}
+                                    <Tooltip
+                                        title={baseResponseData ? "" : "BaseResponse feature"}
+                                        placement="bottom"
                                     >
-                                        <Play /> Run evaluator
-                                    </Button>
+                                        <Button
+                                            className="flex items-center gap-2"
+                                            size="small"
+                                            onClick={fetchEvalMapper}
+                                            disabled={!baseResponseData}
+                                            loading={isLoadingResult}
+                                        >
+                                            <Play /> Run evaluator
+                                        </Button>
+                                    </Tooltip>
                                 </Flex>
 
                                 <Editor
@@ -522,7 +554,8 @@ const ConfigureEvaluator = ({
                                     width="100%"
                                     language="json"
                                     theme={`vs-${appTheme}`}
-                                    options={{wordWrap: "on"}}
+                                    options={{wordWrap: "on", readOnly: true}}
+                                    value={outputResult}
                                 />
                             </div>
                         </div>
