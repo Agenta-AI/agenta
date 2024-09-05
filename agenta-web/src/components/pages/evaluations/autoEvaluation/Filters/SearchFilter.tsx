@@ -1,7 +1,6 @@
 import {_Evaluation} from "@/lib/Types"
 import {Input, InputRef, TableColumnType, DatePicker} from "antd"
 import {FilterDropdownProps} from "antd/es/table/interface"
-import React, {useRef} from "react"
 import dayjs from "dayjs"
 
 type DataIndex = keyof _Evaluation
@@ -12,8 +11,6 @@ export function getFilterParams(
     dataIndex: DataIndex,
     type: CellDataType,
 ): TableColumnType<_Evaluation> {
-    const searchInput = useRef<InputRef>(null)
-
     const filterDropdown = ({setSelectedKeys, selectedKeys, confirm}: FilterDropdownProps) => {
         return (
             <div className="p-2" onKeyDown={(e) => e.stopPropagation()}>
@@ -27,7 +24,6 @@ export function getFilterParams(
                     />
                 ) : (
                     <Input
-                        ref={searchInput}
                         placeholder={`Search ${dataIndex}`}
                         value={selectedKeys[0]}
                         onChange={(e) => {
@@ -70,10 +66,5 @@ export function getFilterParams(
     return {
         filterDropdown,
         onFilter,
-        onFilterDropdownOpenChange: (visible) => {
-            if (visible) {
-                setTimeout(() => searchInput.current?.select(), 100)
-            }
-        },
     }
 }
