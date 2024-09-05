@@ -174,7 +174,7 @@ class Tracing:
     ) -> None:
 
         # ENDPOINT
-        self.url = "http://localhost:4318/v1/traces"  # url
+        self.url = url  # "http://localhost:4318/v1/traces"
         # AUTHENTICATION
         self.app_id = app_id
         # AUTHORIZATION

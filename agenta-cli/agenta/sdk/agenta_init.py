@@ -85,7 +85,7 @@ class AgentaSingleton:
         )
 
         self.tracing = Tracing(
-            url=f"{self.host}/api/observability/v2/traces",  # type: ignore
+            url=f"{self.host}/api/observability/v1/traces",  # type: ignore
             app_id=self.app_id,
             api_key=self.api_key,
         )
