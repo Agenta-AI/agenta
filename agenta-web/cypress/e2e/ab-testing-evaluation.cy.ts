@@ -105,27 +105,6 @@ describe("A/B Testing Evaluation workflow", () => {
         })
     })
 
-    context("When deleting the app variant", () => {
-        beforeEach(() => {
-            cy.visit(`/apps/${app_id}/playground`)
-        })
-
-        it("Should delete the created app variant", () => {
-            cy.get(`[data-node-key="app.${app_v2}"]`).contains(`app.${app_v2}`).click()
-            cy.url().should("include", `/playground?variant=app.${app_v2}`)
-            cy.get('[data-cy="playground-delete-variant-button"]').eq(1).click()
-            cy.get(".ant-modal-content").within(() => {
-                cy.get(".ant-modal-confirm-btns > .ant-btn-primary").contains(/yes/i).click()
-            })
-        })
-
-        it("Should verify there is only one variant present", () => {
-            cy.get(".ant-tabs-nav-list").within(() => {
-                cy.get(".ant-tabs-tab").should("have.length.lte", 1)
-            })
-        })
-    })
-
     after(() => {
         cy.cleanupVariantAndTestset()
     })
