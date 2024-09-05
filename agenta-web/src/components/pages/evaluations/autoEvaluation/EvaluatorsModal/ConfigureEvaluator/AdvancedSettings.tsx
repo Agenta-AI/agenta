@@ -1,9 +1,10 @@
 import React from "react"
-import {Form, Input, InputNumber, Switch, Tooltip, Collapse, theme} from "antd"
+import {Form, Input, InputNumber, Switch, Tooltip, Collapse, theme, AutoComplete} from "antd"
 import {CaretRightOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
 import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
+import {generatePaths} from "@/lib/transformers"
 
 const useStyles = createUseStyles((theme: any) => ({
     label: {
@@ -20,9 +21,10 @@ const useStyles = createUseStyles((theme: any) => ({
 
 type AdvancedSettingsProps = {
     settings: Record<string, any>[]
+    selectedTestcase: Record<string, any> | null
 }
 
-const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
+const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTestcase}) => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const {token} = theme.useToken()
@@ -57,7 +59,17 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings}) => {
                             initialValue={field.default}
                             rules={rules}
                         >
-                            {field.type === "string" || field.type === "regex" ? (
+                            {(field.type === "string" || field.type === "regex") &&
+                            selectedTestcase ? (
+                                <AutoComplete
+                                    options={generatePaths(selectedTestcase)}
+                                    filterOption={(inputValue, option) =>
+                                        option!.value
+                                            .toUpperCase()
+                                            .indexOf(inputValue.toUpperCase()) !== -1
+                                    }
+                                />
+                            ) : field.type === "string" || field.type === "regex" ? (
                                 <Input />
                             ) : field.type === "number" ? (
                                 <InputNumber min={field.min} max={field.max} step={0.1} />

@@ -1,15 +1,17 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isValidRegex} from "@/lib/helpers/validators"
+import {generatePaths} from "@/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/lib/Types"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
-import {theme, Form, Tooltip, InputNumber, Switch, Input} from "antd"
+import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
 import {Rule} from "antd/es/form"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
+    traceTree: Record<string, any>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -49,6 +51,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     min,
     max,
     required,
+    traceTree,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
@@ -97,7 +100,16 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     initialValue={defaultVal}
                     rules={rules}
                 >
-                    {type === "string" || type === "regex" ? (
+                    {name[1] === "question_key" ||
+                    name[1] === "answer_key" ||
+                    name[1] === "contexts_key" ? (
+                        <AutoComplete
+                            options={generatePaths(traceTree)}
+                            filterOption={(inputValue, option) =>
+                                option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                            }
+                        />
+                    ) : type === "string" || type === "regex" ? (
                         <Input />
                     ) : type === "number" ? (
                         <InputNumber min={min} max={max} step={0.1} />
