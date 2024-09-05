@@ -1,5 +1,5 @@
 import json
-import requests
+import httpx
 
 from threading import Lock
 from datetime import datetime
@@ -215,13 +215,13 @@ class Tracing:
         self.tracer_provider.add_span_processor(self.inline_processor)
 
         try:
-            requests.post(self.url)
+            httpx.post(self.url)
 
             self.remote_processor = TraceProcessor(
                 OTLPSpanExporter(endpoint=self.url, headers=self.headers)
             )
             self.tracer_provider.add_span_processor(self.remote_processor)
-        except requests.exceptions.ConnectionError:
+        except:
             log.error(
                 f"Warning: Your traces will not be exported since {self.url} is unreachable."
             )
