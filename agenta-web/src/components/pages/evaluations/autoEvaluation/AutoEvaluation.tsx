@@ -9,7 +9,7 @@ import {
     Rocket,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, DropdownProps, message, Space, Table, Typography} from "antd"
+import {Button, Dropdown, DropdownProps, message, Space, Table, Tag, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
@@ -244,9 +244,18 @@ const AutoEvaluation = () => {
             title: "Results",
             key: "results",
             onHeaderCell: () => ({style: {minWidth: 240}}),
-            children: evaluatorConfigs.map((evaluator, idx) => ({
-                title: evaluator.name,
-                key: `results-${idx}`,
+            children: evaluatorConfigs.map((evaluator) => ({
+                title: () => {
+                    return (
+                        <div className="w-full flex items-center justify-between">
+                            <span className="whitespace-nowrap">{evaluator.name}</span>
+                            <Tag className="ml-2" color={evaluator.evaluator?.color}>
+                                {evaluator.evaluator?.name}
+                            </Tag>
+                        </div>
+                    )
+                },
+                key: evaluator.name,
                 onHeaderCell: () => ({style: {minWidth: 240}}),
                 sortDirections: ["descend", "ascend"],
                 sorter: {
@@ -312,6 +321,10 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            sorter: {
+                compare: (a, b) =>
+                    Number(a.average_latency?.value) - Number(b.average_latency?.value),
+            },
             render: (_, record) => {
                 return getTypedValue(record.average_latency)
             },
@@ -324,6 +337,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            sorter: {
+                compare: (a, b) => Number(a.average_cost?.value) - Number(b.average_cost?.value),
+            },
             render: (_, record) => {
                 return getTypedValue(record.average_cost)
             },
@@ -450,13 +466,21 @@ const AutoEvaluation = () => {
     }, [JSON.stringify(runningEvaluationIds)])
 
     useEffect(() => {
-        const defaultColumnNames = columns.map((item) => item.key as string)
-        setEditColumns(defaultColumnNames)
-    }, [])
+        const defaultColumnNames = columns.flatMap((col) =>
+            "children" in col ? [col.key, ...col.children.map((child) => child.key)] : [col.key],
+        )
+        setEditColumns(defaultColumnNames as string[])
+    }, [isEvalLoading])
 
     const editedColumns = columns.map((item) => ({
         ...item,
         hidden: !editColumns?.includes(item.key as string),
+        ...("children" in item && {
+            children: item.children.map((child) => ({
+                ...child,
+                hidden: !editColumns.includes(child.key as string),
+            })),
+        }),
     }))
 
     return (
