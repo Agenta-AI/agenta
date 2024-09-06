@@ -262,7 +262,7 @@ const ConfigureEvaluator = ({
                 optParams || [],
                 appId,
                 selectedVariant.baseId,
-                isChatVariant ? selectedTestcase.chat || [{}] : [],
+                isChatVariant ? JSON.parse(selectedTestcase.chat) || [{}] : [],
                 controller.signal,
                 true,
             )
