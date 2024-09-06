@@ -42,7 +42,6 @@ import {callVariant} from "@/services/api"
 import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
 import {mapTestcaseAndEvalValues} from "@/lib/helpers/evaluate"
 
@@ -124,8 +123,10 @@ const ConfigureEvaluator = ({
     const [variantResult, setVariantResult] = useState("")
     const [traceTree, setTraceTree] = useState<{
         testcase: Record<string, any> | null
+        trace: Record<string, any> | string | null
     }>({
         testcase: selectedTestcase,
+        trace: null,
     })
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
@@ -168,8 +169,8 @@ const ConfigureEvaluator = ({
                     prediction:
                         selectedEvaluator.key.includes("json") ||
                         selectedEvaluator.key.includes("field_match_test")
-                            ? JSON.stringify({message: JSON.parse(variantResult)?.message})
-                            : JSON.parse(variantResult)?.message,
+                            ? JSON.stringify({message: variantResult})
+                            : variantResult,
                     ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
                 }
             }
@@ -181,7 +182,7 @@ const ConfigureEvaluator = ({
                     ? {credentials: apiKeyObject()}
                     : {}),
             })
-            setOutputResult(getStringOrJson(runResponse))
+            setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error) {
             console.error(error)
         } finally {
@@ -268,30 +269,21 @@ const ConfigureEvaluator = ({
             )
 
             if (typeof result === "string") {
-                setVariantResult(
-                    getStringOrJson({...(typeof result === "string" ? {message: result} : result)}),
-                )
-                setTraceTree({...{data: result}, ...traceTree})
+                setVariantResult(getStringOrJson(result))
+                setTraceTree({...traceTree, trace: result})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
-                setTraceTree({...{data: result}, ...traceTree})
+                setTraceTree({...traceTree, trace: result})
             } else if (isBaseResponse(result)) {
                 setBaseResponseData(result)
                 const {trace, data} = result
-                setVariantResult(
-                    getStringOrJson({
-                        ...(typeof data === "string" ? {message: data} : data),
-                        cost: formatCurrency(trace?.cost),
-                        usage: trace?.usage,
-                        latency: formatLatency(trace?.latency),
-                    }),
-                )
+                setVariantResult(getStringOrJson(data))
                 if (trace?.spans) {
                     setTraceTree({
-                        ...transformTraceTreeToJson(
+                        ...traceTree,
+                        trace: transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
                         ),
-                        ...traceTree,
                     })
                 }
             } else {
@@ -518,9 +510,9 @@ const ConfigureEvaluator = ({
                                 </Space>
                             </Flex>
 
-                            <div className="flex-1 flex flex-col h-full">
+                            <div className="flex-[0.4] flex flex-col h-full">
                                 <Typography.Text className={classes.formTitleText}>
-                                    JSON
+                                    JSON Data
                                 </Typography.Text>
                                 <Editor
                                     className={classes.editor}
@@ -540,7 +532,7 @@ const ConfigureEvaluator = ({
                                 />
                             </div>
 
-                            <div className="flex-1 flex flex-col h-full">
+                            <div className="flex-[0.3] flex flex-col h-full">
                                 <Typography.Text className={classes.formTitleText}>
                                     App Output
                                 </Typography.Text>
@@ -554,10 +546,10 @@ const ConfigureEvaluator = ({
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-2 flex-1 h-full">
+                            <div className="flex flex-col gap-2 flex-[0.3] h-full">
                                 <Flex justify="space-between">
                                     <Typography.Text className={classes.formTitleText}>
-                                        Output
+                                        Evaluator Output
                                     </Typography.Text>
                                     <Tooltip
                                         title={baseResponseData ? "" : "BaseResponse feature"}
