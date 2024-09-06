@@ -352,3 +352,21 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
 export const removeCorrectAnswerPrefix = (str: string) => {
     return str.replace(/^correctAnswer_/, "")
 }
+
+export const mapTestcaseAndEvalValues = (
+    settingsValues: Record<string, any>,
+    selectedTestcase: Record<string, any>,
+) => {
+    let testcaseObj: Record<string, any> = {}
+    let evalMapObj: Record<string, any> = {}
+
+    Object.entries(settingsValues).forEach(([key, value]) => {
+        if (typeof value === "string" && value.startsWith("testcase.")) {
+            testcaseObj[key] = selectedTestcase[value.split(".")[1]]
+        } else {
+            evalMapObj[key] = value
+        }
+    })
+
+    return {testcaseObj, evalMapObj}
+}
