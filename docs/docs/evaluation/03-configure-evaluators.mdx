@@ -1,0 +1,100 @@
+---
+title: "Configure Evaluators"
+description: "Set up evaluators for your use case"
+---
+
+In this guide will show you how to configure evaluators for your LLM application.
+
+### What are evaluators?
+
+Evaluators are functions that assess the output of an LLM application.
+
+Evaluators typically take as input:
+
+- The output of the LLM application
+- (Optional) The reference answer (i.e., expected output or ground truth)
+- (Optional) The inputs to the LLM application
+- Any other relevant data, such as context
+
+Evaluators return either a float or a boolean value.
+
+<img style={{ width: "70%" }} src="/images/evaluation/evaluators.png" />
+
+### Choosing the right evaluator
+
+To create a new evaluator, click on the `Configure Evaluators` button in the `Evaluations` view.
+
+![Figure the configure evaluators button in agenta.](/images/evaluation/configure_evaluators.png)
+
+Agenta offers a growing list of pre-built evaluators suitable for most use cases. We also provide options for creating custom evaluators (by writing your own Python function) or using webhooks for evaluation.
+
+The **choice of evaluator depends on your specific use case**. For classification and entity extraction tasks, `Exact Match` or `JSON Diff Match` are adequate. For text generation tasks (including chatbots), where there isn't a single correct answer, methods like `Semantic Similarity` or `LLM-as-a-judge` work best. You can find the list of evaluators and their description below.
+
+<details>
+<summary>Available Evaluators</summary>
+
+| **Evaluator Name**        | **Use Case**                     | **Type**           | **Description**                                                                  |
+| ------------------------- | -------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| Exact Match               | Classification/Entity Extraction | Pattern Matching   | Checks if the output exactly matches the expected result.                        |
+| Contains JSON             | Classification/Entity Extraction | Pattern Matching   | Ensures the output contains valid JSON.                                          |
+| Regex Test                | Classification/Entity Extraction | Pattern Matching   | Checks if the output matches a given regex pattern.                              |
+| JSON Field Match          | Classification/Entity Extraction | Pattern Matching   | Compares specific fields within JSON data.                                       |
+| JSON Diff Match           | Classification/Entity Extraction | Similarity Metrics | Compares generated JSON with a ground truth JSON based on schema or values.      |
+| Similarity Match          | Text Generation / Chatbot        | Similarity Metrics | Compares generated output with expected using Jaccard similarity.                |
+| Semantic Similarity Match | Text Generation / Chatbot        | Semantic Analysis  | Compares the meaning of the generated output with the expected result.           |
+| Starts With               | Text Generation / Chatbot        | Pattern Matching   | Checks if the output starts with a specified prefix.                             |
+| Ends With                 | Text Generation / Chatbot        | Pattern Matching   | Checks if the output ends with a specified suffix.                               |
+| Contains                  | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains a specific substring.                              |
+| Contains Any              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains any of a list of substrings.                       |
+| Contains All              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains all of a list of substrings.                       |
+| Levenshtein Distance      | Text Generation / Chatbot        | Similarity Metrics | Calculates the Levenshtein distance between output and expected result.          |
+| LLM-as-a-judge            | Text Generation / Chatbot        | LLM-based          | Sends outputs to an LLM model for critique and evaluation.                       |
+| RAG Faithfulness          | RAG / Text Generation / Chatbot  | LLM-based          | Evaluates if the output is faithful to the retrieved documents in RAG workflows. |
+| RAG Context Relevancy     | RAG / Text Generation / Chatbot  | LLM-based          | Measures the relevancy of retrieved documents to the given question in RAG.      |
+| Code Evaluation           | Custom Logic                     | Custom             | Allows users to define their own evaluator in Python.                            |
+| Webhook Test              | Custom Logic                     | Custom             | Sends output to a webhook for external evaluation.                               |
+
+</details>
+
+### Evaluators Settings
+
+Evaluators have two types of settings:
+
+#### Evaluator Specific Parameters
+
+These settings are unique to each evaluator type. Examples include the `threshold` for `Semantic Similarity Match` or the `regular expression` for `Regex Test`. You'll find detailed information about these parameters on each evaluator's documentation page.
+
+#### Mappings between Evaluator Inputs and the LLM Data
+
+Evaluators need to know which parts of the data contain the output and the reference answer. Most evaluators allow you to configure this mapping, typically by specifying the name of the column in the test set that contains the `reference answer`.
+
+For more sophisticated evaluators, such as `RAG evaluators` (_available only in cloud and enterprise versions_), you need to define more complex mappings (see figure below).
+
+![Figure showing how RAGAS faithfulness evaluator maps to an example LLM
+  generation.](/images/evaluation/evaluator_config_mapping.png)
+
+The evaluator has access to the generation data in a JSON format that contains the trace and the test set data. For the above example, the data looks like this:
+
+```json
+{
+  "testcase": {
+    "country": "France",
+    "correct_answer": "Paris",
+  }
+  "trace": {
+    "inputs": {
+      "inputs": {
+        "country": "France"
+       }
+    },
+    "internals": {
+      "context": "France,[a] officially the ..."
+    }
+    "outputs": "The capital of France is Paris"
+    }
+}
+```
+
+Configuring the evaluator is done by mapping the evaluator inputs to the generation data:
+
+![Figure showing how RAGAS faithfulness evaluator is configured in agenta.](/images/evaluation/configure_mapping.png)
