@@ -30,15 +30,34 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 export const generateEditItems = (columns: ColumnsType, editColumns: string[]) => {
     return columns
         .filter((col) => col.key !== "key")
-        .map((col) => ({
-            key: col.key,
-            label: (
-                <Space>
-                    <Checkbox value={col.key} checked={!editColumns?.includes(col.key as string)} />
-                    <>{col.title}</>
-                </Space>
-            ),
-        }))
+        .flatMap((col) => [
+            {
+                key: col.key,
+                label: (
+                    <Space>
+                        <Checkbox
+                            value={col.key}
+                            checked={!editColumns.includes(col.key as string)}
+                        />
+                        {col.title as string}
+                    </Space>
+                ),
+            },
+            ...(("children" in col &&
+                col.children?.map((child) => ({
+                    key: child.key,
+                    label: (
+                        <Space className="ml-4">
+                            <Checkbox
+                                value={child.key}
+                                checked={!editColumns.includes(child.key as string)}
+                            />
+                            {child.key as string}
+                        </Space>
+                    ),
+                }))) ||
+                []),
+        ])
 }
 
 interface EditColumnsProps {
