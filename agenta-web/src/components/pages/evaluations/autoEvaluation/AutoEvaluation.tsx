@@ -92,6 +92,61 @@ const AutoEvaluation = () => {
     )
     const stoppers = useRef<Function>()
 
+    const runningEvaluationIds = useMemo(
+        () =>
+            evaluationList
+                .filter((item) => runningStatuses.includes(item.status.value))
+                .map((item) => item.id),
+        [evaluationList],
+    )
+
+    useUpdateEffect(() => {
+        stoppers.current?.()
+
+        if (runningEvaluationIds.length) {
+            stoppers.current = shortPoll(
+                () =>
+                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(id)))
+                        .then((res) => {
+                            setEvaluationList((prev) => {
+                                const newEvals = [...prev]
+                                runningEvaluationIds.forEach((id, ix) => {
+                                    const index = newEvals.findIndex((e) => e.id === id)
+                                    if (index !== -1) {
+                                        newEvals[index].status = res[ix].status
+                                        newEvals[index].duration = calcEvalDuration(newEvals[index])
+                                    }
+                                })
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                )
+                                    fetchEvaluations()
+                                return newEvals
+                            })
+                        })
+                        .catch(console.error),
+                {delayMs: 2000, timeoutMs: Infinity},
+            ).stopper
+        }
+
+        return () => {
+            stoppers.current?.()
+        }
+    }, [JSON.stringify(runningEvaluationIds)])
+
+    useEffect(() => {
+        if (!appId) return
+
+        fetchEvaluations()
+    }, [appId])
+
+    useEffect(() => {
+        const defaultColumnNames = columns.flatMap((col) =>
+            "children" in col ? [col.key, ...col.children.map((child) => child.key)] : [col.key],
+        )
+        setEditColumns(defaultColumnNames as string[])
+    }, [isEvalLoading])
+
     const fetchEvaluations = async () => {
         try {
             setIsEvalLoading(true)
@@ -416,61 +471,6 @@ const AutoEvaluation = () => {
             },
         },
     ]
-
-    const runningEvaluationIds = useMemo(
-        () =>
-            evaluationList
-                .filter((item) => runningStatuses.includes(item.status.value))
-                .map((item) => item.id),
-        [evaluationList],
-    )
-
-    useEffect(() => {
-        if (!appId) return
-
-        fetchEvaluations()
-    }, [appId])
-
-    useUpdateEffect(() => {
-        stoppers.current?.()
-
-        if (runningEvaluationIds.length) {
-            stoppers.current = shortPoll(
-                () =>
-                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(id)))
-                        .then((res) => {
-                            setEvaluationList((prev) => {
-                                const newEvals = [...prev]
-                                runningEvaluationIds.forEach((id, ix) => {
-                                    const index = newEvals.findIndex((e) => e.id === id)
-                                    if (index !== -1) {
-                                        newEvals[index].status = res[ix].status
-                                        newEvals[index].duration = calcEvalDuration(newEvals[index])
-                                    }
-                                })
-                                if (
-                                    res.some((item) => !runningStatuses.includes(item.status.value))
-                                )
-                                    fetchEvaluations()
-                                return newEvals
-                            })
-                        })
-                        .catch(console.error),
-                {delayMs: 2000, timeoutMs: Infinity},
-            ).stopper
-        }
-
-        return () => {
-            stoppers.current?.()
-        }
-    }, [JSON.stringify(runningEvaluationIds)])
-
-    useEffect(() => {
-        const defaultColumnNames = columns.flatMap((col) =>
-            "children" in col ? [col.key, ...col.children.map((child) => child.key)] : [col.key],
-        )
-        setEditColumns(defaultColumnNames as string[])
-    }, [isEvalLoading])
 
     const editedColumns = columns.map((item) => ({
         ...item,
