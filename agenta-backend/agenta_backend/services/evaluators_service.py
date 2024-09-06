@@ -130,6 +130,8 @@ def get_correct_answer(
     correct_answer_key = settings_values.get("correct_answer_key")
     if correct_answer_key is None:
         raise ValueError("No correct answer keys provided.")
+    if len(correct_answer_key.split(".")) > 1:
+        correct_answer_key = correct_answer_key.split(".")[-1]
     if correct_answer_key not in data_point:
         raise ValueError(
             f"Correct answer column '{correct_answer_key}' not found in the test set."
@@ -164,7 +166,9 @@ async def auto_exact_match(
         output = validate_string_output("exact_match", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
-        response = exact_match(input=EvaluatorInputInterface(**{"inputs": inputs}))
+        response = await exact_match(
+            input=EvaluatorInputInterface(**{"inputs": inputs})
+        )
         result = Result(type="bool", value=response["outputs"]["success"])
         return result
     except ValueError as e:
@@ -186,7 +190,7 @@ async def auto_exact_match(
         )
 
 
-def exact_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
+async def exact_match(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     prediction = input.inputs.get("prediction", "")
     ground_truth = input.inputs.get("ground_truth", "")
     success = True if prediction == ground_truth else False
@@ -862,9 +866,9 @@ async def measure_rag_consistency(
     # Initialize RAG evaluator to calculate faithfulness score
     faithfulness = Faithfulness(api_key=openai_api_key)
     eval_score = await faithfulness._run_eval_async(
-        output=input.inputs["answer"],
-        input=input.inputs["question"],
-        context=input.inputs["context"],
+        output=input.inputs["answer_key"],
+        input=input.inputs["question_key"],
+        context=input.inputs["contexts_key"],
     )
     return {"outputs": {"score": eval_score.score}}
 
@@ -929,9 +933,9 @@ async def rag_faithfulness(
             input=EvaluatorInputInterface(
                 **{
                     "inputs": {
-                        "question": question_val,
-                        "context": contexts_val,
-                        "answer": answer_val,
+                        "question_key": question_val,
+                        "contexts_key": contexts_val,
+                        "answer_key": answer_val,
                     },
                     "settings": settings_values,
                     "credentials": lm_providers_keys,
@@ -963,9 +967,9 @@ async def measure_context_coherence(
     # Initialize RAG evaluator to calculate context relevancy score
     context_rel = ContextRelevancy(api_key=openai_api_key)
     eval_score = await context_rel._run_eval_async(
-        output=input.inputs["answer"],
-        input=input.inputs["question"],
-        context=input.inputs["context"],
+        output=input.inputs["answer_key"],
+        input=input.inputs["question_key"],
+        context=input.inputs["contexts_key"],
     )
     return {"outputs": {"score": eval_score.score}}
 
@@ -1030,9 +1034,9 @@ async def rag_context_relevancy(
             input=EvaluatorInputInterface(
                 **{
                     "inputs": {
-                        "question": question_val,
-                        "context": contexts_val,
-                        "answer": answer_val,
+                        "question_key": question_val,
+                        "contexts_key": contexts_val,
+                        "answer_key": answer_val,
                     },
                     "settings": settings_values,
                     "credentials": lm_providers_keys,
@@ -1167,6 +1171,9 @@ async def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     set2 = set(input.inputs["ground_truth"].split())
     intersect = set1.intersection(set2)
     union = set1.union(set2)
+    print(set1)
+    print(set2)
+    print(union)
 
     similarity = len(intersect) / len(union)
     is_similar = True if similarity > input.settings["similarity_threshold"] else False

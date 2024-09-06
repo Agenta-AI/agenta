@@ -44,6 +44,7 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
+import {mapTestcaseAndEvalValues} from "@/lib/helpers/evaluate"
 
 type ConfigureEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -124,31 +125,59 @@ const ConfigureEvaluator = ({
     const [traceTree, setTraceTree] = useState<{
         testcase: Record<string, any> | null
     }>({
-        testcase: null,
+        testcase: selectedTestcase,
     })
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
 
     const fetchEvalMapper = async () => {
-        if (!baseResponseData) return
+        if (!baseResponseData || !selectedTestcase) return
 
         try {
             setIsLoadingResult(true)
-            const mapResponse = await createEvaluatorDataMapping({
-                inputs: baseResponseData,
-                mapping: {
-                    ...form.getFieldValue("settings_values"),
-                },
-            })
+
+            const settingsValues = form.getFieldValue("settings_values") || {}
+            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+                settingsValues,
+                selectedTestcase,
+            )
+            let outputs = {}
+
+            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
+                const mapResponse = await createEvaluatorDataMapping({
+                    inputs: baseResponseData,
+                    mapping: evalMapObj,
+                })
+                outputs = {...outputs, ...mapResponse.outputs}
+            }
+
+            if (Object.keys(testcaseObj).length) {
+                outputs = {...outputs, ...testcaseObj}
+            }
+
+            if (!selectedEvaluator.key.startsWith("rag_")) {
+                const correctAnswerKey = settingsValues.correct_answer_key
+                const groundTruthKey =
+                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                        ? correctAnswerKey.split(".")[1]
+                        : correctAnswerKey
+
+                outputs = {
+                    ground_truth: selectedTestcase[groundTruthKey],
+                    prediction:
+                        selectedEvaluator.key.includes("json") ||
+                        selectedEvaluator.key.includes("field_match_test")
+                            ? JSON.stringify({message: JSON.parse(variantResult)?.message})
+                            : JSON.parse(variantResult)?.message,
+                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+                }
+            }
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
-                inputs: {...mapResponse.outputs},
-                settings: {
-                    ...form.getFieldValue("settings_values"),
-                },
-                ...(selectedEvaluator.requires_llm_api_keys ||
-                form.getFieldValue("settings_values")?.requires_llm_api_keys
+                inputs: outputs,
+                settings: settingsValues,
+                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject()}
                     : {}),
             })
@@ -233,17 +262,19 @@ const ConfigureEvaluator = ({
                 optParams || [],
                 appId,
                 selectedVariant.baseId,
-                isChatVariant ? selectedTestcase.chat || [{}] : [],
+                isChatVariant ? JSON.parse(selectedTestcase.chat) || [{}] : [],
                 controller.signal,
                 true,
             )
 
             if (typeof result === "string") {
-                setVariantResult(getStringOrJson({data: result}))
-                setTraceTree({...{data: result}, testcase: selectedTestcase})
+                setVariantResult(
+                    getStringOrJson({...(typeof result === "string" ? {message: result} : result)}),
+                )
+                setTraceTree({...{data: result}, ...traceTree})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
-                setTraceTree({...{data: result}, testcase: selectedTestcase})
+                setTraceTree({...{data: result}, ...traceTree})
             } else if (isBaseResponse(result)) {
                 setBaseResponseData(result)
                 const {trace, data} = result
@@ -260,8 +291,7 @@ const ConfigureEvaluator = ({
                         ...transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
                         ),
-
-                        testcase: selectedTestcase,
+                        ...traceTree,
                     })
                 }
             } else {
@@ -386,18 +416,14 @@ const ConfigureEvaluator = ({
                                     <Typography.Text className={classes.formTitleText}>
                                         Parameters
                                     </Typography.Text>
-                                    {basicSettingsFields.map((field) => {
-                                        const {testcase, ...tree} = traceTree
-
-                                        return (
-                                            <DynamicFormField
-                                                {...field}
-                                                key={field.key}
-                                                traceTree={tree}
-                                                name={["settings_values", field.key]}
-                                            />
-                                        )
-                                    })}
+                                    {basicSettingsFields.map((field) => (
+                                        <DynamicFormField
+                                            {...field}
+                                            key={field.key}
+                                            traceTree={traceTree}
+                                            name={["settings_values", field.key]}
+                                        />
+                                    ))}
                                 </Space>
                             ) : (
                                 ""
