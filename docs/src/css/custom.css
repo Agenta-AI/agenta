@@ -566,3 +566,9 @@ a[class*="cardContainer"] {
 .card.padding--lg[class*="cardContainer"] {
   padding: 18px !important;
 }
+
+details {
+  background-color: var(--background-color) !important;
+  border: 1px solid var(--ifm-color-emphasis-200) !important;
+  --docusaurus-details-decoration-color: grey !important;
+}
