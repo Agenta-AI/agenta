@@ -9,13 +9,7 @@ import {
     fetchAllEvaluators,
     fetchEvaluationStatus,
 } from "@/services/evaluations/api"
-import {
-    EditOutlined,
-    InfoCircleOutlined,
-    MoreOutlined,
-    PlusOutlined,
-    SwapOutlined,
-} from "@ant-design/icons"
+import {EditOutlined, MoreOutlined, PlusOutlined, SwapOutlined} from "@ant-design/icons"
 import {Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Popover, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -31,6 +25,7 @@ import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import NewEvaluatorModal from "../../evaluations/evaluators/NewEvaluatorModal"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
 
 const {Title} = Typography
 
@@ -250,26 +245,7 @@ const AutomaticEvalOverview = () => {
                             )
 
                             return result.result.error ? (
-                                <Popover
-                                    key={index}
-                                    placement="bottom"
-                                    trigger={"click"}
-                                    arrow={false}
-                                    content={
-                                        <div className="w-[256px]">
-                                            {result.result.error?.stacktrace}
-                                        </div>
-                                    }
-                                    title={result.result.error?.message}
-                                >
-                                    <Button
-                                        onClick={(e) => e.stopPropagation()}
-                                        icon={<InfoCircleOutlined />}
-                                        type="link"
-                                    >
-                                        Read more
-                                    </Button>
-                                </Popover>
+                                <EvaluationErrorPopover key={index} result={result.result} />
                             ) : (
                                 <Popover
                                     key={index}

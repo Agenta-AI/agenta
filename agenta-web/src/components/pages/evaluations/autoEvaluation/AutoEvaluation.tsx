@@ -9,11 +9,11 @@ import {
     Rocket,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, DropdownProps, message, Popover, Space, Table, Tag} from "antd"
+import {Button, Dropdown, DropdownProps, message, Space, Table, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
-import {EditOutlined, InfoCircleOutlined, MoreOutlined} from "@ant-design/icons"
+import {MoreOutlined} from "@ant-design/icons"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
@@ -40,6 +40,7 @@ import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
 import {uniqBy} from "lodash"
 import NewEvaluatorModal from "../evaluators/NewEvaluatorModal"
+import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     resultTag: {
@@ -280,73 +281,11 @@ const AutoEvaluation = () => {
                         <Space>
                             {matchingResults.map((result, index) =>
                                 result.result.error ? (
-                                    <Popover
-                                        key={index}
-                                        placement="bottom"
-                                        trigger={"hover"}
-                                        arrow={false}
-                                        content={
-                                            <div className="w-[256px]">
-                                                {result.result.error?.stacktrace}
-                                            </div>
-                                        }
-                                        title={result.result.error?.message}
-                                    >
-                                        <Button
-                                            onClick={(e) => e.stopPropagation()}
-                                            icon={<InfoCircleOutlined />}
-                                            type="link"
-                                        >
-                                            Read more
-                                        </Button>
-                                    </Popover>
+                                    <EvaluationErrorPopover result={result.result} key={index} />
                                 ) : (
-                                    <Popover
-                                        key={index}
-                                        placement="bottom"
-                                        trigger={"hover"}
-                                        arrow={false}
-                                        content={
-                                            <div
-                                                className="w-[256px] flex flex-col gap-1"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="font-[500]">
-                                                    {result.evaluator_config.name}
-                                                </div>
-                                                <div>{getTypedValue(result.result)}</div>
-                                            </div>
-                                        }
-                                        title={
-                                            <div
-                                                className="flex items-center justify-between"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Tag color={evaluator?.evaluator?.color}>
-                                                    {evaluator?.name}
-                                                </Tag>
-                                                <Button
-                                                    icon={<EditOutlined />}
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        setSelectedConfigEdit(
-                                                            result.evaluator_config,
-                                                        )
-                                                        setIsEditEvalConfigOpen(true)
-                                                    }}
-                                                />
-                                            </div>
-                                        }
-                                    >
-                                        <div
-                                            onClick={(e) => e.stopPropagation()}
-                                            className={classes.resultTag}
-                                        >
-                                            <div>{result.evaluator_config.name}</div>
-                                            <div>{getTypedValue(result.result)}</div>
-                                        </div>
-                                    </Popover>
+                                    <Typography key={index}>
+                                        {getTypedValue(result.result)}
+                                    </Typography>
                                 ),
                             )}
                         </Space>
