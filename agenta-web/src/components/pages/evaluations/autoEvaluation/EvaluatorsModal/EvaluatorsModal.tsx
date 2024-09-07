@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {Evaluator, JSSTheme, testset, Variant} from "@/lib/Types"
+import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -38,6 +38,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
     const [selectedTestcase, setSelectedTestcase] = useState<Record<string, any> | null>(null)
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
+    const [editMode, setEditMode] = useState(false)
+    const [editEvalEditValues, setEditEvalEditValues] = useState<EvaluatorConfig | null>(null)
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -70,6 +72,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setCurrent={setCurrent}
                     setSelectedEvaluator={setSelectedEvaluator}
                     fetchingEvalConfigs={fetchingEvalConfigs}
+                    setEditMode={setEditMode}
+                    setEditEvalEditValues={setEditEvalEditValues}
+                    onSuccess={() => evalConfigFetcher()}
                 />
             ),
         },
@@ -91,7 +96,11 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                 <ConfigureEvaluator
                     selectedEvaluator={selectedEvaluator}
                     setCurrent={setCurrent}
-                    handleOnCancel={() => props.onCancel?.({} as any)}
+                    handleOnCancel={() => {
+                        props.onCancel?.({} as any)
+                        setEditMode(false)
+                        setEditEvalEditValues(null)
+                    }}
                     variants={variants}
                     testsets={testsets}
                     onSuccess={() => {
@@ -99,9 +108,12 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                         setCurrent(0)
                     }}
                     selectedTestcase={selectedTestcase}
-                    setSelectedTestcase={setSelectedTestcase}
                     selectedVariant={selectedVariant}
                     setSelectedVariant={setSelectedVariant}
+                    editMode={editMode}
+                    editEvalEditValues={editEvalEditValues}
+                    setEditEvalEditValues={setEditEvalEditValues}
+                    setEditMode={setEditMode}
                 />
             ),
         })

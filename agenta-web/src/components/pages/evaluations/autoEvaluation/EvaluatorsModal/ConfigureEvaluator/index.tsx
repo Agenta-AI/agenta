@@ -1,4 +1,12 @@
-import {BaseResponse, Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
+import {
+    BaseResponse,
+    Evaluator,
+    EvaluatorConfig,
+    JSSTheme,
+    Parameter,
+    testset,
+    Variant,
+} from "@/lib/Types"
 import {CloseCircleOutlined, CloseOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
@@ -9,19 +17,7 @@ import {
     Lightning,
     Play,
 } from "@phosphor-icons/react"
-import {
-    Button,
-    Divider,
-    Flex,
-    Form,
-    Input,
-    message,
-    Select,
-    Space,
-    Tag,
-    Tooltip,
-    Typography,
-} from "antd"
+import {Button, Divider, Flex, Form, Input, message, Select, Space, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
@@ -53,9 +49,12 @@ type ConfigureEvaluatorProps = {
     variants: Variant[] | null
     testsets: testset[] | null
     selectedTestcase: Record<string, any> | null
-    setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
     setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
     selectedVariant: Variant | null
+    editMode: boolean
+    editEvalEditValues: EvaluatorConfig | null
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditMode: (value: React.SetStateAction<boolean>) => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -104,9 +103,12 @@ const ConfigureEvaluator = ({
     testsets,
     onSuccess,
     selectedTestcase,
-    setSelectedTestcase,
     selectedVariant,
     setSelectedVariant,
+    editMode,
+    editEvalEditValues,
+    setEditEvalEditValues,
+    setEditMode,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -216,8 +218,8 @@ const ConfigureEvaluator = ({
                 evaluator_key: selectedEvaluator.key,
                 settings_values: settingsValues,
             }
-            ;(false
-                ? updateEvaluatorConfig("initialValues?.id"!, data)
+            ;(editMode
+                ? updateEvaluatorConfig(editEvalEditValues?.id!, data)
                 : createEvaluatorConfig(appId, data)
             )
                 .then(onSuccess)
@@ -300,18 +302,45 @@ const ConfigureEvaluator = ({
         }
     }
 
+    useEffect(() => {
+        form.resetFields()
+        if (editMode) {
+            form.setFieldsValue(editEvalEditValues)
+        }
+    }, [editMode])
+
     return (
         <div className="flex flex-col gap-6 h-full">
             <div className="flex items-center justify-between">
                 <Space className={classes.headerText}>
-                    <Button
-                        icon={<ArrowLeft size={14} />}
-                        className="flex items-center justify-center"
-                        onClick={() => setCurrent(1)}
-                    />
-                    <Typography.Text>Step 2/2:</Typography.Text>
-                    <Typography.Text>Configure new evaluator</Typography.Text>
-                    <Tag>{selectedEvaluator.name}</Tag>
+                    {editMode ? (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(0)
+                                    setEditMode(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Configure evaluator</Typography.Text>
+                        </>
+                    ) : (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(1)
+                                    setEditMode(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Step 2/2:</Typography.Text>
+                            <Typography.Text>Configure new evaluator</Typography.Text>
+                        </>
+                    )}
                 </Space>
 
                 <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
@@ -435,7 +464,7 @@ const ConfigureEvaluator = ({
                             Reset
                         </Button>
                         <Button type="primary" loading={submitLoading} onClick={form.submit}>
-                            Save configuration
+                            {editMode ? "Edit configuration" : "Save configuration"}
                         </Button>
                     </Flex>
                 </div>
