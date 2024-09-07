@@ -1,12 +1,20 @@
-import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, Note, Trash} from "@phosphor-icons/react"
 import {Button, Card, Dropdown, Tag, Typography} from "antd"
-import React from "react"
+import {useAtom} from "jotai"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
+import DeleteModal from "./DeleteModal"
 
 interface EvaluatorCardProps {
     evaluatorConfigs: EvaluatorConfig[]
+    setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    onSuccess: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -53,8 +61,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const EvaluatorCard = ({evaluatorConfigs}: EvaluatorCardProps) => {
+const EvaluatorCard = ({
+    evaluatorConfigs,
+    setEditMode,
+    setCurrent,
+    setSelectedEvaluator,
+    setEditEvalEditValues,
+    onSuccess,
+}: EvaluatorCardProps) => {
     const classes = useStyles()
+    const evaluators = useAtom(evaluatorsAtom)[0]
+    const [openDeleteModal, setOpenDeleteModal] = useState(false)
+    const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
 
     const formatEvluatorConfigs = Object.entries(
         evaluatorConfigs.reduce(
@@ -96,6 +114,15 @@ const EvaluatorCard = ({evaluatorConfigs}: EvaluatorCardProps) => {
                                                     icon: <Note size={16} />,
                                                     onClick: (e: any) => {
                                                         e.domEvent.stopPropagation()
+                                                        const selectedEval = evaluators.find(
+                                                            (e) => e.key === item.evaluator_key,
+                                                        )
+                                                        if (selectedEval) {
+                                                            setEditMode(true)
+                                                            setSelectedEvaluator(selectedEval)
+                                                            setEditEvalEditValues(item)
+                                                            setCurrent(2)
+                                                        }
                                                     },
                                                 },
                                                 {
@@ -114,6 +141,8 @@ const EvaluatorCard = ({evaluatorConfigs}: EvaluatorCardProps) => {
                                                     danger: true,
                                                     onClick: (e: any) => {
                                                         e.domEvent.stopPropagation()
+                                                        setOpenDeleteModal(true)
+                                                        setSelectedDelEval(item)
                                                     },
                                                 },
                                             ],
@@ -143,6 +172,15 @@ const EvaluatorCard = ({evaluatorConfigs}: EvaluatorCardProps) => {
                     </div>
                 </div>
             ))}
+
+            {selectedDelEval && (
+                <DeleteModal
+                    open={openDeleteModal}
+                    onCancel={() => setOpenDeleteModal(false)}
+                    selectedEvalConfig={selectedDelEval}
+                    onSuccess={onSuccess}
+                />
+            )}
         </div>
     )
 }

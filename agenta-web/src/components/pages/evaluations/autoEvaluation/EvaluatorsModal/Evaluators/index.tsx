@@ -13,6 +13,9 @@ type EvaluatorsProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     fetchingEvalConfigs: boolean
+    setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    onSuccess: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -57,6 +60,9 @@ const Evaluators = ({
     setCurrent,
     setSelectedEvaluator,
     fetchingEvalConfigs,
+    setEditMode,
+    setEditEvalEditValues,
+    onSuccess,
 }: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
@@ -132,7 +138,14 @@ const Evaluators = ({
                 {evaluatorsDisplay === "list" ? (
                     <EvaluatorList evaluatorConfigs={filteredEvalConfigs} />
                 ) : (
-                    <EvaluatorCard evaluatorConfigs={filteredEvalConfigs} />
+                    <EvaluatorCard
+                        evaluatorConfigs={filteredEvalConfigs}
+                        setEditMode={setEditMode}
+                        setCurrent={setCurrent}
+                        setSelectedEvaluator={setSelectedEvaluator}
+                        setEditEvalEditValues={setEditEvalEditValues}
+                        onSuccess={onSuccess}
+                    />
                 )}
             </Spin>
         </div>
