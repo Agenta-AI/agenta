@@ -215,19 +215,18 @@ export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
 
     function addTree(item: TraceSpan) {
         if (item.name) {
+            const content = {
+                ...item.content,
+                ...(item.children ? transformTraceTreeToJson(item.children) : null),
+            }
+
             if (!nodeMap[item.name]) {
-                nodeMap[item.name] = {
-                    ...item.content,
-                    ...(item.children ? transformTraceTreeToJson(item.children) : null),
-                }
+                nodeMap[item.name] = content
             } else {
                 if (!Array.isArray(nodeMap[item.name])) {
                     nodeMap[item.name] = [nodeMap[item.name]]
                 }
-                nodeMap[item.name].push({
-                    ...item.content,
-                    ...(item.children ? transformTraceTreeToJson(item.children) : null),
-                })
+                nodeMap[item.name].push(content)
             }
         }
     }
@@ -236,7 +235,38 @@ export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
         addTree(item)
     })
 
-    return nodeMap
+    const filterEmptyValues = (obj: Record<string, any>): any => {
+        if (Array.isArray(obj)) {
+            return obj
+                .map(filterEmptyValues)
+                .filter(
+                    (item) =>
+                        item !== null &&
+                        !(typeof item === "object" && Object.keys(item).length === 0),
+                )
+        } else if (typeof obj === "object" && obj !== null) {
+            return Object.entries(obj).reduce(
+                (acc, [key, value]) => {
+                    const filteredValue = filterEmptyValues(value)
+                    if (
+                        filteredValue !== null &&
+                        !(
+                            typeof filteredValue === "object" &&
+                            Object.keys(filteredValue).length === 0
+                        )
+                    ) {
+                        acc[key] = filteredValue
+                    }
+                    return acc
+                },
+                {} as Record<string, any>,
+            )
+        } else {
+            return obj
+        }
+    }
+
+    return filterEmptyValues(nodeMap)
 }
 
 export const generatePaths = (obj: Record<string, any>, currentPath = "") => {
