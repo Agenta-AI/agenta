@@ -216,9 +216,9 @@ const config: Config = {
       ],
     } satisfies Preset.ThemeConfig,
     algolia: {
-      appId: "BEKE35D93N",
-      apiKey: "d760ee239785f6acd72ea26185681706",
-      indexName: "agenta-ai",
+      appId: "0HZ4ONM2EC",
+      apiKey: "18ab633e81d706cbda7c78d25d0fe763",
+      indexName: "agenta",
     },
     // For image zoom plugin
     zoom: {
