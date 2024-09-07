@@ -20,17 +20,17 @@ Evaluators return either a float or a boolean value.
 
 <img style={{ width: "70%" }} src="/images/evaluation/evaluators.png" />
 
-### Choosing the right evaluator
+### Configuring evaluators
 
 To create a new evaluator, click on the `Configure Evaluators` button in the `Evaluations` view.
 
-![Figure the configure evaluators button in agenta.](/images/evaluation/configure_evaluators.png)
+![The configure evaluators button in agenta.](/images/evaluation/configure-evaluators-1.png)
 
-Agenta offers a growing list of pre-built evaluators suitable for most use cases. We also provide options for creating custom evaluators (by writing your own Python function) or using webhooks for evaluation.
+### Selecting evaluators
 
-The **choice of evaluator depends on your specific use case**. For classification and entity extraction tasks, `Exact Match` or `JSON Diff Match` are adequate. For text generation tasks (including chatbots), where there isn't a single correct answer, methods like `Semantic Similarity` or `LLM-as-a-judge` work best. You can find the list of evaluators and their description below.
+Agenta offers a growing list of pre-built evaluators suitable for most use cases. We also provide options for [creating custom evaluators](/evaluation/evaluators/custom-evaluator) (by writing your own Python function) or [using webhooks](/evaluation/evaluators/webhook-evaluator) for evaluation.
 
-<details>
+<details id="available-evaluators">
 <summary>Available Evaluators</summary>
 
 | **Evaluator Name**        | **Use Case**                     | **Type**           | **Description**                                                                  |
@@ -56,15 +56,15 @@ The **choice of evaluator depends on your specific use case**. For classificatio
 
 </details>
 
-### Evaluators Settings
+![Screen for selecting an evaluator.](/images/evaluation/configure-evaluators-2.png)
 
-Evaluators have two types of settings:
+## Evaluators' settings
 
-#### Evaluator Specific Parameters
+Each evaluator comes with it's unique settings. For instance in the screen below, the JSON field match evaluator requires you to specify which field in the output JSON you need to consider for evaluation. You'll find detailed information about these parameters on each evaluator's documentation page.
 
-These settings are unique to each evaluator type. Examples include the `threshold` for `Semantic Similarity Match` or the `regular expression` for `Regex Test`. You'll find detailed information about these parameters on each evaluator's documentation page.
+![Screen for configuring an evaluator.](/images/evaluation/configure-evaluators-3.png)
 
-#### Mappings between Evaluator Inputs and the LLM Data
+## Mappings evaluator's inputs to the LLM data
 
 Evaluators need to know which parts of the data contain the output and the reference answer. Most evaluators allow you to configure this mapping, typically by specifying the name of the column in the test set that contains the `reference answer`.
 
@@ -72,28 +72,6 @@ For more sophisticated evaluators, such as `RAG evaluators` (_available only in 
 
 ![Figure showing how RAGAS faithfulness evaluator maps to an example LLM
   generation.](/images/evaluation/evaluator_config_mapping.png)
-
-The evaluator has access to the generation data in a JSON format that contains the trace and the test set data. For the above example, the data looks like this:
-
-```json
-{
-  "testcase": {
-    "country": "France",
-    "correct_answer": "Paris",
-  }
-  "trace": {
-    "inputs": {
-      "inputs": {
-        "country": "France"
-       }
-    },
-    "internals": {
-      "context": "France,[a] officially the ..."
-    }
-    "outputs": "The capital of France is Paris"
-    }
-}
-```
 
 Configuring the evaluator is done by mapping the evaluator inputs to the generation data:
 
