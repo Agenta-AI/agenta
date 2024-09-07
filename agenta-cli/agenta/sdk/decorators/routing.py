@@ -651,7 +651,7 @@ class entrypoint:
         log.info("")
         for span in result.trace["spans"]:
             log.info(
-                f"{span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
+                f"{span['app_id']} {span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
             )
         log.info("\n==========================\n")
 

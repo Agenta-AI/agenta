@@ -12,6 +12,7 @@ from agenta.client.backend.types.create_span import CreateSpan, LlmTokens
 
 from opentelemetry.trace import set_tracer_provider
 from opentelemetry.context import Context
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import (
     Span,
     TracerProvider,
@@ -35,7 +36,7 @@ from opentelemetry.sdk.trace.export import (
 
 _AGENTA_ROOT_SPAN_ID = "f" * 16
 
-_AGENTA_API_KEY_HEADER = "api-key"
+_AGENTA_API_KEY_HEADER = "Authorization"
 
 _AGENTA_EXPERIMENT_ID_HEADER = "experiment-id"
 
@@ -76,6 +77,7 @@ class TraceProcessor(BatchSpanProcessor):
     def __init__(
         self,
         span_exporter: SpanExporter,
+        scope: Dict[str, Any] = None,
         max_queue_size: int = None,
         schedule_delay_millis: float = None,
         max_export_batch_size: int = None,
@@ -90,11 +92,16 @@ class TraceProcessor(BatchSpanProcessor):
         )
 
         self.registry = dict()
+        self.scope = scope
 
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         super().on_start(span, parent_context=parent_context)
 
-        log.info(f">  {span.context.span_id.to_bytes(8).hex()} {span.name}")
+        span.set_attributes(
+            attributes={f"ag.extra.{k}": v for k, v in self.scope.items()}
+        )
+
+        log.info(f">  {span.context.span_id.to_bytes(8, 'big').hex()} {span.name}")
 
         if span.context.trace_id not in self.registry:
             self.registry[span.context.trace_id] = dict()
@@ -104,7 +111,7 @@ class TraceProcessor(BatchSpanProcessor):
     def on_end(self, span: ReadableSpan):
         super().on_end(span)
 
-        log.info(f" < {span.context.span_id.to_bytes(8).hex()} {span.name}")
+        log.info(f" < {span.context.span_id.to_bytes(8, 'big').hex()} {span.name}")
 
         del self.registry[span.context.trace_id][span.context.span_id]
 
@@ -128,7 +135,9 @@ class InlineTraceExporter(SpanExporter):
             return
 
         for span in spans:
-            self._registry.update(**{span.context.span_id.to_bytes(8).hex(): span})
+            self._registry.update(
+                **{span.context.span_id.to_bytes(8, "big").hex(): span}
+            )
 
     def shutdown(self) -> None:
         self._shutdown = True
@@ -182,6 +191,8 @@ class Tracing:
         # EXPERIMENT
         self.experiment_id = experiment_id
 
+        log.info(f"---------- {self.app_id}")
+
         # HEADERS
         self.headers = {}
         if api_key:
@@ -205,20 +216,39 @@ class Tracing:
         self.processor.shutdown = safe_shutdown
 
         # TRACER PROVIDER
-        self.tracer_provider = TracerProvider(active_span_processor=self.processor)
+        self.tracer_provider = TracerProvider(
+            active_span_processor=self.processor,
+            resource=Resource(
+                attributes={
+                    "service.name": "agenta",
+                    "service.version": Tracing.VERSION,
+                }
+            ),
+        )
 
         # TRACE PROCESSORS
-        self.inline_processor = TraceProcessor(InlineTraceExporter(registry=self.spans))
+        self.inline_processor = TraceProcessor(
+            InlineTraceExporter(registry=self.spans),
+            scope={"app_id": self.app_id},
+        )
         self.tracer_provider.add_span_processor(self.inline_processor)
 
         try:
-            httpx.post(self.url)
+            import os
+
+            log.info(f"Connecting to the remote trace receiver at {self.url}...")
+
+            httpx.get(self.url, headers=self.headers)
+
+            log.info(f"Connection established.")
 
             self.remote_processor = TraceProcessor(
-                OTLPSpanExporter(endpoint=self.url, headers=self.headers)
+                OTLPSpanExporter(endpoint=self.url, headers=self.headers),
+                scope={"app_id": self.app_id},
             )
             self.tracer_provider.add_span_processor(self.remote_processor)
         except:
+            log.info(f"Connection failed.")
             log.error(
                 f"Warning: Your traces will not be exported since {self.url} is unreachable."
             )
@@ -240,6 +270,10 @@ class Tracing:
                 namespace="extra",
                 attributes={"kind": kind},
             )
+            self.set_attributes(
+                namespace="extra",
+                attributes={"app_id": self.app_id},
+            )
             yield span
 
     def start_span(self, name: str, kind: str):
@@ -253,6 +287,11 @@ class Tracing:
         self.set_attributes(
             namespace="extra",
             attributes={"kind": kind},
+            span=span,
+        )
+        self.set_attributes(
+            namespace="extra",
+            attributes={"app_id": self.app_id},
             span=span,
         )
 
@@ -369,7 +408,7 @@ class Tracing:
         for span in self.spans.values():
             span: ReadableSpan
 
-            trace_id = span.context.trace_id.to_bytes(16).hex()
+            trace_id = span.context.trace_id.to_bytes(16, "big").hex()
 
             if trace_id not in spans_idx:
                 spans_idx[trace_id] = list()
@@ -410,7 +449,7 @@ class Tracing:
                 attributes.update(**event.attributes)
 
         legacy_span = CreateSpan(
-            id=span.context.span_id.to_bytes(8).hex(),
+            id=span.context.span_id.to_bytes(8, "big").hex(),
             spankind=self._get_attributes("extra", span).get("kind", "UNKNOWN"),
             name=span.name,
             status=str(span.status.status_code.name),
@@ -423,7 +462,7 @@ class Tracing:
             ).isoformat(),
             #
             parent_span_id=(
-                span.parent.span_id.to_bytes(8).hex() if span.parent else None
+                span.parent.span_id.to_bytes(8, "big").hex() if span.parent else None
             ),
             #
             inputs=self._get_attributes("data.inputs", span),
@@ -445,7 +484,7 @@ class Tracing:
             ),
             cost=self._get_attributes("metrics.costs", span).get("marginal", 0.0),
             #
-            app_id=self.app_id,
+            app_id=self._get_attributes("extra", span).get("app_id", ""),
             variant_id=None,
             variant_name=None,
             environment=None,

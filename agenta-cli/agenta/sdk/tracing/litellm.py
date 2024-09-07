@@ -40,11 +40,13 @@ def litellm_handler():
 
             self.span = ag.tracing.start_span(name=f"litellm_{kind.lower()}", kind=kind)
 
+            ag.logging.warning(f"------> {self.span}")
+
             if not self.span:
                 ag.logging.error("LiteLLM callback error: span not found.")
                 return
 
-            # ag.logging.info(f"log_pre_api_call({hex(self.span.context.span_id)[2:]})")
+            ag.logging.info(f"log_pre_api_call({hex(self.span.context.span_id)[2:]})")
 
             ag.tracing.set_attributes(
                 namespace="data.inputs",
@@ -214,7 +216,7 @@ def litellm_handler():
                 ag.logging.error("LiteLLM callback error: span not found.")
                 return
 
-            # ag.logging.info(f"async_log_success({hex(self.span.context.span_id)[2:]})")
+            ag.logging.info(f"async_log_success({hex(self.span.context.span_id)[2:]})")
 
             ag.tracing.set_attributes(
                 namespace="data.outputs",
