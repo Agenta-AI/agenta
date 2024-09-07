@@ -66,9 +66,10 @@ class AgentaSingleton:
 
         self.host = (
             host
+            or os.environ.get("AGENTA_HOST")
             or config.get("backend_host")
             or config.get("host")
-            or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
+            or "https://cloud.agenta.ai"
         )
 
         self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
