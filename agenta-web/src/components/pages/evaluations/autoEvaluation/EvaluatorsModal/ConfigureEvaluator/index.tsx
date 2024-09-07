@@ -1,5 +1,5 @@
 import {BaseResponse, Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
-import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
+import {CloseCircleOutlined, CloseOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
     CaretDoubleLeft,
@@ -43,7 +43,7 @@ import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
-import {mapTestcaseAndEvalValues} from "@/lib/helpers/evaluate"
+import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/lib/helpers/evaluate"
 
 type ConfigureEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -148,7 +148,7 @@ const ConfigureEvaluator = ({
             if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
                 const mapResponse = await createEvaluatorDataMapping({
                     inputs: baseResponseData,
-                    mapping: evalMapObj,
+                    mapping: transformTraceKeysInSettings(evalMapObj),
                 })
                 outputs = {...outputs, ...mapResponse.outputs}
             }
@@ -177,7 +177,7 @@ const ConfigureEvaluator = ({
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
                 inputs: outputs,
-                settings: settingsValues,
+                settings: transformTraceKeysInSettings(settingsValues),
                 ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject()}
                     : {}),
@@ -510,10 +510,19 @@ const ConfigureEvaluator = ({
                                 </Space>
                             </Flex>
 
-                            <div className="flex-[0.4] flex flex-col h-full">
-                                <Typography.Text className={classes.formTitleText}>
-                                    JSON Data
-                                </Typography.Text>
+                            <div className="flex-[0.4] flex flex-col h-full gap-1">
+                                <Space>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        JSON Data
+                                    </Typography.Text>
+                                    <Tooltip
+                                        title={
+                                            "The data sent to the evaluator, contains the input, output and the trace data"
+                                        }
+                                    >
+                                        <InfoCircleOutlined />
+                                    </Tooltip>
+                                </Space>
                                 <Editor
                                     className={classes.editor}
                                     width="100%"
@@ -532,7 +541,7 @@ const ConfigureEvaluator = ({
                                 />
                             </div>
 
-                            <div className="flex-[0.3] flex flex-col h-full">
+                            <div className="flex-[0.3] flex flex-col h-full gap-1">
                                 <Typography.Text className={classes.formTitleText}>
                                     App Output
                                 </Typography.Text>
