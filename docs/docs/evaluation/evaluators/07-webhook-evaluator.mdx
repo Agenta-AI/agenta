@@ -1,6 +1,5 @@
 ---
 title: "Webhook Evaluators"
-description: "Webhook API: inputs and outputs"
 ---
 
 Sometimes, custom evaluators on Agenta may not be sufficient for your specific use case, or you may wish to host your own evaluators. In such cases, you can create a webhook evaluator to suit your specific needs. Webhook evaluators only need to comply with a predefined API.
@@ -45,7 +44,7 @@ The webhook response `status` must be `200` for successful evaluations, the webh
 
 ## Example Implementation
 
-Here's a simple webhook evaluator implementation that returns 1.0 when the lowercase output matches the lowercase correct answer. You can use this webhook for testing by copying [the endpoint](https://mmabrouk-agenta_webhook_eval.web.val.run). Then fork and modify it for your specific use case:
+Here's a simple webhook evaluator implementation that returns `1.0` when the lowercase `output` matches the lowercase `correct answer`. You can use this webhook for testing by copying [the endpoint](https://mmabrouk-agenta_webhook_eval.web.val.run). Then fork and modify it for your specific use case:
 
 <iframe
   width="100%"
