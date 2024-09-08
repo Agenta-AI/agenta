@@ -112,12 +112,7 @@ article a:hover {
     margin: auto;
   }
 }
-@media (min-width: 995px) and (max-width: 1150px) {
-  [href="https://github.com/orgs/Agenta-AI/projects/13/views/1"]
-  {
-    display: none;
-  }
-}
+
 .navbar__link {
   font-size: 14px;
   padding: 0px 8px;
@@ -134,13 +129,13 @@ article a:hover {
 [data-theme="dark"] .navbar__link--active {
   color: var(--ifm-color-primary-darkest);
 }
-.nav_github_icons svg,
-.nav_slack_icons svg {
+.nav_github_icons,
+.nav_slack_icons {
   width: 22px;
   height: 22px;
 }
-.nav_github_icons,
-.nav_slack_icons {
+.navbar__item:has(.nav_github_icons),
+.navbar__item:has(.nav_slack_icons) {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -148,7 +143,7 @@ article a:hover {
 .theme-icon {
   color: var(--ifm-color-primary-darkest);
 }
-.nav_slack_icons {
+.navbar__item:has(.nav_slack_icons) {
   margin-right: 3px;
 }
 .nav_primary_button {
@@ -179,18 +174,21 @@ article a:hover {
   cursor: pointer;
 }
 @media (max-width: 995px) {
-  .nav_github_icons,
-  .nav_slack_icons {
+  .navbar__item:has(.nav_github_icons),
+  .navbar__item:has(.nav_slack_icons) {
+    display: none;
+  }
+  .navbar-sidebar .menu__link:has(.nav_github_icons),
+  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
     position: absolute;
-    top: -42px;
-    left: 181px;
+    top: -48px;
+    left: 172px;
   }
-  .nav_slack_icons {
-    left: 220px;
+  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
+    left: 215px;
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"],
-  [href="https://cloud.agenta.ai/apps"]
-  {
+  .navbar-sidebar .menu__link:has(.nav_secondary_button),
+  .navbar-sidebar .menu__link:has(.nav_primary_button) {
     padding: 0px;
     position: absolute;
     bottom: 15px;
@@ -198,15 +196,13 @@ article a:hover {
     left: 50%;
     transform: translateX(-50%);
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]
-  {
+  .navbar-sidebar .menu__link:has(.nav_secondary_button) {
     bottom: 65px;
   }
-  [href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"]:hover,
-  [href="https://cloud.agenta.ai/apps"]:hover,
-  [href="https://github.com/Agenta-AI/agenta"]:hover,
-  [href="https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"]:hover
-  {
+  .navbar-sidebar .menu__link:has(.nav_secondary_button):hover,
+  .navbar-sidebar .menu__link:has(.nav_primary_button):hover,
+  .navbar-sidebar .menu__link:has(.nav_github_icons):hover,
+  .navbar-sidebar .menu__link:has(.nav_slack_icons):hover {
     background: transparent;
   }
   .nav_primary_button,

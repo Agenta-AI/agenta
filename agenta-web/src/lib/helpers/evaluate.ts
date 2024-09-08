@@ -370,3 +370,24 @@ export const mapTestcaseAndEvalValues = (
 
     return {testcaseObj, evalMapObj}
 }
+
+export const transformTraceKeysInSettings = (
+    settingsValues: Record<string, any>,
+): Record<string, any> => {
+    return Object.keys(settingsValues).reduce(
+        (acc, curr) => {
+            if (
+                !acc[curr] &&
+                typeof settingsValues[curr] === "string" &&
+                settingsValues[curr].startsWith("trace.")
+            ) {
+                acc[curr] = settingsValues[curr].replace("trace.", "")
+            } else {
+                acc[curr] = settingsValues[curr]
+            }
+
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
