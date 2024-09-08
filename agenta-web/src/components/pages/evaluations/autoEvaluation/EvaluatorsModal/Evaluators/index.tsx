@@ -6,6 +6,7 @@ import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
+import {useLocalStorage} from "usehooks-ts"
 
 type EvaluatorsProps = {
     evaluatorConfigs: EvaluatorConfig[]
@@ -14,8 +15,11 @@ type EvaluatorsProps = {
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     fetchingEvalConfigs: boolean
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
     setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
     onSuccess: () => void
+    setEvaluatorsDisplay: any
+    evaluatorsDisplay: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -63,10 +67,12 @@ const Evaluators = ({
     setEditMode,
     setEditEvalEditValues,
     onSuccess,
+    setCloneConfig,
+    setEvaluatorsDisplay,
+    evaluatorsDisplay,
 }: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     const filteredEvalConfigs = useMemo(() => {
@@ -136,7 +142,15 @@ const Evaluators = ({
 
             <Spin spinning={fetchingEvalConfigs}>
                 {evaluatorsDisplay === "list" ? (
-                    <EvaluatorList evaluatorConfigs={filteredEvalConfigs} />
+                    <EvaluatorList
+                        evaluatorConfigs={filteredEvalConfigs}
+                        setEditMode={setEditMode}
+                        setCurrent={setCurrent}
+                        setSelectedEvaluator={setSelectedEvaluator}
+                        setEditEvalEditValues={setEditEvalEditValues}
+                        onSuccess={onSuccess}
+                        setCloneConfig={setCloneConfig}
+                    />
                 ) : (
                     <EvaluatorCard
                         evaluatorConfigs={filteredEvalConfigs}
@@ -145,6 +159,7 @@ const Evaluators = ({
                         setSelectedEvaluator={setSelectedEvaluator}
                         setEditEvalEditValues={setEditEvalEditValues}
                         onSuccess={onSuccess}
+                        setCloneConfig={setCloneConfig}
                     />
                 )}
             </Spin>

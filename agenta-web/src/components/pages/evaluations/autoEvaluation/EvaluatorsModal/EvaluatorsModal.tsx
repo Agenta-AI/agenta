@@ -12,6 +12,7 @@ import TestcaseTab from "./TestcaseTab/TestcaseTab"
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import NewEvaluator from "./NewEvaluator"
 import Evaluators from "./Evaluators"
+import {useLocalStorage} from "usehooks-ts"
 
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
@@ -39,7 +40,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [selectedTestcase, setSelectedTestcase] = useState<Record<string, any> | null>(null)
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
+    const [cloneConfig, setCloneConfig] = useState(false)
     const [editEvalEditValues, setEditEvalEditValues] = useState<EvaluatorConfig | null>(null)
+    const [evaluatorsDisplay, setEvaluatorsDisplay] = useLocalStorage("evaluator_view", "card")
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -75,6 +78,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setEditMode={setEditMode}
                     setEditEvalEditValues={setEditEvalEditValues}
                     onSuccess={() => evalConfigFetcher()}
+                    setCloneConfig={setCloneConfig}
+                    setEvaluatorsDisplay={setEvaluatorsDisplay}
+                    evaluatorsDisplay={evaluatorsDisplay}
                 />
             ),
         },
@@ -85,6 +91,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setCurrent={setCurrent}
                     handleOnCancel={() => props.onCancel?.({} as any)}
                     setSelectedEvaluator={setSelectedEvaluator}
+                    setEvaluatorsDisplay={setEvaluatorsDisplay}
+                    evaluatorsDisplay={evaluatorsDisplay}
                 />
             ),
         },
@@ -99,6 +107,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     handleOnCancel={() => {
                         props.onCancel?.({} as any)
                         setEditMode(false)
+                        setCloneConfig(false)
                         setEditEvalEditValues(null)
                     }}
                     variants={variants}
@@ -114,6 +123,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     editEvalEditValues={editEvalEditValues}
                     setEditEvalEditValues={setEditEvalEditValues}
                     setEditMode={setEditMode}
+                    cloneConfig={cloneConfig}
+                    setCloneConfig={setCloneConfig}
                 />
             ),
         })

@@ -55,6 +55,8 @@ type ConfigureEvaluatorProps = {
     editEvalEditValues: EvaluatorConfig | null
     setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
     setEditMode: (value: React.SetStateAction<boolean>) => void
+    cloneConfig: boolean
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -109,6 +111,8 @@ const ConfigureEvaluator = ({
     editEvalEditValues,
     setEditEvalEditValues,
     setEditMode,
+    cloneConfig,
+    setCloneConfig,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -306,8 +310,10 @@ const ConfigureEvaluator = ({
         form.resetFields()
         if (editMode) {
             form.setFieldsValue(editEvalEditValues)
+        } else if (cloneConfig) {
+            form.setFieldValue("settings_values", editEvalEditValues?.settings_values)
         }
-    }, [editMode])
+    }, [editMode, cloneConfig])
 
     return (
         <div className="flex flex-col gap-6 h-full">
@@ -321,6 +327,7 @@ const ConfigureEvaluator = ({
                                 onClick={() => {
                                     setCurrent(0)
                                     setEditMode(false)
+                                    setCloneConfig(false)
                                     setEditEvalEditValues(null)
                                 }}
                             />
@@ -334,6 +341,7 @@ const ConfigureEvaluator = ({
                                 onClick={() => {
                                     setCurrent(1)
                                     setEditMode(false)
+                                    setCloneConfig(false)
                                     setEditEvalEditValues(null)
                                 }}
                             />
