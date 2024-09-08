@@ -402,8 +402,6 @@ class EvaluatorConfigDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
-
 
 class HumanEvaluationVariantDB(Base):
     __tablename__ = "human_evaluation_variants"
