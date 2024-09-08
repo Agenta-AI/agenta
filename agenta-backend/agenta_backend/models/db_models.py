@@ -58,6 +58,12 @@ class ProjectDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    app = relationship("AppDB", cascade="all, delete-orphan", backref="project")
+    evaluator_config = relationship(
+        "EvaluatorConfigDB", cascade="all, delete-orphan", backref="project"
+    )
+    testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="project")
+
 
 class ImageDB(Base):
     __tablename__ = "docker_images"
@@ -95,7 +101,9 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -103,11 +111,9 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
     variant = relationship(
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
-    testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
     deployment = relationship(
         "DeploymentDB", cascade="all, delete-orphan", back_populates="app"
     )
@@ -358,9 +364,10 @@ class TestSetDB(Base):
         nullable=False,
     )
     name = Column(String)
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
     csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -368,7 +375,7 @@ class TestSetDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
+    project = relationship("ProjectDB")
 
 
 class EvaluatorConfigDB(Base):
@@ -382,8 +389,9 @@ class EvaluatorConfigDB(Base):
         nullable=False,
     )
 
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="SET NULL"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
     name = Column(String)
     evaluator_key = Column(String)
     settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
@@ -394,7 +402,7 @@ class EvaluatorConfigDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
+    project = relationship("ProjectDB")
 
 
 class HumanEvaluationVariantDB(Base):
@@ -543,7 +551,9 @@ class EvaluationDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
     status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     testset_id = Column(
         UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
@@ -564,7 +574,7 @@ class EvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
+    project = relationship("ProjectDB")
     testset = relationship("TestSetDB")
     variant = relationship("AppVariantDB")
     variant_revision = relationship("AppVariantRevisionsDB")
