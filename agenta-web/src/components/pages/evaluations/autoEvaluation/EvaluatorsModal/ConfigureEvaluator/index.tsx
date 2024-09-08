@@ -356,7 +356,7 @@ const ConfigureEvaluator = ({
 
             <Flex gap={16} className="h-full">
                 <div className="flex-1 flex flex-col gap-4">
-                    <div>
+                    <Space direction="vertical">
                         <Flex justify="space-between">
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
@@ -391,7 +391,7 @@ const ConfigureEvaluator = ({
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
                         </Typography.Text>
-                    </div>
+                    </Space>
 
                     <div className="flex-1">
                         <Form

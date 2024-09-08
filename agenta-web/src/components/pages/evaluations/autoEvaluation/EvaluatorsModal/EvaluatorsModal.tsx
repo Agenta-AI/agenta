@@ -42,7 +42,10 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
     const [editEvalEditValues, setEditEvalEditValues] = useState<EvaluatorConfig | null>(null)
-    const [evaluatorsDisplay, setEvaluatorsDisplay] = useLocalStorage("evaluator_view", "card")
+    const [evaluatorsDisplay, setEvaluatorsDisplay] = useLocalStorage<"card" | "list">(
+        "evaluator_view",
+        "list",
+    )
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)

@@ -107,12 +107,8 @@ const TestcaseTab = ({
             <div className="flex gap-4 flex-1">
                 <div className={classes.sidebar}>
                     <div className="flex flex-col gap-1">
-                        <Typography.Text className={classes.title}>
-                            Select test case
-                        </Typography.Text>
                         <Typography.Text type="secondary">
-                            Lorem ipsum, dolor sit amet consectetur adipisicing elit. Itaque culpa
-                            similique reiciendis
+                            Select a test case to use for debugging the evaluators
                         </Typography.Text>
                     </div>
                     <Input.Search
