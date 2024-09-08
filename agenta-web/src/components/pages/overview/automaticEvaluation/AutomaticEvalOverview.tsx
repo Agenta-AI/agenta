@@ -29,7 +29,6 @@ import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
-import NewEvaluatorModal from "../../evaluations/evaluators/NewEvaluatorModal"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 
 const {Title} = Typography
@@ -490,19 +489,6 @@ const AutomaticEvalOverview = () => {
                     setNewEvalModalOpen(false)
                     fetchEvaluations()
                 }}
-            />
-
-            <NewEvaluatorModal
-                open={false}
-                onSuccess={() => {
-                    setIsEditEvalConfigOpen(false)
-                    fetchEvaluations()
-                }}
-                newEvalModalConfigOpen={isEditEvalConfigOpen}
-                setNewEvalModalConfigOpen={setIsEditEvalConfigOpen}
-                setNewEvalModalOpen={() => {}}
-                editMode={true}
-                initialValues={selectedConfigEdit}
             />
 
             {selectedEvalRecord && (
