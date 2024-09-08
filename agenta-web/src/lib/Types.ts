@@ -384,6 +384,8 @@ export interface EvaluatorConfig {
     name: string
     settings_values: Record<string, any>
     created_at: string
+    color?: string
+    updated_at: string
 }
 
 export type EvaluationError = {
