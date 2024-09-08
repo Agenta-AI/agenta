@@ -60,7 +60,8 @@ const EvaluatorList = ({
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <Tag>{record.evaluator_key}</Tag>
+                const evaluator = evaluators.find((item) => item.key === record.evaluator_key)
+                return <Tag color={record.color}>{evaluator?.name}</Tag>
             },
         },
         {

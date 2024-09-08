@@ -37,7 +37,7 @@ const CreateEvaluatorList = ({
             render: (_, record) => {
                 return (
                     <div className="h-[56px] flex items-center ">
-                        <Tag>{record.key}</Tag>
+                        <Tag color={record.color}>{record.name}</Tag>
                     </div>
                 )
             },
