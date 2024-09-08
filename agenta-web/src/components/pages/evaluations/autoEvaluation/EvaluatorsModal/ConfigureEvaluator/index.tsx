@@ -1,5 +1,13 @@
-import {BaseResponse, Evaluator, JSSTheme, Parameter, testset, Variant} from "@/lib/Types"
-import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
+import {
+    BaseResponse,
+    Evaluator,
+    EvaluatorConfig,
+    JSSTheme,
+    Parameter,
+    testset,
+    Variant,
+} from "@/lib/Types"
+import {CloseCircleOutlined, CloseOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {
     ArrowLeft,
     CaretDoubleLeft,
@@ -9,19 +17,7 @@ import {
     Lightning,
     Play,
 } from "@phosphor-icons/react"
-import {
-    Button,
-    Divider,
-    Flex,
-    Form,
-    Input,
-    message,
-    Select,
-    Space,
-    Tag,
-    Tooltip,
-    Typography,
-} from "antd"
+import {Button, Divider, Flex, Form, Input, message, Select, Space, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
@@ -42,9 +38,8 @@ import {callVariant} from "@/services/api"
 import {Editor} from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
-import {mapTestcaseAndEvalValues} from "@/lib/helpers/evaluate"
+import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/lib/helpers/evaluate"
 
 type ConfigureEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -54,9 +49,14 @@ type ConfigureEvaluatorProps = {
     variants: Variant[] | null
     testsets: testset[] | null
     selectedTestcase: Record<string, any> | null
-    setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
     setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
     selectedVariant: Variant | null
+    editMode: boolean
+    editEvalEditValues: EvaluatorConfig | null
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditMode: (value: React.SetStateAction<boolean>) => void
+    cloneConfig: boolean
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -105,9 +105,14 @@ const ConfigureEvaluator = ({
     testsets,
     onSuccess,
     selectedTestcase,
-    setSelectedTestcase,
     selectedVariant,
     setSelectedVariant,
+    editMode,
+    editEvalEditValues,
+    setEditEvalEditValues,
+    setEditMode,
+    cloneConfig,
+    setCloneConfig,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -124,8 +129,10 @@ const ConfigureEvaluator = ({
     const [variantResult, setVariantResult] = useState("")
     const [traceTree, setTraceTree] = useState<{
         testcase: Record<string, any> | null
+        trace: Record<string, any> | string | null
     }>({
         testcase: selectedTestcase,
+        trace: null,
     })
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
@@ -147,7 +154,7 @@ const ConfigureEvaluator = ({
             if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
                 const mapResponse = await createEvaluatorDataMapping({
                     inputs: baseResponseData,
-                    mapping: evalMapObj,
+                    mapping: transformTraceKeysInSettings(evalMapObj),
                 })
                 outputs = {...outputs, ...mapResponse.outputs}
             }
@@ -168,20 +175,20 @@ const ConfigureEvaluator = ({
                     prediction:
                         selectedEvaluator.key.includes("json") ||
                         selectedEvaluator.key.includes("field_match_test")
-                            ? JSON.stringify({message: JSON.parse(variantResult)?.message})
-                            : JSON.parse(variantResult)?.message,
+                            ? JSON.stringify({message: variantResult})
+                            : variantResult,
                     ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
                 }
             }
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
                 inputs: outputs,
-                settings: settingsValues,
+                settings: transformTraceKeysInSettings(settingsValues),
                 ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject()}
                     : {}),
             })
-            setOutputResult(getStringOrJson(runResponse))
+            setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error) {
             console.error(error)
         } finally {
@@ -215,8 +222,8 @@ const ConfigureEvaluator = ({
                 evaluator_key: selectedEvaluator.key,
                 settings_values: settingsValues,
             }
-            ;(false
-                ? updateEvaluatorConfig("initialValues?.id"!, data)
+            ;(editMode
+                ? updateEvaluatorConfig(editEvalEditValues?.id!, data)
                 : createEvaluatorConfig(appId, data)
             )
                 .then(onSuccess)
@@ -268,30 +275,21 @@ const ConfigureEvaluator = ({
             )
 
             if (typeof result === "string") {
-                setVariantResult(
-                    getStringOrJson({...(typeof result === "string" ? {message: result} : result)}),
-                )
-                setTraceTree({...{data: result}, ...traceTree})
+                setVariantResult(getStringOrJson(result))
+                setTraceTree({...traceTree, trace: result})
             } else if (isFuncResponse(result)) {
                 setVariantResult(getStringOrJson(result))
-                setTraceTree({...{data: result}, ...traceTree})
+                setTraceTree({...traceTree, trace: result})
             } else if (isBaseResponse(result)) {
                 setBaseResponseData(result)
                 const {trace, data} = result
-                setVariantResult(
-                    getStringOrJson({
-                        ...(typeof data === "string" ? {message: data} : data),
-                        cost: formatCurrency(trace?.cost),
-                        usage: trace?.usage,
-                        latency: formatLatency(trace?.latency),
-                    }),
-                )
+                setVariantResult(getStringOrJson(data))
                 if (trace?.spans) {
                     setTraceTree({
-                        ...transformTraceTreeToJson(
+                        ...traceTree,
+                        trace: transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
                         ),
-                        ...traceTree,
                     })
                 }
             } else {
@@ -308,18 +306,49 @@ const ConfigureEvaluator = ({
         }
     }
 
+    useEffect(() => {
+        form.resetFields()
+        if (editMode) {
+            form.setFieldsValue(editEvalEditValues)
+        } else if (cloneConfig) {
+            form.setFieldValue("settings_values", editEvalEditValues?.settings_values)
+        }
+    }, [editMode, cloneConfig])
+
     return (
         <div className="flex flex-col gap-6 h-full">
             <div className="flex items-center justify-between">
                 <Space className={classes.headerText}>
-                    <Button
-                        icon={<ArrowLeft size={14} />}
-                        className="flex items-center justify-center"
-                        onClick={() => setCurrent(1)}
-                    />
-                    <Typography.Text>Step 2/2:</Typography.Text>
-                    <Typography.Text>Configure new evaluator</Typography.Text>
-                    <Tag>{selectedEvaluator.name}</Tag>
+                    {editMode ? (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(0)
+                                    setEditMode(false)
+                                    setCloneConfig(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Configure evaluator</Typography.Text>
+                        </>
+                    ) : (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(1)
+                                    setEditMode(false)
+                                    setCloneConfig(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Step 2/2:</Typography.Text>
+                            <Typography.Text>Configure new evaluator</Typography.Text>
+                        </>
+                    )}
                 </Space>
 
                 <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
@@ -327,7 +356,7 @@ const ConfigureEvaluator = ({
 
             <Flex gap={16} className="h-full">
                 <div className="flex-1 flex flex-col gap-4">
-                    <div>
+                    <Space direction="vertical">
                         <Flex justify="space-between">
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
@@ -362,7 +391,7 @@ const ConfigureEvaluator = ({
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
                         </Typography.Text>
-                    </div>
+                    </Space>
 
                     <div className="flex-1">
                         <Form
@@ -443,7 +472,7 @@ const ConfigureEvaluator = ({
                             Reset
                         </Button>
                         <Button type="primary" loading={submitLoading} onClick={form.submit}>
-                            Save configuration
+                            {editMode ? "Edit configuration" : "Save configuration"}
                         </Button>
                     </Flex>
                 </div>
@@ -518,10 +547,19 @@ const ConfigureEvaluator = ({
                                 </Space>
                             </Flex>
 
-                            <div className="flex-1 flex flex-col h-full">
-                                <Typography.Text className={classes.formTitleText}>
-                                    JSON
-                                </Typography.Text>
+                            <div className="flex-[0.4] flex flex-col h-full gap-1">
+                                <Space>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        JSON Data
+                                    </Typography.Text>
+                                    <Tooltip
+                                        title={
+                                            "The data sent to the evaluator, contains the input, output and the trace data"
+                                        }
+                                    >
+                                        <InfoCircleOutlined />
+                                    </Tooltip>
+                                </Space>
                                 <Editor
                                     className={classes.editor}
                                     width="100%"
@@ -540,7 +578,7 @@ const ConfigureEvaluator = ({
                                 />
                             </div>
 
-                            <div className="flex-1 flex flex-col h-full">
+                            <div className="flex-[0.3] flex flex-col h-full gap-1">
                                 <Typography.Text className={classes.formTitleText}>
                                     App Output
                                 </Typography.Text>
@@ -554,10 +592,10 @@ const ConfigureEvaluator = ({
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-2 flex-1 h-full">
+                            <div className="flex flex-col gap-2 flex-[0.3] h-full">
                                 <Flex justify="space-between">
                                     <Typography.Text className={classes.formTitleText}>
-                                        Output
+                                        Evaluator Output
                                     </Typography.Text>
                                     <Tooltip
                                         title={baseResponseData ? "" : "BaseResponse feature"}

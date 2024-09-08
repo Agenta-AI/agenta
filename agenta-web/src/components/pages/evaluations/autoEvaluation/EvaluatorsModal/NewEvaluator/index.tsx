@@ -12,6 +12,8 @@ type NewEvaluatorProps = {
     handleOnCancel: () => void
     evaluators: Evaluator[]
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    setEvaluatorsDisplay: any
+    evaluatorsDisplay: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -55,10 +57,11 @@ const NewEvaluator = ({
     setCurrent,
     handleOnCancel,
     setSelectedEvaluator,
+    setEvaluatorsDisplay,
+    evaluatorsDisplay,
 }: NewEvaluatorProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const [evaluatorsDisplay, setEvaluatorsDisplay] = useState("card")
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     const filteredEvaluators = useMemo(() => {
