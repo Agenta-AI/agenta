@@ -1,4 +1,4 @@
-import {_Evaluation, EvaluationStatus, EvaluatorConfig, JSSTheme} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
 import {
     ArrowsLeftRight,
     Database,
@@ -39,7 +39,6 @@ import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
 import {uniqBy} from "lodash"
-import NewEvaluatorModal from "../evaluators/NewEvaluatorModal"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -84,7 +83,6 @@ const AutoEvaluation = () => {
     const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
     const [editColumns, setEditColumns] = useState<string[]>([])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const [selectedConfigEdit, setSelectedConfigEdit] = useState<EvaluatorConfig>()
     const [isEditEvalConfigOpen, setIsEditEvalConfigOpen] = useState(false)
     const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
         "configureEvaluatorModal",
@@ -582,19 +580,6 @@ const AutoEvaluation = () => {
                     onCancel={() => setIsConfigEvaluatorModalOpen("")}
                 />
             )}
-
-            <NewEvaluatorModal
-                open={false}
-                onSuccess={() => {
-                    setIsEditEvalConfigOpen(false)
-                    fetchEvaluations()
-                }}
-                newEvalModalConfigOpen={isEditEvalConfigOpen}
-                setNewEvalModalConfigOpen={setIsEditEvalConfigOpen}
-                setNewEvalModalOpen={() => {}}
-                editMode={true}
-                initialValues={selectedConfigEdit}
-            />
 
             {selectedEvalRecord && (
                 <DeleteEvaluationModal
