@@ -11,6 +11,7 @@ import DeleteModal from "./DeleteModal"
 interface EvaluatorCardProps {
     evaluatorConfigs: EvaluatorConfig[]
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
@@ -68,6 +69,7 @@ const EvaluatorCard = ({
     setSelectedEvaluator,
     setEditEvalEditValues,
     onSuccess,
+    setCloneConfig,
 }: EvaluatorCardProps) => {
     const classes = useStyles()
     const evaluators = useAtom(evaluatorsAtom)[0]
@@ -100,11 +102,22 @@ const EvaluatorCard = ({
                             <Card
                                 key={item.id}
                                 className={classes.evaluatorCard}
+                                onClick={() => {
+                                    const selectedEval = evaluators.find(
+                                        (e) => e.key === item.evaluator_key,
+                                    )
+                                    if (selectedEval) {
+                                        setEditMode(true)
+                                        setSelectedEvaluator(selectedEval)
+                                        setEditEvalEditValues(item)
+                                        setCurrent(2)
+                                    }
+                                }}
                                 title={item.name}
                                 extra={
                                     <Dropdown
-                                        trigger={["hover"]}
-                                        placement="bottomRight"
+                                        trigger={["click"]}
+                                        placement="bottomCenter"
                                         overlayStyle={{width: 180}}
                                         menu={{
                                             items: [
@@ -131,6 +144,15 @@ const EvaluatorCard = ({
                                                     icon: <Copy size={16} />,
                                                     onClick: (e: any) => {
                                                         e.domEvent.stopPropagation()
+                                                        const selectedEval = evaluators.find(
+                                                            (e) => e.key === item.evaluator_key,
+                                                        )
+                                                        if (selectedEval) {
+                                                            setCloneConfig(true)
+                                                            setSelectedEvaluator(selectedEval)
+                                                            setEditEvalEditValues(item)
+                                                            setCurrent(2)
+                                                        }
                                                     },
                                                 },
                                                 {type: "divider"},

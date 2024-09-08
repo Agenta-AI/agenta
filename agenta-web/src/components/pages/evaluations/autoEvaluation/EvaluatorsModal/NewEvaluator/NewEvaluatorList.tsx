@@ -65,6 +65,7 @@ const CreateEvaluatorList = ({
             rowKey={"key"}
             className="ph-no-capture"
             scroll={{x: true, y: 550}}
+            style={{cursor: "pointer"}}
             onRow={(record) => ({
                 onClick: () => {
                     setSelectedEvaluator(record)

@@ -1,26 +1,46 @@
-import {EvaluatorConfig} from "@/lib/Types"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
+import {Evaluator, EvaluatorConfig} from "@/lib/Types"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {useAtom} from "jotai"
 import React, {useState} from "react"
+import DeleteModal from "./DeleteModal"
 
 interface EvaluatorListProps {
     evaluatorConfigs: EvaluatorConfig[]
+    setEditMode: React.Dispatch<React.SetStateAction<boolean>>
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    onSuccess: () => void
 }
 
-const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
+const EvaluatorList = ({
+    evaluatorConfigs,
+    setCloneConfig,
+    setCurrent,
+    setEditEvalEditValues,
+    setEditMode,
+    setSelectedEvaluator,
+    onSuccess,
+}: EvaluatorListProps) => {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const evaluators = useAtom(evaluatorsAtom)[0]
+    const [openDeleteModal, setOpenDeleteModal] = useState(false)
+    const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
 
     const columns: ColumnsType<EvaluatorConfig> = [
-        {
-            title: "Version",
-            dataIndex: "version",
-            key: "version",
-            onHeaderCell: () => ({
-                style: {minWidth: 80},
-            }),
-        },
+        // {
+        //     title: "Version",
+        //     dataIndex: "version",
+        //     key: "version",
+        //     onHeaderCell: () => ({
+        //         style: {minWidth: 80},
+        //     }),
+        // },
         {
             title: "Name",
             dataIndex: "name",
@@ -71,6 +91,15 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        const selectedEval = evaluators.find(
+                                            (e) => e.key === record.evaluator_key,
+                                        )
+                                        if (selectedEval) {
+                                            setEditMode(true)
+                                            setSelectedEvaluator(selectedEval)
+                                            setEditEvalEditValues(record)
+                                            setCurrent(2)
+                                        }
                                     },
                                 },
                                 {
@@ -79,6 +108,15 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
                                     icon: <Copy size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        const selectedEval = evaluators.find(
+                                            (e) => e.key === record.evaluator_key,
+                                        )
+                                        if (selectedEval) {
+                                            setCloneConfig(true)
+                                            setSelectedEvaluator(selectedEval)
+                                            setEditEvalEditValues(record)
+                                            setCurrent(2)
+                                        }
                                     },
                                 },
                                 {type: "divider"},
@@ -89,6 +127,8 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        setOpenDeleteModal(true)
+                                        setSelectedDelEval(record)
                                     },
                                 },
                             ],
@@ -107,26 +147,44 @@ const EvaluatorList = ({evaluatorConfigs}: EvaluatorListProps) => {
     ]
 
     return (
-        <Table
-            rowSelection={{
-                type: "checkbox",
-                columnWidth: 48,
-                onChange: (selectedRowKeys: React.Key[]) => {
-                    setSelectedRowKeys(selectedRowKeys)
-                },
-                fixed: "left",
-            }}
-            className="ph-no-capture"
-            columns={columns}
-            rowKey={"id"}
-            dataSource={evaluatorConfigs}
-            scroll={{x: true}}
-            bordered
-            onRow={(record) => ({
-                style: {cursor: "pointer"},
-                onClick: () => {},
-            })}
-        />
+        <>
+            <Table
+                rowSelection={{
+                    type: "checkbox",
+                    columnWidth: 48,
+                    onChange: (selectedRowKeys: React.Key[]) => {
+                        setSelectedRowKeys(selectedRowKeys)
+                    },
+                    fixed: "left",
+                }}
+                className="ph-no-capture"
+                columns={columns}
+                rowKey={"id"}
+                dataSource={evaluatorConfigs}
+                scroll={{x: true}}
+                bordered
+                onRow={(record) => ({
+                    style: {cursor: "pointer"},
+                    onClick: () => {
+                        const selectedEval = evaluators.find((e) => e.key === record.evaluator_key)
+                        if (selectedEval) {
+                            setEditMode(true)
+                            setSelectedEvaluator(selectedEval)
+                            setEditEvalEditValues(record)
+                            setCurrent(2)
+                        }
+                    },
+                })}
+            />
+            {selectedDelEval && (
+                <DeleteModal
+                    open={openDeleteModal}
+                    onCancel={() => setOpenDeleteModal(false)}
+                    selectedEvalConfig={selectedDelEval}
+                    onSuccess={onSuccess}
+                />
+            )}
+        </>
     )
 }
 
