@@ -83,8 +83,15 @@ export const createEvaluatorRunExecution = async (
 
 // Evaluator Configs
 export const fetchAllEvaluatorConfigs = async (appId: string) => {
+    const tagColors = getTagColors()
+
     const response = await axios.get(`/api/evaluators/configs/`, {params: {app_id: appId}})
-    return response.data as EvaluatorConfig[]
+    const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
+        ...item,
+        icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
+        color: tagColors[stringToNumberInRange(item.evaluator_key, 0, tagColors.length - 1)],
+    })) as EvaluatorConfig[]
+    return evaluatorConfigs
 }
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
