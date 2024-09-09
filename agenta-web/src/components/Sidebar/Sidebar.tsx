@@ -92,6 +92,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     menuItem: {
         textOverflow: "initial !important",
+        display: "flex !important",
+        alignItems: "center",
     },
     avatarContainer: {
         display: "flex",
@@ -113,6 +115,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     menuHeader: {
         padding: `${theme.paddingXS}px ${theme.padding}px`,
         color: theme.colorTextDescription,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
     },
 }))
 
