@@ -76,52 +76,34 @@ const NewEvaluator = ({
             <div className="flex flex-col gap-4">
                 <div className={classes.title}>
                     <Space>
-                        {evaluatorsDisplay === "list" ? (
-                            <Typography.Text>Configure evaluators</Typography.Text>
-                        ) : (
-                            <>
-                                <Button
-                                    icon={<ArrowLeft size={14} />}
-                                    className="flex items-center justify-center"
-                                    onClick={() => setCurrent(0)}
-                                />
-                                <Typography.Text>Step 1/2: Select new evaluator</Typography.Text>
-                            </>
-                        )}
+                        <Button
+                            icon={<ArrowLeft size={14} />}
+                            className="flex items-center justify-center"
+                            onClick={() => setCurrent(0)}
+                        />
+                        <Typography.Text>Step 1/2: Select new evaluator</Typography.Text>
                     </Space>
 
                     <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
                 </div>
                 <div>
                     <div className="flex items-center justify-between">
-                        {evaluatorsDisplay === "list" ? (
-                            <Space>
-                                <Button
-                                    icon={<ArrowLeft size={14} />}
-                                    className="flex items-center justify-center"
-                                    onClick={() => setCurrent(0)}
-                                />
-                                <Typography.Text className={classes.subTitle}>
-                                    Create new evaluator
-                                </Typography.Text>
-                            </Space>
-                        ) : (
-                            <Radio.Group
-                                defaultValue={"view_all"}
-                                className={classes.radioBtnContainer}
-                                onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
-                            >
-                                <Radio.Button value={"view_all"}>View all</Radio.Button>
-                                <Divider type="vertical" />
-                                {["RAG", "Classifiers", "Similarity", "AI / LLM", "Functional"].map(
-                                    (val, idx) => (
-                                        <Radio.Button key={idx} value={val}>
-                                            {val}
-                                        </Radio.Button>
-                                    ),
-                                )}
-                            </Radio.Group>
-                        )}
+                        <Radio.Group
+                            defaultValue={"view_all"}
+                            className={classes.radioBtnContainer}
+                            onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
+                        >
+                            <Radio.Button value={"view_all"}>View all</Radio.Button>
+                            <Divider type="vertical" />
+                            {["RAG", "Classifiers", "Similarity", "AI / LLM", "Functional"].map(
+                                (val, idx) => (
+                                    <Radio.Button key={idx} value={val}>
+                                        {val}
+                                    </Radio.Button>
+                                ),
+                            )}
+                        </Radio.Group>
+
                         <Flex gap={8}>
                             <Input.Search
                                 style={{width: 400}}
