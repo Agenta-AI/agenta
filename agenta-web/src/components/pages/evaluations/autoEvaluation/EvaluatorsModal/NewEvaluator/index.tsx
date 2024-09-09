@@ -38,7 +38,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: theme.marginXS,
         "& .ant-radio-button-wrapper": {
             borderRadius: theme.borderRadius,
-            borderInlineStartWidth: "initial",
+            borderInlineStartWidth: "1px",
             "&:before": {
                 width: 0,
             },
