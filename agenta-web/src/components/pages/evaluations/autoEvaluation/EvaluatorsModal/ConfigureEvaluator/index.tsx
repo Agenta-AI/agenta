@@ -75,6 +75,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     formContainer: {
         display: "flex",
         flexDirection: "column",
+        maxWidth: 552,
         gap: theme.padding,
         overflowY: "auto",
         maxHeight: 580,
@@ -579,7 +580,7 @@ const ConfigureEvaluator = ({
                                             }
                                         } catch (error) {}
                                     }}
-                                    options={{wordWrap: "on"}}
+                                    options={{wordWrap: "on", minimap: {enabled: false}}}
                                 />
                             </div>
 
@@ -593,7 +594,11 @@ const ConfigureEvaluator = ({
                                     language="json"
                                     theme={`vs-${appTheme}`}
                                     value={variantResult}
-                                    options={{wordWrap: "on", readOnly: true}}
+                                    options={{
+                                        wordWrap: "on",
+                                        minimap: {enabled: false},
+                                        readOnly: true,
+                                    }}
                                 />
                             </div>
 
@@ -623,7 +628,11 @@ const ConfigureEvaluator = ({
                                     width="100%"
                                     language="json"
                                     theme={`vs-${appTheme}`}
-                                    options={{wordWrap: "on", readOnly: true}}
+                                    options={{
+                                        wordWrap: "on",
+                                        minimap: {enabled: false},
+                                        readOnly: true,
+                                    }}
                                     value={outputResult}
                                 />
                             </div>
