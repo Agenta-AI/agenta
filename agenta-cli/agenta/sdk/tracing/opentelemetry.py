@@ -151,8 +151,8 @@ Namespace = Literal[
     "data.internals",
     "data.outputs",
     "metrics.scores",
-    "metrics.costs",
-    "metrics.tokens",
+    "metrics.marginal.costs",
+    "metrics.marginal.tokens",
     "metadata.config",
     "metadata.version",
     "tags",
@@ -171,7 +171,7 @@ Status = Literal[
 
 
 class Tracing:
-    VERSION = "2.0"
+    VERSION = "0.1.0"
 
     # @suppress(Exception)
     def __init__(
@@ -262,36 +262,21 @@ class Tracing:
     @contextmanager
     def start_as_current_span(self, name: str, kind: str):
         with self.tracer.start_as_current_span(name) as span:
-            self.set_attributes(
-                namespace="metadata.version",
-                attributes={"agenta": version("agenta"), "tracing": Tracing.VERSION},
-            )
+            span: Span
+
             self.set_attributes(
                 namespace="extra",
                 attributes={"kind": kind},
             )
-            self.set_attributes(
-                namespace="extra",
-                attributes={"app_id": self.app_id},
-            )
+
             yield span
 
     def start_span(self, name: str, kind: str):
         span = self.tracer.start_span(name)
 
         self.set_attributes(
-            namespace="metadata.version",
-            attributes={"agenta": version("agenta"), "tracing": Tracing.VERSION},
-            span=span,
-        )
-        self.set_attributes(
             namespace="extra",
             attributes={"kind": kind},
-            span=span,
-        )
-        self.set_attributes(
-            namespace="extra",
-            attributes={"app_id": self.app_id},
             span=span,
         )
 
@@ -352,7 +337,7 @@ class Tracing:
         if value is None:
             return "null"
 
-        if not isinstance(value, (str, int, float, bool)):
+        if not isinstance(value, (str, int, float, bool, bytes)):
             return json.dumps(value)
 
         return value
@@ -375,29 +360,8 @@ class Tracing:
                 self._value(value),
             )
 
-    def store_inputs(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("data.inputs", attributes, span)
-
     def store_internals(self, attributes: dict, span: Optional[Span] = None) -> None:
         self.set_attributes("data.internals", attributes, span)
-
-    def store_outputs(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("data.outputs", attributes, span)
-
-    def store_costs(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("metrics.costs", attributes, span)
-
-    def store_latencies(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("metrics.latencies", attributes, span)
-
-    def store_tokens(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("metrics.tokens", attributes, span)
-
-    def store_config(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("metadata.config", attributes, span)
-
-    def store_tags(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("tags", attributes, span)
 
     def is_processing(self) -> bool:
         return not self.inline_processor.is_done()
@@ -417,9 +381,66 @@ class Tracing:
                 spans_idx[trace_id].append(self._parse_to_legacy_span(span))
 
         inline_traces = [
-            {"trace_id": trace_id, "spans": spans}
+            {
+                "trace_id": trace_id,
+                "cost": sum(
+                    float(
+                        span.attributes.get(
+                            "ag.metrics.marginal.costs.total",
+                            0.0,
+                        )
+                    )
+                    for span in self.spans.values()
+                ),
+                "tokens": {
+                    "prompt": sum(
+                        int(
+                            span.attributes.get(
+                                "ag.metrics.marginal.tokens.prompt",
+                                0,
+                            )
+                        )
+                        for span in self.spans.values()
+                    ),
+                    "completion": sum(
+                        int(
+                            span.attributes.get(
+                                "ag.metrics.marginal.tokens.completion",
+                                0,
+                            )
+                        )
+                        for span in self.spans.values()
+                    ),
+                    "total": sum(
+                        int(
+                            span.attributes.get(
+                                "ag.metrics.marginal.tokens.total",
+                                0,
+                            )
+                        )
+                        for span in self.spans.values()
+                    ),
+                },
+                "latency": sum(
+                    float(span.end_time - span.start_time) / 1_000_000_000
+                    for span in self.spans.values()
+                    if span.parent is None
+                ),
+                "spans": spans,
+            }
             for trace_id, spans in spans_idx.items()
         ]
+
+        print(
+            "-------",
+            sum(
+                float(span.end_time - span.start_time) / 1_000_000_000
+                for span in self.spans.values()
+                if span.parent is None
+            ),
+        )
+
+        self.spans.clear()
 
         if len(inline_traces) > 1:
             log.error("Unexpected error while parsing inline trace: too many traces.")
@@ -472,17 +493,18 @@ class Tracing:
             config=self._get_attributes("metadata.config", span),
             #
             tokens=LlmTokens(
-                prompt_tokens=self._get_attributes("metrics.tokens", span).get(
-                    "prompt", None
+                prompt_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
+                    "prompt",
+                    None,
                 ),
-                completion_tokens=self._get_attributes("metrics.tokens", span).get(
-                    "completion", None
-                ),
-                total_tokens=self._get_attributes("metrics.tokens", span).get(
+                completion_tokens=self._get_attributes(
+                    "metrics.marginal.tokens", span
+                ).get("completion", None),
+                total_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
                     "total", None
                 ),
             ),
-            cost=self._get_attributes("metrics.costs", span).get("marginal", 0.0),
+            cost=self._get_attributes("metrics.marginal.costs", span).get("total", 0.0),
             #
             app_id=self._get_attributes("extra", span).get("app_id", ""),
             variant_id=None,
