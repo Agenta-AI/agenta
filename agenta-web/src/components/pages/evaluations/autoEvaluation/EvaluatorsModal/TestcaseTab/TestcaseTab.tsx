@@ -100,7 +100,7 @@ const TestcaseTab = ({
     return (
         <div className="flex flex-col gap-4 h-full">
             <div className={classes.header}>
-                <Typography.Text>Select test case</Typography.Text>
+                <Typography.Text>Select testcase</Typography.Text>
 
                 <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
             </div>
@@ -108,7 +108,7 @@ const TestcaseTab = ({
                 <div className={classes.sidebar}>
                     <div className="flex flex-col gap-1">
                         <Typography.Text type="secondary">
-                            Select a test case to use for debugging the evaluators
+                            Select a testcase to use for debugging the evaluators
                         </Typography.Text>
                     </div>
                     <Input.Search
@@ -133,7 +133,7 @@ const TestcaseTab = ({
                 </div>
                 <Divider type="vertical" className="m-0 h-full" />
                 <div className="flex flex-col gap-4 flex-1">
-                    <Typography.Text className={classes.title}>Select test cases</Typography.Text>
+                    <Typography.Text className={classes.title}>Select testcases</Typography.Text>
 
                     <Table
                         rowSelection={{
@@ -166,7 +166,7 @@ const TestcaseTab = ({
                             disabled={!selectedTestcase}
                             onClick={handleOnCancel}
                         >
-                            Load test case
+                            Load testcase
                         </Button>
                     </div>
                 </div>

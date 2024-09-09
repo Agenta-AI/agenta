@@ -270,7 +270,7 @@ const AutoEvaluation = () => {
             ...getFilterParams("variants", "text"),
         },
         {
-            title: "Test set",
+            title: "Testset",
             dataIndex: "testsetName",
             key: "testsetName",
             onHeaderCell: () => ({
