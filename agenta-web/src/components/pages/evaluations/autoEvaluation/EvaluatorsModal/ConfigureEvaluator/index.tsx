@@ -416,7 +416,7 @@ const ConfigureEvaluator = ({
                                         ]}
                                         className="flex-1"
                                     >
-                                        <Input />
+                                        <Input data-cy="configure-new-evaluator-modal-input" />
                                     </Form.Item>
                                     {/* <Form.Item
                                         name="label"
@@ -471,7 +471,12 @@ const ConfigureEvaluator = ({
                         <Button type="text" onClick={() => form.resetFields()}>
                             Reset
                         </Button>
-                        <Button type="primary" loading={submitLoading} onClick={form.submit}>
+                        <Button
+                            type="primary"
+                            loading={submitLoading}
+                            onClick={form.submit}
+                            data-cy="configure-new-evaluator-modal-save-btn"
+                        >
                             {editMode ? "Edit configuration" : "Save configuration"}
                         </Button>
                     </Flex>
