@@ -44,7 +44,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: theme.marginXS,
         "& .ant-radio-button-wrapper": {
             borderRadius: theme.borderRadius,
-            borderInlineStartWidth: "initial",
+            borderInlineStartWidth: "1px",
             "&:before": {
                 width: 0,
             },
@@ -107,7 +107,7 @@ const Evaluators = ({
                             onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
                         >
                             <Radio.Button value={"view_all"}>View all</Radio.Button>
-                            <Divider type="vertical" />
+                            <Divider type="vertical" className="h-7" />
                             {["RAG", "Classifiers", "Similarity", "AI / LLM", "Functional"].map(
                                 (val, idx) => (
                                     <Radio.Button key={idx} value={val}>
