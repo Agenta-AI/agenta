@@ -1,8 +1,8 @@
 """Added the 'app_type' column to the 'app_db' table
 
-Revision ID: 1abfef8ed0ef
-Revises: b80c708c21bb
-Create Date: 2024-08-14 19:44:23.707519
+Revision ID: 0f086ebc2f82
+Revises: 78cde3fc549c
+Create Date: 2024-09-09 10:11:05.429116
 
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "1abfef8ed0ef"
-down_revision: Union[str, None] = "b80c708c21bb"
+revision: str = "0f086ebc2f82"
+down_revision: Union[str, None] = "78cde3fc549c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
