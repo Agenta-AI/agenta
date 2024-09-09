@@ -637,8 +637,6 @@ async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
         return AppType.PROMPT_TEMPLATE
     elif "Chat Application" in template_db.title:
         return AppType.CHAT_TEMPLATE
-    elif "RAG" in template_db.title:
-        return AppType.RAG_TEMPLATE
     return AppType.CUSTOM
 
 
