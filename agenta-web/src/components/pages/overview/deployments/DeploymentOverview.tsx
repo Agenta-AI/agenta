@@ -30,7 +30,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     cardContainer: {
         display: "flex",
-        gap: theme.paddingXS,
+        gap: theme.padding,
         "& .ant-card": {
             width: "100%",
             position: "relative",
@@ -156,7 +156,10 @@ const DeploymentOverview = ({
                                         env={env}
                                     />
                                 ) : (
-                                    <Tag className="w-fit" onClick={(e) => e.stopPropagation()}>
+                                    <Tag
+                                        className="w-fit py-[1px] px-2"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         No deployment
                                     </Tag>
                                 )}

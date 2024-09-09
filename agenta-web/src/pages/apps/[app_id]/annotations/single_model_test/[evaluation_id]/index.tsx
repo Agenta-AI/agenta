@@ -39,7 +39,7 @@ export default function Evaluation() {
             }
         }
         init()
-    }, [evaluation])
+    }, [evaluation, evaluationTableId])
 
     useEffect(() => {
         if (!evaluationTableId) {
@@ -67,7 +67,7 @@ export default function Evaluation() {
         }
 
         init()
-    }, [evaluationTableId])
+    }, [evaluationTableId, appId])
 
     return (
         <div className="evalautionContainer">
