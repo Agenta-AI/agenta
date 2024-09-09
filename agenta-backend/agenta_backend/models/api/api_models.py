@@ -65,6 +65,14 @@ class CreateAppOutput(BaseModel):
     app_name: str
 
 
+class UpdateApp(BaseModel):
+    app_name: str
+
+
+class UpdateAppOutput(CreateAppOutput):
+    pass
+
+
 class AppOutput(CreateAppOutput):
     pass
 
@@ -99,6 +107,9 @@ class AppVariantResponse(BaseModel):
     config_name: str
     uri: Optional[str]
     revision: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    modified_by_id: Optional[str] = None
 
 
 class AppVariantRevision(BaseModel):
@@ -211,6 +222,7 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+    updated_at: str
 
 
 class RemoveApp(BaseModel):
