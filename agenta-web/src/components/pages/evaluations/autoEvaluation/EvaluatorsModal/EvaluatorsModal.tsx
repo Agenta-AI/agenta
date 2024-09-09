@@ -46,6 +46,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
         "evaluator_view",
         "list",
     )
+    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -84,6 +85,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setCloneConfig={setCloneConfig}
                     setEvaluatorsDisplay={setEvaluatorsDisplay}
                     evaluatorsDisplay={evaluatorsDisplay}
+                    selectedEvaluatorCategory={selectedEvaluatorCategory}
+                    setSelectedEvaluatorCategory={setSelectedEvaluatorCategory}
                 />
             ),
         },
@@ -96,6 +99,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setSelectedEvaluator={setSelectedEvaluator}
                     setEvaluatorsDisplay={setEvaluatorsDisplay}
                     evaluatorsDisplay={evaluatorsDisplay}
+                    selectedEvaluatorCategory={selectedEvaluatorCategory}
+                    setSelectedEvaluatorCategory={setSelectedEvaluatorCategory}
                 />
             ),
         },
