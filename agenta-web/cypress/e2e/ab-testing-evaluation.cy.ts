@@ -42,8 +42,11 @@ describe("A/B Testing Evaluation workflow", () => {
     })
 
     context("When executing the evaluation", () => {
-        it("Should successfully execute the evaluation process", () => {
+        beforeEach(() => {
             cy.visit(`/apps/${app_id}/annotations/human_a_b_testing`)
+        })
+
+        it("Should successfully execute the evaluation process", () => {
             cy.url().should("include", "/annotations/human_a_b_testing")
             cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
 
@@ -92,6 +95,13 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get(
                 '[data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"]',
             ).click()
+        })
+
+        it("Should successfully delete the evalueation", () => {
+            cy.url().should("include", "/annotations/human_a_b_testing")
+            cy.get('[type="checkbox"]').eq(1).check().should("be.checked")
+            cy.get('[data-cy="annotation-delete-button"]').click()
+            cy.get('[data-cy="annotation-table"] > .ant-table-tbody').should("not.exist")
         })
     })
 
