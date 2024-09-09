@@ -414,7 +414,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                 <div className="flex items-center justify-between">
                     <Space>
                         <Title>A/B Testing Evaluations</Title>
-                        <Button size="small" href={`/apps/${appId}/evaluations/human_a_b_testing`}>
+                        <Button
+                            size="small"
+                            href={`/apps/${appId}/evaluations?selectedEvaluation=ab_testing_evaluation`}
+                        >
                             View all
                         </Button>
                     </Space>
