@@ -97,6 +97,7 @@ const DeploymentOverview = ({
                                     setSelectedEnvironment(env)
                                 }}
                                 className={classes.deploymentCard}
+                                data-cy="deployment-card"
                             >
                                 <Dropdown
                                     trigger={["click"]}

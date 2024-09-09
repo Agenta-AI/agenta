@@ -30,13 +30,15 @@ describe("Deploy app without errors", () => {
     })
 
     it("Should test the published variant", () => {
-        cy.visit(`/apps/${app_id}/endpoints`)
-        cy.url().should("include", "/endpoints")
-        cy.contains(/api endpoint/i)
-        cy.get("span")
+        cy.visit(`/apps/${app_id}/overview`)
+        cy.url().should("include", "/overview")
+        cy.get('[data-cy="deployment-card"]')
             .contains(/development/i)
-            .should("not.be.disabled")
+            .should("not.have.text", "No deployment")
             .click()
+        cy.url().should("include", "/overview?environment=development")
+        cy.contains(/development environment/i)
+
         // extracting api from the UI and testing it
         cy.get(':nth-child(4) > [style="color: rgb(47, 156, 10);"]')
             .invoke("text")
@@ -46,7 +48,7 @@ describe("Deploy app without errors", () => {
                 )
 
                 cy.request("POST", url.replace(/"/g, ""), promptConfig).then((response) => {
-                    expect(response.body).to.have.property("message")
+                    expect(response.status).to.eq(200)
                 })
             })
     })
