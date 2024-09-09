@@ -6,7 +6,6 @@ import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
-import {useLocalStorage} from "usehooks-ts"
 
 type EvaluatorsProps = {
     evaluatorConfigs: EvaluatorConfig[]

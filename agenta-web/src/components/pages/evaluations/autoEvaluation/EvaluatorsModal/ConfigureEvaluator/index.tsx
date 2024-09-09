@@ -377,13 +377,13 @@ const ConfigureEvaluator = ({
                                 >
                                     {debugEvaluator ? (
                                         <div className="flex items-center gap-2">
-                                            Debug
+                                            Test
                                             <CaretDoubleRight />
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2">
                                             <CaretDoubleLeft />
-                                            Debug
+                                            Test
                                         </div>
                                     )}
                                 </Button>
@@ -513,7 +513,7 @@ const ConfigureEvaluator = ({
                                             disabled={testsets?.length === 0}
                                         >
                                             <Database />
-                                            Load test case
+                                            Load testcase
                                         </Button>
                                     </Tooltip>
                                     <Button
