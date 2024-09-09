@@ -35,8 +35,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const StatusRenderer = (record: _Evaluation) => {
     const classes = useStyles()
     const {token} = theme.useToken()
-    const value = statusMapper(token)(record.status.value as EvaluationStatus)
-        .label as EvaluationStatus
+    const value = record.status.value
     const duration = useDurationCounter(record.duration || 0, runningStatuses.includes(value))
     const {label, color} = statusMapper(token)(record.status.value as EvaluationStatus)
     const errorMsg = record.status.error?.message
