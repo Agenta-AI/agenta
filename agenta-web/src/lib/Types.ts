@@ -357,6 +357,7 @@ export interface Evaluator {
     description: string
     oss?: boolean
     requires_llm_api_keys?: boolean
+    tags: string[]
 }
 
 export interface EvaluatorMappingInput {

@@ -6,6 +6,7 @@ import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import NewEvaluatorList from "./NewEvaluatorList"
 import NewEvaluatorCard from "./NewEvaluatorCard"
+import {getEvaluatorTags} from "@/lib/helpers/evaluate"
 
 type NewEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -14,6 +15,8 @@ type NewEvaluatorProps = {
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     setEvaluatorsDisplay: any
     evaluatorsDisplay: string
+    setSelectedEvaluatorCategory: React.Dispatch<React.SetStateAction<string>>
+    selectedEvaluatorCategory: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -59,17 +62,28 @@ const NewEvaluator = ({
     setSelectedEvaluator,
     setEvaluatorsDisplay,
     evaluatorsDisplay,
+    selectedEvaluatorCategory,
+    setSelectedEvaluatorCategory,
 }: NewEvaluatorProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+    const evaluatorTags = getEvaluatorTags()
 
     const filteredEvaluators = useMemo(() => {
-        if (!searchTerm) return evaluators
-        return evaluators.filter((item) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, evaluators])
+        let filtered = evaluators
+
+        if (selectedEvaluatorCategory !== "view_all") {
+            filtered = filtered.filter((item) => item.tags.includes(selectedEvaluatorCategory))
+        }
+
+        if (searchTerm) {
+            filtered = filtered.filter((item) =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+
+        return filtered
+    }, [searchTerm, selectedEvaluatorCategory, evaluators])
 
     return (
         <div>
@@ -94,14 +108,12 @@ const NewEvaluator = ({
                             onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
                         >
                             <Radio.Button value={"view_all"}>View all</Radio.Button>
-                            <Divider type="vertical" />
-                            {["RAG", "Classifiers", "Similarity", "AI / LLM", "Functional"].map(
-                                (val, idx) => (
-                                    <Radio.Button key={idx} value={val}>
-                                        {val}
-                                    </Radio.Button>
-                                ),
-                            )}
+                            <Divider type="vertical" className="h-7" />
+                            {evaluatorTags.map((val, idx) => (
+                                <Radio.Button key={idx} value={val.value}>
+                                    {val.label}
+                                </Radio.Button>
+                            ))}
                         </Radio.Group>
 
                         <Flex gap={8}>

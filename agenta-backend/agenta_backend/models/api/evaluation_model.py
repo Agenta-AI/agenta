@@ -15,6 +15,7 @@ class Evaluator(BaseModel):
     description: Optional[str] = None
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False
+    tags: List[str]
 
 
 class EvaluatorConfig(BaseModel):

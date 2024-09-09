@@ -15,6 +15,7 @@ import {capitalize, round} from "lodash"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 import {formatCurrency, formatLatency} from "./formatters"
+import {isDemo} from "./utils"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -390,4 +391,34 @@ export const transformTraceKeysInSettings = (
         },
         {} as Record<string, any>,
     )
+}
+
+export const getEvaluatorTags = () => {
+    const evaluatorTags = [
+        {
+            label: "Classifiers",
+            value: "classifiers",
+        },
+        {
+            label: "Similarity",
+            value: "similarity",
+        },
+        {
+            label: "AI / LLM",
+            value: "ai_llm",
+        },
+        {
+            label: "Functional",
+            value: "functional",
+        },
+    ]
+
+    if (isDemo()) {
+        evaluatorTags.unshift({
+            label: "RAG",
+            value: "rag",
+        })
+    }
+
+    return evaluatorTags
 }
