@@ -68,23 +68,23 @@ The key to building production-ready LLM applications is to have a tight feedbac
 
 ### Available evaluators
 
-| **Evaluator Name**        | **Use Case**                     | **Type**           | **Description**                                                                  |
-| ------------------------- | -------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
-| Exact Match               | Classification/Entity Extraction | Pattern Matching   | Checks if the output exactly matches the expected result.                        |
-| Contains JSON             | Classification/Entity Extraction | Pattern Matching   | Ensures the output contains valid JSON.                                          |
-| Regex Test                | Classification/Entity Extraction | Pattern Matching   | Checks if the output matches a given regex pattern.                              |
-| JSON Field Match          | Classification/Entity Extraction | Pattern Matching   | Compares specific fields within JSON data.                                       |
-| JSON Diff Match           | Classification/Entity Extraction | Similarity Metrics | Compares generated JSON with a ground truth JSON based on schema or values.      |
-| Similarity Match          | Text Generation / Chatbot        | Similarity Metrics | Compares generated output with expected using Jaccard similarity.                |
-| Semantic Similarity Match | Text Generation / Chatbot        | Semantic Analysis  | Compares the meaning of the generated output with the expected result.           |
-| Starts With               | Text Generation / Chatbot        | Pattern Matching   | Checks if the output starts with a specified prefix.                             |
-| Ends With                 | Text Generation / Chatbot        | Pattern Matching   | Checks if the output ends with a specified suffix.                               |
-| Contains                  | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains a specific substring.                              |
-| Contains Any              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains any of a list of substrings.                       |
-| Contains All              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains all of a list of substrings.                       |
-| Levenshtein Distance      | Text Generation / Chatbot        | Similarity Metrics | Calculates the Levenshtein distance between output and expected result.          |
-| LLM-as-a-judge            | Text Generation / Chatbot        | LLM-based          | Sends outputs to an LLM model for critique and evaluation.                       |
-| RAG Faithfulness          | RAG / Text Generation / Chatbot  | LLM-based          | Evaluates if the output is faithful to the retrieved documents in RAG workflows. |
-| RAG Context Relevancy     | RAG / Text Generation / Chatbot  | LLM-based          | Measures the relevancy of retrieved documents to the given question in RAG.      |
-| Code Evaluation           | Custom Logic                     | Custom             | Allows users to define their own evaluator in Python.                            |
-| Webhook Test              | Custom Logic                     | Custom             | Sends output to a webhook for external evaluation.                               |
+| **Evaluator Name**                                                                                | **Use Case**                     | **Type**           | **Description**                                                                  |
+| ------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| [Exact Match](/evaluation/evaluators/classification-entiry-extraction#exact-match)                | Classification/Entity Extraction | Pattern Matching   | Checks if the output exactly matches the expected result.                        |
+| [Contains JSON](/evaluation/evaluators/classification-entiry-extraction#contains-json)            | Classification/Entity Extraction | Pattern Matching   | Ensures the output contains valid JSON.                                          |
+| [Regex Test](/evaluation/evaluators/pattern-matching#regular-expression)                          | Classification/Entity Extraction | Pattern Matching   | Checks if the output matches a given regex pattern.                              |
+| [JSON Field Match](/evaluation/evaluators/classification-entiry-extraction#json-field-match)      | Classification/Entity Extraction | Pattern Matching   | Compares specific fields within JSON data.                                       |
+| [JSON Diff Match](/evaluation/evaluators/classification-entiry-extraction#json-diff-match)        | Classification/Entity Extraction | Similarity Metrics | Compares generated JSON with a ground truth JSON based on schema or values.      |
+| [Similarity Match](/evaluation/evaluators/semantic-similarity#similarity-match)                   | Text Generation / Chatbot        | Similarity Metrics | Compares generated output with expected using Jaccard similarity.                |
+| [Semantic Similarity Match](/evaluation/evaluators/semantic-similarity#semantic-similarity-match) | Text Generation / Chatbot        | Semantic Analysis  | Compares the meaning of the generated output with the expected result.           |
+| [Starts With](/evaluation/evaluators/pattern-matching#starts-with)                                | Text Generation / Chatbot        | Pattern Matching   | Checks if the output starts with a specified prefix.                             |
+| [Ends With](/evaluation/evaluators/pattern-matching#ends-with)                                    | Text Generation / Chatbot        | Pattern Matching   | Checks if the output ends with a specified suffix.                               |
+| [Contains](/evaluation/evaluators/pattern-matching#contains)                                      | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains a specific substring.                              |
+| [Contains Any](/evaluation/evaluators/pattern-matching#contains-any)                              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains any of a list of substrings.                       |
+| [Contains All](/evaluation/evaluators/pattern-matching#contains-all)                              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains all of a list of substrings.                       |
+| [Levenshtein Distance](/evaluation/evaluators/semantic-similarity#levenshtein-distance)           | Text Generation / Chatbot        | Similarity Metrics | Calculates the Levenshtein distance between output and expected result.          |
+| [LLM-as-a-judge](/evaluation/evaluators/llm-as-a-judge)                                           | Text Generation / Chatbot        | LLM-based          | Sends outputs to an LLM model for critique and evaluation.                       |
+| [RAG Faithfulness](/evaluation/evaluators/rag-evaluators)                                         | RAG / Text Generation / Chatbot  | LLM-based          | Evaluates if the output is faithful to the retrieved documents in RAG workflows. |
+| [RAG Context Relevancy](/evaluation/evaluators/rag-evaluators)                                    | RAG / Text Generation / Chatbot  | LLM-based          | Measures the relevancy of retrieved documents to the given question in RAG.      |
+| [Custom Code Evaluation](/evaluation/evaluators/custom-evaluator)                                 | Custom Logic                     | Custom             | Allows users to define their own evaluator in Python.                            |
+| [Webhook Evaluator](/evaluation/evaluators/webhook-evaluator)                                     | Custom Logic                     | Custom             | Sends output to a webhook for external evaluation.                               |
