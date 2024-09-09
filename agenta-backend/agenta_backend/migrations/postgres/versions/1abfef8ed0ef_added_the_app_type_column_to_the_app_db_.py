@@ -26,7 +26,6 @@ def upgrade() -> None:
     app_enumtype = sa.Enum(
         "CHAT_TEMPLATE",
         "PROMPT_TEMPLATE",
-        "RAG_TEMPLATE",
         "CUSTOM",
         name="app_enumtype",
     )
@@ -54,7 +53,6 @@ def downgrade() -> None:
     app_enumtype = sa.Enum(
         "CHAT_TEMPLATE",
         "PROMPT_TEMPLATE",
-        "RAG_TEMPLATE",
         "CUSTOM",
         name="app_enumtype",
     )
