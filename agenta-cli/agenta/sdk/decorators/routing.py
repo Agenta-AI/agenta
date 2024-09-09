@@ -643,6 +643,9 @@ class entrypoint:
         log.info("\n========= Result =========\n")
 
         log.info(result.trace["trace_id"])
+        log.info(result.trace["cost"])
+        log.info(result.trace["latency"])
+        log.info(result.trace["tokens"])
 
         # log.info("")
         # log.info(json.dumps(result.data, indent=2))

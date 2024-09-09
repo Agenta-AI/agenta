@@ -83,10 +83,33 @@ class instrument:
 
                         result = await func(*args, **kwargs)
 
+                        cost = 0.0
+                        usage = {}
+                        if isinstance(result, dict):
+                            cost = result.get("cost", 0.0)
+                            usage = result.get("usage", {})
+                            print("--------", cost, usage)
+
+                        ag.tracing.set_attributes(
+                            namespace="metrics.marginal.costs",
+                            attributes={"total": cost},
+                        )
+                        ag.tracing.set_attributes(
+                            namespace="metrics.marginal.tokens",
+                            attributes=(
+                                {
+                                    "prompt": usage.get("prompt_tokens", 0),
+                                    "completion": usage.get("completion_tokens", 0),
+                                    "total": usage.get("total_tokens", 0),
+                                }
+                            ),
+                        )
+
                         ag.tracing.set_attributes(
                             "data.outputs",
                             redact(patch(result), self.ignore_outputs),
                         )
+
                         ag.tracing.set_status("OK")
 
                         return result
@@ -116,6 +139,27 @@ class instrument:
 
                         result = func(*args, **kwargs)
 
+                        cost = 0.0
+                        usage = {}
+                        if isinstance(result, dict):
+                            cost = result.get("cost", 0.0)
+                            usage = result.get("usage", {})
+                            print("--------", cost, usage)
+
+                        ag.tracing.set_attributes(
+                            namespace="metrics.marginal.costs",
+                            attributes={"total": cost},
+                        )
+                        ag.tracing.set_attributes(
+                            namespace="metrics.marginal.tokens",
+                            attributes=(
+                                {
+                                    "prompt": usage.get("prompt_tokens", 0),
+                                    "completion": usage.get("completion_tokens", 0),
+                                    "total": usage.get("total_tokens", 0),
+                                }
+                            ),
+                        )
                         ag.tracing.set_attributes(
                             "data.outputs",
                             redact(patch(result), self.ignore_outputs),

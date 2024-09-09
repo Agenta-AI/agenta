@@ -83,13 +83,13 @@ def litellm_handler():
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.costs",
+                namespace="metrics.marginal.costs",
                 attributes={"marginal": kwargs.get("response_cost")},
                 span=self.span,
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.tokens",
+                namespace="metrics.marginal.tokens",
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
@@ -124,13 +124,13 @@ def litellm_handler():
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.costs",
+                namespace="metrics.marginal.costs",
                 attributes={"marginal": kwargs.get("response_cost")},
                 span=self.span,
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.tokens",
+                namespace="metrics.marginal.tokens",
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
@@ -184,13 +184,13 @@ def litellm_handler():
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.costs",
+                namespace="metrics.marginal.costs",
                 attributes={"marginal": kwargs.get("response_cost")},
                 span=self.span,
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.tokens",
+                namespace="metrics.marginal.tokens",
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
@@ -225,13 +225,13 @@ def litellm_handler():
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.costs",
+                namespace="metrics.marginal.costs",
                 attributes={"marginal": kwargs.get("response_cost")},
                 span=self.span,
             )
 
             ag.tracing.set_attributes(
-                namespace="metrics.tokens",
+                namespace="metrics.marginal.tokens",
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
