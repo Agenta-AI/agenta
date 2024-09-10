@@ -13,6 +13,9 @@ import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
+import {Inter} from "next/font/google"
+
+const inter = Inter({subsets: ["latin"]})
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {
@@ -45,17 +48,19 @@ export default function App({Component, pageProps}: AppProps) {
                 <title>Agenta: The LLMOps platform.</title>
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
-            <PostHogProvider client={posthog}>
-                <ThemeContextProvider>
-                    <ProfileContextProvider>
-                        <AppContextProvider>
-                            <Layout>
-                                <Component {...pageProps} />
-                            </Layout>
-                        </AppContextProvider>
-                    </ProfileContextProvider>
-                </ThemeContextProvider>
-            </PostHogProvider>
+            <main className={inter.className}>
+                <PostHogProvider client={posthog}>
+                    <ThemeContextProvider>
+                        <ProfileContextProvider>
+                            <AppContextProvider>
+                                <Layout>
+                                    <Component {...pageProps} />
+                                </Layout>
+                            </AppContextProvider>
+                        </ProfileContextProvider>
+                    </ThemeContextProvider>
+                </PostHogProvider>
+            </main>
         </>
     )
 }

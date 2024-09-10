@@ -214,6 +214,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                 const evaluator = evaluators.find(
                                     (item) => item.key === config.evaluator_key,
                                 )!
+
+                                if (!evaluator) {
+                                    return null
+                                }
+
                                 return (
                                     <Select.Option
                                         key={config.id}

@@ -1,0 +1,174 @@
+---
+id: list-api-keys
+title: "List Api Keys"
+description: "List all API keys associated with the authenticated user."
+sidebar_label: "List Api Keys"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVE1v2zAM/SuCThvQJdmOOc3riq1oD0U/TkkQsDYTq7UlVaK7ZIb/+0jZSZNuPWzH5eDIIvn0+PjkVhcY82A8GWf1VF+aSAqqSmVX5+oRt1FBjC43QFioH4ZKRSUqaPhpyeRpu4kYRnM7t1lYx+ncKv4FfGqQod5d94v3U3XLhcbmrjZ2vY+7+wfMKVVfIzXB7gCEyEweTOSCeVxj9M5GXExVpiph6VaJ5MVbJBMtfaKdxwDS3nnBDUrpErxZSnMcDQNu1NNWf5pM5O9YkpsmzzHGVVOpHQmuy50llkDSwftKpOD08UOUmlbHvMQaZGUI6wTugzAhg8MbrsxGVrT1yMdECiwMI5OhSjau+oyOzwoorS2B/pS/cqGWiC446QOZGg9ATvtSlZEAVcDNsy7/BHXJxeou7sFw400v7FLS/xrvbF+vvkp9x5gDQO+KNJ2nxgTkwc12ih3JsTig97tX9AsihADbg8N3KclnKvMm+Yg5dEKjRiqduGWNwsIDlfwyHizDvnrGwFOctboJFUdKIh+n43FeuaYYwZqNASMwY/YZ5x/bKUtRdSqpulsIXN4EQ9uE13fwHaHAwBuLw4Qb8VTvnuO0vfB8Hm/zkRZqec/4nrpgfiaVedsIgbKvkj6NXblUPqgycPsC+SPaggukz572ZPRxNHmrmaFA7uNwNSBPBtvxSGkcOpZrLxRH+LYYiRFC/fklICy9i1SDPcA7HtorUu3L3fwfP2fDqAk3NPYV8Ei7Qdd2MOpMJ6Oyc0pWTt7b9h4i3oWq62SbuQaxGy+fIRi4l+Gz10523hAnMoZMjr99Xu7AM1RNb7FXHztx6P6+fDu75ZH9AsCXLOs=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Api Keys"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/keys"}
+>
+  
+</MethodEndpoint>
+
+
+
+List all API keys associated with the authenticated user.
+
+Args:
+    request (Request): The incoming request object.
+
+Returns:
+    List[ListAPIKeysResponse]: A list of API Keys associated with the user.
+
+<div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                        >
+                          Array [
+                        </div>
+                      </li><SchemaItem
+                        collapsible={false}
+                        name={"prefix"}
+                        required={true}
+                        schemaName={"Prefix (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Prefix"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"created_at"}
+                        required={true}
+                        schemaName={"date-time"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","format":"date-time","title":"Created At"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"last_used_at"}
+                        required={false}
+                        schemaName={"date-time"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","format":"date-time","title":"Last Used At"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"expiration_date"}
+                        required={false}
+                        schemaName={"date-time"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","format":"date-time","title":"Expiration Date"}}
+                      >
+                        
+                      </SchemaItem><li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"[\n  {\n    \"prefix\": \"string\",\n    \"created_at\": \"2024-08-19T07:55:03.636Z\",\n    \"last_used_at\": \"2024-08-19T07:55:03.636Z\",\n    \"expiration_date\": \"2024-08-19T07:55:03.636Z\"\n  }\n]"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      
