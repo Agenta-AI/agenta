@@ -1,298 +1,649 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-from pydantic import BaseModel, Field
-from beanie import Document, Link, PydanticObjectId
-
-
-class UserDB(Document):
-    uid: str = Field(default="0", unique=True, index=True)
-    username: str = Field(default="agenta")
-    email: str = Field(default="demo@agenta.ai", unique=True)
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
 
-    class Settings:
-        name = "users"
-
-
-class ImageDB(Document):
-    """Defines the info needed to get an image and connect it to the app variant"""
-
-    type: Optional[str] = Field(default="image")
-    template_uri: Optional[str]
-    docker_id: Optional[str] = Field(index=True)
-    tags: Optional[str]
-    deletable: bool = Field(default=True)
-    user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "docker_images"
-
-
-class AppDB(Document):
-    app_name: str
-    user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "app_db"
-
-
-class DeploymentDB(Document):
-    app: Link[AppDB]
-    user: Link[UserDB]
-    container_name: Optional[str]
-    container_id: Optional[str]
-    uri: Optional[str]
-    status: str
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "deployments"
-
-
-class VariantBaseDB(Document):
-    app: Link[AppDB]
-    user: Link[UserDB]
-    base_name: str
-    image: Link[ImageDB]
-    deployment: Optional[PydanticObjectId]  # Link to deployment
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "bases"
-
-
-class ConfigDB(BaseModel):
-    config_name: str
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-
-
-class AppVariantDB(Document):
-    app: Link[AppDB]
-    variant_name: str
-    revision: int
-    image: Link[ImageDB]
-    user: Link[UserDB]
-    modified_by: Link[UserDB]
-    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
-    previous_variant_name: Optional[str]  # TODO: deprecated. remove
-    base_name: Optional[str]
-    base: Link[VariantBaseDB]
-    config_name: Optional[str]
-    config: ConfigDB
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    is_deleted: bool = Field(  # TODO: deprecated. remove
-        default=False
-    )  # soft deletion for using the template variants
-
-    class Settings:
-        name = "app_variants"
-
-
-class AppVariantRevisionsDB(Document):
-    variant: Link[AppVariantDB]
-    revision: int
-    modified_by: Link[UserDB]
-    base: Link[VariantBaseDB]
-    config: ConfigDB
-    created_at: datetime
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "app_variant_revisions"
-
-
-class AppEnvironmentDB(Document):
-    app: Link[AppDB]
-    name: str
-    user: Link[UserDB]
-    revision: int
-    deployed_app_variant: Optional[PydanticObjectId]
-    deployed_app_variant_revision: Optional[Link[AppVariantRevisionsDB]]
-    deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "environments"
-
-
-class AppEnvironmentRevisionDB(Document):
-    environment: Link[AppEnvironmentDB]
-    revision: int
-    modified_by: Link[UserDB]
-    deployed_app_variant_revision: Optional[PydanticObjectId]
-    deployment: Optional[PydanticObjectId]  # reference to deployment
-    created_at: datetime
-
-    class Settings:
-        name = "environments_revisions"
-
-
-class TemplateDB(Document):
-    type: Optional[str] = Field(default="image")
-    template_uri: Optional[str]
-    tag_id: Optional[int]
-    name: str = Field(unique=True)  # tag name of image
-    repo_name: Optional[str]
-    title: str
-    description: str
-    size: Optional[int]
-    digest: Optional[str]  # sha256 hash of image digest
-    last_pushed: Optional[datetime]
-
-    class Settings:
-        name = "templates"
-
-
-class TestSetDB(Document):
-    name: str
-    app: Link[AppDB]
-    csvdata: List[Dict[str, str]]
-    user: Link[UserDB]
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "testsets"
-
-
-class EvaluatorConfigDB(Document):
-    app: Link[AppDB]
-    user: Link[UserDB]
-    name: str
-    evaluator_key: str
-    settings_values: Dict[str, Any] = Field(default=dict)
-    created_at: datetime = Field(default=datetime.now(timezone.utc))
-    updated_at: datetime = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "evaluators_configs"
-
-
-class Error(BaseModel):
-    message: str
-    stacktrace: Optional[str] = None
-
-
-class Result(BaseModel):
-    type: str
-    value: Optional[Any] = None
-    error: Optional[Error] = None
-
-
-class InvokationResult(BaseModel):
-    result: Result
-    cost: Optional[float] = None
-    latency: Optional[float] = None
-
-
-class EvaluationScenarioResult(BaseModel):
-    evaluator_config: PydanticObjectId
-    result: Result
-
-
-class AggregatedResult(BaseModel):
-    evaluator_config: PydanticObjectId
-    result: Result
-
-
-class EvaluationScenarioInputDB(BaseModel):
-    name: str
-    type: str
-    value: str
-
-
-class EvaluationScenarioOutputDB(BaseModel):
-    result: Result
-    cost: Optional[float] = None
-    latency: Optional[float] = None
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
-
-
-class HumanEvaluationDB(Document):
-    app: Link[AppDB]
-    user: Link[UserDB]
-    status: str
-    evaluation_type: str
-    variants: List[PydanticObjectId]
-    variants_revisions: List[PydanticObjectId]
-    testset: Link[TestSetDB]
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "human_evaluations"
-
-
-class HumanEvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    evaluation: Link[HumanEvaluationDB]
-    inputs: List[HumanEvaluationScenarioInput]
-    outputs: List[HumanEvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Any]
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(default=datetime.now(timezone.utc))
-    is_pinned: Optional[bool]
-    note: Optional[str]
-
-    class Settings:
-        name = "human_evaluations_scenarios"
-
-
-class EvaluationDB(Document):
-    app: Link[AppDB]
-    user: Link[UserDB]
-    status: Result
-    testset: Link[TestSetDB]
-    variant: PydanticObjectId
-    variant_revision: PydanticObjectId
-    evaluators_configs: List[PydanticObjectId]
-    aggregated_results: List[AggregatedResult]
-    average_cost: Optional[Result] = None
-    total_cost: Optional[Result] = None
-    average_latency: Optional[Result] = None
-    created_at: datetime = Field(default=datetime.now(timezone.utc))
-    updated_at: datetime = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "new_evaluations"
-
-
-class EvaluationScenarioDB(Document):
-    user: Link[UserDB]
-    evaluation: Link[EvaluationDB]
-    variant_id: PydanticObjectId
-    inputs: List[EvaluationScenarioInputDB]
-    outputs: List[EvaluationScenarioOutputDB]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
-    evaluators_configs: List[PydanticObjectId]
-    results: List[EvaluationScenarioResult]
-    latency: Optional[int] = None
-    cost: Optional[int] = None
-    created_at: datetime = Field(default=datetime.now(timezone.utc))
-    updated_at: datetime = Field(default=datetime.now(timezone.utc))
-
-    class Settings:
-        name = "new_evaluation_scenarios"
+import uuid_utils.compat as uuid
+from sqlalchemy import (
+    Column,
+    String,
+    Integer,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    Enum,
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy_json import mutable_json_type
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+from agenta_backend.models.base import Base
+from agenta_backend.models.shared_models import TemplateType
+
+
+class UserDB(Base):
+    __tablename__ = "users"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    uid = Column(String, unique=True, index=True, default="0")
+    username = Column(String, default="agenta")
+    email = Column(String, unique=True, default="demo@agenta.ai")
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+# TODO: Rename ImageDB to DockerImageDB ?
+class ImageDB(Base):
+    __tablename__ = "docker_images"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    type = Column(String, default="image")
+    template_uri = Column(String, nullable=True)
+    docker_id = Column(String, nullable=True, index=True)
+    tags = Column(String, nullable=True)
+    deletable = Column(Boolean, default=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user = relationship("UserDB")
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class AppDB(Base):
+    __tablename__ = "app_db"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_name = Column(String)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB", foreign_keys=[user_id])
+    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
+    variant = relationship(
+        "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
+    )
+    testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
+    deployment = relationship(
+        "DeploymentDB", cascade="all, delete-orphan", back_populates="app"
+    )
+    base = relationship(
+        "VariantBaseDB", cascade="all, delete-orphan", back_populates="app"
+    )
+    evaluation = relationship(
+        "EvaluationDB", cascade="all, delete-orphan", backref="app"
+    )
+    human_evaluation = relationship(
+        "HumanEvaluationDB", cascade="all, delete-orphan", backref="app"
+    )
+
+
+class DeploymentDB(Base):
+    __tablename__ = "deployments"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    container_name = Column(String)
+    container_id = Column(String)
+    uri = Column(String)
+    status = Column(String)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    app = relationship("AppDB", back_populates="deployment")
+
+
+class VariantBaseDB(Base):
+    __tablename__ = "bases"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_name = Column(String)
+    image_id = Column(
+        UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    image = relationship("ImageDB")
+    deployment = relationship("DeploymentDB")
+    app = relationship("AppDB", back_populates="base")
+
+
+class AppVariantDB(Base):
+    __tablename__ = "app_variants"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    variant_name = Column(String)
+    revision = Column(Integer)
+    image_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("docker_images.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_name = Column(String)
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    image = relationship("ImageDB")
+    app = relationship("AppDB", back_populates="variant")
+    user = relationship("UserDB", foreign_keys=[user_id])
+    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
+    base = relationship("VariantBaseDB")
+    variant_revision = relationship(
+        "AppVariantRevisionsDB",
+        cascade="all, delete-orphan",
+        backref="variant_revision",
+    )
+
+
+class AppVariantRevisionsDB(Base):
+    __tablename__ = "app_variant_revisions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="CASCADE")
+    )
+    revision = Column(Integer)
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    modified_by = relationship("UserDB")
+    base = relationship("VariantBaseDB")
+
+    def get_config(self) -> dict:
+        return {"config_name": self.config_name, "parameters": self.config_parameters}
+
+
+class AppEnvironmentDB(Base):
+    __tablename__ = "environments"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    name = Column(String)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    revision = Column(Integer)
+    deployed_app_variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    environment_revisions = relationship(
+        "AppEnvironmentRevisionDB", cascade="all, delete-orphan", backref="environment"
+    )
+    deployed_app_variant = relationship("AppVariantDB")
+    deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
+
+
+class AppEnvironmentRevisionDB(Base):
+    __tablename__ = "environments_revisions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    environment_id = Column(
+        UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE")
+    )
+    revision = Column(Integer)
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    modified_by = relationship("UserDB")
+
+
+class TemplateDB(Base):
+    __tablename__ = "templates"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    type = Column(Enum(TemplateType), default=TemplateType.IMAGE, nullable=False)
+    template_uri = Column(String)
+    tag_id = Column(Integer)
+    name = Column(String, unique=True)
+    repo_name = Column(String)
+    title = Column(String)
+    description = Column(String)
+    size = Column(Integer)
+    digest = Column(String)  # sha256 hash of image digest
+    last_pushed = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class TestSetDB(Base):
+    __tablename__ = "testsets"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String)
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+
+
+class EvaluatorConfigDB(Base):
+    __tablename__ = "evaluators_configs"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="SET NULL"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    name = Column(String)
+    evaluator_key = Column(String)
+    settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+
+
+class HumanEvaluationVariantDB(Base):
+    __tablename__ = "human_evaluation_variants"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    human_evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+
+    variant = relationship("AppVariantDB", backref="evaluation_variant")
+    variant_revision = relationship(
+        "AppVariantRevisionsDB", backref="evaluation_variant_revision"
+    )
+
+
+class HumanEvaluationDB(Base):
+    __tablename__ = "human_evaluations"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    status = Column(String)
+    evaluation_type = Column(String)
+    testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    testset = relationship("TestSetDB")
+    evaluation_variant = relationship(
+        "HumanEvaluationVariantDB",
+        cascade="all, delete-orphan",
+        backref="human_evaluation",
+    )
+    evaluation_scenario = relationship(
+        "HumanEvaluationScenarioDB",
+        cascade="all, delete-orphan",
+        backref="evaluation_scenario",
+    )
+
+
+class HumanEvaluationScenarioDB(Base):
+    __tablename__ = "human_evaluations_scenarios"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
+    )
+    inputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of HumanEvaluationScenarioInput
+    outputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of HumanEvaluationScenarioOutput
+    vote = Column(String)
+    score = Column(String)
+    correct_answer = Column(String)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    is_pinned = Column(Boolean)
+    note = Column(String)
+
+
+class EvaluationAggregatedResultDB(Base):
+    __tablename__ = "evaluation_aggregated_results"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluations.id", ondelete="CASCADE")
+    )
+    evaluator_config_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
+    )
+    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+
+    evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
+
+
+class EvaluationScenarioResultDB(Base):
+    __tablename__ = "evaluation_scenario_results"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_scenario_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluation_scenarios.id", ondelete="CASCADE")
+    )
+    evaluator_config_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluators_configs.id", ondelete="SET NULL")
+    )
+    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+
+
+class EvaluationDB(Base):
+    __tablename__ = "evaluations"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    testset_id = Column(
+        UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    average_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    total_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    average_latency = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    testset = relationship("TestSetDB")
+    variant = relationship("AppVariantDB")
+    variant_revision = relationship("AppVariantRevisionsDB")
+    aggregated_results = relationship(
+        "EvaluationAggregatedResultDB",
+        cascade="all, delete-orphan",
+        backref="evaluation",
+    )
+    evaluation_scenarios = relationship(
+        "EvaluationScenarioDB", cascade="all, delete-orphan", backref="evaluation"
+    )
+    evaluator_configs = relationship(
+        "EvaluationEvaluatorConfigDB",
+        cascade="all, delete-orphan",
+        backref="evaluation",
+    )
+
+
+class EvaluationEvaluatorConfigDB(Base):
+    __tablename__ = "evaluation_evaluator_configs"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    evaluation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("evaluations.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    evaluator_config_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("evaluators_configs.id", ondelete="SET NULL"),
+        primary_key=True,
+    )
+
+
+class EvaluationScenarioDB(Base):
+    __tablename__ = "evaluation_scenarios"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    evaluation_id = Column(
+        UUID(as_uuid=True), ForeignKey("evaluations.id", ondelete="CASCADE")
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
+    )
+    inputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of EvaluationScenarioInput
+    outputs = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of EvaluationScenarioOutput
+    correct_answers = Column(
+        mutable_json_type(dbtype=JSONB, nested=True)
+    )  # List of CorrectAnswer
+    is_pinned = Column(Boolean)
+    note = Column(String)
+    latency = Column(Integer)
+    cost = Column(Integer)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    user = relationship("UserDB")
+    variant = relationship("AppVariantDB")
+    results = relationship(
+        "EvaluationScenarioResultDB",
+        cascade="all, delete-orphan",
+        backref="evaluation_scenario",
+    )
+
+
+class IDsMappingDB(Base):
+    __tablename__ = "ids_mapping"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    table_name = Column(String, nullable=False)
+    objectid = Column(String, nullable=False)
+    uuid = Column(UUID(as_uuid=True), nullable=False)

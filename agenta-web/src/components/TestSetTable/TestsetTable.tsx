@@ -1,10 +1,11 @@
 import React, {useState, useRef, useEffect, ReactNode} from "react"
 import {AgGridReact} from "ag-grid-react"
+import {IHeaderParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, Input, Tooltip, Typography, message} from "antd"
+import {Button, Input, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
-import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
-import {createNewTestset, fetchVariants, loadTestset, updateTestset} from "@/lib/services/api"
+import {fetchVariants} from "@/services/api"
+import {createNewTestset, fetchTestset, updateTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
@@ -16,10 +17,13 @@ import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
+import TableCellsRenderer from "./TableCellsRenderer"
+import TableHeaderComponent from "./TableHeaderComponent"
 
-type testsetTableProps = {
+type TestsetTableProps = {
     mode: "create" | "edit"
 }
+export type ColumnDefsType = {field: string; [key: string]: any}
 
 export const CHECKBOX_COL = {
     field: "",
@@ -32,57 +36,10 @@ export const CHECKBOX_COL = {
 
 export const ADD_BUTTON_COL = {field: "", editable: false, maxWidth: 100}
 
-const useStylesCell = createUseStyles({
-    cellContainer: {
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        height: "100%",
-
-        "&:hover>:nth-child(2)": {
-            display: "inline",
-        },
-    },
-    cellValue: {
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        flex: 1,
-    },
-    cellEditIcon: {
-        display: "none",
-    },
-})
-
 const useStylesTestset = createUseStyles({
-    plusIcon: {
-        width: "100%",
-        display: "flex",
-        justifyContent: "end",
-        "& button": {
-            marginRight: "10px",
-        },
-    },
-    columnTitle: {
-        width: "100%",
-        height: "100% ",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        "& input": {
-            marginTop: "10px",
-            marginBottom: "10px",
-            height: "30px",
-            marginRight: "3px",
-            outline: "red",
-        },
-    },
-    saveBtn: {
-        width: "45px !important",
-    },
     title: {
         marginBottom: "20px !important",
+        fontWeight: "500 !important",
     },
     inputContainer: {
         width: "100%",
@@ -96,6 +53,9 @@ const useStylesTestset = createUseStyles({
     },
     notes: {
         marginBottom: 20,
+        "& span": {
+            display: "block",
+        },
     },
     btnContainer: {
         display: "flex",
@@ -105,33 +65,7 @@ const useStylesTestset = createUseStyles({
     },
 })
 
-function CellRenderer(props: any) {
-    const classes = useStylesCell()
-    const cellValue = props.valueFormatted ? props.valueFormatted : props.value
-
-    return props.colDef.field ? (
-        <span
-            className={classes.cellContainer}
-            onClick={() =>
-                props.api.startEditingCell({
-                    rowIndex: props.node.rowIndex,
-                    colKey: props.colDef.field,
-                })
-            }
-        >
-            <span className={classes.cellValue}>{cellValue || ""}</span>
-            <span className={classes.cellEditIcon}>
-                <Tooltip title="Edit in focused mode">
-                    <EditOutlined
-                        onClick={() => props.colDef?.cellRendererParams?.onEdit(props.rowIndex)}
-                    />
-                </Tooltip>
-            </span>
-        </span>
-    ) : undefined
-}
-
-const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
+const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const [messageApi, contextHolder] = message.useMessage()
 
     const mssgModal = (type: NoticeType, content: ReactNode) => {
@@ -141,36 +75,27 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         })
     }
 
-    const classes = useStylesTestset()
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const {testset_id} = router.query
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
-    const [loading, setLoading] = useState(false)
+    const [isDataChanged, setIsDataChanged] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState<KeyValuePair[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
+    const [columnDefs, setColumnDefs] = useState<ColumnDefsType[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
+    const [writeMode, setWriteMode] = useState(mode)
+    const [testsetId, setTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
 
-    const onRowSelectedOrDeselected = () => {
-        if (!gridRef?.current) return
-        setSelectedRow(gridRef?.current?.getSelectedNodes())
-    }
+    const classes = useStylesTestset()
+    const router = useRouter()
+    const {appTheme} = useAppTheme()
 
-    const handleExportClick = () => {
-        const csvData = convertToCsv(
-            rowData,
-            columnDefs.map((col) => col.field),
-        )
-        const filename = `${testsetName}.csv`
-        downloadCsv(csvData, filename)
-    }
+    const appId = router.query.app_id as string
+    const {testset_id} = router.query
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -185,16 +110,16 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     })
 
     useUpdateEffect(() => {
-        if (!loading) {
+        if (isDataChanged) {
             setUnSavedChanges(true)
         }
     }, [rowData, testsetName, columnDefs, inputValues])
 
     useEffect(() => {
         async function applyColData(colData: {field: string}[] = []) {
-            const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
+            const newColDefs = createNewColDefs(colData)
             setColumnDefs(newColDefs)
-            if (mode === "create") {
+            if (writeMode === "create") {
                 const initialRowData = Array(3).fill({})
                 const separateRowData = initialRowData.map(() => {
                     return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
@@ -205,9 +130,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (mode === "edit" && testset_id) {
-            setLoading(true)
-            loadTestset(testset_id as string).then((data) => {
+        if (writeMode === "edit" && testset_id) {
+            setIsDataChanged(true)
+            fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
                 applyColData(
@@ -216,8 +141,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     })),
                 )
             })
-        } else if (mode === "create" && appId) {
-            setLoading(true)
+        } else if (writeMode === "create" && appId) {
+            setIsDataChanged(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
                 const variant = backendVariants[0]
@@ -230,7 +155,27 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 applyColData([])
             })
         }
-    }, [mode, testset_id, appId])
+    }, [writeMode, testset_id, appId])
+
+    const handleExportClick = () => {
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${testsetName}.csv`
+        downloadCsv(csvData, filename)
+    }
+
+    const createNewColDefs = (colData: {field: string}[] = []) => {
+        return [
+            CHECKBOX_COL,
+            ...colData.map((col) => ({
+                ...col,
+                headerName: col.field,
+            })),
+            ADD_BUTTON_COL,
+        ]
+    }
 
     const updateTable = (inputValues: string[]) => {
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
@@ -241,7 +186,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [CHECKBOX_COL, ...newDataColumns, ADD_BUTTON_COL]
+        const newColumnDefs = createNewColDefs(newDataColumns)
 
         const keyMap = dataColumns.reduce((acc: KeyValuePair, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -264,149 +209,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }
 
-    const HeaderComponent = (params: any) => {
-        const {attributes} = params.eGridHeader
-        const [scopedInputValues, setScopedInputValues] = useState(
-            columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
-        )
-        const index = attributes["aria-colindex"].nodeValue - 2
-        const displayName = params.displayName
-
-        const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
-        const handleOpenEditInput = () => {
-            setIsEditInputOpen(true)
-        }
-
-        const handleSave = () => {
-            if (scopedInputValues[index] == inputValues[index]) {
-                setIsEditInputOpen(false)
-
-                return
-            }
-
-            if (
-                inputValues.some(
-                    (input) => input.toLowerCase() === scopedInputValues[index].toLowerCase(),
-                ) ||
-                scopedInputValues[index] == ""
-            ) {
-                message.error(
-                    scopedInputValues[index] == ""
-                        ? "Invalid column name"
-                        : "Column name already exist!",
-                )
-            } else {
-                setInputValues(scopedInputValues)
-                updateTable(scopedInputValues)
-                setIsEditInputOpen(false)
-            }
-        }
-
-        const handleInputChange = (index: number, event: any) => {
-            const values = [...inputValues]
-            values[index] = event.target.value
-            setScopedInputValues(values)
-            setLoading(false)
-        }
-
-        const onAddColumn = () => {
-            const newColumnName = `column${columnDefs.length - 1}`
-            const newColmnDef = columnDefs
-            const updatedRowData = rowData.map((row) => ({
-                ...row,
-                [newColumnName]: "",
-            }))
-
-            newColmnDef.pop()
-
-            setInputValues([...inputValues, newColumnName])
-            setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
-            setRowData(updatedRowData)
-            setLoading(false)
-        }
-
-        useEffect(() => {
-            setScopedInputValues(inputValues)
-        }, [columnDefs])
-
-        useEffect(() => {
-            const handleEscape = (e: KeyboardEvent) => {
-                if (e.key == "Enter") {
-                    if (isEditInputOpen) {
-                        handleSave()
-                    }
-                }
-            }
-            window.addEventListener("keydown", handleEscape)
-            return () => window.removeEventListener("keydown", handleEscape)
-        }, [isEditInputOpen, scopedInputValues])
-
-        if (displayName === "" && params.column?.colId !== "0") {
-            return (
-                <div className={classes.plusIcon}>
-                    <Button onClick={onAddColumn}>
-                        <PlusOutlined />
-                    </Button>
-                </div>
-            )
-        } else if (displayName === "" && params.column?.colId === "0") {
-            return
-        } else {
-            return (
-                <>
-                    <div className={classes.columnTitle}>
-                        {isEditInputOpen ? (
-                            <Input
-                                value={scopedInputValues[index]}
-                                onChange={(event) => handleInputChange(index, event)}
-                                size="small"
-                            />
-                        ) : (
-                            displayName
-                        )}
-
-                        <div>
-                            {isEditInputOpen ? (
-                                <Button
-                                    icon="Save"
-                                    onClick={handleSave}
-                                    type="default"
-                                    className={classes.saveBtn}
-                                />
-                            ) : (
-                                <Button
-                                    icon={<EditOutlined />}
-                                    onClick={handleOpenEditInput}
-                                    type="text"
-                                />
-                            )}
-
-                            <Button
-                                type="text"
-                                icon={<DeleteOutlined />}
-                                onClick={() => onDeleteColumn(index)}
-                            />
-                        </div>
-                    </div>
-                </>
-            )
-        }
-    }
-
-    const defaultColDef = {
-        flex: 1,
-        minWidth: 100,
-        editable: true,
-        cellRenderer: CellRenderer,
-        cellRendererParams: {
-            onEdit: (ix: number) => {
-                setFocusedRowData(rowData[ix])
-            },
-        },
-        headerComponent: HeaderComponent,
-        resizable: true,
-    }
-
     const onAddRow = () => {
         const newRow: KeyValuePair = {}
         columnDefs.forEach((colDef) => {
@@ -415,7 +217,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
         setRowData([...rowData, newRow])
-        setLoading(false)
+        setIsDataChanged(true)
     }
 
     const onSaveData = async () => {
@@ -427,22 +229,28 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                         mssgModal("success", "Changes saved successfully!")
                     })
                     setIsLoading(false)
+                    setWriteMode("edit")
                 }
             }
 
-            if (mode === "create") {
+            if (writeMode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                     setIsLoading(false)
                 } else {
                     const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
+                    setTestsetId(response.data.id)
                 }
-            } else if (mode === "edit") {
+            } else if (writeMode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await updateTestset(testset_id as string, testsetName, rowData)
+                    const response = await updateTestset(
+                        (testsetId || testset_id) as string,
+                        testsetName,
+                        rowData,
+                    )
                     afterSave(response)
                 }
             }
@@ -452,9 +260,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setTestsetName(e.target.value)
-        setLoading(false)
+    const onRowSelectedOrDeselected = () => {
+        if (!gridRef?.current) return
+        setSelectedRow(gridRef?.current?.getSelectedNodes())
     }
 
     const onDeleteRow = () => {
@@ -462,7 +270,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const selectedData = selectedNodes.map((node: GenericObject) => node.data)
         const newrowData = rowData.filter((row) => !selectedData.includes(row))
         setRowData(newrowData)
-        setLoading(false)
+        setIsDataChanged(true)
     }
 
     const onDeleteColumn = (indexToDelete: number) => {
@@ -484,10 +292,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setInputValues(newInputValues)
         setColumnDefs(newColumnDefs)
         setRowData(newRowData)
-        setLoading(false)
+        setIsDataChanged(true)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
         }
+    }
+
+    const handleTestsetNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTestsetName(e.target.value)
+        setIsDataChanged(true)
     }
 
     const handleCellValueChanged = (params: GenericObject) => {
@@ -495,10 +308,35 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             params.data[params.colDef.field] = ""
         }
         setUnSavedChanges(true)
-        setLoading(false)
+        setIsDataChanged(true)
     }
 
-    const {appTheme} = useAppTheme()
+    const defaultColDef = {
+        flex: 1,
+        minWidth: 100,
+        editable: true,
+        cellRenderer: TableCellsRenderer,
+        cellRendererParams: {
+            onEdit: (ix: number) => {
+                setFocusedRowData(rowData[ix])
+            },
+        },
+        headerComponent: (params: IHeaderParams) => (
+            <TableHeaderComponent
+                params={params}
+                columnDefs={columnDefs}
+                inputValues={inputValues}
+                setRowData={setRowData}
+                rowData={rowData}
+                updateTable={updateTable}
+                setInputValues={setInputValues}
+                onDeleteColumn={onDeleteColumn}
+                setColumnDefs={setColumnDefs}
+                setIsDataChanged={setIsDataChanged}
+            />
+        ),
+        resizable: true,
+    }
 
     return (
         <div>
@@ -511,7 +349,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             <div className={classes.inputContainer}>
                 <Input
                     value={testsetName}
-                    onChange={handleChange}
+                    onChange={handleTestsetNameChange}
                     placeholder="Test Set Name"
                     data-cy="testset-name-input"
                 />
@@ -526,23 +364,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
 
             <div className={classes.notes}>
-                <div>
-                    <Typography.Text italic>Notes:</Typography.Text>
-                </div>
-                <div>
-                    <Typography.Text italic>
-                        - Specify column names similar to the Input parameters.
-                    </Typography.Text>
-                </div>
-                <div>
-                    <Typography.Text italic>- A column with </Typography.Text>
-                    <Typography.Text strong>'correct_answer'</Typography.Text>
-                    <Typography.Text>
-                        {" "}
-                        name will be treated as a ground truth column and could be used in
-                        evaluations.
-                    </Typography.Text>
-                </div>
+                <Typography.Text italic>Notes:</Typography.Text>
+                <Typography.Text italic>
+                    - Specify column names similar to the Input parameters.
+                </Typography.Text>
+                <Typography.Text italic>
+                    - A column with <strong>'correct_answer'</strong> name will be treated as a
+                    ground truth column and could be used in evaluations.
+                </Typography.Text>
             </div>
 
             <div
@@ -564,11 +393,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     className="ph-no-capture"
                 />
             </div>
+
             {selectedRow && (
                 <div className={classes.btnContainer}>
                     <Button onClick={onAddRow}>Add Row</Button>
                     <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
-                        Delete Row{selectedRow.length > 1 ? "s" : null}
+                        Delete Row{selectedRow.length > 1 && "s"}
                     </Button>
                     <Button onClick={handleExportClick}>Export as CSV</Button>
                 </div>

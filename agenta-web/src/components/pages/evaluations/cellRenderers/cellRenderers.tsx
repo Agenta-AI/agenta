@@ -85,7 +85,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
                 message.success("Copied to clipboard")
             })
             .catch(console.error)
-    }, [])
+    }, [value])
 
     const onExpand = useCallback(() => {
         const cells = document.querySelectorAll(`[row-id='${node.id}'] .ag-cell > *`)
@@ -110,13 +110,13 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
             node.setRowHeight(defaultHeight)
         }
         api.onRowHeightChanged()
-    }, [expanded])
+    }, [expanded, api, node])
 
     useEffect(() => {
         node.addEventListener("heightChanged", () => {
             setExpanded(node.rowHeight !== api.getSizesForCurrentTheme().rowHeight)
         })
-    }, [])
+    }, [api, node])
 
     return (
         <div
@@ -137,47 +137,57 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
 }
 
 export const ResultRenderer = React.memo(
-    (params: ICellRendererParams<_EvaluationScenario> & {config: EvaluatorConfig}) => {
+    (
+        params: ICellRendererParams<_EvaluationScenario> & {
+            config: EvaluatorConfig
+        },
+    ) => {
         const result = params.data?.results.find(
             (item) => item.evaluator_config === params.config.id,
         )?.result
-        let errorMsg = ""
-        if (result?.type === "error") {
-            errorMsg = `${result?.error?.message}\n${result?.error?.stacktrace}`
-        }
 
-        return (
-            <Typography.Text type={errorMsg ? "danger" : undefined}>
-                {errorMsg || getTypedValue(result)}
-            </Typography.Text>
-        )
+        return <Typography.Text>{getTypedValue(result)}</Typography.Text>
     },
     (prev, next) => prev.value === next.value,
 )
 
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
-export const statusMapper = (token: GlobalToken) => ({
-    [EvaluationStatus.INITIALIZED]: {
-        label: "Queued",
-        color: token.colorTextSecondary,
-    },
-    [EvaluationStatus.STARTED]: {
-        label: "Running",
-        color: token.colorWarning,
-    },
-    [EvaluationStatus.FINISHED]: {
-        label: "Completed",
-        color: token.colorSuccess,
-    },
-    [EvaluationStatus.ERROR]: {
-        label: "Failed",
-        color: token.colorError,
-    },
-    [EvaluationStatus.FINISHED_WITH_ERRORS]: {
-        label: "Completed with Errors",
-        color: token.colorWarning,
-    },
-})
+export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) => {
+    const statusMap = {
+        [EvaluationStatus.INITIALIZED]: {
+            label: "Queued",
+            color: token.colorTextSecondary,
+        },
+        [EvaluationStatus.STARTED]: {
+            label: "Running",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.FINISHED]: {
+            label: "Completed",
+            color: token.colorSuccess,
+        },
+        [EvaluationStatus.ERROR]: {
+            label: "Failed",
+            color: token.colorError,
+        },
+        [EvaluationStatus.FINISHED_WITH_ERRORS]: {
+            label: "Completed with Errors",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.AGGREGATION_FAILED]: {
+            label: "Result Aggregation Failed",
+            color: token.colorWarning,
+        },
+    }
+
+    return (
+        statusMap[status] || {
+            label: "Unknown",
+            color: "purple",
+        }
+    )
+}
+
 export const StatusRenderer = React.memo(
     (params: ICellRendererParams<_Evaluation>) => {
         const classes = useStyles()
@@ -186,8 +196,9 @@ export const StatusRenderer = React.memo(
             params.data?.duration || 0,
             runningStatuses.includes(params.value),
         )
-        const {label, color} = statusMapper(token)[params.value.value as EvaluationStatus]
+        const {label, color} = statusMapper(token)(params.data?.status.value as EvaluationStatus)
         const errorMsg = params.data?.status.error?.message
+        const errorStacktrace = params.data?.status.error?.stacktrace
 
         return (
             <Typography.Text className={classes.statusCell}>
@@ -195,7 +206,7 @@ export const StatusRenderer = React.memo(
                 <span>{label}</span>
                 {errorMsg && (
                     <span style={{marginRight: 2}}>
-                        <Tooltip title={errorMsg}>
+                        <Tooltip title={errorStacktrace ? errorStacktrace : ""}>
                             <InfoCircleOutlined />
                         </Tooltip>
                     </span>

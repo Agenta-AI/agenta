@@ -10,7 +10,8 @@ import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Ty
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
+import {fetchVariants, fetchAppContainerURL} from "@/services/api"
+import {fetchEnvironments} from "@/services/deployment/api"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
@@ -39,6 +40,38 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+export const createParams = (
+    inputParams: Parameter[] | null,
+    environmentName: string,
+    value: string | number,
+    isChatVariant: boolean | null,
+) => {
+    let mainParams: GenericObject = {}
+    let secondaryParams: GenericObject = {}
+
+    inputParams?.forEach((item) => {
+        if (item.input) {
+            mainParams[item.name] = item.default || value
+        } else {
+            secondaryParams[item.name] = item.default || value
+        }
+    })
+    if (isChatVariant) {
+        mainParams["inputs"] = [
+            {
+                role: "user",
+                content: "Example message",
+            },
+        ]
+    } else if (Object.keys(secondaryParams).length > 0) {
+        mainParams["inputs"] = secondaryParams
+    }
+
+    mainParams["environment"] = environmentName
+
+    return JSON.stringify(mainParams, null, 2)
+}
+
 export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
@@ -50,7 +83,7 @@ export default function VariantEndpoint() {
     const [uri, setURI] = useState<string | null>(null)
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
-            const url = await getAppContainerURL(appId, environment.deployed_app_variant_id)
+            const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
             setURI(`${url}/generate_deployed`)
         }
     }
@@ -123,36 +156,6 @@ export default function VariantEndpoint() {
     }, [variants, appId])
 
     const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
-    const createParams = (
-        inputParams: Parameter[] | null,
-        environmentName: string,
-        value: string | number,
-    ) => {
-        let mainParams: GenericObject = {}
-        let secondaryParams: GenericObject = {}
-
-        inputParams?.forEach((item) => {
-            if (item.input) {
-                mainParams[item.name] = item.default || value
-            } else {
-                secondaryParams[item.name] = item.default || value
-            }
-        })
-        if (isChatVariant) {
-            mainParams["inputs"] = [
-                {
-                    role: "user",
-                    content: "Example message",
-                },
-            ]
-        } else if (Object.keys(secondaryParams).length > 0) {
-            mainParams["inputs"] = secondaryParams
-        }
-
-        mainParams["environment"] = environmentName
-
-        return JSON.stringify(mainParams, null, 2)
-    }
 
     if (isVariantsError) {
         return <ResultComponent status={"error"} title="Failed to load variants" />
@@ -172,7 +175,12 @@ export default function VariantEndpoint() {
         )
     }
 
-    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
+    const params = createParams(
+        inputParams,
+        selectedEnvironment?.name || "none",
+        "add_a_value",
+        isChatVariant,
+    )
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         Python: invokeLlmApppythonCode(uri!, params),
         cURL: invokeLlmAppcURLCode(uri!, params),

@@ -2,7 +2,8 @@ import React, {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
-import {fetchEnvironments, fetchVariants, saveNewVariant} from "@/lib/services/api"
+import {fetchVariants} from "@/services/api"
+import {fetchEnvironments} from "@/services/deployment/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -17,6 +18,7 @@ import {useLocalStorage} from "usehooks-ts"
 import TestContextProvider from "./TestContextProvider"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {createNewVariant} from "@/services/playground/api"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -33,6 +35,7 @@ const Playground: React.FC = () => {
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
+    const [tabIndex, setTabIndex] = useLocalStorage(`tabIndex_${appId}`, [] as string[])
     const tabID = useRef("")
 
     const addTab = async () => {
@@ -78,7 +81,7 @@ const Playground: React.FC = () => {
         }
 
         try {
-            await saveNewVariant(
+            await createNewVariant(
                 newVariant.baseId!,
                 newVariant.variantName!,
                 newVariant.configName!,
@@ -87,6 +90,8 @@ const Playground: React.FC = () => {
             setVariants((prevState: any) => [...prevState, newVariant])
             setActiveKey(updateNewVariantName)
             setUnsavedVariants((prev) => ({...prev, [newVariant.variantName!]: false}))
+            tabIndex.length > 0 &&
+                setTabIndex((prev) => [...prev, newVariant.variantName as string])
         } catch (error) {
             message.error("Failed to add new variant. Please try again later.")
             console.error("Error adding new variant:", error)
@@ -114,12 +119,20 @@ const Playground: React.FC = () => {
             return newUnsavedVariants
         })
         setActiveKey(newActiveKey)
+        tabIndex.length > 0 && setTabIndex(tabIndex.filter((tabKey) => toDelete !== tabKey))
     }
 
     const fetchData = async () => {
         try {
             const backendVariants = await fetchVariants(appId)
             if (backendVariants.length > 0) {
+                if (tabIndex.length > 0) {
+                    // Align tabs position according to user preference
+                    backendVariants.sort(
+                        (a, b) => tabIndex.indexOf(a.variantName) - tabIndex.indexOf(b.variantName),
+                    )
+                }
+
                 setVariants(backendVariants)
                 if (!activeKey) setActiveKey(backendVariants[0].variantName)
             }
@@ -260,7 +273,9 @@ const Playground: React.FC = () => {
                 const overIndex = prev.findIndex((variant) => variant.variantName === overId)
 
                 if (activeIndex !== -1 && overIndex !== -1) {
-                    return arrayMove(prev, activeIndex, overIndex)
+                    const tabMoved = arrayMove(prev, activeIndex, overIndex)
+                    setTabIndex(tabMoved.map((tab) => tab.variantName))
+                    return tabMoved
                 }
                 return prev
             })

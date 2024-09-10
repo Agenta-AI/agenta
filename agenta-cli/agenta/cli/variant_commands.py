@@ -16,7 +16,7 @@ from agenta.client.backend.client import AgentaApi
 from agenta.client.api import add_variant_to_server
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
-from agenta.client.backend.types.variant_action import VariantActionEnum, VariantAction
+from agenta.client.backend.types.variant_action import VariantAction
 
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
@@ -139,7 +139,7 @@ def add_variant(
 
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg="red"))
-        return None
+        raise
     try:
         if overwrite:
             click.echo(
@@ -151,12 +151,18 @@ def add_variant(
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.variants.update_variant_image(
                 variant_id=variant_id,
-                request=image,  # because Fern code uses "request: Image" instead of "image: Image"
+                docker_id=image.docker_id,
+                tags=image.tags,
+                type=image.type,
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = add_variant_to_server(
-                app_id, base_name, image, f"{host}/{BACKEND_URL_SUFFIX}", api_key
+                app_id,
+                base_name,
+                image,
+                f"{host}/{BACKEND_URL_SUFFIX}",
+                api_key,
             )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
@@ -166,7 +172,7 @@ def add_variant(
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
         else:
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
-        return None
+        raise
 
     agenta_dir = Path.home() / ".agenta"
     global_toml_file = toml.load(agenta_dir / "config.toml")
@@ -174,7 +180,7 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -196,7 +202,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile()
+            get_user_id = client.fetch_user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 "app_deployment",
@@ -261,12 +267,11 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.variants.start_variant(
+    variant = client.variants.start_variant(
         variant_id=variant_id,
-        action=VariantAction(
-            action=VariantActionEnum.START,
-        ),
-    ).uri
+        action=VariantAction(action="START"),
+    )
+    endpoint = variant.uri
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -461,28 +466,28 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
             error_msg += "or\n"
             error_msg += ">>> agenta variant serve <filename>.py"
             click.echo(click.style(f"{error_msg}", fg="red"))
-            sys.exit(0)
+            sys.exit(1)
 
     try:
         config_check(app_folder)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         host = get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         api_key = helper.get_global_config("api_key")
     except Exception as e:
         click.echo(click.style("Failed to retrieve the api key.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     try:
         variant_id = add_variant(
@@ -491,7 +496,7 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
-        return
+        sys.exit(1)
 
     if variant_id:
         try:
@@ -503,9 +508,11 @@ def serve_cli(ctx, app_folder: str, file_name: str, overwrite: bool):
                 "- Second, try restarting the containers (if using Docker Compose)."
             )
             click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(1)
         except Exception as e:
             click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+            sys.exit(1)
 
 
 @variant.command(name="list")

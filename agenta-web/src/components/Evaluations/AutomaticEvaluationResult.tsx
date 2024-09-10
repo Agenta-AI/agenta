@@ -1,45 +1,23 @@
-import {deleteEvaluations, fetchEvaluationResults, loadEvaluations} from "@/lib/services/api"
+import {
+    deleteEvaluations,
+    fetchEvaluationResults,
+    fetchAllLoadEvaluations,
+} from "@/services/human-evaluations/api"
 import {Button, Spin, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {Evaluation, GenericObject} from "@/lib/Types"
+import {Evaluation, SingleModelEvaluationListTableDataType, StyleProps} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
-import {fromEvaluationResponseToEvaluation} from "@/lib/transformers"
+import {
+    fromEvaluationResponseToEvaluation,
+    singleModelTestEvaluationTransformer,
+} from "@/lib/transformers"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
-
-interface EvaluationListTableDataType {
-    key: string
-    variants: string[]
-    testset: {
-        _id: string
-        name: string
-    }
-    evaluationType: string
-    status: EvaluationFlow
-    scoresData: {
-        nb_of_rows: number
-        wrong?: GenericObject[]
-        correct?: GenericObject[]
-        true?: GenericObject[]
-        false?: GenericObject[]
-        variant: string[]
-    }
-    avgScore: number
-    custom_code_eval_id: string
-    resultsData: {[key: string]: number}
-    createdAt: string
-    revisions: string[]
-    variant_revision_ids: string[]
-}
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 const useStyles = createUseStyles({
     container: {
@@ -85,7 +63,9 @@ export default function AutomaticEvaluationResult({
     setIsEvalModalOpen,
 }: AutomaticEvaluationResultProps) {
     const router = useRouter()
-    const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
+    const [evaluationsList, setEvaluationsList] = useState<
+        SingleModelEvaluationListTableDataType[]
+    >([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const {appTheme} = useAppTheme()
@@ -101,27 +81,14 @@ export default function AutomaticEvaluationResult({
         const fetchEvaluations = async () => {
             try {
                 setFetchingEvaluations(true)
-                const evals: Evaluation[] = (await loadEvaluations(app_id)).map(
+                const evals: Evaluation[] = (await fetchAllLoadEvaluations(app_id)).map(
                     fromEvaluationResponseToEvaluation,
                 )
                 const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
                 const newEvals = results.map((result, ix) => {
                     const item = evals[ix]
                     if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
-                        return {
-                            key: item.id,
-                            createdAt: item.createdAt,
-                            variants: item.variants,
-                            scoresData: result.scores_data,
-                            evaluationType: item.evaluationType,
-                            status: item.status,
-                            testset: item.testset,
-                            custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
-                            resultsData: result.results_data,
-                            avgScore: result.avg_score,
-                            revisions: item.revisions,
-                            variant_revision_ids: item.variant_revision_ids,
-                        }
+                        return singleModelTestEvaluationTransformer({item, result})
                     }
                 })
 
@@ -159,12 +126,12 @@ export default function AutomaticEvaluationResult({
         }
     }
 
-    const columns: ColumnsType<EvaluationListTableDataType> = [
+    const columns: ColumnsType<SingleModelEvaluationListTableDataType> = [
         {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value, record: EvaluationListTableDataType) => {
+            render: (value, record: SingleModelEvaluationListTableDataType) => {
                 return (
                     <div
                         onClick={() => handleNavigation(value[0].variantName, record.revisions[0])}
@@ -184,7 +151,7 @@ export default function AutomaticEvaluationResult({
             title: "Test set",
             dataIndex: "testsetName",
             key: "testsetName",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value: any, record: SingleModelEvaluationListTableDataType, index: number) => {
                 return <span>{record.testset.name}</span>
             },
         },
@@ -192,7 +159,7 @@ export default function AutomaticEvaluationResult({
             title: "Average score",
             dataIndex: "averageScore",
             key: "averageScore",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value: any, record: SingleModelEvaluationListTableDataType, index: number) => {
                 let score = 0
                 if (record.scoresData) {
                     score =
@@ -237,14 +204,18 @@ export default function AutomaticEvaluationResult({
             title: "Action",
             dataIndex: "action",
             key: "action",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value: any, record: SingleModelEvaluationListTableDataType, index: number) => {
                 let actionText = "View evaluation"
                 if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
                     actionText = "Continue evaluation"
                 }
                 return (
                     <div className="hover-button-wrapper">
-                        <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
+                        <Button
+                            type="primary"
+                            data-cy="single-model-view-evaluation-button"
+                            onClick={() => onCompleteEvaluation(record)}
+                        >
                             {actionText}
                         </Button>
                     </div>
@@ -254,7 +225,10 @@ export default function AutomaticEvaluationResult({
     ]
 
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[], selectedRows: EvaluationListTableDataType[]) => {
+        onChange: (
+            selectedRowKeys: React.Key[],
+            selectedRows: SingleModelEvaluationListTableDataType[],
+        ) => {
             setSelectedRowKeys(selectedRowKeys)
         },
     }
@@ -270,8 +244,8 @@ export default function AutomaticEvaluationResult({
             )
 
             setSelectedRowKeys([])
-        } catch {
-        } finally {
+        } catch (error) {
+            console.error(error)
         }
     }
 
