@@ -1,6 +1,6 @@
 import httpx
 
-from typing import Optional, Any, Dict
+from typing import Optional, Union, Any, Dict
 from contextlib import contextmanager
 
 from opentelemetry.trace import set_tracer_provider
@@ -157,7 +157,7 @@ class Tracing:
     def get_attributes(
         self,
         namespace: Namespace,
-        span: Optional[ReadableSpan | Span] = None,
+        span: Optional[Union[ReadableSpan, Span]] = None,
     ) -> Dict[str, Any]:
         if span is None:
             span = get_current_span()
