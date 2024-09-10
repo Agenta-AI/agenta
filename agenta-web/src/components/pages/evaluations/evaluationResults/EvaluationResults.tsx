@@ -181,7 +181,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     .flat(),
                 "id",
             ),
-        [evaluations],
+        [evaluations, evaluators],
     )
 
     const compareDisabled = useMemo(
@@ -347,7 +347,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs, hiddenCols])
+    }, [evaluatorConfigs, hiddenCols, appId, router, token])
 
     const compareBtnNode = (
         <Button
@@ -379,7 +379,7 @@ const EvaluationResults: React.FC<Props> = () => {
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenCols],
     )
 
     const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
