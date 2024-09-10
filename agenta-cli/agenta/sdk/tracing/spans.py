@@ -59,42 +59,34 @@ def _decode_key(namespace, key: str) -> str:
 
 
 def _encode_value(value: Any) -> Any:
-    return _encode(value)
+    if value is None:
+        value = "@ag.type=none:"
+        return value
+
+    if isinstance(value, (str, int, float, bool, bytes)):
+        return value
+
+    if isinstance(value, dict) or isinstance(value, list):
+        encoded = dumps(value)
+        value = "@ag.type=json:" + encoded
+        return value
+
+    return repr(value)
 
 
 def _decode_value(value: Any) -> Any:
-    return _decode(value)
+    if isinstance(value, (int, float, bool, bytes)):
+        return value
 
-
-def _encode(dec):
-    if dec is None:
-        enc = "@ag.type=none:"
-        return enc
-
-    if isinstance(dec, (str, int, float, bool, bytes)):
-        return dec
-
-    if isinstance(dec, dict) or isinstance(dec, list):
-        json_enc = dumps(dec)
-        enc = "@ag.type=json:" + json_enc
-        return enc
-
-    return repr(dec)
-
-
-def _decode(enc):
-    if isinstance(enc, (int, float, bool, bytes)):
-        return enc
-
-    if isinstance(enc, str):
-        if enc == "@ag.type=none:":
+    if isinstance(value, str):
+        if value == "@ag.type=none:":
             return None
 
-        if enc.startswith("@ag.type=json:"):
-            json_enc = enc[len("@ag.type=json:") :]
-            dec = loads(json_enc)
-            return dec
+        if value.startswith("@ag.type=json:"):
+            encoded = value[len("@ag.type=json:") :]
+            value = loads(encoded)
+            return value
 
-        return enc
+        return value
 
-    return enc
+    return value
