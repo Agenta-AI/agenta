@@ -1,18 +1,14 @@
 import {useState, useEffect, useMemo} from "react"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Card, Button, notification, Divider} from "antd"
+import {Input, Modal, ConfigProvider, theme, Button, notification} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject} from "@/lib/Types"
+import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {
-    createAndStartTemplate,
-    getTemplates,
-    removeApp,
-    waitForAppToStart,
-} from "@/lib/services/api"
+import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
+import {waitForAppToStart} from "@/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -22,24 +18,20 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
-import {LlmProvider, getAllProviderLlmKeys, getApikeys} from "@/lib/helpers/llmProviders"
+import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
-
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
-        marginTop: 10,
+        marginTop: "24px",
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
-        gap: 24,
+        gap: 16,
         "& .ant-card-bordered, .ant-card-actions": {
             borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
         },
@@ -72,14 +64,10 @@ const useStyles = createUseStyles({
         fontSize: 20,
         color: "red",
     },
-    divider: ({themeMode}: StyleProps) => ({
-        marginTop: 0,
-        marginBottom: 32,
-        borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
-    }),
-    h1: {
-        fontSize: 28,
-        fontWeight: "normal",
+    title: {
+        fontSize: 16,
+        fontWeight: theme.fontWeightMedium,
+        lineHeight: "24px",
     },
     modal: {
         "& .ant-modal-body": {
@@ -96,7 +84,7 @@ const useStyles = createUseStyles({
     modalBtn: {
         alignSelf: "flex-end",
     },
-})
+}))
 
 const timeout = isDemo() ? 60000 : 30000
 
@@ -175,7 +163,7 @@ const AppSelector: React.FC = () => {
     useEffect(() => {
         if (!isLoading) mutate()
         const fetchTemplates = async () => {
-            const data = await getTemplates()
+            const data = await fetchAllTemplates()
             if (typeof data == "object") {
                 setTemplates(data)
             } else {
@@ -226,7 +214,7 @@ const AppSelector: React.FC = () => {
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            await removeApp(statusData.appId).catch(console.error)
+            await deleteApp(statusData.appId).catch(console.error)
             mutate()
         }
         handleTemplateCardClick(templateId as string)
@@ -300,34 +288,30 @@ const AppSelector: React.FC = () => {
                         <ResultComponent status={"error"} title="Failed to load" />
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
-                    <>
-                        <h1 className={classes.h1}>Applications</h1>
-                        <Divider className={classes.divider} />
+                    <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between">
+                            <h1 className={classes.title}>Applications</h1>
+                            <Button
+                                data-cy="create-new-app-button"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    if (
+                                        isDemo() &&
+                                        selectedOrg?.is_paying == false &&
+                                        apps.length > 2
+                                    ) {
+                                        showMaxAppError()
+                                    } else {
+                                        showCreateAppModal()
+                                    }
+                                }}
+                            >
+                                Create new app
+                            </Button>
+                        </div>
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    <Card
-                                        className={classes.createCard}
-                                        onClick={() => {
-                                            if (
-                                                isDemo() &&
-                                                selectedOrg?.is_paying == false &&
-                                                apps.length > 2
-                                            ) {
-                                                showMaxAppError()
-                                            } else {
-                                                showCreateAppModal()
-                                            }
-                                        }}
-                                    >
-                                        <Card.Meta
-                                            data-cy="create-new-app-button"
-                                            className={classes.createCardMeta}
-                                            title={<div>Create new app</div>}
-                                            avatar={<PlusOutlined size={24} />}
-                                        />
-                                    </Card>
-
                                     {apps.map((app, index: number) => (
                                         <div key={index}>
                                             <AppCard app={app} />
@@ -338,7 +322,7 @@ const AppSelector: React.FC = () => {
                         </div>
 
                         <TipsAndFeatures />
-                    </>
+                    </div>
                 ) : (
                     <Welcome
                         onWriteOwnApp={showWriteAppModal}

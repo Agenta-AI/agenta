@@ -18,7 +18,7 @@ if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
-    from agenta_backend.commons.models.db_models import (
+    from agenta_backend.commons.models.shared_models import (
         Permission,
     )  # noqa pylint: disable-all
     from agenta_backend.commons.models.api.api_models import (
@@ -98,6 +98,15 @@ async def add_variant_from_base_and_config(
             user_uid=request.state.user_id,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(db_app_variant.app_id),
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         app_variant_db = await db_manager.get_app_variant_instance_by_id(
             str(db_app_variant.id)
         )
@@ -142,11 +151,22 @@ async def remove_variant(
                     status_code=403,
                 )
 
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=variant_id,
+            object_type="variant",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
         await app_manager.terminate_and_remove_app_variant(app_variant_id=variant_id)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
@@ -195,10 +215,21 @@ async def update_variant_parameters(
             parameters=payload.parameters,
             user_uid=request.state.user_id,
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=variant_id,
+            object_type="variant",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
@@ -247,13 +278,30 @@ async def update_variant_image(
         await app_manager.update_variant_image(
             db_app_variant, image, request.state.user_id
         )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(db_app_variant.app_id),
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
+        import traceback
+
+        traceback.print_exc()
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
+        import traceback
+
+        traceback.print_exc()
         detail = f"Docker error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
@@ -409,6 +457,9 @@ async def get_variant_revisions(variant_id: str, request: Request):
 async def get_variant_revision(variant_id: str, revision_number: int, request: Request):
     logger.debug("getting variant revision: ", variant_id, revision_number)
     try:
+        assert (
+            variant_id != "undefined"
+        ), "Variant id is required to retrieve variant revision"
         app_variant = await db_manager.fetch_app_variant_by_id(
             app_variant_id=variant_id
         )
@@ -431,7 +482,17 @@ async def get_variant_revision(variant_id: str, revision_number: int, request: R
         app_variant_revision = await db_manager.fetch_app_variant_revision(
             variant_id, revision_number
         )
+        if not app_variant_revision:
+            raise HTTPException(
+                404,
+                detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.",
+            )
+
         return await converters.app_variant_db_revision_to_output(app_variant_revision)
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        status_code = e.status_code if hasattr(e, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(e))

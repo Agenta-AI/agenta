@@ -6,12 +6,36 @@ import aiohttp
 from typing import Any, Dict, List
 
 
-from agenta_backend.models.db_models import InvokationResult, Result, Error
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def extract_result_from_response(response):
+    value = None
+    latency = None
+    cost = None
+
+    if response.get("version", None) == "2.0":
+        value = response
+
+        if not isinstance(value["data"], dict):
+            value["data"] = str(value["data"])
+
+        if "trace" in response:
+            latency = response["trace"].get("latency", None)
+            cost = response["trace"].get("cost", None)
+    else:
+        value = {"data": str(response["message"])}
+        latency = response.get("latency", None)
+        cost = response.get("cost", None)
+
+    kind = "text" if isinstance(value, str) else "object"
+
+    return value, kind, cost, latency
 
 
 async def make_payload(
@@ -52,7 +76,8 @@ async def make_payload(
         elif param["type"] == "file_url":
             payload[param["name"]] = datapoint.get(param["name"], "")
         else:
-            payload[param["name"]] = parameters[param["name"]]
+            if param["name"] in parameters:  # hotfix
+                payload[param["name"]] = parameters[param["name"]]
 
     if inputs_dict:
         payload["inputs"] = inputs_dict
@@ -80,26 +105,34 @@ async def invoke_app(
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
-
     async with aiohttp.ClientSession() as client:
+        app_response = {}
+
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
             response = await client.post(url, json=payload, timeout=900)
-            response.raise_for_status()
             app_response = await response.json()
+            response.raise_for_status()
+
+            value, kind, cost, latency = extract_result_from_response(app_response)
+
             return InvokationResult(
                 result=Result(
-                    type="text",
-                    value=app_response["message"],
+                    type=kind,
+                    value=value,
                     error=None,
                 ),
-                latency=app_response.get("latency"),
-                cost=app_response.get("cost"),
+                latency=latency,
+                cost=cost,
             )
 
         except aiohttp.ClientResponseError as e:
-            error_message = f"HTTP error {e.status}: {e.message}"
-            stacktrace = "".join(traceback.format_exception_only(type(e), e))
+            error_message = app_response.get("detail", {}).get(
+                "error", f"HTTP error {e.status}: {e.message}"
+            )
+            stacktrace = app_response.get("detail", {}).get(
+                "traceback", "".join(traceback.format_exception_only(type(e), e))
+            )
             logger.error(f"HTTP error occurred during request: {error_message}")
             common.capture_exception_in_sentry(e)
         except aiohttp.ServerTimeoutError as e:
@@ -157,6 +190,7 @@ async def run_with_retry(
         InvokationResult: The invokation result.
 
     """
+
     retries = 0
     last_exception = None
     while retries < max_retry_count:
@@ -183,6 +217,7 @@ async def run_with_retry(
         if retries == max_retry_count
         else f"Error processing {input_data} datapoint"
     )
+
     return InvokationResult(
         result=Result(
             type="error",
@@ -244,6 +279,7 @@ async def batch_invoke(
 
         # Gather results of all tasks
         results = await asyncio.gather(*tasks)
+
         for result in results:
             list_of_app_outputs.append(result)
             print(f"Adding outputs to batch {start_idx}")
@@ -256,6 +292,7 @@ async def batch_invoke(
 
     # Start the first batch
     await run_batch(0)
+
     return list_of_app_outputs
 
 

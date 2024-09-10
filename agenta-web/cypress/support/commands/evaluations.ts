@@ -28,7 +28,7 @@ Cypress.Commands.add("createVariant", () => {
         }
     })
 
-    cy.contains("Single Prompt")
+    cy.contains("Single Prompt OpenAI")
         .parentsUntil('[data-cy^="app-template-card"]')
         .last()
         .contains("create app", {matchCase: false})
@@ -47,11 +47,10 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.url().should("include", "/playground")
     cy.url().then((url) => {
-        app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+        app_id = url.match(/\/apps\/([a-fA-F0-9-]+)\/playground/)[1]
 
         cy.wrap(app_id).as("app_id")
     })
-    cy.contains(/modify parameters/i)
     cy.removeLlmProviderKey()
 })
 
@@ -101,7 +100,7 @@ Cypress.Commands.add("removeLlmProviderKey", () => {
     removeLlmProviderKey()
 })
 
-Cypress.Commands.add("createNewEvaluation", () => {
+Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
     cy.request({
         url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
         method: "GET",
@@ -122,8 +121,8 @@ Cypress.Commands.add("createNewEvaluation", () => {
     cy.get('[data-cy="select-variant-group"]').click()
 
     cy.get('[data-cy="select-evaluators-group"]').click()
-    cy.get('[data-cy="select-evaluators-option"]').eq(0).click()
-    cy.get('[data-cy="select-evaluators-group"]').click()
+    cy.get('[data-cy="select-evaluators-option"]').contains(evaluatorName).eq(0).click()
+    cy.get('[data-cy="select-evaluators-group"]').click({force: true})
 
     cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
     cy.wait(1000)

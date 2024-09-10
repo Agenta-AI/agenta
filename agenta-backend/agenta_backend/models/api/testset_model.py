@@ -41,13 +41,13 @@ class DeleteTestsets(BaseModel):
 # ]
 class NewTestset(BaseModel):
     name: str
-    csvdata: List[Dict[str, str]]
+    csvdata: List[Dict[str, Any]]
 
 
 class TestSetOutputResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
-    created_at: datetime
+    created_at: str
 
     class Config:
         allow_population_by_field_name = True

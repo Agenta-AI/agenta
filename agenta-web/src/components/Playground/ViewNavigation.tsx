@@ -1,5 +1,5 @@
 import React, {useEffect, useRef} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification, Typography} from "antd"
+import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -8,16 +8,15 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {
-    fetchVariantLogs,
-    getAppContainerURL,
-    removeVariant,
-    restartAppVariantContainer,
-    waitForAppToStart,
-} from "@/lib/services/api"
+import {fetchAppContainerURL, waitForAppToStart} from "@/services/api"
 import {useAppsData} from "@/contexts/app.context"
 import {isDemo} from "@/lib/helpers/utils"
 import ResultComponent from "../ResultComponent/ResultComponent"
+import {
+    deleteSingleVariant,
+    fetchVariantLogs,
+    restartAppVariantContainer,
+} from "@/services/playground/api"
 
 const {Text} = Typography
 
@@ -70,17 +69,24 @@ const ViewNavigation: React.FC<Props> = ({
         historyStatus,
         setPromptOptParams,
         setHistoryStatus,
+        getVariantLogs,
+        isLogsLoading,
+        variantErrorLogs,
+        setIsLogsLoading,
+        onClickShowLogs,
     } = useVariant(appId, variant)
 
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
-    const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
     const retriedOnce = useRef(false)
     const netWorkError = (error as any)?.code === "ERR_NETWORK"
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+    const stopperRef = useRef<Function | null>(null)
+    const [isDelayed, setIsDelayed] = useState(false)
+    const hasError = netWorkError || (isDemo() ? netWorkError : isError)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -90,41 +96,89 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     useEffect(() => {
-        if (netWorkError) {
+        if (hasError) {
             retriedOnce.current = true
             setRetrying(true)
-            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
-                .then(() => {
-                    refetch()
+            const startApp = async () => {
+                const {stopper, promise} = await waitForAppToStart({
+                    appId,
+                    variant,
+                    timeout: isDemo() ? 40000 : 10000,
                 })
-                .catch(() => {
-                    showNotification({
-                        type: "error",
-                        message: "Variant unreachable",
-                        description: `Unable to connect to the variant.`,
-                    })
-                })
-                .finally(() => {
-                    setRetrying(false)
-                })
-        }
+                stopperRef.current = stopper
 
-        if (isError) {
-            const getLogs = async () => {
-                const logs = await fetchVariantLogs(variant.variantId)
-                setVariantErrorLogs(logs)
+                promise
+                    .then(() => {
+                        if (!onClickShowLogs.current) {
+                            refetch()
+                        }
+                    })
+                    .catch(() => {
+                        getVariantLogs()
+
+                        showNotification({
+                            type: "error",
+                            message: "Variant unreachable",
+                            description: `Unable to connect to the variant.`,
+                        })
+                    })
+                    .finally(() => {
+                        setRetrying(false)
+                        setIsDelayed(false)
+                    })
             }
-            getLogs()
+            startApp()
         }
     }, [netWorkError, isError, variant.variantId])
 
+    useEffect(() => {
+        if (retrying) {
+            const timeout = setTimeout(
+                () => {
+                    setIsDelayed(true)
+                },
+                isDemo() ? 15000 : 5000,
+            )
+            return () => clearTimeout(timeout)
+        }
+    }, [retrying])
+
+    const handleStopPolling = () => {
+        setIsLogsLoading(true)
+        if (stopperRef.current) {
+            onClickShowLogs.current = true
+            stopperRef.current()
+            getVariantLogs()
+        }
+    }
+
+    if (isLoading)
+        return <ResultComponent status="info" title="Loading variants..." spinner={true} />
+
+    if (isLogsLoading && isError)
+        return <ResultComponent status="info" title="Fetching variants logs..." spinner={true} />
+
     if (retrying || (!retriedOnce.current && netWorkError)) {
         return (
-            <ResultComponent
-                status={"info"}
-                title="Waiting for the variant to start"
-                spinner={retrying}
-            />
+            <>
+                <div className="grid place-items-center">
+                    <ResultComponent
+                        status={"info"}
+                        title="Waiting for the variant to start"
+                        subtitle={isDelayed ? "This is taking longer than expected" : ""}
+                        spinner={retrying}
+                    />
+                    {isDelayed && (
+                        <Button
+                            loading={isLogsLoading}
+                            onClick={() => handleStopPolling()}
+                            type="primary"
+                        >
+                            Show Logs
+                        </Button>
+                    )}
+                </div>
+            </>
         )
     }
 
@@ -141,7 +195,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
+            const url = await fetchAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURI(url)
         }
         if (!containerURI) {
@@ -211,25 +265,27 @@ const ViewNavigation: React.FC<Props> = ({
                             </a>
                         </p>
 
-                        <Button
-                            type="primary"
-                            onClick={() => {
-                                restartContainerHandler()
-                            }}
-                            disabled={restarting}
-                            loading={restarting}
-                            className={classes.restartBtnMargin}
-                        >
-                            <Tooltip placement="bottom" title="Restart the variant container">
-                                Restart Container
-                            </Tooltip>
-                        </Button>
+                        {!isDemo() && (
+                            <Button
+                                type="primary"
+                                onClick={() => {
+                                    restartContainerHandler()
+                                }}
+                                disabled={restarting}
+                                loading={restarting}
+                                className={classes.restartBtnMargin}
+                            >
+                                <Tooltip placement="bottom" title="Restart the variant container">
+                                    Restart Container
+                                </Tooltip>
+                            </Button>
+                        )}
 
                         <Button
                             type="primary"
                             danger
                             onClick={() => {
-                                deleteVariant(() => removeVariant(variant.variantId))
+                                deleteVariant(() => deleteSingleVariant(variant.variantId))
                             }}
                         >
                             <Tooltip placement="bottom" title="Delete the variant permanently">
@@ -243,7 +299,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     return (
-        <Spin spinning={isLoading}>
+        <>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -278,13 +334,12 @@ const ViewNavigation: React.FC<Props> = ({
                         variant={variant}
                         isChatVariant={!!isChatVariant}
                         compareMode={compareMode}
-                        onStateChange={onStateChange}
                         setPromptOptParams={setPromptOptParams}
                         promptOptParams={promptOptParams}
                     />
                 </Col>
             </Row>
-        </Spin>
+        </>
     )
 }
 

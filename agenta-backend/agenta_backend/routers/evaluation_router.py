@@ -1,4 +1,4 @@
-import secrets
+import random
 import logging
 from typing import Any, List
 
@@ -8,23 +8,20 @@ from fastapi import HTTPException, Request, status, Response, Query
 from agenta_backend.models import converters
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluation_service, db_manager
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     NewEvaluation,
     DeleteEvaluation,
-    EvaluationWebhook,
 )
 from agenta_backend.services.evaluator_manager import (
     check_ai_critique_inputs,
 )
+from agenta_backend.services import evaluation_service, db_manager, app_manager
 
 if isCloudEE():
-    from agenta_backend.commons.models.db_models import Permission
+    from agenta_backend.commons.models.shared_models import Permission
     from agenta_backend.commons.utils.permissions import check_action_access
-
-from beanie import PydanticObjectId as ObjectId
 
 
 router = APIRouter()
@@ -34,7 +31,7 @@ logger.setLevel(logging.DEBUG)
 
 @router.get(
     "/by_resource/",
-    response_model=List[ObjectId],
+    response_model=List[str],
 )
 async def fetch_evaluation_ids(
     app_id: str,
@@ -73,11 +70,14 @@ async def fetch_evaluation_ids(
                     {"detail": error_msg},
                     status_code=403,
                 )
-        evaluations = await evaluation_service.fetch_evaluations_by_resource(
+        evaluations = await db_manager.fetch_evaluations_by_resource(
             resource_type, resource_ids
         )
-        return list(map(lambda x: x.id, evaluations))
+        return list(map(lambda x: str(x.id), evaluations))
     except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -119,11 +119,6 @@ async def create_evaluation(
             return response
 
         evaluations = []
-        correct_answer_column = (
-            "correct_answer"
-            if payload.correct_answer_column is None
-            else payload.correct_answer_column
-        )
 
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
@@ -141,9 +136,16 @@ async def create_evaluation(
                 evaluation_id=evaluation.id,
                 rate_limit_config=payload.rate_limit.dict(),
                 lm_providers_keys=payload.lm_providers_keys,
-                correct_answer_column=correct_answer_column,
             )
             evaluations.append(evaluation)
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
 
         return evaluations
     except KeyError:
@@ -151,6 +153,12 @@ async def create_evaluation(
             status_code=400,
             detail="columns in the test set should match the names of the inputs in the variant",
         )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code, detail=str(e))
 
 
 @router.get("/{evaluation_id}/status/", operation_id="fetch_evaluation_status")
@@ -220,8 +228,8 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
                     status_code=403,
                 )
 
-        results = await converters.aggregated_result_to_pydantic(
-            evaluation.aggregated_results
+        results = converters.aggregated_result_of_evaluation_to_pydantic(
+            evaluation.aggregated_results  # type: ignore
         )
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
@@ -251,6 +259,11 @@ async def fetch_evaluation_scenarios(
 
     try:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            raise HTTPException(
+                status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
+            )
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -270,13 +283,17 @@ async def fetch_evaluation_scenarios(
 
         eval_scenarios = (
             await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-                evaluation=evaluation
+                evaluation_id=str(evaluation.id)
             )
         )
         return eval_scenarios
 
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+
+        traceback.print_exc()
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -313,7 +330,14 @@ async def fetch_list_evaluations(
 
         return await evaluation_service.fetch_list_evaluations(app)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        import traceback
+
+        traceback.print_exc()
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Could not retrieve evaluation results: {str(exc)}",
+        )
 
 
 @router.get(
@@ -333,6 +357,11 @@ async def fetch_evaluation(
     """
     try:
         evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            raise HTTPException(
+                status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
+            )
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -353,12 +382,13 @@ async def fetch_evaluation(
 
         return await converters.evaluation_db_to_pydantic(evaluation)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_evaluations")
 async def delete_evaluations(
-    delete_evaluations: DeleteEvaluation,
+    payload: DeleteEvaluation,
     request: Request,
 ):
     """
@@ -373,46 +403,34 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            for evaluation_id in delete_evaluations.evaluations_ids:
-                has_permission = await check_action_access(
-                    user_uid=request.state.user_id,
-                    object_id=evaluation_id,
-                    object_type="evaluation",
-                    permission=Permission.DELETE_EVALUATION,
+            evaluation_id = random.choice(payload.evaluations_ids)
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object_id=evaluation_id,
+                object_type="evaluation",
+                permission=Permission.DELETE_EVALUATION,
+            )
+            logger.debug(f"User has permission to delete evaluation: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
                 )
-                logger.debug(
-                    f"User has permission to delete evaluation: {has_permission}"
-                )
-                if not has_permission:
-                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                    logger.error(error_msg)
-                    return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=403,
-                    )
 
-        await evaluation_service.delete_evaluations(delete_evaluations.evaluations_ids)
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=random.choice(payload.evaluations_ids),
+            object_type="evaluation",
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
+        await evaluation_service.delete_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.post(
-    "/webhook_example_fake/",
-    response_model=EvaluationWebhook,
-    operation_id="webhook_example_fake",
-)
-async def webhook_example_fake():
-    """Returns a fake score response for example webhook evaluation
-
-    Returns:
-        _description_
-    """
-
-    # return a random score b/w 0 and 1
-    random_generator = secrets.SystemRandom()
-    random_number = random_generator.random()
-    return {"score": random_number}
 
 
 @router.get(

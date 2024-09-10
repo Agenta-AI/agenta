@@ -2,7 +2,7 @@ import React, {useEffect, useState} from "react"
 import {useAppId} from "@/hooks/useAppId"
 import {Evaluation, EvaluationScenario} from "@/lib/Types"
 import {EvaluationFlow} from "@/lib/enums"
-import {createNewTestset} from "@/lib/services/api"
+import {createNewTestset} from "@/services/testsets/api"
 import {Form, Input, Modal} from "antd"
 
 type EvaluationRow = EvaluationScenario & {
@@ -68,7 +68,10 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
                     rules={[{required: true, message: "Please enter test set name!"}]}
                     name="testset_name"
                 >
-                    <Input placeholder="Test set name" />
+                    <Input
+                        placeholder="Test set name"
+                        data-cy="single-model-save-testset-modal-input"
+                    />
                 </Form.Item>
             </Form>
         </Modal>
