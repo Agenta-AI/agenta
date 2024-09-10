@@ -8,7 +8,6 @@ from opentelemetry.sdk.trace.export import (
 
 
 class InlineTraceExporter(SpanExporter):
-
     def __init__(
         self,
         registry: Dict[str, ReadableSpan],

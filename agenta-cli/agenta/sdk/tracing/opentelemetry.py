@@ -38,7 +38,6 @@ class Tracing:
         app_id: Optional[str] = None,
         api_key: Optional[str] = None,
     ) -> None:
-
         # ENDPOINT
         self.url = url  # "http://localhost:4318/v1/traces"
         # AUTHENTICATION

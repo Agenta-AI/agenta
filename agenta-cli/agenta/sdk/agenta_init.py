@@ -101,7 +101,6 @@ class AgentaSingleton:
 
 
 class Config:
-
     def __init__(
         self,
         host: str,

@@ -11,7 +11,6 @@ from agenta.sdk.tracing.exporters import InlineTraceExporter
 
 
 class ConcurrentTracerProvider(TracerProvider):
-
     def __init__(
         self,
         name: str,
