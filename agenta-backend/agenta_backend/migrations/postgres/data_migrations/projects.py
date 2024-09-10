@@ -16,7 +16,7 @@ def get_default_projects(session):
 
 
 def create_default_project():
-    PROJECT_NAME = "Default"
+    PROJECT_NAME = "Default Project"
     engine = create_engine(os.getenv("POSTGRES_URI"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
