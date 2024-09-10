@@ -3,12 +3,14 @@ import httpx
 
 from threading import Lock
 from datetime import datetime
+from collections import OrderedDict
 from typing import Optional, Dict, Any, List, Literal, Sequence
 from contextlib import contextmanager, suppress
 from importlib.metadata import version
 
 from agenta.sdk.utils.logging import log
 from agenta.client.backend.types.create_span import CreateSpan, LlmTokens
+from agenta.sdk.context.tracing import tracing_context
 
 from opentelemetry.trace import set_tracer_provider
 from opentelemetry.context import Context
@@ -191,8 +193,6 @@ class Tracing:
         # EXPERIMENT
         self.experiment_id = experiment_id
 
-        log.info(f"---------- {self.app_id}")
-
         # HEADERS
         self.headers = {}
         if api_key:
@@ -360,93 +360,6 @@ class Tracing:
                 self._value(value),
             )
 
-    def store_internals(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("data.internals", attributes, span)
-
-    def is_processing(self) -> bool:
-        return not self.inline_processor.is_done()
-
-    def get_inline_trace(self, trace_id_only: bool = False):
-        spans_idx: Dict[str, List[ReadableSpan]] = dict()
-
-        for span in self.spans.values():
-            span: ReadableSpan
-
-            trace_id = span.context.trace_id.to_bytes(16, "big").hex()
-
-            if trace_id not in spans_idx:
-                spans_idx[trace_id] = list()
-
-            if not trace_id_only:
-                spans_idx[trace_id].append(self._parse_to_legacy_span(span))
-
-        inline_traces = [
-            {
-                "trace_id": trace_id,
-                "cost": sum(
-                    float(
-                        span.attributes.get(
-                            "ag.metrics.marginal.costs.total",
-                            0.0,
-                        )
-                    )
-                    for span in self.spans.values()
-                ),
-                "tokens": {
-                    "prompt": sum(
-                        int(
-                            span.attributes.get(
-                                "ag.metrics.marginal.tokens.prompt",
-                                0,
-                            )
-                        )
-                        for span in self.spans.values()
-                    ),
-                    "completion": sum(
-                        int(
-                            span.attributes.get(
-                                "ag.metrics.marginal.tokens.completion",
-                                0,
-                            )
-                        )
-                        for span in self.spans.values()
-                    ),
-                    "total": sum(
-                        int(
-                            span.attributes.get(
-                                "ag.metrics.marginal.tokens.total",
-                                0,
-                            )
-                        )
-                        for span in self.spans.values()
-                    ),
-                },
-                "latency": sum(
-                    float(span.end_time - span.start_time) / 1_000_000_000
-                    for span in self.spans.values()
-                    if span.parent is None
-                ),
-                "spans": spans,
-            }
-            for trace_id, spans in spans_idx.items()
-        ]
-
-        print(
-            "-------",
-            sum(
-                float(span.end_time - span.start_time) / 1_000_000_000
-                for span in self.spans.values()
-                if span.parent is None
-            ),
-        )
-
-        self.spans.clear()
-
-        if len(inline_traces) > 1:
-            log.error("Unexpected error while parsing inline trace: too many traces.")
-
-        return inline_traces[0]
-
     def _get_attributes(
         self,
         namespace: str,
@@ -458,10 +371,67 @@ class Tracing:
             if k.startswith(self._key(namespace))
         }
 
-    def _parse_to_legacy_span(
-        self,
-        span: ReadableSpan,
-    ):
+    def store_internals(self, attributes: dict, span: Optional[Span] = None) -> None:
+        self.set_attributes("data.internals", attributes, span)
+
+    def is_processing(self) -> bool:
+        return not self.inline_processor.is_done()
+
+    def get_inline_trace(self, trace_id_only: bool = False):
+        traces_idx: Dict[str, Dict[str, ReadableSpan]] = dict()
+
+        for span in self.spans.values():
+            span: ReadableSpan
+
+            trace_id = span.context.trace_id.to_bytes(16, "big").hex()
+            span_id = span.context.span_id.to_bytes(8, "big").hex()
+
+            if trace_id not in traces_idx:
+                traces_idx[trace_id] = dict()
+
+            if not trace_id_only:
+                traces_idx[trace_id][span_id] = self._parse_to_legacy_span(span)
+
+        if len(traces_idx) > 1:
+            log.error("Rrror while parsing inline trace: too many traces.")
+
+        trace_id = list(traces_idx.keys())[0]
+        spans_idx = traces_idx[trace_id]
+
+        spans_id_tree = self._make_spans_id_tree(spans_idx)
+
+        if len(spans_id_tree) > 1:
+            log.error("Error while parsing inline trace: too many root spans.")
+
+        root_span_id = list(spans_id_tree.keys())[0]
+
+        self._cumulate_costs(spans_id_tree, spans_idx)
+        self._cumulate_tokens(spans_id_tree, spans_idx)
+
+        inline_traces = [
+            {
+                "trace_id": trace_id,
+                "cost": spans_idx[root_span_id]["cost"],
+                "tokens": spans_idx[root_span_id]["tokens"],
+                "latency": datetime.fromisoformat(
+                    spans_idx[root_span_id]["end_time"].replace("Z", "+00:00")
+                ).timestamp()
+                - datetime.fromisoformat(
+                    spans_idx[root_span_id]["start_time"].replace("Z", "+00:00")
+                ).timestamp(),
+                "spans": list(spans.values()),
+            }
+            for trace_id, spans in traces_idx.items()
+        ]
+
+        self.spans.clear()
+
+        if len(inline_traces) > 1:
+            log.error("Unexpected error while parsing inline trace: too many traces.")
+
+        return inline_traces[0]
+
+    def _parse_to_legacy_span(self, span: ReadableSpan):
 
         attributes = dict(span.attributes)
 
@@ -490,30 +460,112 @@ class Tracing:
             internals=self._get_attributes("data.internals", span),
             outputs=self._get_attributes("data.outputs", span),
             #
-            config=self._get_attributes("metadata.config", span),
+            config=json.loads(
+                self._get_attributes("metadata", span).get("config", "{}")
+            ),
             #
             tokens=LlmTokens(
                 prompt_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
-                    "prompt",
-                    None,
+                    "prompt", 0
                 ),
                 completion_tokens=self._get_attributes(
                     "metrics.marginal.tokens", span
-                ).get("completion", None),
+                ).get("completion", 0),
                 total_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
-                    "total", None
+                    "total", 0
                 ),
             ),
             cost=self._get_attributes("metrics.marginal.costs", span).get("total", 0.0),
             #
             app_id=self._get_attributes("extra", span).get("app_id", ""),
+            environment=self._get_attributes("metadata", span).get("environment"),
+            #
             variant_id=None,
             variant_name=None,
-            environment=None,
             tags=None,
             token_consumption=None,
             attributes=attributes,
             user=None,
         )
 
-        return json.loads(legacy_span.json())
+        return json.loads(legacy_span.model_dump_json())
+
+    def _make_spans_id_tree(self, spans):
+        tree = OrderedDict()
+        index = {}
+
+        def push(span) -> None:
+            if span["parent_span_id"] is None:
+                tree[span["id"]] = OrderedDict()
+                index[span["id"]] = tree[span["id"]]
+            elif span["parent_span_id"] in index:
+                index[span["parent_span_id"]][span["id"]] = OrderedDict()
+                index[span["id"]] = index[span["parent_span_id"]][span["id"]]
+            else:
+                log.error("The parent span id should have been in the tracing tree.")
+
+        for span in sorted(spans.values(), key=lambda span: span["start_time"]):
+            push(span)
+
+        return tree
+
+    def _visit_tree_dfs(
+        self,
+        spans_id_tree: OrderedDict,
+        spans_idx: Dict[str, CreateSpan],
+        get_metric,
+        accumulate_metric,
+        set_metric,
+    ):
+        for span_id, children_spans_id_tree in spans_id_tree.items():
+            cumulated_metric = get_metric(spans_idx[span_id])
+
+            self._visit_tree_dfs(
+                children_spans_id_tree,
+                spans_idx,
+                get_metric,
+                accumulate_metric,
+                set_metric,
+            )
+
+            for child_span_id in children_spans_id_tree.keys():
+                child_metric = get_metric(spans_idx[child_span_id])
+                cumulated_metric = accumulate_metric(cumulated_metric, child_metric)
+
+            set_metric(spans_idx[span_id], cumulated_metric)
+
+    def _cumulate_costs(
+        self,
+        spans_id_tree: OrderedDict,
+        spans_idx: Dict[str, dict],
+    ):
+        def _get(span):
+            return span["cost"]
+
+        def _acc(a, b):
+            return a + b
+
+        def _set(span, cost):
+            span["cost"] = cost
+
+        self._visit_tree_dfs(spans_id_tree, spans_idx, _get, _acc, _set)
+
+    def _cumulate_tokens(
+        self,
+        spans_id_tree: OrderedDict,
+        spans_idx: Dict[str, dict],
+    ):
+        def _get(span):
+            return span["tokens"]
+
+        def _acc(a, b):
+            return {
+                "prompt_tokens": a["prompt_tokens"] + b["prompt_tokens"],
+                "completion_tokens": a["completion_tokens"] + b["completion_tokens"],
+                "total_tokens": a["total_tokens"] + b["total_tokens"],
+            }
+
+        def _set(span, tokens):
+            span["tokens"] = tokens
+
+        self._visit_tree_dfs(spans_id_tree, spans_idx, _get, _acc, _set)
