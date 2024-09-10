@@ -58,7 +58,10 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                 </div>
             }
         >
-            <Tag className="w-fit cursor-pointer" onClick={(e) => e.stopPropagation()}>
+            <Tag
+                className="w-fit cursor-pointer py-[1px] px-2"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <Badge
                     color={token.colorPrimary}
                     text={formatVariantIdWithHash(env.deployed_app_variant_id as string)}
