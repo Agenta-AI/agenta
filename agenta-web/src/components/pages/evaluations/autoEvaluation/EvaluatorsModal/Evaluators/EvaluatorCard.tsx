@@ -2,7 +2,7 @@ import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, Note, Trash} from "@phosphor-icons/react"
-import {Button, Card, Dropdown, Tag, Typography} from "antd"
+import {Button, Card, Dropdown, Empty, Tag, Typography} from "antd"
 import {useAtom} from "jotai"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -21,9 +21,10 @@ interface EvaluatorCardProps {
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
-        flexDirection: "column",
-        gap: theme.paddingLG,
-        height: 600,
+        flexWrap: "wrap",
+        gap: theme.padding,
+        height: "100%",
+        maxHeight: 600,
         overflowY: "auto",
     },
     cardTitle: {
@@ -34,6 +35,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluatorCard: {
         width: 276,
         display: "flex",
+        height: "fit-content",
         flexDirection: "column",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
@@ -60,6 +62,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "&:hover": {},
     },
+    centeredItem: {
+        display: "grid",
+        placeItems: "center",
+        width: "100%",
+        height: 600,
+    },
 }))
 
 const EvaluatorCard = ({
@@ -76,128 +84,111 @@ const EvaluatorCard = ({
     const [openDeleteModal, setOpenDeleteModal] = useState(false)
     const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
 
-    const formatEvluatorConfigs = Object.entries(
-        evaluatorConfigs.reduce(
-            (acc, curr) => {
-                if (!acc[curr.evaluator_key]) {
-                    acc[curr.evaluator_key] = []
-                }
-                acc[curr.evaluator_key].push(curr)
-                return acc
-            },
-            {} as Record<string, EvaluatorConfig[]>,
-        ),
-    ).map(([title, items]) => ({
-        title,
-        items,
-    }))
-
     return (
         <div className={classes.container}>
-            {formatEvluatorConfigs.map(({title, items}) => (
-                <div className="flex flex-col gap-2" key={title}>
-                    <Typography.Text className={classes.cardTitle}>{title}</Typography.Text>
-                    <div className="flex gap-4">
-                        {items.map((item) => {
-                            const evaluator = evaluators.find((e) => e.key === item.evaluator_key)
+            {evaluatorConfigs.length ? (
+                evaluatorConfigs.map((item) => {
+                    const evaluator = evaluators.find((e) => e.key === item.evaluator_key)
 
-                            return (
-                                <Card
-                                    key={item.id}
-                                    className={classes.evaluatorCard}
-                                    onClick={() => {
-                                        const selectedEval = evaluators.find(
-                                            (e) => e.key === item.evaluator_key,
-                                        )
-                                        if (selectedEval) {
-                                            setEditMode(true)
-                                            setSelectedEvaluator(selectedEval)
-                                            setEditEvalEditValues(item)
-                                            setCurrent(2)
-                                        }
+                    return (
+                        <Card
+                            key={item.id}
+                            className={classes.evaluatorCard}
+                            onClick={() => {
+                                const selectedEval = evaluators.find(
+                                    (e) => e.key === item.evaluator_key,
+                                )
+                                if (selectedEval) {
+                                    setEditMode(true)
+                                    setSelectedEvaluator(selectedEval)
+                                    setEditEvalEditValues(item)
+                                    setCurrent(2)
+                                }
+                            }}
+                            title={item.name}
+                            extra={
+                                <Dropdown
+                                    trigger={["click"]}
+                                    placement="bottomCenter"
+                                    overlayStyle={{width: 180}}
+                                    menu={{
+                                        items: [
+                                            {
+                                                key: "view_config",
+                                                label: "View configuration",
+                                                icon: <Note size={16} />,
+                                                onClick: (e: any) => {
+                                                    e.domEvent.stopPropagation()
+                                                    const selectedEval = evaluators.find(
+                                                        (e) => e.key === item.evaluator_key,
+                                                    )
+                                                    if (selectedEval) {
+                                                        setEditMode(true)
+                                                        setSelectedEvaluator(selectedEval)
+                                                        setEditEvalEditValues(item)
+                                                        setCurrent(2)
+                                                    }
+                                                },
+                                            },
+                                            {
+                                                key: "clone",
+                                                label: "Clone",
+                                                icon: <Copy size={16} />,
+                                                onClick: (e: any) => {
+                                                    e.domEvent.stopPropagation()
+                                                    const selectedEval = evaluators.find(
+                                                        (e) => e.key === item.evaluator_key,
+                                                    )
+                                                    if (selectedEval) {
+                                                        setCloneConfig(true)
+                                                        setSelectedEvaluator(selectedEval)
+                                                        setEditEvalEditValues(item)
+                                                        setCurrent(2)
+                                                    }
+                                                },
+                                            },
+                                            {type: "divider"},
+                                            {
+                                                key: "delete_app",
+                                                label: "Delete",
+                                                icon: <Trash size={16} />,
+                                                danger: true,
+                                                onClick: (e: any) => {
+                                                    e.domEvent.stopPropagation()
+                                                    setOpenDeleteModal(true)
+                                                    setSelectedDelEval(item)
+                                                },
+                                            },
+                                        ],
                                     }}
-                                    title={item.name}
-                                    extra={
-                                        <Dropdown
-                                            trigger={["click"]}
-                                            placement="bottomCenter"
-                                            overlayStyle={{width: 180}}
-                                            menu={{
-                                                items: [
-                                                    {
-                                                        key: "view_config",
-                                                        label: "View configuration",
-                                                        icon: <Note size={16} />,
-                                                        onClick: (e: any) => {
-                                                            e.domEvent.stopPropagation()
-                                                            const selectedEval = evaluators.find(
-                                                                (e) => e.key === item.evaluator_key,
-                                                            )
-                                                            if (selectedEval) {
-                                                                setEditMode(true)
-                                                                setSelectedEvaluator(selectedEval)
-                                                                setEditEvalEditValues(item)
-                                                                setCurrent(2)
-                                                            }
-                                                        },
-                                                    },
-                                                    {
-                                                        key: "clone",
-                                                        label: "Clone",
-                                                        icon: <Copy size={16} />,
-                                                        onClick: (e: any) => {
-                                                            e.domEvent.stopPropagation()
-                                                            const selectedEval = evaluators.find(
-                                                                (e) => e.key === item.evaluator_key,
-                                                            )
-                                                            if (selectedEval) {
-                                                                setCloneConfig(true)
-                                                                setSelectedEvaluator(selectedEval)
-                                                                setEditEvalEditValues(item)
-                                                                setCurrent(2)
-                                                            }
-                                                        },
-                                                    },
-                                                    {type: "divider"},
-                                                    {
-                                                        key: "delete_app",
-                                                        label: "Delete",
-                                                        icon: <Trash size={16} />,
-                                                        danger: true,
-                                                        onClick: (e: any) => {
-                                                            e.domEvent.stopPropagation()
-                                                            setOpenDeleteModal(true)
-                                                            setSelectedDelEval(item)
-                                                        },
-                                                    },
-                                                ],
-                                            }}
-                                        >
-                                            <Button
-                                                type="text"
-                                                onClick={(e) => e.stopPropagation()}
-                                                icon={<MoreOutlined />}
-                                                size="small"
-                                            />
-                                        </Dropdown>
-                                    }
                                 >
-                                    <div>
-                                        <Typography.Text>Type</Typography.Text>
-                                        <Tag color={item.color} className="mr-0">
-                                            {evaluator?.name}
-                                        </Tag>
-                                    </div>
-                                    <div>
-                                        <Typography.Text>Version</Typography.Text>
-                                        <Typography.Text type="secondary">v1.1</Typography.Text>
-                                    </div>
-                                </Card>
-                            )
-                        })}
-                    </div>
+                                    <Button
+                                        type="text"
+                                        onClick={(e) => e.stopPropagation()}
+                                        icon={<MoreOutlined />}
+                                        size="small"
+                                    />
+                                </Dropdown>
+                            }
+                        >
+                            <div>
+                                <Typography.Text>Type</Typography.Text>
+                                <Tag color={item.color} className="mr-0">
+                                    {evaluator?.name}
+                                </Tag>
+                            </div>
+                            <div>
+                                <Typography.Text>Version</Typography.Text>
+                                <Typography.Text type="secondary">v1.1</Typography.Text>
+                            </div>
+                        </Card>
+                    )
+                })
+            ) : (
+                <div className={classes.centeredItem}>
+                    <Empty description="Evaluation not found" />
                 </div>
-            ))}
+            )}
 
             {selectedDelEval && (
                 <DeleteModal

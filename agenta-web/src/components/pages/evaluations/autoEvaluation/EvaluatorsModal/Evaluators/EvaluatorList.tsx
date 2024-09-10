@@ -71,6 +71,9 @@ const EvaluatorList = ({
             onHeaderCell: () => ({
                 style: {minWidth: 400},
             }),
+            render: (_, record) => {
+                return record.tags?.map((tag, index) => <Tag key={index}>{tag}</Tag>)
+            },
         },
         {
             title: <GearSix size={16} />,

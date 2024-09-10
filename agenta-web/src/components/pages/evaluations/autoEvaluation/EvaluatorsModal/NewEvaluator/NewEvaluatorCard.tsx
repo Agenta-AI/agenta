@@ -1,5 +1,5 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
-import {Card, Typography} from "antd"
+import {Card, Empty, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
@@ -12,10 +12,11 @@ interface CreateEvaluatorCardProps {
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
-        flexDirection: "column",
-        gap: theme.paddingLG,
+        flexWrap: "wrap",
+        gap: theme.padding,
+        height: "100%",
+        maxHeight: 600,
         overflowY: "auto",
-        height: 600,
     },
     cardTitle: {
         fontSize: theme.fontSizeLG,
@@ -23,9 +24,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: theme.fontWeightMedium,
     },
     evaluatorCard: {
+        flexDirection: "column",
         width: 276,
         display: "flex",
-        flexDirection: "column",
+        height: "fit-content",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
         "& > .ant-card-head": {
@@ -48,6 +50,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "&:hover": {},
     },
+    centeredItem: {
+        display: "grid",
+        placeItems: "center",
+        width: "100%",
+        height: 600,
+    },
 }))
 
 const CreateEvaluatorCard = ({
@@ -59,24 +67,25 @@ const CreateEvaluatorCard = ({
 
     return (
         <div className={classes.container}>
-            <div className="flex flex-col gap-2">
-                <Typography.Text className={classes.cardTitle}>Evaluator Title</Typography.Text>
-                <div className="flex gap-4 flex-wrap">
-                    {evaluators.map((evaluator) => (
-                        <Card
-                            key={evaluator.key}
-                            className={classes.evaluatorCard}
-                            title={evaluator.name}
-                            onClick={() => {
-                                setSelectedEvaluator(evaluator)
-                                setCurrent(2)
-                            }}
-                        >
-                            <Typography.Text>{evaluator.description}</Typography.Text>
-                        </Card>
-                    ))}
+            {evaluators.length ? (
+                evaluators.map((evaluator) => (
+                    <Card
+                        key={evaluator.key}
+                        className={classes.evaluatorCard}
+                        title={evaluator.name}
+                        onClick={() => {
+                            setSelectedEvaluator(evaluator)
+                            setCurrent(2)
+                        }}
+                    >
+                        <Typography.Text>{evaluator.description}</Typography.Text>
+                    </Card>
+                ))
+            ) : (
+                <div className={classes.centeredItem}>
+                    <Empty description="Evaluator not found" />
                 </div>
-            </div>
+            )}
         </div>
     )
 }

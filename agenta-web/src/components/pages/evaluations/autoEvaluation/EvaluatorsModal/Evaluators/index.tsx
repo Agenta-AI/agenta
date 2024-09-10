@@ -7,6 +7,8 @@ import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
 import {getEvaluatorTags} from "@/lib/helpers/evaluate"
+import {useAtom} from "jotai"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 
 type EvaluatorsProps = {
     evaluatorConfigs: EvaluatorConfig[]
@@ -78,29 +80,32 @@ const Evaluators = ({
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const evaluatorTags = getEvaluatorTags()
+    const evaluators = useAtom(evaluatorsAtom)[0]
 
-    const filteredEvalConfigs = useMemo(() => {
-        if (!searchTerm) return evaluatorConfigs
-        return evaluatorConfigs.filter((item) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, evaluatorConfigs])
+    const updatedEvaluatorConfigs = useMemo(() => {
+        return evaluatorConfigs.map((config) => {
+            const matchingEvaluator = evaluators.find(
+                (evaluator) => evaluator.key === config.evaluator_key,
+            )
+            return matchingEvaluator ? {...config, tags: matchingEvaluator.tags} : config
+        })
+    }, [evaluatorConfigs, evaluators])
 
-    // const filteredEvaluators = useMemo(() => {
-    //     let filtered = evaluatorConfigs
+    const filteredEvaluators = useMemo(() => {
+        let filtered = updatedEvaluatorConfigs
 
-    //     if (selectedEvaluatorCategory !== "view_all") {
-    //         filtered = filtered.filter((item) => item.tags.includes(selectedEvaluatorCategory))
-    //     }
+        if (selectedEvaluatorCategory !== "view_all") {
+            filtered = filtered.filter((item) => item.tags?.includes(selectedEvaluatorCategory))
+        }
 
-    //     if (searchTerm) {
-    //         filtered = filtered.filter((item) =>
-    //             item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-    //         )
-    //     }
+        if (searchTerm) {
+            filtered = filtered.filter((item) =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
 
-    //     return filtered
-    // }, [searchTerm, selectedEvaluatorCategory, evaluatorConfigs])
+        return filtered
+    }, [searchTerm, selectedEvaluatorCategory, updatedEvaluatorConfigs])
 
     return (
         <div>
@@ -162,7 +167,7 @@ const Evaluators = ({
             <Spin spinning={fetchingEvalConfigs}>
                 {evaluatorsDisplay === "list" ? (
                     <EvaluatorList
-                        evaluatorConfigs={filteredEvalConfigs}
+                        evaluatorConfigs={filteredEvaluators}
                         setEditMode={setEditMode}
                         setCurrent={setCurrent}
                         setSelectedEvaluator={setSelectedEvaluator}
@@ -172,7 +177,7 @@ const Evaluators = ({
                     />
                 ) : (
                     <EvaluatorCard
-                        evaluatorConfigs={filteredEvalConfigs}
+                        evaluatorConfigs={filteredEvaluators}
                         setEditMode={setEditMode}
                         setCurrent={setCurrent}
                         setSelectedEvaluator={setSelectedEvaluator}
