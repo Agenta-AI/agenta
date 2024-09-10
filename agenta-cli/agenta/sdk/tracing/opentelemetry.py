@@ -1,175 +1,31 @@
-import json
 import httpx
 
-from threading import Lock
-from datetime import datetime
-from collections import OrderedDict
-from typing import Optional, Dict, Any, List, Literal, Sequence
-from contextlib import contextmanager, suppress
-from importlib.metadata import version
-
-from agenta.sdk.utils.logging import log
-from agenta.client.backend.types.create_span import CreateSpan, LlmTokens
-from agenta.sdk.context.tracing import tracing_context
+from typing import Optional, Any, Dict
+from contextlib import contextmanager
 
 from opentelemetry.trace import set_tracer_provider
-from opentelemetry.context import Context
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import (
-    Span,
-    TracerProvider,
-    ConcurrentMultiSpanProcessor,
-    SynchronousMultiSpanProcessor,
-    Status as FullStatus,
-    StatusCode,
-)
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
-)
 from opentelemetry.trace.propagation import get_current_span
-from opentelemetry.sdk.trace.export import (
-    SpanExportResult,
-    SpanExporter,
-    ReadableSpan,
-    BatchSpanProcessor,
-    _DEFAULT_EXPORT_TIMEOUT_MILLIS,
-    _DEFAULT_MAX_QUEUE_SIZE,
-)
+from opentelemetry.sdk.trace import Span
+from opentelemetry.sdk.trace.export import ReadableSpan
 
-_AGENTA_ROOT_SPAN_ID = "f" * 16
+from agenta.sdk.utils.logging import log
+
+from agenta.sdk.tracing.conventions import Namespace, Status
+from agenta.sdk.tracing.tracers import ConcurrentTracerProvider
+from agenta.sdk.tracing.spans import (
+    set_status as otel_set_status,
+    add_event as otel_add_event,
+    record_exception as otel_record_exception,
+    set_attributes as otel_set_attributes,
+    get_attributes as otel_get_attributes,
+)
+from agenta.sdk.tracing.inline_trace import (
+    get_trace as inline_get_trace,
+)
 
 _AGENTA_API_KEY_HEADER = "Authorization"
 
-_AGENTA_EXPERIMENT_ID_HEADER = "experiment-id"
-
-
 log.setLevel("DEBUG")
-
-
-class SingletonMeta(type):
-    """
-    Thread-safe implementation of Singleton.
-    """
-
-    _instances = {}  # type: ignore
-
-    # We need the lock mechanism to synchronize threads \
-    # during the initial access to the Singleton object.
-    _lock: Lock = Lock()
-
-    def __call__(cls, *args, **kwargs):
-        """
-        Ensures that changes to the `__init__` arguments do not affect the
-        returned instance.
-
-        Uses a lock to make this method thread-safe. If an instance of the class
-        does not already exist, it creates one. Otherwise, it returns the
-        existing instance.
-        """
-
-        with cls._lock:
-            if cls not in cls._instances:
-                instance = super().__call__(*args, **kwargs)
-                cls._instances[cls] = instance
-        return cls._instances[cls]
-
-
-class TraceProcessor(BatchSpanProcessor):
-
-    def __init__(
-        self,
-        span_exporter: SpanExporter,
-        scope: Dict[str, Any] = None,
-        max_queue_size: int = None,
-        schedule_delay_millis: float = None,
-        max_export_batch_size: int = None,
-        export_timeout_millis: float = None,
-    ):
-        super().__init__(
-            span_exporter,
-            _DEFAULT_MAX_QUEUE_SIZE,
-            60 * 60 * 1000,  # 1 hour
-            _DEFAULT_MAX_QUEUE_SIZE,
-            _DEFAULT_EXPORT_TIMEOUT_MILLIS,
-        )
-
-        self.registry = dict()
-        self.scope = scope
-
-    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
-        super().on_start(span, parent_context=parent_context)
-
-        span.set_attributes(
-            attributes={f"ag.extra.{k}": v for k, v in self.scope.items()}
-        )
-
-        log.info(f">  {span.context.span_id.to_bytes(8, 'big').hex()} {span.name}")
-
-        if span.context.trace_id not in self.registry:
-            self.registry[span.context.trace_id] = dict()
-
-        self.registry[span.context.trace_id][span.context.span_id] = True
-
-    def on_end(self, span: ReadableSpan):
-        super().on_end(span)
-
-        log.info(f" < {span.context.span_id.to_bytes(8, 'big').hex()} {span.name}")
-
-        del self.registry[span.context.trace_id][span.context.span_id]
-
-        if self.is_done():
-            self.force_flush()
-
-    def is_done(self):
-        return all(
-            not len(self.registry[trace_id]) for trace_id in self.registry.keys()
-        )
-
-
-class InlineTraceExporter(SpanExporter):
-
-    def __init__(self, registry):
-        self._shutdown = False
-        self._registry = registry
-
-    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        if self._shutdown:
-            return
-
-        for span in spans:
-            self._registry.update(
-                **{span.context.span_id.to_bytes(8, "big").hex(): span}
-            )
-
-    def shutdown(self) -> None:
-        self._shutdown = True
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        return True
-
-
-Namespace = Literal[
-    "data.inputs",
-    "data.internals",
-    "data.outputs",
-    "metrics.scores",
-    "metrics.marginal.costs",
-    "metrics.marginal.tokens",
-    "metadata.config",
-    "metadata.version",
-    "tags",
-    "resource.project",
-    "resource.experiment",
-    "resource.application",
-    "resource.configuration",
-    "resource.service",
-    "extra",
-]
-
-Status = Literal[
-    "OK",
-    "ERROR",
-]
 
 
 class Tracing:
@@ -181,7 +37,6 @@ class Tracing:
         url: str,
         app_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        experiment_id: Optional[str] = None,
     ) -> None:
 
         # ENDPOINT
@@ -190,63 +45,36 @@ class Tracing:
         self.app_id = app_id
         # AUTHORIZATION
         self.api_key = api_key
-        # EXPERIMENT
-        self.experiment_id = experiment_id
 
         # HEADERS
         self.headers = {}
         if api_key:
             self.headers.update(**{_AGENTA_API_KEY_HEADER: self.api_key})
-        if experiment_id:
-            self.headers.update(**{_AGENTA_EXPERIMENT_ID_HEADER: self.experiment_id})
 
         # SPANS (INLINE TRACE)
-        self.spans: Dict[str:ReadableSpan] = dict()
-
-        # SPAN PROCESSOR
-        # self.processor = SynchronousMultiSpanProcessor()
-        self.processor = ConcurrentMultiSpanProcessor(num_threads=2)
-
-        base_shutdown = self.processor.shutdown
-
-        def safe_shutdown():
-            with suppress(Exception):
-                base_shutdown()
-
-        self.processor.shutdown = safe_shutdown
+        self.spans: Dict[str, ReadableSpan] = dict()
 
         # TRACER PROVIDER
-        self.tracer_provider = TracerProvider(
-            active_span_processor=self.processor,
-            resource=Resource(
-                attributes={
-                    "service.name": "agenta",
-                    "service.version": Tracing.VERSION,
-                }
-            ),
-        )
+        self.tracer_provider = ConcurrentTracerProvider("agenta", Tracing.VERSION)
 
         # TRACE PROCESSORS
-        self.inline_processor = TraceProcessor(
-            InlineTraceExporter(registry=self.spans),
+        self.inline_processor = self.tracer_provider.add_inline_processor(
+            registry=self.spans,
             scope={"app_id": self.app_id},
         )
-        self.tracer_provider.add_span_processor(self.inline_processor)
 
         try:
-            import os
-
             log.info(f"Connecting to the remote trace receiver at {self.url}...")
 
             httpx.get(self.url, headers=self.headers)
 
             log.info(f"Connection established.")
 
-            self.remote_processor = TraceProcessor(
-                OTLPSpanExporter(endpoint=self.url, headers=self.headers),
+            self.otlp_processor = self.tracer_provider.add_otlp_processor(
+                endpoint=self.url,
+                headers=self.headers,
                 scope={"app_id": self.app_id},
             )
-            self.tracer_provider.add_span_processor(self.remote_processor)
         except:
             log.info(f"Connection failed.")
             log.error(
@@ -262,16 +90,15 @@ class Tracing:
     @contextmanager
     def start_as_current_span(self, name: str, kind: str):
         with self.tracer.start_as_current_span(name) as span:
-            span: Span
-
             self.set_attributes(
                 namespace="extra",
                 attributes={"kind": kind},
+                span=span,
             )
 
             yield span
 
-    def start_span(self, name: str, kind: str):
+    def start_span(self, name: str, kind: str) -> Span:
         span = self.tracer.start_span(name)
 
         self.set_attributes(
@@ -287,19 +114,11 @@ class Tracing:
         status: Status,
         message: Optional[str] = None,
         span: Optional[Span] = None,
-    ):
+    ) -> None:
         if span is None:
             span = get_current_span()
 
-        if status == "OK":
-            if span.status.status_code != StatusCode.ERROR:
-                span.set_status(
-                    FullStatus(status_code=StatusCode.OK, description=message),
-                )
-        elif status == "ERROR":
-            span.set_status(
-                FullStatus(status_code=StatusCode.ERROR, description=message),
-            )
+        otel_set_status(span, status, message)
 
     def add_event(
         self,
@@ -307,265 +126,64 @@ class Tracing:
         attributes=None,
         timestamp=None,
         span: Optional[Span] = None,
-    ):
+    ) -> None:
         if span is None:
             span = get_current_span()
 
-        span.add_event(
-            name=name,
-            attributes=attributes,
-            timestamp=timestamp,
-        )
+        otel_add_event(span, name, attributes, timestamp)
 
     def record_exception(
-        self, exception, attributes=None, timestamp=None, span: Optional[Span] = None
-    ):
+        self,
+        exception,
+        attributes=None,
+        timestamp=None,
+        span: Optional[Span] = None,
+    ) -> None:
         if span is None:
             span = get_current_span()
 
-        span.record_exception(
-            exception=exception,
-            attributes=attributes,
-            timestamp=timestamp,
-            escaped=None,
-        )
-
-    def _key(self, namespace, key=""):
-        return f"ag.{namespace}.{key}"
-
-    def _value(self, value: Any) -> str:
-        if value is None:
-            return "null"
-
-        if not isinstance(value, (str, int, float, bool, bytes)):
-            return json.dumps(value)
-
-        return value
+        otel_record_exception(span, exception, attributes, timestamp)
 
     def set_attributes(
         self,
         namespace: Namespace,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: Dict[str, Any],
         span: Optional[Span] = None,
     ) -> None:
-        if attributes is None:
-            return
-
         if span is None:
             span = get_current_span()
 
-        for key, value in attributes.items():
-            span.set_attribute(
-                self._key(namespace, key),
-                self._value(value),
-            )
+        otel_set_attributes(span, namespace, attributes)
 
-    def _get_attributes(
+    def get_attributes(
         self,
-        namespace: str,
-        span: ReadableSpan,
-    ):
-        return {
-            k.replace(self._key(namespace), ""): v
-            for k, v in span.attributes.items()
-            if k.startswith(self._key(namespace))
-        }
+        namespace: Namespace,
+        span: Optional[ReadableSpan | Span] = None,
+    ) -> Dict[str, Any]:
+        if span is None:
+            span = get_current_span()
 
-    def store_internals(self, attributes: dict, span: Optional[Span] = None) -> None:
-        self.set_attributes("data.internals", attributes, span)
+        return otel_get_attributes(span, namespace)
+
+    def store_internals(
+        self,
+        attributes: Dict[str, Any],
+        span: Optional[Span] = None,
+    ) -> None:
+        self.set_attributes(
+            namespace="data.internals",
+            attributes=attributes,
+            span=span,
+        )
 
     def is_processing(self) -> bool:
         return not self.inline_processor.is_done()
 
-    def get_inline_trace(self, trace_id_only: bool = False):
-        traces_idx: Dict[str, Dict[str, ReadableSpan]] = dict()
-
-        for span in self.spans.values():
-            span: ReadableSpan
-
-            trace_id = span.context.trace_id.to_bytes(16, "big").hex()
-            span_id = span.context.span_id.to_bytes(8, "big").hex()
-
-            if trace_id not in traces_idx:
-                traces_idx[trace_id] = dict()
-
-            if not trace_id_only:
-                traces_idx[trace_id][span_id] = self._parse_to_legacy_span(span)
-
-        if len(traces_idx) > 1:
-            log.error("Rrror while parsing inline trace: too many traces.")
-
-        trace_id = list(traces_idx.keys())[0]
-        spans_idx = traces_idx[trace_id]
-
-        spans_id_tree = self._make_spans_id_tree(spans_idx)
-
-        if len(spans_id_tree) > 1:
-            log.error("Error while parsing inline trace: too many root spans.")
-
-        root_span_id = list(spans_id_tree.keys())[0]
-
-        self._cumulate_costs(spans_id_tree, spans_idx)
-        self._cumulate_tokens(spans_id_tree, spans_idx)
-
-        inline_traces = [
-            {
-                "trace_id": trace_id,
-                "cost": spans_idx[root_span_id]["cost"],
-                "tokens": spans_idx[root_span_id]["tokens"],
-                "latency": datetime.fromisoformat(
-                    spans_idx[root_span_id]["end_time"].replace("Z", "+00:00")
-                ).timestamp()
-                - datetime.fromisoformat(
-                    spans_idx[root_span_id]["start_time"].replace("Z", "+00:00")
-                ).timestamp(),
-                "spans": list(spans.values()),
-            }
-            for trace_id, spans in traces_idx.items()
-        ]
-
-        self.spans.clear()
-
-        if len(inline_traces) > 1:
-            log.error("Unexpected error while parsing inline trace: too many traces.")
-
-        return inline_traces[0]
-
-    def _parse_to_legacy_span(self, span: ReadableSpan):
-
-        attributes = dict(span.attributes)
-
-        for event in span.events:
-            if event.name == "exception":
-                attributes.update(**event.attributes)
-
-        legacy_span = CreateSpan(
-            id=span.context.span_id.to_bytes(8, "big").hex(),
-            spankind=self._get_attributes("extra", span).get("kind", "UNKNOWN"),
-            name=span.name,
-            status=str(span.status.status_code.name),
-            #
-            start_time=datetime.fromtimestamp(
-                span.start_time / 1_000_000_000,
-            ).isoformat(),
-            end_time=datetime.fromtimestamp(
-                span.end_time / 1_000_000_000,
-            ).isoformat(),
-            #
-            parent_span_id=(
-                span.parent.span_id.to_bytes(8, "big").hex() if span.parent else None
-            ),
-            #
-            inputs=self._get_attributes("data.inputs", span),
-            internals=self._get_attributes("data.internals", span),
-            outputs=self._get_attributes("data.outputs", span),
-            #
-            config=json.loads(
-                self._get_attributes("metadata", span).get("config", "{}")
-            ),
-            #
-            tokens=LlmTokens(
-                prompt_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
-                    "prompt", 0
-                ),
-                completion_tokens=self._get_attributes(
-                    "metrics.marginal.tokens", span
-                ).get("completion", 0),
-                total_tokens=self._get_attributes("metrics.marginal.tokens", span).get(
-                    "total", 0
-                ),
-            ),
-            cost=self._get_attributes("metrics.marginal.costs", span).get("total", 0.0),
-            #
-            app_id=self._get_attributes("extra", span).get("app_id", ""),
-            environment=self._get_attributes("metadata", span).get("environment"),
-            #
-            variant_id=None,
-            variant_name=None,
-            tags=None,
-            token_consumption=None,
-            attributes=attributes,
-            user=None,
-        )
-
-        return json.loads(legacy_span.model_dump_json())
-
-    def _make_spans_id_tree(self, spans):
-        tree = OrderedDict()
-        index = {}
-
-        def push(span) -> None:
-            if span["parent_span_id"] is None:
-                tree[span["id"]] = OrderedDict()
-                index[span["id"]] = tree[span["id"]]
-            elif span["parent_span_id"] in index:
-                index[span["parent_span_id"]][span["id"]] = OrderedDict()
-                index[span["id"]] = index[span["parent_span_id"]][span["id"]]
-            else:
-                log.error("The parent span id should have been in the tracing tree.")
-
-        for span in sorted(spans.values(), key=lambda span: span["start_time"]):
-            push(span)
-
-        return tree
-
-    def _visit_tree_dfs(
+    def get_inline_trace(
         self,
-        spans_id_tree: OrderedDict,
-        spans_idx: Dict[str, CreateSpan],
-        get_metric,
-        accumulate_metric,
-        set_metric,
-    ):
-        for span_id, children_spans_id_tree in spans_id_tree.items():
-            cumulated_metric = get_metric(spans_idx[span_id])
-
-            self._visit_tree_dfs(
-                children_spans_id_tree,
-                spans_idx,
-                get_metric,
-                accumulate_metric,
-                set_metric,
-            )
-
-            for child_span_id in children_spans_id_tree.keys():
-                child_metric = get_metric(spans_idx[child_span_id])
-                cumulated_metric = accumulate_metric(cumulated_metric, child_metric)
-
-            set_metric(spans_idx[span_id], cumulated_metric)
-
-    def _cumulate_costs(
-        self,
-        spans_id_tree: OrderedDict,
-        spans_idx: Dict[str, dict],
-    ):
-        def _get(span):
-            return span["cost"]
-
-        def _acc(a, b):
-            return a + b
-
-        def _set(span, cost):
-            span["cost"] = cost
-
-        self._visit_tree_dfs(spans_id_tree, spans_idx, _get, _acc, _set)
-
-    def _cumulate_tokens(
-        self,
-        spans_id_tree: OrderedDict,
-        spans_idx: Dict[str, dict],
-    ):
-        def _get(span):
-            return span["tokens"]
-
-        def _acc(a, b):
-            return {
-                "prompt_tokens": a["prompt_tokens"] + b["prompt_tokens"],
-                "completion_tokens": a["completion_tokens"] + b["completion_tokens"],
-                "total_tokens": a["total_tokens"] + b["total_tokens"],
-            }
-
-        def _set(span, tokens):
-            span["tokens"] = tokens
-
-        self._visit_tree_dfs(spans_id_tree, spans_idx, _get, _acc, _set)
+        trace_id_only: bool = False,
+    ) -> Dict[str, Any]:
+        if trace_id_only:
+            return {"trace_id": list(self.spans.keys())[0]}
+        else:
+            return inline_get_trace(self.spans)

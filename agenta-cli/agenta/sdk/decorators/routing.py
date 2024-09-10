@@ -635,22 +635,37 @@ class entrypoint:
                 )
             )
 
+        SHOW_DETAILS = True
+        SHOW_DATA = False
+        SHOW_SPANS = True
+        SHOW_SPAN_ATTRIBUTES = False
+
         log.info("\n========= Result =========\n")
 
-        log.info(result.trace["trace_id"])
-        log.info(result.trace["cost"])
-        log.info(result.trace["latency"])
-        log.info(result.trace["tokens"])
+        log.info(f"trace_id: {result.trace['trace_id']}")
+        if SHOW_DETAILS:
+            log.info(f"latency:  {result.trace['latency']}")
+            log.info(f"cost:     {result.trace['cost']}")
+            log.info(f"tokens:   {list(result.trace['tokens'].values())}")
 
-        # log.info("")
-        # log.info(json.dumps(result.data, indent=2))
-        # log.info(json.dumps(result.trace, indent=2))
+        if SHOW_DATA:
+            log.info(" ")
+            log.info(f"data:")
+            log.info(json.dumps(result.data, indent=2))
 
-        log.info("")
-        for span in result.trace["spans"]:
-            log.info(
-                f"{span['app_id']} {span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
-            )
+        if SHOW_SPANS:
+            log.info(" ")
+            log.info(f"trace:")
+            log.info(f"----------------")
+            for span in result.trace["spans"]:
+                log.info(
+                    f"{span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
+                )
+                if SHOW_SPAN_ATTRIBUTES:
+                    [log.info(f"    {attribute}") for attribute in span["attributes"]]
+                    log.info(" ")
+            log.info(f"----------------")
+
         log.info("\n==========================\n")
 
     def override_config_in_schema(
