@@ -7,6 +7,7 @@ import {useAtom} from "jotai"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeleteModal from "./DeleteModal"
+import dayjs from "dayjs"
 
 interface EvaluatorCardProps {
     evaluatorConfigs: EvaluatorConfig[]
@@ -178,8 +179,10 @@ const EvaluatorCard = ({
                                 </Tag>
                             </div>
                             <div>
-                                <Typography.Text>Version</Typography.Text>
-                                <Typography.Text type="secondary">v1.1</Typography.Text>
+                                <Typography.Text>Date Created</Typography.Text>
+                                <Typography.Text type="secondary">
+                                    {dayjs(item.created_at).format("DD MMM YY")}
+                                </Typography.Text>
                             </div>
                         </Card>
                     )
