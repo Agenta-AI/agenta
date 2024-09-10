@@ -262,14 +262,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols])
+    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols, evaluators, uniqueCorrectAnswers])
 
     const shownCols = useMemo(
         () =>
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenCols],
     )
 
     const onToggleEvaluatorVisibility = (evalConfigId: string) => {

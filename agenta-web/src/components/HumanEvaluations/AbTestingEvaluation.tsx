@@ -32,32 +32,35 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     statFlag: {
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorError,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorError,
         },
     },
     stat: {
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorPrimary,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorPrimary,
         },
     },
     statGood: {
+        lineHeight: theme.lineHeight,
         "& .ant-statistic-content-value": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorSuccess,
         },
         "& .ant-statistic-content-suffix": {
-            fontSize: 16,
+            fontSize: theme.fontSize,
             color: theme.colorSuccess,
         },
     },
