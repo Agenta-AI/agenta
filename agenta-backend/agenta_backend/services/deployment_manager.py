@@ -163,9 +163,7 @@ def get_deployment_uri(deployment: DeploymentDB) -> str:
     Returns:
         str: URI leading to the deployment.
     """
-
     if "localhost" in deployment.uri:
-        # the DNS entry automatically created by docker for the container
-        # are the first 12 characters of the container's id
+        # the DNS entry automatically created by docker for the container are the first 12 characters of the container's id
         return "http://" + deployment.container_id[:12]
     return deployment.uri
