@@ -1,5 +1,5 @@
 from json import loads, dumps
-from typing import Optional, Any, Dict
+from typing import Optional, Union, Any, Dict
 
 from opentelemetry.sdk.trace import Span, Status, StatusCode
 from opentelemetry.sdk.trace.export import ReadableSpan
@@ -42,7 +42,7 @@ def set_attributes(span: Span, namespace: str, attributes: Dict[str, Any]) -> No
         )
 
 
-def get_attributes(span: ReadableSpan | Span, namespace: str):
+def get_attributes(span: Union[ReadableSpan, Span], namespace: str):
     return {
         _decode_key(namespace, key): _decode_value(value)
         for key, value in span.attributes.items()
