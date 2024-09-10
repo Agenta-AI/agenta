@@ -12,7 +12,6 @@ from opentelemetry.sdk.trace.export import (
 
 
 class TraceProcessor(BatchSpanProcessor):
-
     def __init__(
         self,
         span_exporter: SpanExporter,
