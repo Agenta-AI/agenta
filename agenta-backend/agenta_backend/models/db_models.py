@@ -49,7 +49,7 @@ class ProjectDB(Base):
         unique=True,
         nullable=False,
     )
-    project_name = Column(String, nullable=False, unique=True)
+    project_name = Column(String, nullable=False)
     is_default = Column(Boolean, default=False)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
