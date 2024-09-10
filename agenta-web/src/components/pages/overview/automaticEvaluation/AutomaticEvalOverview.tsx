@@ -249,7 +249,7 @@ const AutomaticEvalOverview = () => {
                                 <Popover
                                     key={index}
                                     placement="bottom"
-                                    trigger={"click"}
+                                    trigger={"hover"}
                                     arrow={false}
                                     content={
                                         <div

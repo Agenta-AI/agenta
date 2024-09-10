@@ -34,7 +34,12 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
             bordered={false}
             expandIcon={({isActive}) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
         >
-            <Collapse.Panel key="1" header="Advanced Settings" forceRender>
+            <Collapse.Panel
+                key="1"
+                header="Advanced Settings"
+                data-cy="new-evaluator-advance-settings"
+                forceRender
+            >
                 {settings.map((field) => {
                     const rules = [
                         {required: field.required ?? true, message: "This field is required"},
@@ -68,9 +73,10 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                                             .toUpperCase()
                                             .indexOf(inputValue.toUpperCase()) !== -1
                                     }
+                                    data-cy="new-evaluator-column-name"
                                 />
                             ) : field.type === "string" || field.type === "regex" ? (
-                                <Input />
+                                <Input data-cy="new-evaluator-column-name" />
                             ) : field.type === "number" ? (
                                 <InputNumber min={field.min} max={field.max} step={0.1} />
                             ) : field.type === "boolean" || field.type === "bool" ? (
