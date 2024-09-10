@@ -387,6 +387,7 @@ export interface EvaluatorConfig {
     created_at: string
     color?: string
     updated_at: string
+    tags?: string[]
 }
 
 export type EvaluationError = {
