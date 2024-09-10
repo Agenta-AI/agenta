@@ -72,12 +72,9 @@ class instrument:
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             async def wrapped_func(*args, **kwargs):
-                rctx = tracing_context.get()
-                print("..", func.__name__, rctx)
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
                     try:
                         rctx = tracing_context.get()
-                        print("...", func.__name__, rctx)
                         ag.tracing.set_attributes(
                             "metadata", {"config": rctx.get("config", {})}
                         )
@@ -103,7 +100,6 @@ class instrument:
                         if isinstance(result, dict):
                             cost = result.get("cost", 0.0)
                             usage = result.get("usage", {})
-                            print("--------", cost, usage)
 
                         ag.tracing.set_attributes(
                             namespace="metrics.marginal.costs",
@@ -141,12 +137,9 @@ class instrument:
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             def wrapped_func(*args, **kwargs):
-                rctx = tracing_context.get()
-                print("..", func.__name__, rctx)
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
                     try:
                         rctx = tracing_context.get()
-                        print("...", func.__name__, rctx)
                         ag.tracing.set_attributes(
                             "metadata", {"config": rctx.get("config", {})}
                         )
@@ -172,7 +165,6 @@ class instrument:
                         if isinstance(result, dict):
                             cost = result.get("cost", 0.0)
                             usage = result.get("usage", {})
-                            print("--------", cost, usage)
 
                         ag.tracing.set_attributes(
                             namespace="metrics.marginal.costs",
