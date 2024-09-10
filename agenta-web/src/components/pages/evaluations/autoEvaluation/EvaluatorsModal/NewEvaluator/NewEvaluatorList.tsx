@@ -33,7 +33,7 @@ const CreateEvaluatorList = ({
             title: "Category",
             dataIndex: "key",
             key: "key",
-            width: 160,
+            width: 200,
             render: (_, record) => {
                 return (
                     <div className="h-[56px] flex items-center ">
@@ -46,7 +46,6 @@ const CreateEvaluatorList = ({
             title: "Type",
             dataIndex: "description",
             key: "description",
-            width: "100%",
             render: (_, record) => {
                 return (
                     <div className={classes.textDescription}>
