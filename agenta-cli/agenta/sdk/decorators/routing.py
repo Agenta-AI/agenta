@@ -18,6 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta as ag
+
+from agenta.sdk.context.routing import routing_context_manager, routing_context
+from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.router import router as router
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
@@ -63,28 +66,6 @@ app.include_router(router, prefix="")
 
 
 log.setLevel("DEBUG")
-
-route_context = contextvars.ContextVar("route_context", default={})
-
-
-@contextmanager
-def route_context_manager(
-    config: Optional[Dict[str, Any]] = None,
-    environment: Optional[str] = None,
-    version: Optional[str] = None,
-    variant: Optional[str] = None,
-):
-    context = {
-        "config": config,
-        "environment": environment,
-        "version": version,
-        "variant": variant,
-    }
-    token = route_context.set(context)
-    try:
-        yield
-    finally:
-        route_context.reset(token)
 
 
 class PathValidator(BaseModel):
@@ -147,7 +128,10 @@ class entrypoint:
     routes = list()
 
     def __init__(
-        self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None
+        self,
+        func: Callable[..., Any],
+        route_path="",
+        config_schema: Optional[BaseModel] = None,
     ):
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
@@ -179,7 +163,10 @@ class entrypoint:
             if not config_schema:
                 ag.config.set(**api_config_params)
 
-            with route_context_manager(config=api_config_params):
+            with routing_context_manager(
+                config=api_config_params,
+                environment="playground",
+            ):
                 entrypoint_result = await self.execute_function(
                     func,
                     True,  # inline trace: True
@@ -245,8 +232,10 @@ class entrypoint:
                 else:
                     ag.config.pull(config_name="default")
 
-            with route_context_manager(
-                variant=kwargs["config"], environment=kwargs["environment"]
+            with routing_context_manager(
+                config=ag.config.all(),
+                variant=kwargs["config"],
+                environment=kwargs["environment"],
             ):
                 entrypoint_result = await self.execute_function(
                     func,
@@ -366,6 +355,8 @@ class entrypoint:
             f"Running application route: {repr(self.route_path if self.route_path != '' else '/')}"
         )
         log.info(f"--------------------------\n")
+
+        tracing_context.set(routing_context.get())
 
         WAIT_FOR_SPANS = True
         TIMEOUT = 1
@@ -632,13 +623,17 @@ class entrypoint:
 
         loop = asyncio.get_event_loop()
 
-        result = loop.run_until_complete(
-            self.execute_function(
-                func,
-                True,  # inline trace: True
-                **{"params": args_func_params, "config_params": args_config_params},
+        with routing_context_manager(
+            config=args_config_params,
+            environment="terminal",
+        ):
+            result = loop.run_until_complete(
+                self.execute_function(
+                    func,
+                    True,  # inline trace: True
+                    **{"params": args_func_params, "config_params": args_config_params},
+                )
             )
-        )
 
         log.info("\n========= Result =========\n")
 

@@ -1,10 +1,12 @@
 import inspect
 from functools import wraps
 from itertools import chain
-from contextlib import suppress
+from contextvars import ContextVar
 from typing import Callable, Optional, Union, Any, Dict, List
 
 import agenta as ag
+
+from agenta.sdk.context.tracing import tracing_context
 
 
 class instrument:
@@ -70,12 +72,25 @@ class instrument:
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             async def wrapped_func(*args, **kwargs):
+                rctx = tracing_context.get()
+                print("..", func.__name__, rctx)
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
                     try:
+                        rctx = tracing_context.get()
+                        print("...", func.__name__, rctx)
                         ag.tracing.set_attributes(
-                            "metadata.config",
-                            self.config,
+                            "metadata", {"config": rctx.get("config", {})}
                         )
+                        ag.tracing.set_attributes(
+                            "metadata", {"environment": rctx.get("environment", {})}
+                        )
+                        ag.tracing.set_attributes(
+                            "metadata", {"version": rctx.get("version", {})}
+                        )
+                        ag.tracing.set_attributes(
+                            "metadata", {"variant": rctx.get("variant", {})}
+                        )
+
                         ag.tracing.set_attributes(
                             "data.inputs",
                             redact(parse(*args, **kwargs), self.ignore_inputs),
@@ -126,12 +141,25 @@ class instrument:
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             def wrapped_func(*args, **kwargs):
+                rctx = tracing_context.get()
+                print("..", func.__name__, rctx)
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
                     try:
+                        rctx = tracing_context.get()
+                        print("...", func.__name__, rctx)
                         ag.tracing.set_attributes(
-                            "metadata.config",
-                            self.config,
+                            "metadata", {"config": rctx.get("config", {})}
                         )
+                        ag.tracing.set_attributes(
+                            "metadata", {"environment": rctx.get("environment", {})}
+                        )
+                        ag.tracing.set_attributes(
+                            "metadata", {"version": rctx.get("version", {})}
+                        )
+                        ag.tracing.set_attributes(
+                            "metadata", {"variant": rctx.get("variant", {})}
+                        )
+
                         ag.tracing.set_attributes(
                             "data.inputs",
                             redact(parse(*args, **kwargs), self.ignore_inputs),
