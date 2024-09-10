@@ -1,4 +1,6 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
+import {ArrowRightOutlined} from "@ant-design/icons"
+import {ArrowRight} from "@phosphor-icons/react"
 import {Card, Empty, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
@@ -30,6 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: "fit-content",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
+        position: "relative",
         "& > .ant-card-head": {
             minHeight: 0,
             padding: theme.paddingSM,
@@ -38,6 +41,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 fontSize: theme.fontSize,
                 fontWeight: theme.fontWeightMedium,
                 lineHeight: theme.lineHeight,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
             },
         },
         "& > .ant-card-body": {
@@ -48,7 +54,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 color: theme.colorTextSecondary,
             },
         },
-        "&:hover": {},
+        "&:hover": {
+            boxShadow: theme.boxShadowTertiary,
+        },
+    },
+    arrowIcon: {
+        opacity: 0,
+        transition: "opacity 0.3s",
+    },
+    evaluatorCardHover: {
+        "&:hover $arrowIcon": {
+            opacity: 1,
+        },
     },
     centeredItem: {
         display: "grid",
@@ -71,8 +88,13 @@ const CreateEvaluatorCard = ({
                 evaluators.map((evaluator) => (
                     <Card
                         key={evaluator.key}
-                        className={classes.evaluatorCard}
-                        title={evaluator.name}
+                        className={`${classes.evaluatorCard} ${classes.evaluatorCardHover}`}
+                        title={
+                            <>
+                                {evaluator.name}
+                                <ArrowRight className={classes.arrowIcon} size={14} />
+                            </>
+                        }
                         onClick={() => {
                             setSelectedEvaluator(evaluator)
                             setCurrent(2)

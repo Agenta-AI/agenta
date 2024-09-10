@@ -61,7 +61,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 justifyContent: "space-between",
             },
         },
-        "&:hover": {},
+        "&:hover": {
+            boxShadow: theme.boxShadowTertiary,
+        },
     },
     centeredItem: {
         display: "grid",
