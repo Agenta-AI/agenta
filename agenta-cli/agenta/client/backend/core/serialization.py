@@ -130,9 +130,9 @@ def _convert_typeddict(
         if type_ is None:
             converted_object[key] = value
         else:
-            converted_object[
-                _alias_key(key, type_)
-            ] = convert_and_respect_annotation_metadata(object_=value, annotation=type_)
+            converted_object[_alias_key(key, type_)] = (
+                convert_and_respect_annotation_metadata(object_=value, annotation=type_)
+            )
     return converted_object
 
 
