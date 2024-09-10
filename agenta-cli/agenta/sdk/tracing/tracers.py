@@ -42,7 +42,10 @@ class ConcurrentTracerProvider(TracerProvider):
         registry: Dict[str, ReadableSpan],
         scope: Dict[str, Any],
     ) -> TraceProcessor:
-        processor = TraceProcessor(InlineTraceExporter(registry), scope)
+        processor = TraceProcessor(
+            InlineTraceExporter(registry=registry),
+            scope,
+        )
 
         self.add_span_processor(processor)
 
@@ -54,8 +57,11 @@ class ConcurrentTracerProvider(TracerProvider):
         headers: Dict[str, str],
         scope: Dict[str, Any],
     ):
-        processor = TraceProcessor(OTLPSpanExporter(endpoint, headers), scope)
+        processor = TraceProcessor(
+            OTLPSpanExporter(endpoint=endpoint, headers=headers),
+            scope,
+        )
 
-        self.add_span_processor(self.processor)
+        self.add_span_processor(processor)
 
         return processor

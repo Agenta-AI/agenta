@@ -76,7 +76,7 @@ class Tracing:
                 scope={"app_id": self.app_id},
             )
         except:
-            log.info(f"Connection failed.")
+            log.warning(f"Connection failed.")
             log.error(
                 f"Warning: Your traces will not be exported since {self.url} is unreachable."
             )
