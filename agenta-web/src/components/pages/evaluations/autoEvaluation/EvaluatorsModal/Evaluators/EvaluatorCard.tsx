@@ -181,9 +181,9 @@ const EvaluatorCard = ({
                                 </Tag>
                             </div>
                             <div>
-                                <Typography.Text>Date Created</Typography.Text>
+                                <Typography.Text>Date Modified</Typography.Text>
                                 <Typography.Text type="secondary">
-                                    {dayjs(item.created_at).format("DD MMM YY")}
+                                    {dayjs(item.updated_at).format("DD MMM YY")}
                                 </Typography.Text>
                             </div>
                         </Card>
