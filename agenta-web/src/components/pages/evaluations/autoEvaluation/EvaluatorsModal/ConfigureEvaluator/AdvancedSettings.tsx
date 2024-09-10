@@ -68,12 +68,12 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                             selectedTestcase ? (
                                 <AutoComplete
                                     options={generatePaths(selectedTestcase)}
+                                    data-cy="new-evaluator-advance-settings-input"
                                     filterOption={(inputValue, option) =>
                                         option!.value
                                             .toUpperCase()
                                             .indexOf(inputValue.toUpperCase()) !== -1
                                     }
-                                    data-cy="new-evaluator-column-name"
                                 />
                             ) : field.type === "string" || field.type === "regex" ? (
                                 <Input data-cy="new-evaluator-column-name" />
