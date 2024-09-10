@@ -1,4 +1,5 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
+import {ArrowRight} from "@phosphor-icons/react"
 import {Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React from "react"
@@ -13,10 +14,20 @@ interface CreateEvaluatorListProps {
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     textDescription: {
         display: "flex",
+        flex: 1,
         flexDirection: "column",
         "& .ant-typography:nth-of-type(1)": {
             fontSize: theme.fontSize,
             lineHeight: theme.lineHeight,
+        },
+    },
+    arrowIcon: {
+        opacity: 0,
+        transition: "opacity 0.3s",
+    },
+    evaluatorCardHover: {
+        "&:hover $arrowIcon": {
+            opacity: 1,
         },
     },
 }))
@@ -48,9 +59,12 @@ const CreateEvaluatorList = ({
             key: "description",
             render: (_, record) => {
                 return (
-                    <div className={classes.textDescription}>
-                        <Typography.Text>{record.name}</Typography.Text>
-                        <Typography.Text type="secondary">{record.description}</Typography.Text>
+                    <div className="flex items-center gap-2">
+                        <div className={classes.textDescription}>
+                            <Typography.Text>{record.name}</Typography.Text>
+                            <Typography.Text type="secondary">{record.description}</Typography.Text>
+                        </div>
+                        <ArrowRight className={classes.arrowIcon} size={14} />
                     </div>
                 )
             },
@@ -67,6 +81,7 @@ const CreateEvaluatorList = ({
             style={{cursor: "pointer"}}
             onRow={(record) => ({
                 "data-cy": "new-evaluator-list",
+                className: classes.evaluatorCardHover,
                 onClick: () => {
                     setSelectedEvaluator(record)
                     setCurrent(2)
