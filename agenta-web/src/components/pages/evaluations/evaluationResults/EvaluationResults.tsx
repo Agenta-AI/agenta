@@ -45,6 +45,7 @@ import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {formatDate24} from "@/lib/helpers/dateTimeHelper"
+import {useQueryParam} from "@/hooks/useQuery"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -88,6 +89,8 @@ const EvaluationResults: React.FC<Props> = () => {
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
     const [evaluators] = useAtom(evaluatorsAtom)
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [queryNewEvalModalOpen, setQueryNewEvalModalOpen] =
+        useQueryParam("openNewEvaluationModal")
     const [fetching, setFetching] = useState(false)
     const [selected, setSelected] = useState<_Evaluation[]>([])
     const stoppers = useRef<Function>()
@@ -178,7 +181,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     .flat(),
                 "id",
             ),
-        [evaluations],
+        [evaluations, evaluators],
     )
 
     const compareDisabled = useMemo(
@@ -344,7 +347,7 @@ const EvaluationResults: React.FC<Props> = () => {
             },
         ]
         return colDefs
-    }, [evaluatorConfigs, hiddenCols])
+    }, [evaluatorConfigs, hiddenCols, appId, router, token])
 
     const compareBtnNode = (
         <Button
@@ -376,7 +379,7 @@ const EvaluationResults: React.FC<Props> = () => {
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenCols],
     )
 
     const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
@@ -519,10 +522,14 @@ const EvaluationResults: React.FC<Props> = () => {
                 </div>
             )}
             <NewEvaluationModal
-                open={newEvalModalOpen}
-                onCancel={() => setNewEvalModalOpen(false)}
+                open={queryNewEvalModalOpen === "open" || newEvalModalOpen}
+                onCancel={() => {
+                    setNewEvalModalOpen(false)
+                    setQueryNewEvalModalOpen("")
+                }}
                 onSuccess={() => {
                     setNewEvalModalOpen(false)
+                    setQueryNewEvalModalOpen("")
                     fetcher()
                 }}
             />
