@@ -20,7 +20,9 @@ if isCloud() or isOss():
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
 docker_hub_url = os.getenv("DOCKER_HUB_URL")
-docker_hub_template_url = os.getenv("DOCKER_HUB_TEMPLATE_URL", f"{docker_hub_url}/{{}}/tags")
+docker_hub_template_url = os.getenv(
+    "DOCKER_HUB_TEMPLATE_URL", f"{docker_hub_url}/{{}}/tags"
+)
 
 
 async def update_and_sync_templates(cache: bool = True) -> None:
