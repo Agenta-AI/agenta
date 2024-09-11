@@ -4,6 +4,7 @@ import React, {useState} from "react"
 
 const HumanABTestingEvaluation = () => {
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
+
     return (
         <>
             <HumanEvaluationResult setIsEvalModalOpen={setIsEvalModalOpen} />
