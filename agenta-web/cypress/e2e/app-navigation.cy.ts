@@ -34,10 +34,10 @@ describe("App Navigation without errors", () => {
         cy.contains(/evaluations/i)
 
         cy.get(".ant-tabs-tab").eq(1).click()
-        cy.url().should("include", "/evaluations?selectedEvaluation=ab_testing_evaluation")
+        cy.url().should("include", "/evaluations?selectedEvaluation=human_annotation")
 
         cy.get(".ant-tabs-tab").eq(2).click()
-        cy.url().should("include", "/evaluations?selectedEvaluation=single_model_evaluation")
+        cy.url().should("include", "/evaluations?selectedEvaluation=human_ab_testing")
 
         cy.get(".ant-tabs-tab").eq(0).click()
         cy.url().should("include", "/evaluations?selectedEvaluation=auto_evaluation")
