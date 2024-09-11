@@ -362,32 +362,12 @@ const ConfigureEvaluator = ({
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
                             </Typography.Text>
-                            <Space>
-                                <Button
-                                    size="small"
-                                    className="flex items-center gap-2"
-                                    disabled={true}
-                                >
-                                    <ClockClockwise />
-                                    View history
-                                </Button>
-                                <Button
-                                    size="small"
-                                    onClick={() => setDebugEvaluator(!debugEvaluator)}
-                                >
-                                    {debugEvaluator ? (
-                                        <div className="flex items-center gap-2">
-                                            Test
-                                            <CaretDoubleRight />
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <CaretDoubleLeft />
-                                            Test
-                                        </div>
-                                    )}
-                                </Button>
-                            </Space>
+                            <Button size="small" onClick={() => setDebugEvaluator(!debugEvaluator)}>
+                                <div className="flex items-center gap-2">
+                                    {debugEvaluator ? <CaretDoubleLeft /> : <CaretDoubleRight />}
+                                    Test
+                                </div>
+                            </Button>
                         </Flex>
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
@@ -404,10 +384,6 @@ const ConfigureEvaluator = ({
                             className={classes.formContainer}
                         >
                             <Space direction="vertical" size={4}>
-                                <Typography.Text className={classes.formTitleText}>
-                                    Identifier
-                                </Typography.Text>
-
                                 <div className="flex gap-4">
                                     <Form.Item
                                         name="name"
@@ -419,25 +395,6 @@ const ConfigureEvaluator = ({
                                     >
                                         <Input data-cy="configure-new-evaluator-modal-input" />
                                     </Form.Item>
-                                    {/* <Form.Item
-                                        name="label"
-                                        label="Label"
-                                        rules={[
-                                            {required: true, message: "This field is required"},
-                                        ]}
-                                        className="flex-1"
-                                    >
-                                        <Select
-                                            mode="multiple"
-                                            allowClear
-                                            placeholder="Please select"
-                                            defaultValue={["item1"]}
-                                            options={[
-                                                {label: "item1", value: "item1"},
-                                                {label: "item2", value: "item2"},
-                                            ]}
-                                        />
-                                    </Form.Item> */}
                                 </div>
                             </Space>
 
@@ -553,7 +510,7 @@ const ConfigureEvaluator = ({
                                 </Space>
                             </Flex>
 
-                            <div className="flex-[0.4] flex flex-col h-full gap-1">
+                            <div className="flex-[0.5] flex flex-col h-full gap-1">
                                 <Space>
                                     <Typography.Text className={classes.formTitleText}>
                                         JSON Data
@@ -580,7 +537,11 @@ const ConfigureEvaluator = ({
                                             }
                                         } catch (error) {}
                                     }}
-                                    options={{wordWrap: "on", minimap: {enabled: false}}}
+                                    options={{
+                                        wordWrap: "on",
+                                        minimap: {enabled: false},
+                                        lineNumbers: "off",
+                                    }}
                                 />
                             </div>
 
@@ -598,11 +559,12 @@ const ConfigureEvaluator = ({
                                         wordWrap: "on",
                                         minimap: {enabled: false},
                                         readOnly: true,
+                                        lineNumbers: "off",
                                     }}
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-2 flex-[0.3] h-full">
+                            <div className="flex flex-col gap-2 flex-[0.2] h-full">
                                 <Flex justify="space-between">
                                     <Typography.Text className={classes.formTitleText}>
                                         Evaluator Output
@@ -632,6 +594,7 @@ const ConfigureEvaluator = ({
                                         wordWrap: "on",
                                         minimap: {enabled: false},
                                         readOnly: true,
+                                        lineNumbers: "off",
                                     }}
                                     value={outputResult}
                                 />

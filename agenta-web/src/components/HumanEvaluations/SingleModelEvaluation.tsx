@@ -310,7 +310,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
             {viewType === "overview" ? (
                 <div className="flex items-center justify-between">
                     <Space>
-                        <Title>Single Model Evaluations</Title>
+                        <Title>Human Annotation</Title>
 
                         <Button
                             size="small"
