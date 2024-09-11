@@ -158,6 +158,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             closeIcon={null}
             title={null}
             className={classes.modalWrapper}
+            centered
             {...props}
         >
             {steps[current]?.content}

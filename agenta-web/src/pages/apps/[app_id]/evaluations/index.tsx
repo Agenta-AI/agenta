@@ -47,16 +47,16 @@ const EvaluationsPage = () => {
             children: <AutoEvaluation />,
         },
         {
-            key: "ab_testing_evaluation",
-            label: "A/B Testing Evaluation",
-            icon: <TestTube size={16} />,
-            children: <AbTestingEvaluation viewType="evaluation" />,
-        },
-        {
-            key: "single_model_evaluation",
-            label: "Single Model Evaluation",
+            key: "human_annotation",
+            label: "Human annotation",
             icon: <ListChecks size={16} />,
             children: <SingleModelEvaluation viewType="evaluation" />,
+        },
+        {
+            key: "human_ab_testing",
+            label: "Human A/B Testing",
+            icon: <TestTube size={16} />,
+            children: <AbTestingEvaluation viewType="evaluation" />,
         },
     ]
 

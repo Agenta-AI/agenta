@@ -12,15 +12,6 @@ interface CreateEvaluatorListProps {
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    textDescription: {
-        display: "flex",
-        flex: 1,
-        flexDirection: "column",
-        "& .ant-typography:nth-of-type(1)": {
-            fontSize: theme.fontSize,
-            lineHeight: theme.lineHeight,
-        },
-    },
     arrowIcon: {
         opacity: 0,
         transition: "opacity 0.3s",
@@ -41,7 +32,7 @@ const CreateEvaluatorList = ({
 
     const columns: ColumnsType<Evaluator> = [
         {
-            title: "Category",
+            title: "Name",
             dataIndex: "key",
             key: "key",
             width: 200,
@@ -54,16 +45,16 @@ const CreateEvaluatorList = ({
             },
         },
         {
-            title: "Type",
+            title: "Description",
             dataIndex: "description",
             key: "description",
             render: (_, record) => {
                 return (
                     <div className="flex items-center gap-2">
-                        <div className={classes.textDescription}>
-                            <Typography.Text>{record.name}</Typography.Text>
-                            <Typography.Text type="secondary">{record.description}</Typography.Text>
-                        </div>
+                        <Typography.Text className="flex-1" type="secondary">
+                            {record.description}
+                        </Typography.Text>
+
                         <ArrowRight className={classes.arrowIcon} size={14} />
                     </div>
                 )
@@ -87,6 +78,7 @@ const CreateEvaluatorList = ({
                     setCurrent(2)
                 },
             })}
+            pagination={false}
         />
     )
 }

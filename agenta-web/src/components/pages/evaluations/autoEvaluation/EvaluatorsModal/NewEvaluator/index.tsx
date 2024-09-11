@@ -123,7 +123,7 @@ const NewEvaluator = ({
                                 placeholder="Search"
                                 allowClear
                             />
-                            <Radio.Group
+                            {/* <Radio.Group
                                 defaultValue={evaluatorsDisplay}
                                 onChange={(e) => setEvaluatorsDisplay(e.target.value)}
                             >
@@ -133,7 +133,7 @@ const NewEvaluator = ({
                                 <Radio.Button value="card">
                                     <Cards size={16} className="h-full" />
                                 </Radio.Button>
-                            </Radio.Group>
+                            </Radio.Group> */}
                         </Flex>
                     </div>
                 </div>
@@ -141,7 +141,7 @@ const NewEvaluator = ({
             </div>
 
             <div>
-                {evaluatorsDisplay === "list" ? (
+                {/* {evaluatorsDisplay === "list" ? (
                     <NewEvaluatorList
                         evaluators={filteredEvaluators}
                         setSelectedEvaluator={setSelectedEvaluator}
@@ -153,7 +153,12 @@ const NewEvaluator = ({
                         setSelectedEvaluator={setSelectedEvaluator}
                         setCurrent={setCurrent}
                     />
-                )}
+                )} */}
+                <NewEvaluatorList
+                    evaluators={filteredEvaluators}
+                    setSelectedEvaluator={setSelectedEvaluator}
+                    setCurrent={setCurrent}
+                />
             </div>
         </div>
     )
