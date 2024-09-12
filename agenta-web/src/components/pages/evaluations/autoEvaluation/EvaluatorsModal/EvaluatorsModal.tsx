@@ -8,7 +8,6 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {fetchVariants} from "@/services/api"
 import {fetchTestsets} from "@/services/testsets/api"
-import TestcaseTab from "./TestcaseTab/TestcaseTab"
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import NewEvaluator from "./NewEvaluator"
 import Evaluators from "./Evaluators"
@@ -133,22 +132,10 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setEditMode={setEditMode}
                     cloneConfig={cloneConfig}
                     setCloneConfig={setCloneConfig}
+                    setSelectedTestcase={setSelectedTestcase}
                 />
             ),
         })
-
-        if (testsets && testsets.length) {
-            steps.push({
-                content: (
-                    <TestcaseTab
-                        handleOnCancel={() => setCurrent(2)}
-                        testsets={testsets}
-                        setSelectedTestcase={setSelectedTestcase}
-                        selectedTestcase={selectedTestcase}
-                    />
-                ),
-            })
-        }
     }
 
     return (
