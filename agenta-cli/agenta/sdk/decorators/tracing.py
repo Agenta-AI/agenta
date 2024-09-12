@@ -1,8 +1,8 @@
 import inspect
 from functools import wraps
 from itertools import chain
-from contextvars import ContextVar
-from typing import Callable, Optional, Union, Any, Dict, List
+from contextlib import suppress
+from typing import Callable, Optional, Any, Dict, List
 
 import agenta as ag
 
@@ -89,7 +89,7 @@ class instrument:
         async def async_wrapper(*args, **kwargs):
             async def wrapped_func(*args, **kwargs):
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
-                    try:
+                    with suppress(Exception):
                         rctx = tracing_context.get()
                         ag.tracing.set_attributes(
                             "metadata", {"config": rctx.get("config", {})}
@@ -109,8 +109,16 @@ class instrument:
                             redact(parse(*args, **kwargs), self.ignore_inputs),
                         )
 
+                    try:
                         result = await func(*args, **kwargs)
+                    except Exception as e:
+                        ag.tracing.record_exception(e)
 
+                        ag.tracing.set_status("ERROR")
+
+                        raise e
+
+                    with suppress(Exception):
                         cost = 0.0
                         usage = {}
                         if isinstance(result, dict):
@@ -139,14 +147,7 @@ class instrument:
 
                         ag.tracing.set_status("OK")
 
-                        return result
-
-                    except Exception as e:
-                        ag.tracing.record_exception(e)
-
-                        ag.tracing.set_status("ERROR")
-
-                        raise e
+                    return result
 
             return await wrapped_func(*args, **kwargs)
 
@@ -154,7 +155,7 @@ class instrument:
         def sync_wrapper(*args, **kwargs):
             def wrapped_func(*args, **kwargs):
                 with ag.tracing.start_as_current_span(func.__name__, self.kind):
-                    try:
+                    with suppress(Exception):
                         rctx = tracing_context.get()
                         ag.tracing.set_attributes(
                             "metadata", {"config": rctx.get("config", {})}
@@ -174,8 +175,16 @@ class instrument:
                             redact(parse(*args, **kwargs), self.ignore_inputs),
                         )
 
+                    try:
                         result = func(*args, **kwargs)
+                    except Exception as e:
+                        ag.tracing.record_exception(e)
 
+                        ag.tracing.set_status("ERROR")
+
+                        raise e
+
+                    with suppress(Exception):
                         cost = 0.0
                         usage = {}
                         if isinstance(result, dict):
@@ -196,20 +205,15 @@ class instrument:
                                 }
                             ),
                         )
+
                         ag.tracing.set_attributes(
                             "data.outputs",
                             redact(patch(result), self.ignore_outputs),
                         )
+
                         ag.tracing.set_status("OK")
 
-                        return result
-
-                    except Exception as e:
-                        ag.tracing.record_exception(e)
-
-                        ag.tracing.set_status("ERROR")
-
-                        raise e
+                    return result
 
             return wrapped_func(*args, **kwargs)
 
