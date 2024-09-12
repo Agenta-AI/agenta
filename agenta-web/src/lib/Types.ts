@@ -360,25 +360,6 @@ export interface Evaluator {
     tags: string[]
 }
 
-export interface EvaluatorMappingInput {
-    inputs: Record<string, any>
-    mapping: Record<string, any>
-}
-
-export interface EvaluatorMappingOutput {
-    outputs: Record<string, any>
-}
-
-export interface EvaluatorInputInterface {
-    inputs: Record<string, any>
-    settings?: Record<string, any>
-    credentials?: Record<string, any>
-}
-
-export interface EvaluatorOutputInterface {
-    outputs: Record<string, any>
-}
-
 export interface EvaluatorConfig {
     id: string
     evaluator_key: string

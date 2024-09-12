@@ -1,45 +1,24 @@
-import {
-    BaseResponse,
-    Evaluator,
-    EvaluatorConfig,
-    JSSTheme,
-    Parameter,
-    testset,
-    Variant,
-} from "@/lib/Types"
-import {CloseCircleOutlined, CloseOutlined, InfoCircleOutlined} from "@ant-design/icons"
-import {
-    ArrowLeft,
-    CaretDoubleLeft,
-    CaretDoubleRight,
-    ClockClockwise,
-    Database,
-    Lightning,
-    Play,
-} from "@phosphor-icons/react"
-import {Button, Divider, Flex, Form, Input, message, Select, Space, Tooltip, Typography} from "antd"
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/lib/Types"
+import {CloseOutlined} from "@ant-design/icons"
+import {ArrowLeft, CaretDoubleLeft, CaretDoubleRight} from "@phosphor-icons/react"
+import {Button, Flex, Form, Input, message, Space, Tooltip, Typography} from "antd"
+import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
-import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
-    createEvaluatorDataMapping,
-    createEvaluatorRunExecution,
     updateEvaluatorConfig,
 } from "@/services/evaluations/api"
 import {useAppId} from "@/hooks/useAppId"
 import {useLocalStorage} from "usehooks-ts"
-import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-import {apiKeyObject, getStringOrJson, removeKeys} from "@/lib/helpers/utils"
-import {callVariant} from "@/services/api"
-import {Editor} from "@monaco-editor/react"
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import {fromBaseResponseToTraceSpanType, transformTraceTreeToJson} from "@/lib/transformers"
-import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/lib/helpers/evaluate"
+import {isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const DebugSection: any = dynamicComponent(
+    "pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection",
+)
 
 type ConfigureEvaluatorProps = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
@@ -91,11 +70,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: theme.lineHeight,
         fontWeight: theme.fontWeightMedium,
     },
-    editor: {
-        border: `1px solid ${theme.colorBorder}`,
-        borderRadius: theme.borderRadius,
-        overflow: "hidden",
-    },
 }))
 
 const ConfigureEvaluator = ({
@@ -117,17 +91,9 @@ const ConfigureEvaluator = ({
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
-    const {appTheme} = useAppTheme()
     const [form] = Form.useForm()
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
-    const [openVariantModal, setOpenVariantModal] = useState(false)
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [optInputs, setOptInputs] = useState<Parameter[] | null>(null)
-    const [optParams, setOptParams] = useState<Parameter[] | null>(null)
-    const [isChatVariant, setIsChatVariant] = useState(false)
-    const abortControllersRef = useRef<AbortController | null>(null)
-    const [isRunningVariant, setIsRunningVariant] = useState(false)
-    const [variantResult, setVariantResult] = useState("")
     const [traceTree, setTraceTree] = useState<{
         testcase: Record<string, any> | null
         trace: Record<string, any> | string | null
@@ -135,67 +101,6 @@ const ConfigureEvaluator = ({
         testcase: selectedTestcase,
         trace: null,
     })
-    const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
-    const [outputResult, setOutputResult] = useState("")
-    const [isLoadingResult, setIsLoadingResult] = useState(false)
-
-    const fetchEvalMapper = async () => {
-        if (!baseResponseData || !selectedTestcase) return
-
-        try {
-            setIsLoadingResult(true)
-
-            const settingsValues = form.getFieldValue("settings_values") || {}
-            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
-                settingsValues,
-                selectedTestcase,
-            )
-            let outputs = {}
-
-            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
-                const mapResponse = await createEvaluatorDataMapping({
-                    inputs: baseResponseData,
-                    mapping: transformTraceKeysInSettings(evalMapObj),
-                })
-                outputs = {...outputs, ...mapResponse.outputs}
-            }
-
-            if (Object.keys(testcaseObj).length) {
-                outputs = {...outputs, ...testcaseObj}
-            }
-
-            if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = settingsValues.correct_answer_key
-                const groundTruthKey =
-                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
-                        ? correctAnswerKey.split(".")[1]
-                        : correctAnswerKey
-
-                outputs = {
-                    ground_truth: selectedTestcase[groundTruthKey],
-                    prediction:
-                        selectedEvaluator.key.includes("json") ||
-                        selectedEvaluator.key.includes("field_match_test")
-                            ? JSON.stringify({message: variantResult})
-                            : variantResult,
-                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
-                }
-            }
-
-            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
-                inputs: outputs,
-                settings: transformTraceKeysInSettings(settingsValues),
-                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
-                    ? {credentials: apiKeyObject()}
-                    : {}),
-            })
-            setOutputResult(getStringOrJson(runResponse.outputs))
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsLoadingResult(false)
-        }
-    }
 
     const evalFields = useMemo(
         () =>
@@ -234,76 +139,6 @@ const ConfigureEvaluator = ({
             setSubmitLoading(false)
             console.error(error)
             message.error(error.message)
-        }
-    }
-
-    useEffect(() => {
-        if (!selectedVariant || !selectedTestcase) return
-
-        const fetchParameters = async () => {
-            try {
-                const {parameters, inputs, isChatVariant} = await getAllVariantParameters(
-                    appId,
-                    selectedVariant,
-                )
-                setOptInputs(inputs)
-                setOptParams(parameters)
-                setIsChatVariant(isChatVariant)
-            } catch (error) {
-                console.error(error)
-            }
-        }
-
-        fetchParameters()
-    }, [selectedVariant])
-
-    const handleRunVariant = async () => {
-        if (!selectedTestcase || !selectedVariant) return
-        const controller = new AbortController()
-        abortControllersRef.current = controller
-
-        try {
-            setIsRunningVariant(true)
-            const result = await callVariant(
-                isChatVariant ? removeKeys(selectedTestcase, ["chat"]) : selectedTestcase,
-                optInputs || [],
-                optParams || [],
-                appId,
-                selectedVariant.baseId,
-                isChatVariant ? JSON.parse(selectedTestcase.chat) || [{}] : [],
-                controller.signal,
-                true,
-            )
-
-            if (typeof result === "string") {
-                setVariantResult(getStringOrJson(result))
-                setTraceTree({...traceTree, trace: result})
-            } else if (isFuncResponse(result)) {
-                setVariantResult(getStringOrJson(result))
-                setTraceTree({...traceTree, trace: result})
-            } else if (isBaseResponse(result)) {
-                setBaseResponseData(result)
-                const {trace, data} = result
-                setVariantResult(getStringOrJson(data))
-                if (trace?.spans) {
-                    setTraceTree({
-                        ...traceTree,
-                        trace: transformTraceTreeToJson(
-                            fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
-                        ),
-                    })
-                }
-            } else {
-                console.error("Unknown response type:", result)
-            }
-        } catch (error: any) {
-            if (!controller.signal.aborted) {
-                console.error(error)
-                message.error(error.message)
-                setVariantResult("")
-            }
-        } finally {
-            setIsRunningVariant(false)
         }
     }
 
@@ -362,12 +197,30 @@ const ConfigureEvaluator = ({
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
                             </Typography.Text>
-                            <Button size="small" onClick={() => setDebugEvaluator(!debugEvaluator)}>
-                                <div className="flex items-center gap-2">
-                                    {debugEvaluator ? <CaretDoubleLeft /> : <CaretDoubleRight />}
-                                    Test
-                                </div>
-                            </Button>
+
+                            <Tooltip
+                                title={
+                                    isDemo()
+                                        ? ""
+                                        : "Test evaluator feature available in Cloud/Enterprise editions only"
+                                }
+                                placement="bottom"
+                            >
+                                <Button
+                                    size="small"
+                                    onClick={() => setDebugEvaluator(!debugEvaluator)}
+                                    disabled={!isDemo()}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {debugEvaluator ? (
+                                            <CaretDoubleLeft />
+                                        ) : (
+                                            <CaretDoubleRight />
+                                        )}
+                                        Test
+                                    </div>
+                                </Button>
+                            </Tooltip>
                         </Flex>
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
@@ -440,177 +293,20 @@ const ConfigureEvaluator = ({
                     </Flex>
                 </div>
 
-                {debugEvaluator && (
-                    <>
-                        <Divider type="vertical" className="h-full" />
-
-                        <div className="flex-1 flex flex-col gap-4">
-                            <Space direction="vertical" size={0}>
-                                <Typography.Text className={classes.title}>
-                                    Debug evaluator
-                                </Typography.Text>
-                                <Typography.Text type="secondary">
-                                    Test your evaluator by generating a test data
-                                </Typography.Text>
-                            </Space>
-
-                            <Flex justify="space-between">
-                                <Typography.Text className={classes.title}>
-                                    Generate test data
-                                </Typography.Text>
-                                <Space>
-                                    <Tooltip
-                                        title={testsets?.length === 0 ? "No testset" : ""}
-                                        placement="bottom"
-                                    >
-                                        <Button
-                                            size="small"
-                                            className="flex items-center gap-2"
-                                            onClick={() => setCurrent(3)}
-                                            disabled={testsets?.length === 0}
-                                        >
-                                            <Database />
-                                            Load testcase
-                                        </Button>
-                                    </Tooltip>
-                                    <Button
-                                        size="small"
-                                        className="flex items-center gap-2"
-                                        onClick={() => setOpenVariantModal(true)}
-                                    >
-                                        <Lightning />
-                                        Select variant
-                                    </Button>
-                                    {isRunningVariant ? (
-                                        <Button
-                                            size="small"
-                                            danger
-                                            onClick={() => {
-                                                if (abortControllersRef.current) {
-                                                    abortControllersRef.current.abort()
-                                                }
-                                            }}
-                                            type="primary"
-                                        >
-                                            <CloseCircleOutlined />
-                                            Cancel
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            size="small"
-                                            className="flex items-center gap-2"
-                                            disabled={!selectedTestcase || !selectedVariant}
-                                            onClick={handleRunVariant}
-                                            loading={isRunningVariant}
-                                        >
-                                            <Play />
-                                            Run variant
-                                        </Button>
-                                    )}
-                                </Space>
-                            </Flex>
-
-                            <div className="flex-[0.5] flex flex-col h-full gap-1">
-                                <Space>
-                                    <Typography.Text className={classes.formTitleText}>
-                                        JSON Data
-                                    </Typography.Text>
-                                    <Tooltip
-                                        title={
-                                            "The data sent to the evaluator, contains the input, output and the trace data"
-                                        }
-                                    >
-                                        <InfoCircleOutlined />
-                                    </Tooltip>
-                                </Space>
-                                <Editor
-                                    className={classes.editor}
-                                    width="100%"
-                                    language="json"
-                                    theme={`vs-${appTheme}`}
-                                    value={getStringOrJson(traceTree)}
-                                    onChange={(value) => {
-                                        try {
-                                            if (value) {
-                                                const parsedValue = JSON.parse(value)
-                                                setTraceTree(parsedValue)
-                                            }
-                                        } catch (error) {}
-                                    }}
-                                    options={{
-                                        wordWrap: "on",
-                                        minimap: {enabled: false},
-                                        lineNumbers: "off",
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex-[0.3] flex flex-col h-full gap-1">
-                                <Typography.Text className={classes.formTitleText}>
-                                    App Output
-                                </Typography.Text>
-                                <Editor
-                                    className={classes.editor}
-                                    width="100%"
-                                    language="json"
-                                    theme={`vs-${appTheme}`}
-                                    value={variantResult}
-                                    options={{
-                                        wordWrap: "on",
-                                        minimap: {enabled: false},
-                                        readOnly: true,
-                                        lineNumbers: "off",
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex flex-col gap-2 flex-[0.2] h-full">
-                                <Flex justify="space-between">
-                                    <Typography.Text className={classes.formTitleText}>
-                                        Evaluator Output
-                                    </Typography.Text>
-                                    <Tooltip
-                                        title={baseResponseData ? "" : "BaseResponse feature"}
-                                        placement="bottom"
-                                    >
-                                        <Button
-                                            className="flex items-center gap-2"
-                                            size="small"
-                                            onClick={fetchEvalMapper}
-                                            disabled={!baseResponseData}
-                                            loading={isLoadingResult}
-                                        >
-                                            <Play /> Run evaluator
-                                        </Button>
-                                    </Tooltip>
-                                </Flex>
-
-                                <Editor
-                                    className={classes.editor}
-                                    width="100%"
-                                    language="json"
-                                    theme={`vs-${appTheme}`}
-                                    options={{
-                                        wordWrap: "on",
-                                        minimap: {enabled: false},
-                                        readOnly: true,
-                                        lineNumbers: "off",
-                                    }}
-                                    value={outputResult}
-                                />
-                            </div>
-                        </div>
-                    </>
-                )}
+                <DebugSection
+                    selectedEvaluator={selectedEvaluator}
+                    selectedTestcase={selectedTestcase}
+                    selectedVariant={selectedVariant}
+                    setCurrent={setCurrent}
+                    setTraceTree={setTraceTree}
+                    debugEvaluator={debugEvaluator}
+                    form={form}
+                    testsets={testsets}
+                    traceTree={traceTree}
+                    variants={variants}
+                    setSelectedVariant={setSelectedVariant}
+                />
             </Flex>
-
-            <EvaluatorVariantModal
-                variants={variants}
-                open={openVariantModal}
-                onCancel={() => setOpenVariantModal(false)}
-                setSelectedVariant={setSelectedVariant}
-                selectedVariant={selectedVariant}
-            />
         </div>
     )
 }
