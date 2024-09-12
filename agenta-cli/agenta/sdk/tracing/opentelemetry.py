@@ -1,7 +1,7 @@
 import httpx
 
 from typing import Optional, Union, Any, Dict
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 
 from opentelemetry.trace import set_tracer_provider
 from opentelemetry.trace.propagation import get_current_span
@@ -89,25 +89,31 @@ class Tracing:
 
     @contextmanager
     def start_as_current_span(self, name: str, kind: str):
-        with self.tracer.start_as_current_span(name) as span:
+        try:
+            with self.tracer.start_as_current_span(name) as span:
+                self.set_attributes(
+                    namespace="extra",
+                    attributes={"kind": kind},
+                    span=span,
+                )
+
+                yield span
+        except Exception as e:
+            yield None
+
+    def start_span(self, name: str, kind: str) -> Optional[Span]:
+        try:
+            span = self.tracer.start_span(name)
+
             self.set_attributes(
                 namespace="extra",
                 attributes={"kind": kind},
                 span=span,
             )
 
-            yield span
-
-    def start_span(self, name: str, kind: str) -> Span:
-        span = self.tracer.start_span(name)
-
-        self.set_attributes(
-            namespace="extra",
-            attributes={"kind": kind},
-            span=span,
-        )
-
-        return span
+            return span
+        except Exception as e:
+            return None
 
     def set_status(
         self,
@@ -118,7 +124,8 @@ class Tracing:
         if span is None:
             span = get_current_span()
 
-        otel_set_status(span, status, message)
+        with suppress(Exception):
+            otel_set_status(span, status, message)
 
     def add_event(
         self,
@@ -130,7 +137,8 @@ class Tracing:
         if span is None:
             span = get_current_span()
 
-        otel_add_event(span, name, attributes, timestamp)
+        with suppress(Exception):
+            otel_add_event(span, name, attributes, timestamp)
 
     def record_exception(
         self,
@@ -142,7 +150,8 @@ class Tracing:
         if span is None:
             span = get_current_span()
 
-        otel_record_exception(span, exception, attributes, timestamp)
+        with suppress(Exception):
+            otel_record_exception(span, exception, attributes, timestamp)
 
     def set_attributes(
         self,
@@ -153,7 +162,8 @@ class Tracing:
         if span is None:
             span = get_current_span()
 
-        otel_set_attributes(span, namespace, attributes)
+        with suppress(Exception):
+            otel_set_attributes(span, namespace, attributes)
 
     def get_attributes(
         self,
@@ -163,24 +173,48 @@ class Tracing:
         if span is None:
             span = get_current_span()
 
-        return otel_get_attributes(span, namespace)
+        attributes = {}
+
+        with suppress(Exception):
+            attributes = otel_get_attributes(span, namespace)
+
+        return attributes
 
     def store_internals(
         self,
         attributes: Dict[str, Any],
         span: Optional[Span] = None,
     ) -> None:
-        self.set_attributes(
-            namespace="data.internals",
-            attributes=attributes,
-            span=span,
-        )
+        if span is None:
+            span = get_current_span()
+
+        with suppress(Exception):
+            self.set_attributes(
+                namespace="data.internals",
+                attributes=attributes,
+                span=span,
+            )
 
     def is_processing(self) -> bool:
-        return not self.inline_processor.is_done()
+        processing = False
+
+        with suppress(Exception):
+            processing = self.inline_processor.is_done()
+
+        return processing
 
     def get_inline_trace(self) -> Dict[str, Any]:
-        return inline_get_trace(self.spans)
+        trace = {}
+
+        with suppress(Exception):
+            trace = inline_get_trace(self.spans)
+
+        return trace
 
     def get_trace_id_only(self) -> Dict[str, Any]:
-        return inline_get_trace_id(self.spans)
+        trace = {}
+
+        with suppress(Exception):
+            trace = inline_get_trace_id(self.spans)
+
+        return trace

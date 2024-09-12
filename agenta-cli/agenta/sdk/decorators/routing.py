@@ -13,7 +13,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
 from importlib.metadata import version
-
+from contextlib import suppress
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
@@ -383,6 +383,9 @@ class entrypoint:
         FINALSTEP = 0.001
         NOFSTEPS = TIMEOUT / TIMESTEP
 
+        data = None
+        trace = {}
+
         try:
             result = (
                 await func(*args, **func_params["params"])
@@ -391,7 +394,10 @@ class entrypoint:
             )
 
             data = self.patch_result(result)
+        except Exception as e:
+            self.handle_exception(e)
 
+        with suppress(Exception):
             if inline_trace:
                 if WAIT_FOR_SPANS:
                     remaining_steps = NOFSTEPS
@@ -406,30 +412,9 @@ class entrypoint:
             else:
                 trace = ag.tracing.get_trace_id_only()
 
-            response = BaseResponse(data=data, trace=trace)
+        response = BaseResponse(data=data, trace=trace)
 
-            return response
-
-        except Exception as e:
-            if WAIT_FOR_SPANS:
-                remaining_steps = NOFSTEPS
-
-                while ag.tracing.is_processing() and remaining_steps > 0:
-                    await asyncio.sleep(TIMESTEP)
-                    remaining_steps -= 1
-
-                await asyncio.sleep(FINALSTEP)
-
-            trace = ag.tracing.get_inline_trace(trace_id_only=(not inline_trace))
-
-            log.info("========= Error ==========")
-            log.info("")
-
-            print("-> trace")
-            log.info(trace)
-            print("-> exception")
-
-            self.handle_exception(e)
+        return response
 
     def handle_exception(self, e: Exception):
         status_code = e.status_code if hasattr(e, "status_code") else 500
