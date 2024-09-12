@@ -18,9 +18,6 @@ from agenta_backend.models.base import Base
 from agenta_backend.models.shared_models import TemplateType
 
 
-CASCADE_ALL_DELETE = "all, delete-orphan"
-
-
 class UserDB(Base):
     __tablename__ = "users"
 
@@ -52,7 +49,7 @@ class ProjectDB(Base):
         unique=True,
         nullable=False,
     )
-    project_name = Column(String, nullable=False, unique=True)
+    project_name = Column(String, nullable=False)
     is_default = Column(Boolean, default=False)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -60,13 +57,6 @@ class ProjectDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-
-    image = relationship("ImageDB", cascade=CASCADE_ALL_DELETE, backref="project")
-    app = relationship("AppDB", cascade=CASCADE_ALL_DELETE, backref="project")
-    evaluator_config = relationship(
-        "EvaluatorConfigDB", cascade=CASCADE_ALL_DELETE, backref="project"
-    )
-    testset = relationship("TestSetDB", cascade=CASCADE_ALL_DELETE, backref="project")
 
 
 class ImageDB(Base):
@@ -84,9 +74,8 @@ class ImageDB(Base):
     docker_id = Column(String, nullable=True, index=True)
     tags = Column(String, nullable=True)
     deletable = Column(Boolean, default=True)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user = relationship("UserDB")
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -106,10 +95,7 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -117,16 +103,22 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
+    user = relationship("UserDB")
     variant = relationship(
-        "AppVariantDB", cascade=CASCADE_ALL_DELETE, back_populates="app"
+        "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
+    testset = relationship("TestSetDB", cascade="all, delete-orphan", backref="app")
     deployment = relationship(
-        "DeploymentDB", cascade=CASCADE_ALL_DELETE, back_populates="app"
+        "DeploymentDB", cascade="all, delete-orphan", back_populates="app"
     )
-    evaluation = relationship("EvaluationDB", cascade=CASCADE_ALL_DELETE, backref="app")
+    base = relationship(
+        "VariantBaseDB", cascade="all, delete-orphan", back_populates="app"
+    )
+    evaluation = relationship(
+        "EvaluationDB", cascade="all, delete-orphan", backref="app"
+    )
     human_evaluation = relationship(
-        "HumanEvaluationDB", cascade=CASCADE_ALL_DELETE, backref="app"
+        "HumanEvaluationDB", cascade="all, delete-orphan", backref="app"
     )
 
 
@@ -141,9 +133,7 @@ class DeploymentDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     container_name = Column(String)
     container_id = Column(String)
     uri = Column(String)
@@ -155,7 +145,7 @@ class DeploymentDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
+    user = relationship("UserDB")
     app = relationship("AppDB", back_populates="deployment")
 
 
@@ -169,9 +159,8 @@ class VariantBaseDB(Base):
         unique=True,
         nullable=False,
     )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
     image_id = Column(
         UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
@@ -186,9 +175,10 @@ class VariantBaseDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    user = relationship("UserDB")
     image = relationship("ImageDB")
     deployment = relationship("DeploymentDB")
-    project = relationship("ProjectDB")
+    app = relationship("AppDB", back_populates="base")
 
 
 class AppVariantDB(Base):
@@ -209,9 +199,7 @@ class AppVariantDB(Base):
         ForeignKey("docker_images.id", ondelete="SET NULL"),
         nullable=True,
     )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
@@ -228,12 +216,12 @@ class AppVariantDB(Base):
 
     image = relationship("ImageDB")
     app = relationship("AppDB", back_populates="variant")
-    project = relationship("ProjectDB")
+    user = relationship("UserDB", foreign_keys=[user_id])
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     base = relationship("VariantBaseDB")
     variant_revision = relationship(
         "AppVariantRevisionsDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="variant_revision",
     )
 
@@ -252,9 +240,6 @@ class AppVariantRevisionsDB(Base):
         UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="CASCADE")
     )
     revision = Column(Integer)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     config_name = Column(String, nullable=False)
@@ -268,7 +253,6 @@ class AppVariantRevisionsDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
     modified_by = relationship("UserDB")
     base = relationship("VariantBaseDB")
 
@@ -288,9 +272,7 @@ class AppEnvironmentDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     name = Column(String)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     revision = Column(Integer)
     deployed_app_variant_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
@@ -305,9 +287,9 @@ class AppEnvironmentDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
+    user = relationship("UserDB")
     environment_revisions = relationship(
-        "AppEnvironmentRevisionDB", cascade=CASCADE_ALL_DELETE, backref="environment"
+        "AppEnvironmentRevisionDB", cascade="all, delete-orphan", backref="environment"
     )
     deployed_app_variant = relationship("AppVariantDB")
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
@@ -326,9 +308,6 @@ class AppEnvironmentRevisionDB(Base):
     environment_id = Column(
         UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE")
     )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
     revision = Column(Integer)
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     deployed_app_variant_revision_id = Column(
@@ -341,7 +320,6 @@ class AppEnvironmentRevisionDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
     modified_by = relationship("UserDB")
 
 
@@ -380,16 +358,17 @@ class TestSetDB(Base):
         nullable=False,
     )
     name = Column(String)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    user = relationship("UserDB")
 
 
 class EvaluatorConfigDB(Base):
@@ -403,9 +382,8 @@ class EvaluatorConfigDB(Base):
         nullable=False,
     )
 
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="SET NULL"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     name = Column(String)
     evaluator_key = Column(String)
     settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
@@ -415,6 +393,8 @@ class EvaluatorConfigDB(Base):
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+    user = relationship("UserDB")
 
 
 class HumanEvaluationVariantDB(Base):
@@ -454,9 +434,7 @@ class HumanEvaluationDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     status = Column(String)
     evaluation_type = Column(String)
     testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
@@ -467,15 +445,16 @@ class HumanEvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    user = relationship("UserDB")
     testset = relationship("TestSetDB")
     evaluation_variant = relationship(
         "HumanEvaluationVariantDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="human_evaluation",
     )
     evaluation_scenario = relationship(
         "HumanEvaluationScenarioDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="evaluation_scenario",
     )
 
@@ -490,9 +469,7 @@ class HumanEvaluationScenarioDB(Base):
         unique=True,
         nullable=False,
     )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
     )
@@ -566,9 +543,7 @@ class EvaluationDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     testset_id = Column(
         UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
@@ -589,21 +564,21 @@ class EvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
+    user = relationship("UserDB")
     testset = relationship("TestSetDB")
     variant = relationship("AppVariantDB")
     variant_revision = relationship("AppVariantRevisionsDB")
     aggregated_results = relationship(
         "EvaluationAggregatedResultDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="evaluation",
     )
     evaluation_scenarios = relationship(
-        "EvaluationScenarioDB", cascade=CASCADE_ALL_DELETE, backref="evaluation"
+        "EvaluationScenarioDB", cascade="all, delete-orphan", backref="evaluation"
     )
     evaluator_configs = relationship(
         "EvaluationEvaluatorConfigDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="evaluation",
     )
 
@@ -640,9 +615,7 @@ class EvaluationScenarioDB(Base):
         unique=True,
         nullable=False,
     )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluations.id", ondelete="CASCADE")
     )
@@ -669,11 +642,11 @@ class EvaluationScenarioDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    project = relationship("ProjectDB")
+    user = relationship("UserDB")
     variant = relationship("AppVariantDB")
     results = relationship(
         "EvaluationScenarioResultDB",
-        cascade=CASCADE_ALL_DELETE,
+        cascade="all, delete-orphan",
         backref="evaluation_scenario",
     )
 
