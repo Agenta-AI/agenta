@@ -15,6 +15,31 @@ from agenta.sdk.tracing.trace_tree import (
 )
 
 
+def get_trace_id(spans: Dict[str, ReadableSpan]):
+    traces_idx: Dict[str, Dict[str, ReadableSpan]] = dict()
+
+    for span in spans.values():
+        span: ReadableSpan
+
+        trace_id = span.context.trace_id.to_bytes(16, "big").hex()
+        span_id = span.context.span_id.to_bytes(8, "big").hex()
+
+        if trace_id not in traces_idx:
+            traces_idx[trace_id] = list()
+
+        traces_idx[trace_id].append(span_id)
+
+    spans.clear()  # might need to be moved to a context variable
+
+    if len(traces_idx) > 1:
+        log.error("Error while parsing inline trace: too many traces.")
+    trace_id = list(traces_idx.keys())[0]
+
+    return {
+        "trace_id": trace_id,
+    }
+
+
 def get_trace(spans: Dict[str, ReadableSpan], trace_id_only: bool = False):
     traces_idx: Dict[str, Dict[str, ReadableSpan]] = dict()
 

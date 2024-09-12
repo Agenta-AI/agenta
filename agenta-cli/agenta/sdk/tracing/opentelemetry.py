@@ -21,6 +21,7 @@ from agenta.sdk.tracing.spans import (
 )
 from agenta.sdk.tracing.inline_trace import (
     get_trace as inline_get_trace,
+    get_trace_id as inline_get_trace_id,
 )
 
 _AGENTA_API_KEY_HEADER = "Authorization"
@@ -178,11 +179,8 @@ class Tracing:
     def is_processing(self) -> bool:
         return not self.inline_processor.is_done()
 
-    def get_inline_trace(
-        self,
-        trace_id_only: bool = False,
-    ) -> Dict[str, Any]:
-        if trace_id_only:
-            return {"trace_id": list(self.spans.keys())[0]}
-        else:
-            return inline_get_trace(self.spans)
+    def get_inline_trace(self) -> Dict[str, Any]:
+        return inline_get_trace(self.spans)
+
+    def get_trace_id_only(self) -> Dict[str, Any]:
+        return inline_get_trace_id(self.spans)

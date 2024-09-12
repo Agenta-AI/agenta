@@ -343,7 +343,7 @@ class entrypoint:
         result = patch_result(result)
         print(result)
         # Output: "Hello, world!"
-        ``` 
+        ```
         """
         data = (
             result["message"]
@@ -392,16 +392,19 @@ class entrypoint:
 
             data = self.patch_result(result)
 
-            if WAIT_FOR_SPANS:
-                remaining_steps = NOFSTEPS
+            if inline_trace:
+                if WAIT_FOR_SPANS:
+                    remaining_steps = NOFSTEPS
 
-                while ag.tracing.is_processing() and remaining_steps > 0:
-                    await asyncio.sleep(TIMESTEP)
-                    remaining_steps -= 1
+                    while ag.tracing.is_processing() and remaining_steps > 0:
+                        await asyncio.sleep(TIMESTEP)
+                        remaining_steps -= 1
 
-                await asyncio.sleep(FINALSTEP)
+                    await asyncio.sleep(FINALSTEP)
 
-            trace = ag.tracing.get_inline_trace(trace_id_only=(not inline_trace))
+                trace = ag.tracing.get_inline_trace()
+            else:
+                trace = ag.tracing.get_trace_id_only()
 
             response = BaseResponse(data=data, trace=trace)
 
