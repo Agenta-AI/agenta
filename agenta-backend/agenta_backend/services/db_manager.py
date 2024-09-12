@@ -28,6 +28,7 @@ if isCloudEE():
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
+        ProjectDB_ as ProjectDB,
         TestSetDB_ as TestSetDB,
         AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
@@ -49,6 +50,7 @@ else:
         AppDB,
         UserDB,
         ImageDB,
+        ProjectDB,
         TestSetDB,
         AppVariantDB,
         EvaluationDB,
@@ -3219,3 +3221,17 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
         )
         object_mapping = result.scalars().first()
         return str(object_mapping.uuid)
+
+
+async def fetch_default_project() -> ProjectDB:
+    """
+    Fetch the default project from the database.
+
+    Returns:
+        ProjectDB: The default project instance.
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(ProjectDB).filter_by(is_default=True))
+        default_project = result.scalars().first()
+        return default_project
