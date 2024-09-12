@@ -233,7 +233,7 @@ class entrypoint:
                     ag.config.pull(config_name="default")
 
             with routing_context_manager(
-                config=ag.config.all(),
+                config=config_params,
                 variant=kwargs["config"],
                 environment=kwargs["environment"],
             ):
