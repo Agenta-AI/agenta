@@ -109,6 +109,7 @@ class AppDB(Base):
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -116,6 +117,7 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     variant = relationship(
         "AppVariantDB", cascade=CASCADE_ALL_DELETE, back_populates="app"
     )
