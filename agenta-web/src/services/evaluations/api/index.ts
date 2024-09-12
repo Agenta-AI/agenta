@@ -3,10 +3,6 @@ import {
     ComparisonResultRow,
     Evaluator,
     EvaluatorConfig,
-    EvaluatorInputInterface,
-    EvaluatorMappingInput,
-    EvaluatorMappingOutput,
-    EvaluatorOutputInterface,
     KeyValuePair,
     LLMRunRateLimit,
     TestSet,
@@ -64,21 +60,6 @@ export const fetchAllEvaluators = async () => {
         })) as Evaluator[]
 
     return evaluators
-}
-
-export const createEvaluatorDataMapping = async (
-    config: EvaluatorMappingInput,
-): Promise<EvaluatorMappingOutput> => {
-    const response = await axios.post("/api/evaluators/map/", {...config})
-    return response.data
-}
-
-export const createEvaluatorRunExecution = async (
-    evaluatorKey: string,
-    config: EvaluatorInputInterface,
-): Promise<EvaluatorOutputInterface> => {
-    const response = await axios.post(`/api/evaluators/${evaluatorKey}/run/`, {...config})
-    return response.data
 }
 
 // Evaluator Configs
