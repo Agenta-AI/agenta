@@ -20,7 +20,7 @@ def set_status(span: Span, status: str, message: Optional[str] = None) -> None:
 def add_event(span: Span, name, attributes=None, timestamp=None) -> None:
     span.add_event(
         name=name,
-        attributes=attributes,
+        attributes=_serialize_attributes(None, attributes),
         timestamp=timestamp,
     )
 
@@ -28,33 +28,67 @@ def add_event(span: Span, name, attributes=None, timestamp=None) -> None:
 def record_exception(span: Span, exception, attributes=None, timestamp=None) -> None:
     span.record_exception(
         exception=exception,
-        attributes=attributes,
+        attributes=_serialize_attributes(None, attributes),
         timestamp=timestamp,
         escaped=None,
     )
 
 
-def set_attributes(span: Span, namespace: str, attributes: Dict[str, Any]) -> None:
-    for key, value in attributes.items():
-        span.set_attribute(
-            _encode_key(namespace, key),
-            _encode_value(value),
-        )
+def set_attributes(
+    span: Span, namespace: Optional[str], attributes: Dict[str, Any]
+) -> None:
+    if isinstance(attributes, dict):
+        span.set_attributes(_serialize_attributes(namespace, attributes).items())
 
 
 def get_attributes(span: Union[ReadableSpan, Span], namespace: str):
+    return _deserialize_attributes(
+        namespace,
+        {
+            key: value
+            for key, value in span.attributes.items()
+            if key != _decode_key(namespace, key)
+        },
+    )
+
+
+def _serialize_attributes(
+    namespace: str,
+    attributes: Dict[str, Any],
+) -> Dict[str, str]:
+    if not isinstance(attributes, dict):
+        return {}
+
     return {
-        _decode_key(namespace, key): _decode_value(value)
-        for key, value in span.attributes.items()
-        if key != _decode_key(namespace, key)
+        _encode_key(namespace, key): _encode_value(value)
+        for key, value in attributes.items()
     }
 
 
-def _encode_key(namespace, key: str) -> str:
+def _deserialize_attributes(
+    namespace: str,
+    attributes: Dict[str, Any],
+) -> Dict[str, Any]:
+    if not isinstance(attributes, dict):
+        return {}
+
+    return {
+        _decode_key(namespace, key): _decode_value(value)
+        for key, value in attributes.items()
+    }
+
+
+def _encode_key(namespace: Optional[str] = None, key: str = "") -> str:
+    if namespace is None:
+        return key
+
     return f"ag.{namespace}.{key}"
 
 
-def _decode_key(namespace, key: str) -> str:
+def _decode_key(namespace: Optional[str] = None, key: str = "") -> str:
+    if namespace is None:
+        return key
+
     return key.replace(f"ag.{namespace}.", "")
 
 
