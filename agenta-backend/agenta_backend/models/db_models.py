@@ -74,8 +74,7 @@ class ImageDB(Base):
     docker_id = Column(String, nullable=True, index=True)
     tags = Column(String, nullable=True)
     deletable = Column(Boolean, default=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    user = relationship("UserDB")
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -95,7 +94,8 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -103,7 +103,7 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
+    user = relationship("UserDB", foreign_keys=[user_id])
     variant = relationship(
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
@@ -133,7 +133,7 @@ class DeploymentDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     container_name = Column(String)
     container_id = Column(String)
     uri = Column(String)
@@ -160,7 +160,7 @@ class VariantBaseDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     base_name = Column(String)
     image_id = Column(
         UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
@@ -199,7 +199,7 @@ class AppVariantDB(Base):
         ForeignKey("docker_images.id", ondelete="SET NULL"),
         nullable=True,
     )
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_name = Column(String)
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
@@ -272,7 +272,7 @@ class AppEnvironmentDB(Base):
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     name = Column(String)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     revision = Column(Integer)
     deployed_app_variant_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
@@ -360,7 +360,7 @@ class TestSetDB(Base):
     name = Column(String)
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -383,7 +383,7 @@ class EvaluatorConfigDB(Base):
     )
 
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="SET NULL"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     name = Column(String)
     evaluator_key = Column(String)
     settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)
@@ -434,7 +434,7 @@ class HumanEvaluationDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     status = Column(String)
     evaluation_type = Column(String)
     testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
@@ -469,7 +469,7 @@ class HumanEvaluationScenarioDB(Base):
         unique=True,
         nullable=False,
     )
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
     )
@@ -543,7 +543,7 @@ class EvaluationDB(Base):
         nullable=False,
     )
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
     testset_id = Column(
         UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
@@ -615,7 +615,7 @@ class EvaluationScenarioDB(Base):
         unique=True,
         nullable=False,
     )
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     evaluation_id = Column(
         UUID(as_uuid=True), ForeignKey("evaluations.id", ondelete="CASCADE")
     )
