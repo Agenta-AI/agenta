@@ -36,6 +36,7 @@ type ConfigureEvaluatorProps = {
     setEditMode: (value: React.SetStateAction<boolean>) => void
     cloneConfig: boolean
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
+    setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -88,6 +89,7 @@ const ConfigureEvaluator = ({
     setEditMode,
     cloneConfig,
     setCloneConfig,
+    setSelectedTestcase,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -95,10 +97,8 @@ const ConfigureEvaluator = ({
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [traceTree, setTraceTree] = useState<{
-        testcase: Record<string, any> | null
         trace: Record<string, any> | string | null
     }>({
-        testcase: selectedTestcase,
         trace: null,
     })
 
@@ -272,7 +272,7 @@ const ConfigureEvaluator = ({
                             {advancedSettingsFields.length > 0 && (
                                 <AdvancedSettings
                                     settings={advancedSettingsFields}
-                                    selectedTestcase={{testcase: traceTree.testcase}}
+                                    selectedTestcase={{testcase: selectedTestcase}}
                                 />
                             )}
                         </Form>
@@ -297,7 +297,6 @@ const ConfigureEvaluator = ({
                     selectedEvaluator={selectedEvaluator}
                     selectedTestcase={selectedTestcase}
                     selectedVariant={selectedVariant}
-                    setCurrent={setCurrent}
                     setTraceTree={setTraceTree}
                     debugEvaluator={debugEvaluator}
                     form={form}
@@ -305,6 +304,7 @@ const ConfigureEvaluator = ({
                     traceTree={traceTree}
                     variants={variants}
                     setSelectedVariant={setSelectedVariant}
+                    setSelectedTestcase={setSelectedTestcase}
                 />
             </Flex>
         </div>
