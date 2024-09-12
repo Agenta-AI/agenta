@@ -325,7 +325,26 @@ class entrypoint:
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
-    def patch_result(self, result):
+    def patch_result(self, result: Any):
+        """
+        Patch the result to only include the message if the result is a FuncResponse-style dictionary with message, cost, and usage keys.
+
+        Example:
+        ```python
+        result = {
+            "message": "Hello, world!",
+            "cost": 0.5,
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }
+        result = patch_result(result)
+        print(result)
+        # Output: "Hello, world!"
+        ``` 
+        """
         data = (
             result["message"]
             if isinstance(result, dict)

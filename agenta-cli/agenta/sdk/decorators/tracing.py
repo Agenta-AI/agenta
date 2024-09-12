@@ -43,6 +43,14 @@ class instrument:
         def redact(
             io: Dict[str, Any], ignore: List[str] | bool = False
         ) -> Dict[str, Any]:
+            """
+            Redact user-defined sensitive information from inputs and outputs as defined by the ignore list or boolean flag.
+
+            Example:
+            - ignore = ["password"] -> {"username": "admin", "password": "********"} -> {"username": "admin"}
+            - ignore = True -> {"username": "admin", "password": "********"} -> {}
+            - ignore = False -> {"username": "admin", "password": "********"} -> {"username": "admin", "password": "********"}
+            """
             io = {
                 key: value
                 for key, value in io.items()
@@ -50,15 +58,21 @@ class instrument:
                 not in (
                     ignore
                     if isinstance(ignore, list)
-                    else io.keys()
-                    if ignore is True
-                    else []
+                    else io.keys() if ignore is True else []
                 )
             }
 
             return io
 
-        def patch(result):
+        def patch(result: Any) -> Dict[str, Any]:
+            """
+            Patch the result to ensure that it is a dictionary, with a default key when necessary.
+
+            Example:
+            - result = "Hello, World!" -> {"__default__": "Hello, World!"}
+            - result = {"message": "Hello, World!", "cost": 0.0, "usage": {}} -> {"__default__": "Hello, World!"}
+            - result = {"message": "Hello, World!"} -> {"message": "Hello, World!"}
+            """
             outputs = (
                 {instrument.DEFAULT_KEY: result}
                 if not isinstance(result, dict)
