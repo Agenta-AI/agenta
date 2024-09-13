@@ -53,7 +53,7 @@ def get_default_projects(session):
 
 def check_for_multiple_default_projects(session: Session) -> Sequence[ProjectDB]:
     default_projects = get_default_projects(session)
-    if len(default_projects) >= 1:
+    if len(default_projects) > 1:
         raise ValueError(
             "Multiple default projects found. Please ensure only one exists."
         )
@@ -90,17 +90,13 @@ def remove_default_project():
 
     with sync_session() as session:
         try:
-            default_projects = get_default_projects(session)
+            default_projects = check_for_multiple_default_projects(session)
             if len(default_projects) == 0:
                 click.echo(
                     click.style("No default project found to remove.", fg="yellow")
                 )
                 return
 
-            if len(default_projects) > 1:
-                raise ValueError(
-                    "Multiple default projects found. Please ensure only one exists."
-                )
 
             session.delete(default_projects[0])
             session.commit()
