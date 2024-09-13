@@ -53,6 +53,7 @@ async def upload_file(
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_id: str = Form(None),
+    project_id: Optional[str] = None,
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -132,6 +133,7 @@ async def import_testset(
     endpoint: str = Form(None),
     testset_name: str = Form(None),
     app_id: str = Form(None),
+    project_id: Optional[str] = None,
 ):
     """
     Import JSON testset data from an endpoint and save it to MongoDB.
@@ -208,6 +210,7 @@ async def create_testset(
     app_id: str,
     csvdata: NewTestset,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
@@ -261,6 +264,7 @@ async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Update a testset with given id, update the testset in MongoDB.
@@ -314,6 +318,7 @@ async def update_testset(
 async def get_testsets(
     app_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
@@ -358,6 +363,7 @@ async def get_testsets(
 async def get_single_testset(
     testset_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
@@ -398,6 +404,7 @@ async def get_single_testset(
 async def delete_testsets(
     payload: DeleteTestsets,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Delete specific testsets based on their unique IDs.

@@ -1,5 +1,3 @@
-import os
-import inspect
 import logging
 from typing import Any, Optional, Union, List
 
@@ -52,6 +50,7 @@ logger.setLevel(logging.DEBUG)
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> Union[AppVariantResponse, Any]:
     """Add a new variant based on an existing one.
     Same as POST /config
@@ -124,6 +123,7 @@ async def add_variant_from_base_and_config(
 async def remove_variant(
     variant_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Remove a variant from the server.
     In the case it's the last variant using the image, stop the container and remove the image.
@@ -176,6 +176,7 @@ async def update_variant_parameters(
     request: Request,
     variant_id: str,
     payload: UpdateVariantParameterPayload = Body(...),
+    project_id: Optional[str] = None,
 ):
     """
     Updates the parameters for an app variant.
@@ -239,6 +240,7 @@ async def update_variant_image(
     variant_id: str,
     image: Image,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Updates the image used in an app variant.
@@ -312,6 +314,7 @@ async def start_variant(
     variant_id: str,
     action: VariantAction,
     env_vars: Optional[DockerEnvVars] = None,
+    project_id: Optional[str] = None,
 ) -> URI:
     """
     Start a variant of an app.
@@ -364,7 +367,11 @@ async def start_variant(
 
 
 @router.get("/{variant_id}/logs/", operation_id="retrieve_variant_logs")
-async def retrieve_variant_logs(variant_id: str, request: Request):
+async def retrieve_variant_logs(
+    variant_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
         deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
@@ -383,6 +390,7 @@ async def retrieve_variant_logs(variant_id: str, request: Request):
 async def get_variant(
     variant_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     logger.debug("getting variant " + variant_id)
     try:
@@ -416,7 +424,11 @@ async def get_variant(
     operation_id="get_variant_revisions",
     response_model=List[AppVariantRevision],
 )
-async def get_variant_revisions(variant_id: str, request: Request):
+async def get_variant_revisions(
+    variant_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     logger.debug("getting variant revisions: ", variant_id)
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(
@@ -454,7 +466,12 @@ async def get_variant_revisions(variant_id: str, request: Request):
     operation_id="get_variant_revision",
     response_model=AppVariantRevision,
 )
-async def get_variant_revision(variant_id: str, revision_number: int, request: Request):
+async def get_variant_revision(
+    variant_id: str,
+    revision_number: int,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     logger.debug("getting variant revision: ", variant_id, revision_number)
     try:
         assert (

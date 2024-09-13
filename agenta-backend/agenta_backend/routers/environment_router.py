@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
@@ -20,6 +21,7 @@ logger.setLevel(logging.DEBUG)
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Deploys a given variant to an environment
 
