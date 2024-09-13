@@ -100,8 +100,8 @@ class AppVariantResponse(BaseModel):
     app_name: str
     variant_id: str
     variant_name: str
+    project_id: str
     parameters: Optional[Dict[str, Any]]
-    user_id: str
     base_name: str
     base_id: str
     config_name: str
@@ -138,6 +138,7 @@ class AppVariantOutputExtended(BaseModel):
 class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
+    project_id: str
     deployed_app_variant_id: Optional[str]
     deployed_variant_name: Optional[str]
     deployed_app_variant_revision_id: Optional[str]

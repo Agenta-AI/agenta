@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response, Query
 
 from agenta_backend.models import converters
+from agenta_backend.utils import project_utils
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.evaluation_model import (
@@ -322,7 +323,10 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
     try:
-        app = await db_manager.fetch_app_by_id(app_id)
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
+        app = await db_manager.fetch_app_by_id(app_id, project_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -340,7 +344,7 @@ async def fetch_list_evaluations(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_list_evaluations(app)
+        return await evaluation_service.fetch_list_evaluations(app, project_id)
     except Exception as exc:
         import traceback
 

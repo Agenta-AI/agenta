@@ -3,8 +3,9 @@ import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter, isCloudEE
 
+from agenta_backend.utils import project_utils
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
     GetConfigResponse,
@@ -31,7 +32,10 @@ async def save_config(
     project_id: Optional[str] = None,
 ):
     try:
-        base_db = await db_manager.fetch_base_by_id(payload.base_id)
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
+        base_db = await db_manager.fetch_base_by_id(payload.base_id, project_id)
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -47,7 +51,7 @@ async def save_config(
                     status_code=403,
                 )
 
-        variants_db = await db_manager.list_variants_for_base(base_db)
+        variants_db = await db_manager.list_variants_for_base(base_db, project_id)
         variant_to_overwrite = None
         for variant_db in variants_db:
             if variant_db.config_name == payload.config_name:
@@ -61,12 +65,14 @@ async def save_config(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
                     user_uid=request.state.user_id,
+                    project_id=project_id,
                 )
 
                 logger.debug("Deploying to production environment")
                 await db_manager.deploy_to_environment(
                     environment_name="production",
                     variant_id=str(variant_to_overwrite.id),
+                    project_id=project_id,
                     user_uid=request.state.user_id,
                 )
             else:
@@ -83,6 +89,7 @@ async def save_config(
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
                 user_uid=request.state.user_id,
+                project_id=project_id,
             )
 
     except HTTPException as e:

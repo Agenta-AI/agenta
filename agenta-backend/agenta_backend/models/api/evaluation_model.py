@@ -17,6 +17,7 @@ class Evaluator(BaseModel):
 class EvaluatorConfig(BaseModel):
     id: str
     name: str
+    project_id: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]] = None
     created_at: str
@@ -63,8 +64,7 @@ class AppOutput(BaseModel):
 class Evaluation(BaseModel):
     id: str
     app_id: str
-    user_id: str
-    user_username: str
+    project_id: str
     variant_ids: List[str]
     variant_names: List[str]
     variant_revision_ids: List[str]
@@ -122,8 +122,7 @@ class HumanEvaluationScenarioOutput(BaseModel):
 class HumanEvaluation(BaseModel):
     id: str
     app_id: str
-    user_id: str
-    user_username: str
+    project_id: str
     evaluation_type: str
     variant_ids: List[str]
     variant_names: List[str]

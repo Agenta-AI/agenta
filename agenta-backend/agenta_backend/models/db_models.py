@@ -169,6 +169,7 @@ class VariantBaseDB(Base):
         unique=True,
         nullable=False,
     )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
@@ -186,6 +187,7 @@ class VariantBaseDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    app = relationship("AppDB")
     image = relationship("ImageDB")
     deployment = relationship("DeploymentDB")
     project = relationship("ProjectDB")
