@@ -1,6 +1,6 @@
 import logging
 
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -48,7 +48,11 @@ async def get_evaluators_endpoint():
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
-async def get_evaluator_configs(app_id: str, request: Request):
+async def get_evaluator_configs(
+    app_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -83,7 +87,11 @@ async def get_evaluator_configs(app_id: str, request: Request):
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
-async def get_evaluator_config(evaluator_config_id: str, request: Request):
+async def get_evaluator_config(
+    evaluator_config_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Returns:
@@ -119,7 +127,11 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
-async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Request):
+async def create_new_evaluator_config(
+    payload: NewEvaluatorConfig,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -171,7 +183,10 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
 
 @router.put("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
 async def update_evaluator_config(
-    evaluator_config_id: str, payload: UpdateEvaluatorConfig, request: Request
+    evaluator_config_id: str,
+    payload: UpdateEvaluatorConfig,
+    request: Request,
+    project_id: Optional[str] = None,
 ):
     """Endpoint to update evaluator configurations for a specific app.
 
@@ -217,7 +232,11 @@ async def update_evaluator_config(
 
 
 @router.delete("/configs/{evaluator_config_id}/", response_model=bool)
-async def delete_evaluator_config(evaluator_config_id: str, request: Request):
+async def delete_evaluator_config(
+    evaluator_config_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Endpoint to delete a specific evaluator configuration.
 
     Args:

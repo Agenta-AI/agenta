@@ -28,6 +28,7 @@ logger.setLevel(logging.DEBUG)
 async def save_config(
     payload: SaveConfigPayload,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     try:
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
@@ -102,6 +103,7 @@ async def get_config(
     base_id: str,
     config_name: Optional[str] = None,
     environment_name: Optional[str] = None,
+    project_id: Optional[str] = None,
 ):
     try:
         base_db = await db_manager.fetch_base_by_id(base_id)
@@ -195,7 +197,11 @@ async def get_config(
     "/deployment/{deployment_revision_id}/",
     operation_id="get_config_deployment_revision",
 )
-async def get_config_deployment_revision(request: Request, deployment_revision_id: str):
+async def get_config_deployment_revision(
+    request: Request,
+    deployment_revision_id: str,
+    project_id: Optional[str] = None,
+):
     try:
         environment_revision = await db_manager.fetch_app_environment_revision(
             deployment_revision_id
@@ -231,7 +237,11 @@ async def get_config_deployment_revision(request: Request, deployment_revision_i
     "/deployment/{deployment_revision_id}/revert/",
     operation_id="revert_deployment_revision",
 )
-async def revert_deployment_revision(request: Request, deployment_revision_id: str):
+async def revert_deployment_revision(
+    request: Request,
+    deployment_revision_id: str,
+    project_id: Optional[str] = None,
+):
     environment_revision = await db_manager.fetch_app_environment_revision(
         deployment_revision_id
     )

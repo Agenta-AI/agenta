@@ -90,6 +90,7 @@ registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
 async def list_app_variants(
     app_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Retrieve a list of app variants for a given app ID.
@@ -139,6 +140,7 @@ async def get_variant_by_env(
     app_id: str,
     environment: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Retrieve the app variant based on the provided app_id and environment.
@@ -196,6 +198,7 @@ async def get_variant_by_env(
 async def create_app(
     payload: CreateApp,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> CreateAppOutput:
     """
     Create a new app for a user or organization.
@@ -291,6 +294,7 @@ async def update_app(
     app_id: str,
     payload: UpdateApp,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> UpdateAppOutput:
     """
     Update an app for a user or organization.
@@ -337,6 +341,7 @@ async def list_apps(
     app_name: Optional[str] = None,
     org_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> List[App]:
     """
     Retrieve a list of apps filtered by app_name and org_id.
@@ -370,6 +375,7 @@ async def add_variant_from_image(
     app_id: str,
     payload: AddVariantFromImagePayload,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Add a new variant to an app based on a Docker image.
@@ -441,7 +447,11 @@ async def add_variant_from_image(
 
 
 @router.delete("/{app_id}/", operation_id="remove_app")
-async def remove_app(app_id: str, request: Request):
+async def remove_app(
+    app_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Remove app, all its variant, containers and images
 
     Arguments:
@@ -482,6 +492,7 @@ async def remove_app(app_id: str, request: Request):
 async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> AppVariantResponse:
     """
     Create an app and variant from a template.
@@ -666,6 +677,7 @@ async def create_app_and_variant_from_template(
 async def list_environments(
     app_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Retrieve a list of environments for a given app ID.
@@ -710,7 +722,10 @@ async def list_environments(
     response_model=EnvironmentOutputExtended,
 )
 async def list_app_environment_revisions(
-    request: Request, app_id: str, environment_name
+    request: Request,
+    app_id: str,
+    environment_name,
+    project_id: Optional[str] = None,
 ):
     logger.debug("getting environment " + environment_name)
     user_org_workspace_data: dict = await get_user_org_and_workspace_id(

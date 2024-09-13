@@ -51,6 +51,7 @@ async def build_image(
     base_name: str,
     tar_file: UploadFile,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> Image:
     """
     Builds a Docker image from a tar file containing the application code.
@@ -97,6 +98,7 @@ async def build_image(
 async def restart_docker_container(
     payload: RestartAppContainer,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> dict:
     """Restart docker container.
 
@@ -121,6 +123,7 @@ async def restart_docker_container(
 @router.get("/templates/", operation_id="container_templates")
 async def container_templates(
     request: Request,
+    project_id: Optional[str] = None,
 ) -> Union[List[Template], str]:
     """
     Returns a list of templates available for creating new containers.
@@ -144,6 +147,7 @@ async def construct_app_container_url(
     request: Request,
     base_id: Optional[str] = None,
     variant_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> URI:
     """
     Constructs the URL for an app container based on the provided base_id or variant_id.

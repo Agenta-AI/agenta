@@ -1,6 +1,6 @@
 import random
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response, Query
@@ -38,6 +38,7 @@ async def fetch_evaluation_ids(
     resource_type: str,
     request: Request,
     resource_ids: List[str] = Query(None),
+    project_id: Optional[str] = None,
 ):
     """Fetches evaluation ids for a given resource type and id.
 
@@ -85,6 +86,7 @@ async def fetch_evaluation_ids(
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Creates a new comparison table document
     Raises:
@@ -162,7 +164,11 @@ async def create_evaluation(
 
 
 @router.get("/{evaluation_id}/status/", operation_id="fetch_evaluation_status")
-async def fetch_evaluation_status(evaluation_id: str, request: Request):
+async def fetch_evaluation_status(
+    evaluation_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Fetches the status of the evaluation.
 
     Args:
@@ -198,7 +204,11 @@ async def fetch_evaluation_status(evaluation_id: str, request: Request):
 
 
 @router.get("/{evaluation_id}/results/", operation_id="fetch_evaluation_results")
-async def fetch_evaluation_results(evaluation_id: str, request: Request):
+async def fetch_evaluation_results(
+    evaluation_id: str,
+    request: Request,
+    project_id: Optional[str] = None,
+):
     """Fetches the results of the evaluation
 
     Args:
@@ -244,6 +254,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -300,6 +311,7 @@ async def fetch_evaluation_scenarios(
 async def fetch_list_evaluations(
     app_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -346,6 +358,7 @@ async def fetch_list_evaluations(
 async def fetch_evaluation(
     evaluation_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -390,6 +403,7 @@ async def fetch_evaluation(
 async def delete_evaluations(
     payload: DeleteEvaluation,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
@@ -440,6 +454,7 @@ async def delete_evaluations(
 async def fetch_evaluation_scenarios(
     evaluations_ids: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 

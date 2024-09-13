@@ -1,6 +1,6 @@
 import random
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
@@ -46,6 +46,7 @@ logger.setLevel(logging.DEBUG)
 async def create_evaluation(
     payload: NewHumanEvaluation,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Creates a new comparison table document
     Raises:
@@ -104,6 +105,7 @@ async def create_evaluation(
 async def fetch_list_human_evaluations(
     app_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -139,6 +141,7 @@ async def fetch_list_human_evaluations(
 async def fetch_human_evaluation(
     evaluation_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -181,6 +184,7 @@ async def fetch_human_evaluation(
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -236,6 +240,7 @@ async def update_human_evaluation(
     request: Request,
     evaluation_id: str,
     update_data: HumanEvaluationUpdate = Body(...),
+    project_id: Optional[str] = None,
 ):
     """Updates an evaluation's status.
 
@@ -292,6 +297,7 @@ async def update_evaluation_scenario_router(
     evaluation_type: EvaluationType,
     payload: HumanEvaluationScenarioUpdate,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Updates an evaluation scenario's vote or score based on its type.
 
@@ -351,6 +357,7 @@ async def update_evaluation_scenario_router(
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ) -> Dict[str, str]:
     """
     Fetch the score of a specific evaluation scenario.
@@ -399,6 +406,7 @@ async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Updates the score of an evaluation scenario.
 
@@ -454,6 +462,7 @@ async def update_evaluation_scenario_score_router(
 async def fetch_results(
     evaluation_id: str,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """Fetch all the results for one the comparison table
 
@@ -505,6 +514,7 @@ async def fetch_results(
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,
+    project_id: Optional[str] = None,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
