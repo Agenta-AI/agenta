@@ -107,6 +107,7 @@ async def human_evaluation_db_to_simple_evaluation_output(
     return SimpleEvaluationOutput(
         id=str(human_evaluation_db.id),
         app_id=str(human_evaluation_db.app_id),
+        project_id=str(human_evaluation_db.project_id),
         status=human_evaluation_db.status,  # type: ignore
         evaluation_type=human_evaluation_db.evaluation_type,  # type: ignore
         variant_ids=[
@@ -131,8 +132,7 @@ async def evaluation_db_to_pydantic(
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app_id),
-        user_id=str(evaluation_db.user_id),
-        user_username=evaluation_db.user.username or "",
+        project_id=str(evaluation_db.project_id),
         status=evaluation_db.status,
         variant_ids=[str(evaluation_db.variant_id)],
         variant_revision_ids=[str(evaluation_db.variant_revision_id)],
@@ -179,8 +179,7 @@ async def human_evaluation_db_to_pydantic(
     return HumanEvaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app_id),
-        user_id=str(evaluation_db.user_id),
-        user_username=evaluation_db.user.username or "",
+        project_id=str(evaluation_db.project_id),
         status=evaluation_db.status,  # type: ignore
         evaluation_type=evaluation_db.evaluation_type,  # type: ignore
         variant_ids=variants_ids,
@@ -301,9 +300,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),
+        project_id=str(app_variant_db.project_id),
         variant_name=app_variant_db.variant_name,  # type: ignore
         variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user_id),
         parameters=app_variant_db.config_parameters,  # type: ignore
         base_name=app_variant_db.base_name,  # type: ignore
         base_id=str(app_variant_db.base_id),
@@ -367,7 +366,7 @@ async def environment_db_to_output(
     )
     if deployed_app_variant_id:
         deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
-            deployed_app_variant_id
+            deployed_app_variant_id, str(environment_db.project_id)
         )
         deployed_variant_name = deployed_app_variant.variant_name
         revision = deployed_app_variant.revision
@@ -378,6 +377,7 @@ async def environment_db_to_output(
     environment_output = EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app_id),
+        project_id=str(environment_db.project_id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
         deployed_app_variant_revision_id=str(
@@ -385,10 +385,6 @@ async def environment_db_to_output(
         ),
         revision=revision,
     )
-
-    if isCloudEE():
-        environment_output.organization_id = str(environment_db.organization_id)
-        environment_output.workspace_id = str(environment_db.workspace_id)
     return environment_output
 
 
@@ -513,12 +509,13 @@ def user_db_to_pydantic(user_db: UserDB) -> User:
         uid=user_db.uid,
         username=user_db.username,
         email=user_db.email,
-    ).dict(exclude_unset=True)
+    ).model_dump(exclude_unset=True)
 
 
 def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
     return EvaluatorConfig(
         id=str(evaluator_config.id),
+        project_id=str(evaluator_config.project_id),
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,

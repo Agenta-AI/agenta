@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
+from agenta_backend.utils import project_utils
 from agenta_backend.services import db_manager, app_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import DeployToEnvironmentPayload
@@ -34,6 +35,9 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -53,6 +57,7 @@ async def deploy_to_environment(
         await db_manager.deploy_to_environment(
             environment_name=payload.environment_name,
             variant_id=payload.variant_id,
+            project_id=project_id,
             user_uid=request.state.user_id,
         )
 
@@ -61,6 +66,7 @@ async def deploy_to_environment(
             user_uid=request.state.user_id,
             object_id=payload.variant_id,
             object_type="variant",
+            project_id=project_id,
         )
         logger.debug("Successfully updated last_modified_by app information")
     except Exception as e:

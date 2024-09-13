@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
 from agenta_backend.models import converters
+from agenta_backend.utils import project_utils
 from agenta_backend.utils.common import (
     isEE,
     isCloudProd,
@@ -103,6 +104,9 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -118,7 +122,9 @@ async def list_app_variants(
                     status_code=403,
                 )
 
-        app_variants = await db_manager.list_app_variants(app_id=app_id)
+        app_variants = await db_manager.list_app_variants(
+            app_id=app_id, project_id=project_id
+        )
         return [
             await converters.app_variant_db_to_output(app_variant)
             for app_variant in app_variants
@@ -358,12 +364,10 @@ async def list_apps(
         HTTPException: If there was an error retrieving the list of apps.
     """
     try:
-        apps = await db_manager.list_apps(
-            user_uid=request.state.user_id,
-            app_name=app_name,
-            org_id=org_id,
-            workspace_id=workspace_id,
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
         )
+        apps = await db_manager.list_apps(project_id=project_id, app_name=app_name)
         return apps
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
@@ -458,7 +462,10 @@ async def remove_app(
         app -- App to remove
     """
     try:
-        app = await db_manager.fetch_app_by_id(app_id)
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
+        app = await db_manager.fetch_app_by_id(app_id, project_id)
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -474,7 +481,7 @@ async def remove_app(
                     status_code=403,
                 )
 
-        await app_manager.remove_app(app)
+        await app_manager.remove_app(app, project_id)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         logger.exception(f"Docker error while trying to remove the app: {str(e)}")
@@ -510,6 +517,9 @@ async def create_app_and_variant_from_template(
     try:
         logger.debug("Start: Creating app and variant from template")
 
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             # Get user and org id
             logger.debug("Step 1: Getting user and organization ID")
@@ -528,8 +538,7 @@ async def create_app_and_variant_from_template(
             logger.debug("Step 3: Checking user has permission to create app")
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
-                workspace_id=payload.workspace_id,
-                organization_id=payload.organization_id,
+                project_id=project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -549,12 +558,7 @@ async def create_app_and_variant_from_template(
             else f"Step 1: Checking if app {payload.app_name} already exists"
         )
         app_name = payload.app_name.lower()
-        app = await db_manager.fetch_app_by_name_and_parameters(
-            app_name,
-            request.state.user_id,
-            payload.organization_id if isCloudEE() else None,  # type: ignore
-            payload.workspace_id if isCloudEE() else None,  # type: ignore
-        )
+        app = await db_manager.fetch_app_by_name_and_parameters(app_name, project_id)
         if app is not None:
             raise Exception(
                 f"App with name {app_name} already exists",
@@ -566,12 +570,7 @@ async def create_app_and_variant_from_template(
             else "Step 2: Creating new app and initializing environments"
         )
         if app is None:
-            app = await db_manager.create_app_and_envs(
-                app_name,
-                request.state.user_id,
-                payload.organization_id if isCloudEE() else None,  # type: ignore
-                payload.workspace_id if isCloudEE() else None,  # type: ignore
-            )
+            app = await db_manager.create_app_and_envs(app_name, project_id)
 
         logger.debug(
             "Step 6: Retrieve template from db"
@@ -589,6 +588,7 @@ async def create_app_and_variant_from_template(
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
+            project_id=project_id,
             variant_name="app.default",
             docker_id_or_template_uri=(  # type: ignore
                 template_db.template_uri if isCloudProd() else template_db.digest
@@ -606,12 +606,9 @@ async def create_app_and_variant_from_template(
             else "Step 5: Creating testset for app variant"
         )
         await db_manager.add_testset_to_app_variant(
-            app_id=str(app.id),
-            org_id=payload.organization_id if isCloudEE() else None,  # type: ignore
-            workspace_id=payload.workspace_id if isCloudEE() else None,  # type: ignore
             template_name=template_db.name,  # type: ignore
             app_name=app.app_name,  # type: ignore
-            user_uid=request.state.user_id,
+            project_id=project_id,
         )
 
         logger.debug(
@@ -619,7 +616,7 @@ async def create_app_and_variant_from_template(
             if isCloudEE()
             else "Step 6: We create ready-to use evaluators"
         )
-        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+        await evaluator_manager.create_ready_to_use_evaluators(project_id=project_id)
 
         logger.debug(
             "Step 10: Starting variant and injecting environment variables"
@@ -656,7 +653,7 @@ async def create_app_and_variant_from_template(
                     envvars[key] = os.environ[key]
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
-        await app_manager.start_variant(app_variant_db, envvars)
+        await app_manager.start_variant(app_variant_db, project_id, envvars)
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -691,6 +688,9 @@ async def list_environments(
     """
     logger.debug(f"Listing environments for app: {app_id}")
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -706,7 +706,9 @@ async def list_environments(
                     status_code=403,
                 )
 
-        environments_db = await db_manager.list_environments(app_id=app_id)
+        environments_db = await db_manager.list_environments(
+            app_id=app_id, project_id=project_id
+        )
         logger.debug(f"environments_db: {environments_db}")
         return [
             await converters.environment_db_to_output(env) for env in environments_db

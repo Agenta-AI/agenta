@@ -95,27 +95,19 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
 async def add_testset_to_app_variant(
-    app_id: str,
-    template_name: str,
-    app_name: str,
-    user_uid: str,
-    org_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
+    template_name: str, app_name: str, project_id: str
 ):
     """Add testset to app variant.
+
     Args:
-        app_id (str): The id of the app
         org_id (str): The id of the organization
         template_name (str): The name of the app template image
         app_name (str): The name of the app
-        user_uid (str): The uid of the user
+        project_id (str): The ID of the project
     """
 
     async with db_engine.get_session() as session:
         try:
-            app_db = await get_app_instance_by_id(app_id)
-            user_db = await get_user(user_uid)
-
             json_path = os.path.join(
                 PARENT_DIRECTORY,
                 "resources",
@@ -131,21 +123,8 @@ async def add_testset_to_app_variant(
                 }
                 testset_db = TestSetDB(
                     **testset,
-                    app_id=app_db.id,
-                    user_id=user_db.id,
+                    project_id=uuid.UUID(project_id),
                 )
-
-                if isCloudEE():
-                    # assert that if organization is provided, workspace_id is also provided, and vice versa
-                    assert (
-                        org_id is not None and workspace_id is not None
-                    ), "organization and workspace must be provided together"
-
-                    organization_db = await db_manager_ee.get_organization(org_id)  # type: ignore
-                    workspace_db = await db_manager_ee.get_workspace(workspace_id)  # type: ignore
-
-                    testset_db.organization_id = organization_db.id
-                    testset_db.workspace_id = workspace_db.id
 
                 session.add(testset_db)
                 await session.commit()
@@ -173,7 +152,7 @@ async def get_image_by_id(image_id: str) -> ImageDB:
         return image
 
 
-async def fetch_app_by_id(app_id: str) -> AppDB:
+async def fetch_app_by_id(app_id: str, project_id: str) -> AppDB:
     """Fetches an app by its ID.
 
     Args:
@@ -183,26 +162,23 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
     assert app_id is not None, "app_id cannot be None"
     app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
     async with db_engine.get_session() as session:
-        base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
-        if isCloudEE():
-            base_query = base_query.options(
-                joinedload(AppDB.workspace).joinedload(WorkspaceDB.members),  # type: ignore
-                joinedload(AppDB.organization),
-            )
-
+        base_query = select(AppDB).filter_by(
+            id=uuid.UUID(app_uuid), project_id=uuid.UUID(project_id)
+        )
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
         return app
 
 
 async def fetch_app_variant_by_id(
-    app_variant_id: str,
+    app_variant_id: str, project_id: str
 ) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
 
     Args:
         app_variant_id (str): The ID of the app variant to fetch.
+        project_id (str): The ID of the project the app variant belongs to.
 
     Returns:
         AppVariantDB: The fetched app variant, or None if no app variant was found.
@@ -217,16 +193,18 @@ async def fetch_app_variant_by_id(
         if isCloudEE():
             query = base_query.options(
                 joinedload(AppVariantDB.organization),
-                joinedload(AppVariantDB.user.of_type(UserDB)).load_only(UserDB.uid),  # type: ignore
                 joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(AppVariantDB.user).load_only(UserDB.uid),  # type: ignore
                 joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
 
-        result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
+        result = await session.execute(
+            query.filter_by(
+                id=uuid.UUID(app_variant_id), project_id=uuid.UUID(project_id)
+            )
+        )
         app_variant = result.scalars().first()
         return app_variant
 
@@ -278,7 +256,7 @@ async def fetch_app_variant_by_base_id_and_config_name(
 
 
 async def fetch_app_variant_revision_by_variant(
-    app_variant_id: str, revision: int
+    app_variant_id: str, project_id: str, revision: int
 ) -> AppVariantRevisionsDB:
     """Fetches app variant revision by variant id and revision
 
@@ -296,7 +274,9 @@ async def fetch_app_variant_revision_by_variant(
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(
-                variant_id=uuid.UUID(app_variant_id), revision=revision
+                variant_id=uuid.UUID(app_variant_id),
+                project_id=uuid.UUID(project_id),
+                revision=revision,
             )
         )
         app_variant_revision = result.scalars().first()
@@ -307,11 +287,14 @@ async def fetch_app_variant_revision_by_variant(
         return app_variant_revision
 
 
-async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
+async def fetch_base_by_id(base_id: str, project_id: str) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.
+
     Args:
         base_id (str): The ID of the base to fetch.
+        project_id (str): The ID of the project.
+
     Returns:
         VariantBaseDB: The fetched base, or None if no base was found.
     """
@@ -324,7 +307,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
             .options(
                 joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
             )
-            .filter_by(id=uuid.UUID(base_uuid))
+            .filter_by(id=uuid.UUID(base_uuid), project_id=uuid.UUID(project_id))
         )
         base = result.scalars().first()
         return base
@@ -355,20 +338,16 @@ async def fetch_app_variant_by_name_and_appid(
 
 async def create_new_variant_base(
     app: AppDB,
-    user: UserDB,
+    project_id: str,
     base_name: str,
     image: ImageDB,
-    organization=None,
-    workspace=None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
         base_name (str): The name of the base.
         image (ImageDB): The image of the base.
-        user (UserDB): The User Object creating the variant.
+        project_id (str): The ID of the project
         app (AppDB): The associated App Object.
-        organization (OrganizationDB): The Organization the variant belongs to.
-        workspace (WorkspaceDB): The Workspace the variant belongs to.
     Returns:
         VariantBaseDB: The created base.
     """
@@ -377,19 +356,10 @@ async def create_new_variant_base(
     async with db_engine.get_session() as session:
         base = VariantBaseDB(
             app_id=app.id,
-            user_id=user.id,
+            project_id=uuid.UUID(project_id),
             base_name=base_name,
             image_id=image.id,
         )
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization is not None and workspace is not None
-            ), "organization and workspace must be provided together"
-
-            base.organization_id = uuid.UUID(organization)
-            base.workspace_id = uuid.UUID(workspace)
 
         session.add(base)
         await session.commit()
@@ -422,19 +392,22 @@ async def create_new_app_variant(
     app: AppDB,
     user: UserDB,
     variant_name: str,
+    project_id: str,
     image: ImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
-    organization=None,
-    workspace=None,
 ) -> AppVariantDB:
     """Create a new variant.
+
     Args:
         variant_name (str): The name of the variant.
+        project_id (str): The ID of the project.
         image (ImageDB): The image of the variant.
         base (VariantBaseDB): The base of the variant.
         config (ConfigDB): The config of the variant.
+        base_name (str): The name of the variant base.
+
     Returns:
         AppVariantDB: The created variant.
     """
@@ -446,7 +419,7 @@ async def create_new_app_variant(
     async with db_engine.get_session() as session:
         variant = AppVariantDB(
             app_id=app.id,
-            user_id=user.id,
+            project_id=uuid.UUID(project_id),
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
@@ -457,21 +430,11 @@ async def create_new_app_variant(
             config_parameters=config.parameters,
         )
 
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization is not None and workspace is not None
-            ), "organization and workspace must be provided together"
-
-            variant.organization_id = uuid.UUID(organization)
-            variant.workspace_id = uuid.UUID(workspace)
-
         session.add(variant)
 
         attributes_to_refresh = [
             "app",
             "image",
-            "user",
             "base",
         ]
         if isCloudEE():
@@ -486,6 +449,7 @@ async def create_new_app_variant(
         variant_revision = AppVariantRevisionsDB(
             variant_id=variant.id,
             revision=0,
+            project_id=uuid.UUID(project_id),
             modified_by_id=user.id,
             base_id=base.id,
             config_name=config.config_name,
@@ -501,22 +465,20 @@ async def create_new_app_variant(
 
 async def create_image(
     image_type: str,
-    user: UserDB,
+    project_id: str,
     deletable: bool,
-    organization=None,
-    workspace=None,
     template_uri: Optional[str] = None,
     docker_id: Optional[str] = None,
     tags: Optional[str] = None,
 ) -> ImageDB:
     """Create a new image.
     Args:
+        image_type (str): The type of image to create.
+        project_id (str): The ID of the project.
         docker_id (str): The ID of the image.
-        tags (str): The tags of the image.
-        user (UserDB): The user that the image belongs to.
         deletable (bool): Whether the image can be deleted.
-        organization (OrganizationDB): The organization that the image belongs to.
-        workspace (WorkspaceDB): The workspace that the image belongs to.
+        tags (str): The tags of the image.
+
     Returns:
         ImageDB: The created image.
     """
@@ -539,7 +501,7 @@ async def create_image(
     async with db_engine.get_session() as session:
         image = ImageDB(
             deletable=deletable,
-            user_id=user.id,
+            project_id=uuid.UUID(project_id),
         )
 
         image_types = {"zip": TemplateType.ZIP.value, "image": TemplateType.IMAGE.value}
@@ -555,15 +517,6 @@ async def create_image(
             image.tags = tags  # type: ignore
             image.docker_id = docker_id  # type: ignore
 
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization is not None and workspace is not None
-            ), "organization and workspace must be provided together"
-
-            image.organization_id = uuid.UUID(organization)
-            image.workspace_id = uuid.UUID(workspace)
-
         session.add(image)
         await session.commit()
         await session.refresh(image)
@@ -573,24 +526,22 @@ async def create_image(
 
 async def create_deployment(
     app_id: str,
-    user_id: str,
+    project_id: str,
     container_name: str,
     container_id: str,
     uri: str,
     status: str,
-    organization=None,
-    workspace=None,
 ) -> DeploymentDB:
     """Create a new deployment.
+
     Args:
         app (str): The app to create the deployment for.
-        organization (OrganizationDB): The organization that the deployment belongs to.
-        workspace (WorkspaceDB): The Workspace that the deployment belongs to.
-        user (str): The user that the deployment belongs to.
+        project_id (str): The ID of the project to create the deployment for.
         container_name (str): The name of the container.
         container_id (str): The ID of the container.
         uri (str): The URI of the container.
         status (str): The status of the container.
+
     Returns:
         DeploymentDB: The created deployment.
     """
@@ -599,16 +550,12 @@ async def create_deployment(
         try:
             deployment = DeploymentDB(
                 app_id=uuid.UUID(app_id),
-                user_id=uuid.UUID(user_id),
+                project_id=uuid.UUID(project_id),
                 container_name=container_name,
                 container_id=container_id,
                 uri=uri,
                 status=status,
             )
-
-            if isCloudEE():
-                deployment.organization_id = uuid.UUID(organization)
-                deployment.workspace_id = uuid.UUID(workspace)
 
             session.add(deployment)
             await session.commit()
@@ -619,20 +566,13 @@ async def create_deployment(
             raise Exception(f"Error while creating deployment: {e}")
 
 
-async def create_app_and_envs(
-    app_name: str,
-    user_uid: str,
-    organization_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
-) -> AppDB:
+async def create_app_and_envs(app_name: str, project_id: str) -> AppDB:
     """
     Create a new app with the given name and organization ID.
 
     Args:
         app_name (str): The name of the app to create.
-        user_uid (str): The UID of the user that the app belongs to.
-        organization_id (str): The ID of the organization that the app belongs to.
-        workspace_id (str): The ID of the workspace that the app belongs to.
+        project_id (str): The ID of the project.
 
     Returns:
         AppDB: The created app.
@@ -641,36 +581,20 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    user = await get_user(user_uid)
-    app = await fetch_app_by_name_and_parameters(
-        app_name,
-        user_uid,
-        organization_id,
-        workspace_id,
-    )
+    app = await fetch_app_by_name_and_parameters(app_name, project_id)
     if app is not None:
         raise ValueError("App with the same name already exists")
 
     async with db_engine.get_session() as session:
-        app = AppDB(app_name=app_name, user_id=user.id)
-
-        if isCloudEE():
-            # assert that if organization_id is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization_id is not None and workspace_id is not None
-            ), "org_id and workspace_id must be provided together"
-
-            organization_db = await db_manager_ee.get_organization(organization_id)  # type: ignore
-            workspace_db = await db_manager_ee.get_workspace(workspace_id)  # type: ignore
-
-            app.organization_id = organization_db.id
-            app.workspace_id = workspace_db.id
+        app = AppDB(app_name=app_name, project_id=uuid.UUID(project_id))
 
         session.add(app)
         await session.commit()
         await session.refresh(app)
 
-        await initialize_environments(session=session, app_db=app)
+        await initialize_environments(
+            session=session, app_db=app, project_id=project_id
+        )
         return app
 
 
@@ -695,13 +619,12 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
         await session.commit()
 
 
-async def get_deployment_by_id(
-    deployment_id: str,
-) -> DeploymentDB:
+async def get_deployment_by_id(deployment_id: str, project_id: str) -> DeploymentDB:
     """Get the deployment object from the database with the provided id.
 
     Arguments:
         deployment_id (str): The deployment id
+        project_id (str): The ID of the project
 
     Returns:
         DeploymentDB: instance of deployment object
@@ -709,7 +632,9 @@ async def get_deployment_by_id(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
+            select(DeploymentDB).filter_by(
+                id=uuid.UUID(deployment_id), project_id=uuid.UUID(project_id)
+            )
         )
         deployment = result.scalars().first()
         return deployment
@@ -734,13 +659,14 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         return deployment
 
 
-async def list_app_variants_for_app_id(
-    app_id: str,
-):
+async def list_app_variants_for_app_id(app_id: str, project_id: str):
     """
     Lists all the app variants from the db
+
     Args:
-        app_name: if specified, only returns the variants for the app name
+        app_name (str): if specified, only returns the variants for the app name
+        project_id (str): The ID of the project.
+
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
@@ -748,7 +674,9 @@ async def list_app_variants_for_app_id(
     assert app_id is not None, "app_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantDB).filter_by(app_id=uuid.UUID(app_id))
+            select(AppVariantDB).filter_by(
+                app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
+            )
         )
         app_variants = result.scalars().all()
         return app_variants
@@ -776,11 +704,14 @@ async def list_bases_for_app_id(app_id: str, base_name: Optional[str] = None):
         return bases
 
 
-async def list_variants_for_base(base: VariantBaseDB):
+async def list_variants_for_base(base: VariantBaseDB, project_id: str):
     """
     Lists all the app variants from the db for a base
+
     Args:
-        base: if specified, only returns the variants for the base
+        base (VariantBaseDB): if specified, only returns the variants for the base
+        project_id (str): The ID of the project
+
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
@@ -789,7 +720,7 @@ async def list_variants_for_base(base: VariantBaseDB):
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .filter_by(base_id=base.id)
+            .filter_by(base_id=base.id, project_id=uuid.UUID(project_id))
             .order_by(AppVariantDB.variant_name.asc())
         )
         app_variants = result.scalars().all()
@@ -902,34 +833,22 @@ async def get_users_by_ids(user_ids: List):
 
 
 async def get_orga_image_instance_by_docker_id(
-    docker_id: str,
-    organization_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
+    docker_id: str, project_id: str
 ) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
-        organization_id (str): The organization unique identifier
         docker_id (str): The image id
+        project_id (str): The ID of project.
 
     Returns:
         ImageDB: instance of image object
     """
 
     async with db_engine.get_session() as session:
-        query = select(ImageDB).filter_by(docker_id=docker_id)
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization_id is not None and workspace_id is not None
-            ), "organization and workspace must be provided together"
-
-            query = query.filter_by(
-                organization_id=uuid.UUID(organization_id),
-                workspace_id=workspace_id,
-            )
-
+        query = select(ImageDB).filter_by(
+            docker_id=docker_id, project_id=uuid.UUID(project_id)
+        )
         result = await session.execute(query)
         image = result.scalars().first()
         return image
@@ -973,7 +892,7 @@ async def get_orga_image_instance_by_uri(
         return image
 
 
-async def get_app_instance_by_id(app_id: str) -> AppDB:
+async def get_app_instance_by_id(app_id: str, project_id: str) -> AppDB:
     """Get the app object from the database with the provided id.
 
     Arguments:
@@ -984,7 +903,11 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
     """
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+        result = await session.execute(
+            select(AppDB).filter_by(
+                id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
+            )
+        )
         app = result.scalars().first()
         return app
 
@@ -994,6 +917,7 @@ async def add_variant_from_base_and_config(
     new_config_name: str,
     parameters: Dict[str, Any],
     user_uid: str,
+    project_id: str,
 ) -> AppVariantDB:
     """
     Add a new variant to the database based on an existing base and a new configuration.
@@ -1003,19 +927,22 @@ async def add_variant_from_base_and_config(
         new_config_name (str): The name of the new configuration to use for the new variant.
         parameters (Dict[str, Any]): The parameters to use for the new configuration.
         user_uid (str): The UID of the user
+        project_id (str): The ID of the project
 
     Returns:
         AppVariantDB: The newly created app variant.
     """
 
     new_variant_name = f"{base_db.base_name}.{new_config_name}"
-    previous_app_variant_db = await find_previous_variant_from_base_id(str(base_db.id))
+    previous_app_variant_db = await find_previous_variant_from_base_id(
+        str(base_db.id), project_id
+    )
     if previous_app_variant_db is None:
         logger.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=404, detail="Previous app variant not found")
 
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
-    app_variant_for_base = await list_variants_for_base(base_db)
+    app_variant_for_base = await list_variants_for_base(base_db, project_id)
 
     already_exists = any(
         av for av in app_variant_for_base if av.config_name == new_config_name  # type: ignore
@@ -1029,10 +956,10 @@ async def add_variant_from_base_and_config(
             app_id=previous_app_variant_db.app_id,
             variant_name=new_variant_name,
             image_id=base_db.image_id,
-            user_id=user_db.id,
             modified_by_id=user_db.id,
             revision=1,
             base_name=base_db.base_name,
+            project_id=uuid.UUID(project_id),
             base_id=base_db.id,
             config_name=new_config_name,
             config_parameters=parameters,
@@ -1050,6 +977,7 @@ async def add_variant_from_base_and_config(
             variant_id=db_app_variant.id,
             revision=1,
             modified_by_id=user_db.id,
+            project_id=uuid.UUID(project_id),
             base_id=base_db.id,
             config_name=new_config_name,
             config_parameters=parameters,
@@ -1063,10 +991,8 @@ async def add_variant_from_base_and_config(
 
 
 async def list_apps(
-    user_uid: str,
+    project_id: str,
     app_name: Optional[str] = None,
-    org_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ):
     """
     Lists all the unique app names and their IDs from the database
@@ -1078,37 +1004,18 @@ async def list_apps(
         List[App]
     """
 
-    user = await get_user(user_uid)
-    assert user is not None, "User is None"
-
     if app_name is not None:
         app_db = await fetch_app_by_name_and_parameters(
-            app_name=app_name,
-            user_uid=user_uid,
-            organization_id=org_id,
-            workspace_id=workspace_id,
+            app_name=app_name, project_id=project_id
         )
         return [converters.app_db_to_pydantic(app_db)]
 
-    elif org_id is not None or workspace_id is not None:
-        if not isCloudEE():
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "organization and/or workspace is only available in Cloud and EE"
-                },
-            )
-
-        # assert that if org_id is provided, workspace_id is also provided, and vice versa
-        assert (
-            org_id is not None and workspace_id is not None
-        ), "org_id and workspace_id must be provided together"
+    elif isCloudEE():
         if isCloudEE():
             user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)  # type: ignore
             has_permission = await check_rbac_permission(  # type: ignore
                 user_org_workspace_data=user_org_workspace_data,
-                workspace_id=workspace_id,
-                organization_id=org_id,
+                project_id=project_id,
                 permission=Permission.VIEW_APPLICATION,  # type: ignore
             )
             logger.debug(f"User has Permission to list apps: {has_permission}")
@@ -1120,26 +1027,28 @@ async def list_apps(
 
             async with db_engine.get_session() as session:
                 result = await session.execute(
-                    select(AppDB).filter_by(
-                        organization_id=org_id,
-                        workspace_id=workspace_id,
-                    )
+                    select(AppDB).filter_by(project_id=uuid.UUID(project_id))
                 )
                 apps = result.unique().scalars().all()
                 return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         async with db_engine.get_session() as session:
-            result = await session.execute(select(AppDB).filter_by(user_id=user.id))
+            result = await session.execute(
+                select(AppDB).filter_by(project_id=uuid.UUID(project_id))
+            )
             apps = result.unique().scalars().all()
             return [converters.app_db_to_pydantic(app) for app in apps]
 
 
-async def list_app_variants(app_id: str):
+async def list_app_variants(app_id: str, project_id: str):
     """
     Lists all the app variants from the db
+
     Args:
-        app_name: if specified, only returns the variants for the app name
+        app_name (str): if specified, only returns the variants for the app name
+        project_id (str): The ID of the project
+
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
@@ -1152,13 +1061,15 @@ async def list_app_variants(app_id: str):
                 joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
                 joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
             )
-            .filter_by(app_id=uuid.UUID(app_uuid))
+            .filter_by(app_id=uuid.UUID(app_uuid), project_id=uuid.UUID(project_id))
         )
         app_variants = result.scalars().all()
         return app_variants
 
 
-async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(
+    variant_base_id: str, project_id: str
+) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image.
 
     NOTE: This is a helpful function to determine whether to delete the image when removing a variant. Usually many variants will use the same image (these variants would have been created using the UI). We only delete the image and shutdown the container if the variant is the last one using the image
@@ -1171,14 +1082,9 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     """
 
     async with db_engine.get_session() as session:
-        query = select(AppVariantDB).filter_by(base_id=db_app_variant.base_id)
-
-        if isCloudEE():
-            query = query.filter(
-                AppVariantDB.organization_id == db_app_variant.organization_id,
-                AppVariantDB.workspace_id == db_app_variant.workspace_id,
-            )
-
+        query = select(AppVariantDB).filter_by(
+            base_id=uuid.UUID(variant_base_id), project_id=uuid.UUID(project_id)
+        )
         count_result = await session.execute(
             query.with_only_columns(func.count())  # type: ignore
         )
@@ -1226,19 +1132,22 @@ async def list_deployments(app_id: str):
         return environments
 
 
-async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
+async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: str):
     """Remove an app variant from the db
     the logic for removing the image is in app_manager.py
 
-    Arguments:
-        app_variant -- AppVariant to remove
+    Args:
+        app_variant (AppVariantDB): the application variant to remove
+        project_id (str): The ID of the project
     """
 
     logger.debug("Removing app variant")
     assert app_variant_db is not None, "app_variant_db is missing"
 
     logger.debug("list_app_variants_revisions_by_variant")
-    app_variant_revisions = await list_app_variant_revisions_by_variant(app_variant_db)
+    app_variant_revisions = await list_app_variant_revisions_by_variant(
+        app_variant_db, project_id
+    )
 
     async with db_engine.get_session() as session:
         # Delete all the revisions associated with the variant
@@ -1251,7 +1160,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB):
 
 
 async def deploy_to_environment(
-    environment_name: str, variant_id: str, **user_org_data
+    environment_name: str, variant_id: str, project_id: str, **user_org_data
 ):
     """
     Deploys an app variant to a specified environment.
@@ -1259,6 +1168,7 @@ async def deploy_to_environment(
     Args:
         environment_name (str): The name of the environment to deploy the app variant to.
         variant_id (str): The ID of the app variant to deploy.
+        project_id (str): The ID of the project.
 
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
@@ -1267,9 +1177,9 @@ async def deploy_to_environment(
         None
     """
 
-    app_variant_db = await fetch_app_variant_by_id(variant_id)
+    app_variant_db = await fetch_app_variant_by_id(variant_id, project_id)
     app_variant_revision_db = await fetch_app_variant_revision_by_variant(
-        app_variant_id=variant_id, revision=app_variant_db.revision  # type: ignore
+        app_variant_id=variant_id, project_id=project_id, revision=app_variant_db.revision  # type: ignore
     )
     if app_variant_db is None:
         raise ValueError("App variant not found")
@@ -1285,7 +1195,9 @@ async def deploy_to_environment(
         # Find the environment for the given app name and user
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(
-                app_id=app_variant_db.app_id, name=environment_name
+                app_id=app_variant_db.app_id,
+                project_id=uuid.UUID(project_id),
+                name=environment_name,
             )
         )
         environment_db = result.scalars().first()
@@ -1303,6 +1215,7 @@ async def deploy_to_environment(
             session,
             environment_db,
             user,
+            project_id,
             deployed_app_variant_revision=app_variant_revision_db,
             deployment=deployment,
         )
@@ -1448,19 +1361,20 @@ async def update_app_environment_deployed_variant_revision(
         await session.refresh(app_environment)
 
 
-async def list_environments(app_id: str, **kwargs: dict):
+async def list_environments(app_id: str, project_id: str, **kwargs: dict):
     """
     List all environments for a given app ID.
 
     Args:
         app_id (str): The ID of the app to list environments for.
+        project_id (str): The ID of the project to list environments for.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
     """
 
     logging.debug("Listing environments for app %s", app_id)
-    app_instance = await fetch_app_by_id(app_id=app_id)
+    app_instance = await fetch_app_by_id(app_id=app_id, project_id=project_id)
     if app_instance is None:
         logging.error(f"App with id {app_id} not found")
         raise ValueError("App not found")
@@ -1476,20 +1390,21 @@ async def list_environments(app_id: str, **kwargs: dict):
                     AppVariantRevisionsDB.config_parameters,  # type: ignore
                 )
             )
-            .filter_by(app_id=uuid.UUID(app_id))
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
         )
         environments_db = result.scalars().all()
         return environments_db
 
 
 async def initialize_environments(
-    session: AsyncSession, app_db: AppDB
+    session: AsyncSession, app_db: AppDB, project_id: str
 ) -> List[AppEnvironmentDB]:
     """
     Initializes the environments for the app with the given database.
 
     Args:
         app_db (AppDB): The database for the app.
+        project_id (str): The ID of the project.
 
     Returns:
         List[AppEnvironmentDB]: A list of the initialized environments.
@@ -1497,13 +1412,15 @@ async def initialize_environments(
 
     environments = []
     for env_name in ["development", "staging", "production"]:
-        env = await create_environment(session=session, name=env_name, app_db=app_db)
+        env = await create_environment(
+            session=session, name=env_name, app_db=app_db, project_id=project_id
+        )
         environments.append(env)
     return environments
 
 
 async def create_environment(
-    session: AsyncSession, name: str, app_db: AppDB
+    session: AsyncSession, name: str, app_db: AppDB, project_id: str
 ) -> AppEnvironmentDB:
     """
     Creates a new environment in the database.
@@ -1511,18 +1428,15 @@ async def create_environment(
     Args:
         name (str): The name of the environment.
         app_db (AppDB): The AppDB object representing the app that the environment belongs to.
+        project_id (str): The ID of the project.
 
     Returns:
         AppEnvironmentDB: The newly created AppEnvironmentDB object.
     """
 
     environment_db = AppEnvironmentDB(
-        app_id=app_db.id, name=name, user_id=app_db.user_id, revision=0
+        app_id=app_db.id, name=name, project_id=uuid.UUID(project_id), revision=0
     )
-
-    if isCloudEE():
-        environment_db.organization_id = app_db.organization_id
-        environment_db.workspace_id = app_db.workspace_id
 
     session.add(environment_db)
     await session.commit()
@@ -1532,13 +1446,18 @@ async def create_environment(
 
 
 async def create_environment_revision(
-    session: AsyncSession, environment: AppEnvironmentDB, user: UserDB, **kwargs: dict
+    session: AsyncSession,
+    environment: AppEnvironmentDB,
+    user: UserDB,
+    project_id: str,
+    **kwargs: dict,
 ):
     """Creates a new environment revision.
 
     Args:
         environment (AppEnvironmentDB): The environment to create a revision for.
         user (UserDB): The user that made the deployment.
+        project_id (str): The ID of the project.
     """
 
     assert environment is not None, "environment cannot be None"
@@ -1548,6 +1467,7 @@ async def create_environment_revision(
         environment_id=environment.id,
         revision=environment.revision,
         modified_by_id=user.id,
+        project_id=uuid.UUID(project_id),
     )
 
     if kwargs:
@@ -1574,27 +1494,26 @@ async def create_environment_revision(
         if deployment is not None:
             environment_revision.deployment_id = deployment.id  # type: ignore
 
-    if isCloudEE():
-        environment_revision.organization_id = environment.organization_id
-        environment_revision.workspace_id = environment.workspace_id
-
     session.add(environment_revision)
 
 
 async def list_app_variant_revisions_by_variant(
-    app_variant: AppVariantDB,
+    app_variant: AppVariantDB, project_id: str
 ):
     """Returns list of app variant revision for the given app variant
 
     Args:
         app_variant (AppVariantDB): The app variant to retrieve environments for.
+        project_id (str): The ID of the project.
 
     Returns:
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(AppVariantRevisionsDB).filter_by(variant_id=app_variant.id)
+        base_query = select(AppVariantRevisionsDB).filter_by(
+            variant_id=app_variant.id, project_id=uuid.UUID(project_id)
+        )
         if isCloudEE():
             base_query = base_query.options(
                 joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
@@ -1638,12 +1557,13 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         return app_variant_revisions
 
 
-async def remove_image(image: ImageDB):
+async def remove_image(image: ImageDB, project_id: str):
     """
     Removes an image from the database.
 
     Args:
         image (ImageDB): The image to remove from the database.
+        project_id (str): The ID of the project the image belongs to.
 
     Raises:
         ValueError: If the image is None.
@@ -1656,7 +1576,9 @@ async def remove_image(image: ImageDB):
         raise ValueError("Image is None")
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(ImageDB).filter_by(id=image.id))
+        result = await session.execute(
+            select(ImageDB).filter_by(id=image.id, project_id=uuid.UUID(project_id))
+        )
         image = result.scalars().first()
 
         await session.delete(image)
@@ -1759,12 +1681,13 @@ async def remove_base_from_db(base_id: str):
         await session.commit()
 
 
-async def remove_app_by_id(app_id: str):
+async def remove_app_by_id(app_id: str, project_id: str):
     """
     Removes an app instance from the database by its ID.
 
     Args:
         app_id (str): The ID of the app instance to remove.
+        project_id (str): The ID of the project.
 
     Raises:
         AssertionError: If app_id is None or if the app instance could not be found.
@@ -1775,7 +1698,11 @@ async def remove_app_by_id(app_id: str):
 
     assert app_id is not None, "app_id cannot be None"
     async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+        result = await session.execute(
+            select(AppDB).filter_by(
+                id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
+            )
+        )
         app_db = result.scalars().first()
         if not app_db:
             raise NoResultFound(f"App with id {app_id} not found")
@@ -1785,7 +1712,7 @@ async def remove_app_by_id(app_id: str):
 
 
 async def update_variant_parameters(
-    app_variant_id: str, parameters: Dict[str, Any], user_uid: str
+    app_variant_id: str, parameters: Dict[str, Any], project_id: str, user_uid: str
 ) -> None:
     """
     Update the parameters of an app variant in the database.
@@ -1793,6 +1720,7 @@ async def update_variant_parameters(
     Args:
         app_variant_id (str): The app variant ID.
         parameters (Dict[str, Any]): The new parameters to set for the app variant.
+        project_id (str): The ID of the project.
         user_uid (str): The UID of the user that is updating the app variant.
 
     Raises:
@@ -1802,7 +1730,9 @@ async def update_variant_parameters(
     user = await get_user(user_uid)
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
+            select(AppVariantDB).filter_by(
+                id=uuid.UUID(app_variant_id), project_id=uuid.UUID(project_id)
+            )
         )
         app_variant_db = result.scalars().first()
         if not app_variant_db:
@@ -1826,6 +1756,7 @@ async def update_variant_parameters(
             variant_id=app_variant_db.id,
             revision=app_variant_db.revision,
             modified_by_id=user.id,
+            project_id=uuid.UUID(project_id),
             base_id=app_variant_db.base_id,
             config_name=app_variant_db.config_name,
             config_parameters=app_variant_db.config_parameters,
@@ -1835,11 +1766,14 @@ async def update_variant_parameters(
         await session.commit()
 
 
-async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
+async def get_app_variant_instance_by_id(
+    variant_id: str, project_id: str
+) -> AppVariantDB:
     """Get the app variant object from the database with the provided id.
 
     Arguments:
         variant_id (str): The app variant unique identifier
+        project_id (str): The ID of the project
 
     Returns:
         AppVariantDB: instance of app variant object
@@ -1852,13 +1786,13 @@ async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
                 joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
                 joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
             )
-            .filter_by(id=uuid.UUID(variant_id))
+            .filter_by(id=uuid.UUID(variant_id), project_id=uuid.UUID(project_id)),
         )
         app_variant_db = result.scalars().first()
         return app_variant_db
 
 
-async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
+async def fetch_testset_by_id(testset_id: str, project_id: str) -> Optional[TestSetDB]:
     """Fetches a testset by its ID.
     Args:
         testset_id (str): The ID of the testset to fetch.
@@ -1875,30 +1809,30 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
 
     async with db_engine.get_session() as session:
-        result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
+        result = await session.execute(
+            select(TestSetDB).filter_by(
+                id=testset_uuid, project_id=uuid.UUID(project_id)
+            )
+        )
         testset = result.scalars().first()
         return testset
 
 
-async def create_testset(app: AppDB, user_uid: str, testset_data: Dict[str, Any]):
+async def create_testset(app: AppDB, project_id: str, testset_data: Dict[str, Any]):
     """
     Creates a testset.
 
     Args:
         app (AppDB): The app object
-        user_uid (str): The user uID
+        project_id (str): The ID of the project
         testset_data (dict): The data of the testset to create with
 
     Returns:
         returns the newly created TestsetDB
     """
 
-    user = await get_user(user_uid=user_uid)
     async with db_engine.get_session() as session:
-        testset_db = TestSetDB(**testset_data, app_id=app.id, user_id=user.id)
-        if isCloudEE():
-            testset_db.organization_id = app.organization_id
-            testset_db.workspace_id = app.workspace_id
+        testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         session.add(testset_db)
         await session.commit()
@@ -1930,24 +1864,27 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         await session.refresh(testset)
 
 
-async def fetch_testsets_by_app_id(app_id: str):
+async def fetch_testsets_by_app_id(project_id: str):
     """Fetches all testsets for a given app.
+
     Args:
-        app_id (str): The ID of the app to fetch testsets for.
+        project_id (str): The ID of the project.
+
     Returns:
         List[TestSetDB]: The fetched testsets.
     """
 
-    assert app_id is not None, "app_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(TestSetDB).filter_by(app_id=uuid.UUID(app_id))
+            select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
         )
         testsets = result.scalars().all()
         return testsets
 
 
-async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+async def fetch_evaluation_by_id(
+    evaluation_id: str, project_id: str
+) -> Optional[EvaluationDB]:
     """Fetches a evaluation by its ID.
 
     Args:
@@ -1959,17 +1896,18 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
-        base_query = select(EvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+        base_query = select(EvaluationDB).filter_by(
+            id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
+        )
         if isCloudEE():
             query = base_query.options(
-                joinedload(EvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(EvaluationDB.user).load_only(UserDB.username),  # type: ignore
                 joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
+
         result = await session.execute(
             query.options(
                 joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
@@ -1985,7 +1923,7 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         return evaluation
 
 
-async def list_human_evaluations(app_id: str):
+async def list_human_evaluations(app_id: str, project_id: str):
     """
     Fetches human evaluations belonging to an App.
 
@@ -1996,17 +1934,15 @@ async def list_human_evaluations(app_id: str):
     async with db_engine.get_session() as session:
         base_query = (
             select(HumanEvaluationDB)
-            .filter_by(app_id=uuid.UUID(app_id))
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
             .filter(HumanEvaluationDB.testset_id.isnot(None))
         )
         if isCloudEE():
             query = base_query.options(
-                joinedload(HumanEvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(HumanEvaluationDB.user).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         result = await session.execute(query)
@@ -2016,7 +1952,7 @@ async def list_human_evaluations(app_id: str):
 
 async def create_human_evaluation(
     app: AppDB,
-    user_id: str,
+    project_id: str,
     status: str,
     evaluation_type: str,
     testset_id: str,
@@ -2027,7 +1963,7 @@ async def create_human_evaluation(
 
     Args:
         app (AppDB: The app object
-        user_id (id): The ID of the user
+        project_id (str): The ID of the project
         status (str): The status of the evaluation
         evaluation_type (str): The evaluation type
         testset_id (str): The ID of the evaluation testset
@@ -2037,14 +1973,11 @@ async def create_human_evaluation(
     async with db_engine.get_session() as session:
         human_evaluation = HumanEvaluationDB(
             app_id=app.id,
-            user_id=uuid.UUID(user_id),
+            project_id=uuid.UUID(project_id),
             status=status,
             evaluation_type=evaluation_type,
             testset_id=testset_id,
         )
-        if isCloudEE():
-            human_evaluation.organization_id = str(app.organization_id)
-            human_evaluation.workspace_id = str(app.workspace_id)
 
         session.add(human_evaluation)
         await session.commit()
@@ -2052,7 +1985,9 @@ async def create_human_evaluation(
 
         # create variants for human evaluation
         await create_human_evaluation_variants(
-            human_evaluation_id=str(human_evaluation.id), variants_ids=variants_ids
+            human_evaluation_id=str(human_evaluation.id),
+            variants_ids=variants_ids,
+            project_id=project_id,
         )
         return human_evaluation
 
@@ -2092,7 +2027,7 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
 
 
 async def create_human_evaluation_variants(
-    human_evaluation_id: str, variants_ids: List[str]
+    human_evaluation_id: str, variants_ids: List[str], project_id: str
 ):
     """
     Creates human evaluation variants.
@@ -2100,18 +2035,21 @@ async def create_human_evaluation_variants(
     Args:
         human_evaluation_id (str):  The human evaluation identifier
         variants_ids (List[str]):  The variants identifiers
+        project_id (str): The project ID
     """
 
     variants_dict = {}
     for variant_id in variants_ids:
-        variant = await fetch_app_variant_by_id(app_variant_id=variant_id)
+        variant = await fetch_app_variant_by_id(
+            app_variant_id=variant_id, project_id=project_id
+        )
         if variant:
             variants_dict[variant_id] = variant
 
     variants_revisions_dict = {}
     for variant_id, variant in variants_dict.items():
         variant_revision = await fetch_app_variant_revision_by_variant(
-            app_variant_id=str(variant.id), revision=variant.revision  # type: ignore
+            app_variant_id=str(variant.id), project_id=project_id, revision=variant.revision  # type: ignore
         )
         if variant_revision:
             variants_revisions_dict[variant_id] = variant_revision
@@ -2134,7 +2072,7 @@ async def create_human_evaluation_variants(
 
 
 async def fetch_human_evaluation_by_id(
-    evaluation_id: str,
+    evaluation_id: str, project_id: str
 ) -> Optional[HumanEvaluationDB]:
     """Fetches a evaluation by its ID.
     Args:
@@ -2145,15 +2083,15 @@ async def fetch_human_evaluation_by_id(
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
-        base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+        base_query = select(HumanEvaluationDB).filter_by(
+            id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
+        )
         if isCloudEE():
             query = base_query.options(
-                joinedload(HumanEvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(HumanEvaluationDB.user).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(HumanEvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         result = await session.execute(query)
@@ -2188,7 +2126,7 @@ async def update_human_evaluation(evaluation_id: str, values_to_update: dict):
         await session.refresh(human_evaluation)
 
 
-async def delete_human_evaluation(evaluation_id: str):
+async def delete_human_evaluation(evaluation_id: str, project_id: str):
     """Delete the evaluation by its ID.
 
     Args:
@@ -2198,7 +2136,9 @@ async def delete_human_evaluation(evaluation_id: str):
     assert evaluation_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+            select(HumanEvaluationDB).filter_by(
+                id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
+            )
         )
         evaluation = result.scalars().first()
         if not evaluation:
@@ -2210,8 +2150,7 @@ async def delete_human_evaluation(evaluation_id: str):
 
 async def create_human_evaluation_scenario(
     inputs: List[HumanEvaluationScenarioInput],
-    user_id: str,
-    app: AppDB,
+    project_id: str,
     evaluation_id: str,
     evaluation_extend: Dict[str, Any],
 ):
@@ -2220,8 +2159,6 @@ async def create_human_evaluation_scenario(
 
     Args:
         inputs (List[HumanEvaluationScenarioInput]): The inputs.
-        user_id (str): The user ID.
-        app (AppDB): The app object.
         evaluation_id (str): The evaluation identifier.
         evaluation_extend (Dict[str, any]): An extended required payload for the evaluation scenario. Contains score, vote, and correct_answer.
     """
@@ -2229,15 +2166,11 @@ async def create_human_evaluation_scenario(
     async with db_engine.get_session() as session:
         evaluation_scenario = HumanEvaluationScenarioDB(
             **evaluation_extend,
-            user_id=uuid.UUID(user_id),
+            project_id=uuid.UUID(project_id),
             evaluation_id=uuid.UUID(evaluation_id),
-            inputs=[input.dict() for input in inputs],
+            inputs=[input.model_dump() for input in inputs],
             outputs=[],
         )
-
-        if isCloudEE():
-            evaluation_scenario.organization_id = str(app.organization_id)
-            evaluation_scenario.workspace_id = str(app.workspace_id)
 
         session.add(evaluation_scenario)
         await session.commit()
@@ -2319,11 +2252,14 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
 
 
 async def fetch_evaluation_scenario_by_id(
-    evaluation_scenario_id: str,
+    evaluation_scenario_id: str, project_id: str
 ) -> Optional[EvaluationScenarioDB]:
     """Fetches and evaluation scenario by its ID.
+
     Args:
         evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+        project_id (str): The project ID to use in fetching the evaluation scenario.
+
     Returns:
         EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
     """
@@ -2331,18 +2267,23 @@ async def fetch_evaluation_scenario_by_id(
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluationScenarioDB).filter_by(id=uuid.UUID(evaluation_scenario_id))
+            select(EvaluationScenarioDB).filter_by(
+                id=uuid.UUID(evaluation_scenario_id), project_id=uuid.UUID(project_id)
+            )
         )
         evaluation_scenario = result.scalars().first()
         return evaluation_scenario
 
 
 async def fetch_human_evaluation_scenario_by_id(
-    evaluation_scenario_id: str,
+    evaluation_scenario_id: str, project_id: str
 ) -> Optional[HumanEvaluationScenarioDB]:
     """Fetches and evaluation scenario by its ID.
+
     Args:
         evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+        project_id (str): The project ID to use in fetching the human evaluation.
+
     Returns:
         EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
     """
@@ -2351,7 +2292,7 @@ async def fetch_human_evaluation_scenario_by_id(
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(HumanEvaluationScenarioDB).filter_by(
-                id=uuid.UUID(evaluation_scenario_id)
+                id=uuid.UUID(evaluation_scenario_id), project_id=uuid.UUID(project_id)
             )
         )
         evaluation_scenario = result.scalars().first()
@@ -2380,12 +2321,13 @@ async def fetch_human_evaluation_scenario_by_evaluation_id(
 
 
 async def find_previous_variant_from_base_id(
-    base_id: str,
+    base_id: str, project_id: str
 ) -> Optional[AppVariantDB]:
     """Find the previous variant from a base id.
 
     Args:
         base_id (str): The base id to search for.
+        project_id (str): The ID of the project.
 
     Returns:
         Optional[AppVariantDB]: The previous variant, or None if no previous variant was found.
@@ -2395,7 +2337,7 @@ async def find_previous_variant_from_base_id(
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
-            .filter_by(base_id=uuid.UUID(base_id))
+            .filter_by(base_id=uuid.UUID(base_id), project_id=uuid.UUID(project_id))
             .order_by(AppVariantDB.created_at.desc())
         )
         last_variant = result.scalars().first()
@@ -2620,41 +2562,21 @@ async def update_app_variant(
         return app_variant
 
 
-async def fetch_app_by_name_and_parameters(
-    app_name: str,
-    user_uid: str,
-    organization_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
-):
+async def fetch_app_by_name_and_parameters(app_name: str, project_id: str):
     """Fetch an app by its name, organization id, and workspace_id.
 
     Args:
         app_name (str): The name of the app
-        organization_id (str): The ID of the app organization
-        workspace_id (str): The ID of the app workspace
+        project_id (str): The ID of the project
 
     Returns:
         AppDB: the instance of the app
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(AppDB).filter_by(app_name=app_name)
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization_id is not None and workspace_id is not None
-            ), "organization_id and workspace_id must be provided together"
-
-            query = base_query.filter_by(
-                organization_id=uuid.UUID(organization_id),
-                workspace_id=workspace_id,
-            )
-        else:
-            query = base_query.join(UserDB, AppDB.user_id == UserDB.id).filter(
-                UserDB.uid == user_uid
-            )
-
+        query = select(AppDB).filter_by(
+            app_name=app_name, project_id=uuid.UUID(project_id)
+        )
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
         return app_db
@@ -2710,23 +2632,24 @@ async def create_new_evaluation(
         return evaluation
 
 
-async def list_evaluations(app_id: str):
+async def list_evaluations(app_id: str, project_id: str):
     """Retrieves evaluations of the specified app from the db.
 
     Args:
         app_id (str): The ID of the app
+        project_id (str): The ID of the project
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(EvaluationDB).filter_by(app_id=uuid.UUID(app_id))
+        base_query = select(EvaluationDB).filter_by(
+            app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
+        )
         if isCloudEE():
             query = base_query.options(
-                joinedload(EvaluationDB.user.of_type(UserDB)).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
         else:
             query = base_query.options(
-                joinedload(EvaluationDB.user).load_only(UserDB.id, UserDB.username),  # type: ignore
                 joinedload(EvaluationDB.testset).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
             )
 
@@ -2952,24 +2875,27 @@ async def fetch_eval_aggregated_results(evaluation_id: str):
         return aggregated_results
 
 
-async def fetch_evaluators_configs(app_id: str):
+async def fetch_evaluators_configs(project_id: str):
     """Fetches a list of evaluator configurations from the database.
 
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    assert app_id is not None, "evaluation_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluatorConfigDB).filter_by(app_id=uuid.UUID(app_id))
+            select(EvaluatorConfigDB).filter_by(project_id=uuid.UUID(project_id))
         )
         evaluators_configs = result.scalars().all()
         return evaluators_configs
 
 
-async def fetch_evaluator_config(evaluator_config_id: str):
+async def fetch_evaluator_config(evaluator_config_id: str, project_id: str):
     """Fetch evaluator configurations from the database.
+
+    Args:
+        evaluator_config_id (str): The ID of the evaluator configuration.
+        project_id (str): The ID of the project.
 
     Returns:
         EvaluatorConfigDB: the evaluator configuration object.
@@ -2977,7 +2903,9 @@ async def fetch_evaluator_config(evaluator_config_id: str):
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
+            select(EvaluatorConfigDB).filter_by(
+                id=uuid.UUID(evaluator_config_id), project_id=uuid.UUID(project_id)
+            )
         )
         evaluator_config = result.scalars().first()
         return evaluator_config
@@ -3033,8 +2961,7 @@ async def fetch_evaluator_config_by_appId(
 
 
 async def create_evaluator_config(
-    app: AppDB,
-    user_id: str,
+    project_id: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -3043,16 +2970,11 @@ async def create_evaluator_config(
 
     async with db_engine.get_session() as session:
         new_evaluator_config = EvaluatorConfigDB(
-            app_id=app.id,
-            user_id=uuid.UUID(user_id),
+            project_id=uuid.UUID(project_id),
             name=name,
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )
-
-        if isCloudEE():
-            new_evaluator_config.organization_id = app.organization_id
-            new_evaluator_config.workspace_id = app.workspace_id
 
         session.add(new_evaluator_config)
         await session.commit()

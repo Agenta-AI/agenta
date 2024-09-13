@@ -1,10 +1,10 @@
-import uuid
 import logging
 
 from typing import List, Optional, Union
 from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
+from agenta_backend.utils import project_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import (
     APIRouter,
@@ -166,8 +166,9 @@ async def construct_app_container_url(
     # assert that one of base_id or variant_id is provided
     assert base_id or variant_id, "Please provide either base_id or variant_id"
 
+    project_id = project_utils.get_project_id(request=request, project_id=project_id)
     if base_id:
-        object_db = await db_manager.fetch_base_by_id(base_id)
+        object_db = await db_manager.fetch_base_by_id(base_id, project_id)
     elif variant_id and variant_id != "None":
         # NOTE: Backward Compatibility
         # ---------------------------
@@ -178,7 +179,7 @@ async def construct_app_container_url(
         # This change ensures that users can still view their evaluations; however,
         # they will no longer be able to access a deployment URL for the deleted variant.
         # Therefore, we ensure that variant_id is not "None".
-        object_db = await db_manager.fetch_app_variant_by_id(variant_id)
+        object_db = await db_manager.fetch_app_variant_by_id(variant_id, project_id)
     else:
         # NOTE: required for backward compatibility
         object_db = None
@@ -198,11 +199,11 @@ async def construct_app_container_url(
     try:
         if getattr(object_db, "deployment_id", None):  # this is a base
             deployment = await db_manager.get_deployment_by_id(
-                str(object_db.deployment_id)  # type: ignore
+                str(object_db.deployment_id), project_id  # type: ignore
             )
         elif getattr(object_db, "base_id", None):  # this is a variant
             deployment = await db_manager.get_deployment_by_id(
-                str(object_db.base.deployment_id)  # type: ignore
+                str(object_db.base.deployment_id), project_id  # type: ignore
             )
         else:
             raise HTTPException(

@@ -31,17 +31,18 @@ def get_evaluators() -> List[Evaluator]:
     return [Evaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
 
 
-async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
+async def get_evaluators_configs(project_id: str) -> List[EvaluatorConfig]:
     """
     Get evaluators configs by app_id.
 
     Args:
-        app_id (str): The ID of the app.
+        project_id (str): The ID of the project.
 
     Returns:
         List[EvaluatorConfig]: A list of evaluator configuration objects.
     """
-    evaluator_configs_db = await db_manager.fetch_evaluators_configs(app_id)
+
+    evaluator_configs_db = await db_manager.fetch_evaluators_configs(project_id)
     return [
         evaluator_config_db_to_pydantic(evaluator_config_db)
         for evaluator_config_db in evaluator_configs_db
@@ -62,7 +63,7 @@ async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorCo
 
 
 async def create_evaluator_config(
-    app_id: str,
+    project_id: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -71,7 +72,6 @@ async def create_evaluator_config(
     Create a new evaluator configuration for an app.
 
     Args:
-        app_id (str): The ID of the app.
         name (str): The name of the evaluator config.
         evaluator_key (str): The key of the evaluator.
         settings_values (Optional[Dict[str, Any]]): Additional settings for the evaluator.
@@ -79,11 +79,9 @@ async def create_evaluator_config(
     Returns:
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
-    app = await db_manager.fetch_app_by_id(app_id)
 
     evaluator_config = await db_manager.create_evaluator_config(
-        app=app,
-        user_id=str(app.user_id),
+        project_id=project_id,
         name=name,
         evaluator_key=evaluator_key,
         settings_values=settings_values,
@@ -123,7 +121,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     return await db_manager.delete_evaluator_config(evaluator_config_id)
 
 
-async def create_ready_to_use_evaluators(app: AppDB):
+async def create_ready_to_use_evaluators(project_id: str):
     """
     Create configurations for all evaluators that are marked for direct use.
 
@@ -131,13 +129,11 @@ async def create_ready_to_use_evaluators(app: AppDB):
     out those marked for direct use, and creates configuration entries for them
     in the database using the database manager.
 
-    Parameters:
-    - evaluator_manager: The manager object responsible for handling evaluators.
-    - db_manager: The database manager object used for database operations.
-    - app: The application context, containing details like organization and user.
+    Args:
+        project_id (str): The ID of the project.
 
     Returns:
-    Nothing. The function works by side effect, modifying the database.
+        Nothing. The function works by side effect, modifying the database.
     """
 
     direct_use_evaluators = [
@@ -160,8 +156,7 @@ async def create_ready_to_use_evaluators(app: AppDB):
             evaluator, "key"
         ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
-            app=app,
-            user_id=str(app.user_id),
+            project_id=project_id,
             name=evaluator.name,
             evaluator_key=evaluator.key,
             settings_values=settings_values,

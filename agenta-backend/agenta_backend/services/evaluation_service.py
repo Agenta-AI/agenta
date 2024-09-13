@@ -67,10 +67,9 @@ class UpdateEvaluationScenarioError(Exception):
 async def prepare_csvdata_and_create_evaluation_scenario(
     csvdata: List[Dict[str, str]],
     payload_inputs: List[str],
+    project_id: str,
     evaluation_type: EvaluationType,
     new_evaluation: HumanEvaluationDB,
-    user: UserDB,
-    app: AppDB,
 ):
     """
     Prepares CSV data and creates evaluation scenarios based on the inputs, evaluation
@@ -79,10 +78,9 @@ async def prepare_csvdata_and_create_evaluation_scenario(
     Args:
         csvdata: A list of dictionaries representing the CSV data.
         payload_inputs: A list of strings representing the names of the inputs in the variant.
+        project_id (str): The ID of the project
         evaluation_type: The type of evaluation
         new_evaluation: The instance of EvaluationDB
-        user: The owner of the evaluation scenario
-        app: The app the evaluation is going to belong to
     """
 
     for datum in csvdata:
@@ -94,7 +92,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             ]
         except KeyError:
             await db_manager.delete_human_evaluation(
-                evaluation_id=str(new_evaluation.id)
+                evaluation_id=str(new_evaluation.id), project_id=project_id
             )
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
@@ -121,8 +119,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         }
         await db_manager.create_human_evaluation_scenario(
             inputs=list_of_scenario_input,
-            user_id=str(user.id),
-            app=app,
+            project_id=project_id,
             evaluation_id=str(new_evaluation.id),
             evaluation_extend=evaluation_scenario_extend_payload,
         )
@@ -141,7 +138,7 @@ async def update_human_evaluation_service(
 
     # Update the evaluation
     await db_manager.update_human_evaluation(
-        evaluation_id=str(evaluation.id), values_to_update=update_payload.dict()
+        evaluation_id=str(evaluation.id), values_to_update=update_payload.model_dump()
     )
 
 
@@ -213,7 +210,7 @@ async def update_human_evaluation_scenario(
     """
 
     values_to_update = {}
-    payload = evaluation_scenario_data.dict(exclude_unset=True)
+    payload = evaluation_scenario_data.model_dump(exclude_unset=True)
 
     if "score" in payload and evaluation_type == EvaluationType.single_model_test:
         values_to_update["score"] = str(payload["score"])
@@ -226,7 +223,7 @@ async def update_human_evaluation_scenario(
             HumanEvaluationScenarioOutput(
                 variant_id=output["variant_id"],
                 variant_output=output["variant_output"],
-            ).dict()
+            ).model_dump()
             for output in payload["outputs"]
         ]
         values_to_update["outputs"] = new_outputs
@@ -236,7 +233,7 @@ async def update_human_evaluation_scenario(
             HumanEvaluationScenarioInput(
                 input_name=input_item["input_name"],
                 input_value=input_item["input_value"],
-            ).dict()
+            ).model_dump()
             for input_item in payload["inputs"]
         ]
         values_to_update["inputs"] = new_inputs
@@ -273,20 +270,21 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     return correct_answer
 
 
-async def fetch_list_evaluations(
-    app: AppDB,
-) -> List[Evaluation]:
+async def fetch_list_evaluations(app: AppDB, project_id: str) -> List[Evaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app (AppDB): An app to filter the evaluations.
+        project_id (str): The ID of the project
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await db_manager.list_evaluations(app_id=str(app.id))
+    evaluations_db = await db_manager.list_evaluations(
+        app_id=str(app.id), project_id=project_id
+    )
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -294,19 +292,22 @@ async def fetch_list_evaluations(
 
 
 async def fetch_list_human_evaluations(
-    app_id: str,
+    app_id: str, project_id: str
 ) -> List[HumanEvaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app_id (Optional[str]): An optional app ID to filter the evaluations.
+        project_id (str): The ID of the project.
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await db_manager.list_human_evaluations(app_id=app_id)
+    evaluations_db = await db_manager.list_human_evaluations(
+        app_id=app_id, project_id=project_id
+    )
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -327,19 +328,22 @@ async def fetch_human_evaluation(human_evaluation_db) -> HumanEvaluation:
     return await converters.human_evaluation_db_to_pydantic(human_evaluation_db)
 
 
-async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
+async def delete_human_evaluations(evaluation_ids: List[str], project_id: str) -> None:
     """
     Delete evaluations by their IDs.
 
     Args:
         evaluation_ids (List[str]): A list of evaluation IDs.
+        project_id (str): The ID of the project.
 
     Raises:
         NoResultFound: If evaluation not found or access denied.
     """
 
     for evaluation_id in evaluation_ids:
-        await db_manager.delete_human_evaluation(evaluation_id=evaluation_id)
+        await db_manager.delete_human_evaluation(
+            evaluation_id=evaluation_id, project_id=project_id
+        )
 
 
 async def delete_evaluations(evaluation_ids: List[str]) -> None:
@@ -357,7 +361,7 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
 
 
 async def create_new_human_evaluation(
-    payload: NewHumanEvaluation, user_uid: str
+    payload: NewHumanEvaluation, user_uid: str, project_id: str
 ) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
@@ -365,13 +369,14 @@ async def create_new_human_evaluation(
     Args:
         payload (NewEvaluation): The evaluation payload.
         user_uid (str): The user_uid of the user
+        project_id (str): The ID of the project
 
     Returns:
         HumanEvaluationDB
     """
 
     user = await db_manager.get_user(user_uid)
-    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id, project_id=project_id)
     if app is None:
         raise HTTPException(
             status_code=404,
@@ -380,7 +385,7 @@ async def create_new_human_evaluation(
 
     human_evaluation = await db_manager.create_human_evaluation(
         app=app,
-        user_id=str(user.id),
+        project_id=project_id,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         testset_id=payload.testset_id,
@@ -394,10 +399,9 @@ async def create_new_human_evaluation(
     await prepare_csvdata_and_create_evaluation_scenario(
         human_evaluation.testset.csvdata,
         payload.inputs,
+        project_id,
         payload.evaluation_type,
         human_evaluation,
-        user,
-        app,
     )
     return human_evaluation
 

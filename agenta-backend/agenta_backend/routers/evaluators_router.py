@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from agenta_backend.utils import project_utils
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluator_manager, db_manager, app_manager
 
@@ -63,6 +64,9 @@ async def get_evaluator_configs(
     """
 
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -78,7 +82,7 @@ async def get_evaluator_configs(
                     status_code=403,
                 )
 
-        evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
+        evaluators_configs = await evaluator_manager.get_evaluators_configs(project_id)
         return evaluators_configs
     except Exception as e:
         raise HTTPException(
@@ -141,6 +145,9 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -157,20 +164,11 @@ async def create_new_evaluator_config(
                 )
 
         evaluator_config = await evaluator_manager.create_evaluator_config(
-            app_id=payload.app_id,
+            project_id=project_id,
             name=payload.name,
             evaluator_key=payload.evaluator_key,
             settings_values=payload.settings_values,
         )
-
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=payload.app_id,
-            object_type="app",
-        )
-        logger.debug("Successfully updated last_modified_by app information")
-
         return evaluator_config
     except Exception as e:
         import traceback
@@ -195,6 +193,9 @@ async def update_evaluator_config(
     """
 
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -211,16 +212,8 @@ async def update_evaluator_config(
                 )
 
         evaluators_configs = await evaluator_manager.update_evaluator_config(
-            evaluator_config_id=evaluator_config_id, updates=payload.dict()
+            evaluator_config_id=evaluator_config_id, updates=payload.model_dump()
         )
-
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=evaluator_config_id,
-            object_type="evaluator_config",
-        )
-        logger.debug("Successfully updated last_modified_by app information")
         return evaluators_configs
     except Exception as e:
         import traceback
@@ -260,14 +253,6 @@ async def delete_evaluator_config(
                     {"detail": error_msg},
                     status_code=403,
                 )
-
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=evaluator_config_id,
-            object_type="evaluator_config",
-        )
-        logger.debug("Successfully updated last_modified_by app information")
 
         success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success
