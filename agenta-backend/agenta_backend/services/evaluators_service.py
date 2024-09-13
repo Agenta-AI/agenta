@@ -130,8 +130,10 @@ def get_correct_answer(
     correct_answer_key = settings_values.get("correct_answer_key")
     if correct_answer_key is None:
         raise ValueError("No correct answer keys provided.")
-    if len(correct_answer_key.split(".")) > 1:
-        correct_answer_key = correct_answer_key.split(".")[-1]
+    if isinstance(correct_answer_key, str) and correct_answer_key.startswith(
+        "testcase."
+    ):
+        correct_answer_key = correct_answer_key[len("testcase.") :]
     if correct_answer_key not in data_point:
         raise ValueError(
             f"Correct answer column '{correct_answer_key}' not found in the test set."
