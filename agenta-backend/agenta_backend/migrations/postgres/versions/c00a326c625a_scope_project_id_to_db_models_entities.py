@@ -69,7 +69,6 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.drop_column("bases", "app_id")
     op.drop_column("bases", "user_id")
     op.add_column("deployments", sa.Column("project_id", sa.UUID(), nullable=True))
     op.drop_constraint("deployments_user_id_fkey", "deployments", type_="foreignkey")
@@ -331,9 +330,6 @@ def downgrade() -> None:
     op.drop_column("deployments", "project_id")
     op.add_column(
         "bases", sa.Column("user_id", sa.UUID(), autoincrement=False, nullable=True)
-    )
-    op.add_column(
-        "bases", sa.Column("app_id", sa.UUID(), autoincrement=False, nullable=True)
     )
     op.create_foreign_key("bases_user_id_fkey", "bases", "users", ["user_id"], ["id"])
     op.create_foreign_key(
