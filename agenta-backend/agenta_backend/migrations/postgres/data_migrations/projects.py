@@ -23,7 +23,7 @@ def create_default_project():
     with sync_session() as session:
         try:
             default_projects = get_default_projects(session)
-            if len(default_projects) >= 1:
+            if len(default_projects) > 1:
                 raise ValueError(
                     "Multiple default projects found. Please ensure only one exists."
                 )
