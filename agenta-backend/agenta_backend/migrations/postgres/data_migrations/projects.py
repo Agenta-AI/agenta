@@ -97,7 +97,6 @@ def remove_default_project():
                 )
                 return
 
-
             session.delete(default_projects[0])
             session.commit()
             click.echo(click.style("Default project removed successfully.", fg="green"))
