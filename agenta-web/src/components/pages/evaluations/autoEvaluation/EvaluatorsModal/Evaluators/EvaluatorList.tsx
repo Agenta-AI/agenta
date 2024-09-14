@@ -27,7 +27,6 @@ const EvaluatorList = ({
     setSelectedEvaluator,
     onSuccess,
 }: EvaluatorListProps) => {
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const evaluators = useAtom(evaluatorsAtom)[0]
     const [openDeleteModal, setOpenDeleteModal] = useState(false)
     const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
@@ -45,9 +44,6 @@ const EvaluatorList = ({
             title: "Name",
             dataIndex: "name",
             key: "name",
-            onHeaderCell: () => ({
-                style: {minWidth: 400},
-            }),
             render: (_, record) => {
                 return <div>{record.name}</div>
             },
@@ -56,23 +52,9 @@ const EvaluatorList = ({
             title: "Type",
             dataIndex: "type",
             key: "type",
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
             render: (_, record) => {
                 const evaluator = evaluators.find((item) => item.key === record.evaluator_key)
                 return <Tag color={record.color}>{evaluator?.name}</Tag>
-            },
-        },
-        {
-            title: "Tags",
-            dataIndex: "tags",
-            key: "tags",
-            onHeaderCell: () => ({
-                style: {minWidth: 400},
-            }),
-            render: (_, record) => {
-                return record.tags?.map((tag, index) => <Tag key={index}>{tag}</Tag>)
             },
         },
         {
@@ -84,7 +66,7 @@ const EvaluatorList = ({
             render: (_, record) => {
                 return (
                     <Dropdown
-                        trigger={["hover"]}
+                        trigger={["click"]}
                         placement="bottomRight"
                         overlayStyle={{width: 180}}
                         menu={{
@@ -154,14 +136,6 @@ const EvaluatorList = ({
     return (
         <>
             <Table
-                rowSelection={{
-                    type: "checkbox",
-                    columnWidth: 48,
-                    onChange: (selectedRowKeys: React.Key[]) => {
-                        setSelectedRowKeys(selectedRowKeys)
-                    },
-                    fixed: "left",
-                }}
                 className="ph-no-capture"
                 columns={columns}
                 rowKey={"id"}
