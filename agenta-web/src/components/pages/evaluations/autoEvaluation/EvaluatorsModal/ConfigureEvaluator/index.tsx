@@ -215,7 +215,7 @@ const ConfigureEvaluator = ({
                                 <Button
                                     size="small"
                                     onClick={() => setDebugEvaluator(!debugEvaluator)}
-                                    // disabled={!isDemo()}
+                                    disabled={!isDemo()}
                                 >
                                     {debugEvaluator ? (
                                         <div className="flex items-center gap-2">
