@@ -12,7 +12,6 @@ import {
     updateEvaluatorConfig,
 } from "@/services/evaluations/api"
 import {useAppId} from "@/hooks/useAppId"
-import {useLocalStorage} from "usehooks-ts"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 
@@ -37,6 +36,8 @@ type ConfigureEvaluatorProps = {
     cloneConfig: boolean
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
     setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
+    setDebugEvaluator: React.Dispatch<React.SetStateAction<boolean>>
+    debugEvaluator: boolean
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -90,11 +91,12 @@ const ConfigureEvaluator = ({
     cloneConfig,
     setCloneConfig,
     setSelectedTestcase,
+    debugEvaluator,
+    setDebugEvaluator,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
     const [form] = Form.useForm()
-    const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [traceTree, setTraceTree] = useState<{
         trace: Record<string, any> | string | null

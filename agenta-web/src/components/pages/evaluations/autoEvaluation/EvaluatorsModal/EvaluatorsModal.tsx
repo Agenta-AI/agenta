@@ -1,6 +1,6 @@
 import {useAppId} from "@/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/lib/Types"
+import {Evaluator, EvaluatorConfig, testset, Variant} from "@/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/services/evaluations/api"
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -15,8 +15,9 @@ import {useLocalStorage} from "usehooks-ts"
 
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
+const useStyles = createUseStyles(() => ({
     modalWrapper: {
+        transition: "width 0.3s ease",
         "& .ant-modal-content": {
             height: 800,
             "& .ant-modal-body": {
@@ -46,6 +47,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
         "list",
     )
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+    const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -65,6 +67,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             setEvaluators(evaluators)
             setEvaluatorConfigs(configs)
             setVariants(variants)
+            if (variants.length) {
+                setSelectedVariant(variants[0])
+            }
             setTestsets(testsets)
         })
     }, [appId])
@@ -133,6 +138,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     cloneConfig={cloneConfig}
                     setCloneConfig={setCloneConfig}
                     setSelectedTestcase={setSelectedTestcase}
+                    setDebugEvaluator={setDebugEvaluator}
+                    debugEvaluator={debugEvaluator}
                 />
             ),
         })
@@ -141,7 +148,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     return (
         <Modal
             footer={null}
-            width={1200}
+            width={current === 2 && !debugEvaluator ? 600 : 1200}
             closeIcon={null}
             title={null}
             className={classes.modalWrapper}
