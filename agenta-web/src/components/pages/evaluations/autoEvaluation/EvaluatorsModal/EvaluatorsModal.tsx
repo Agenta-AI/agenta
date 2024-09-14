@@ -131,6 +131,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     onSuccess={() => {
                         evalConfigFetcher()
                         setCurrent(0)
+                        setEditMode(false)
                     }}
                     selectedTestcase={selectedTestcase}
                     selectedVariant={selectedVariant}
