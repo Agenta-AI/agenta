@@ -48,6 +48,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     )
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
+    const [selectedTestset, setSelectedTestset] = useState("")
 
     const evalConfigFetcher = () => {
         setFetchingEvalConfigs(true)
@@ -71,6 +72,9 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                 setSelectedVariant(variants[0])
             }
             setTestsets(testsets)
+            if (testsets.length) {
+                setSelectedTestset(testsets[0]._id)
+            }
         })
     }, [appId])
 
@@ -140,6 +144,8 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     setSelectedTestcase={setSelectedTestcase}
                     setDebugEvaluator={setDebugEvaluator}
                     debugEvaluator={debugEvaluator}
+                    selectedTestset={selectedTestset}
+                    setSelectedTestset={setSelectedTestset}
                 />
             ),
         })
