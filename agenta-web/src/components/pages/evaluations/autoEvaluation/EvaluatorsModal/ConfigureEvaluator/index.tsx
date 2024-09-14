@@ -1,6 +1,6 @@
 import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
-import {ArrowLeft, CaretDoubleLeft, CaretDoubleRight} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDoubleRight} from "@phosphor-icons/react"
 import {Button, Flex, Form, Input, message, Space, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -211,14 +211,17 @@ const ConfigureEvaluator = ({
                                     onClick={() => setDebugEvaluator(!debugEvaluator)}
                                     disabled={!isDemo()}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        {debugEvaluator ? (
-                                            <CaretDoubleLeft />
-                                        ) : (
+                                    {debugEvaluator ? (
+                                        <div className="flex items-center gap-2">
+                                            <CloseOutlined />
+                                            Test
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            Test
                                             <CaretDoubleRight />
-                                        )}
-                                        Test
-                                    </div>
+                                        </div>
+                                    )}
                                 </Button>
                             </Tooltip>
                         </Flex>
