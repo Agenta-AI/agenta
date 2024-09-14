@@ -38,6 +38,8 @@ type ConfigureEvaluatorProps = {
     setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
     setDebugEvaluator: React.Dispatch<React.SetStateAction<boolean>>
     debugEvaluator: boolean
+    setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
+    selectedTestset: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -93,6 +95,8 @@ const ConfigureEvaluator = ({
     setSelectedTestcase,
     debugEvaluator,
     setDebugEvaluator,
+    selectedTestset,
+    setSelectedTestset,
 }: ConfigureEvaluatorProps) => {
     const appId = useAppId()
     const classes = useStyles()
@@ -211,7 +215,7 @@ const ConfigureEvaluator = ({
                                 <Button
                                     size="small"
                                     onClick={() => setDebugEvaluator(!debugEvaluator)}
-                                    disabled={!isDemo()}
+                                    // disabled={!isDemo()}
                                 >
                                     {debugEvaluator ? (
                                         <div className="flex items-center gap-2">
@@ -310,6 +314,8 @@ const ConfigureEvaluator = ({
                     variants={variants}
                     setSelectedVariant={setSelectedVariant}
                     setSelectedTestcase={setSelectedTestcase}
+                    selectedTestset={selectedTestset}
+                    setSelectedTestset={setSelectedTestset}
                 />
             </Flex>
         </div>
