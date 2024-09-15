@@ -42,25 +42,6 @@ import {uniqBy} from "lodash"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    resultTag: {
-        minWidth: 150,
-        display: "flex",
-        cursor: "pointer",
-        alignItems: "stretch",
-        borderRadius: theme.borderRadiusSM,
-        border: `1px solid ${theme.colorBorder}`,
-        textAlign: "center",
-        "& > div:nth-child(1)": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
-            lineHeight: theme.lineHeight,
-            flex: 1,
-            borderRight: `1px solid ${theme.colorBorder}`,
-            padding: "0 7px",
-        },
-        "& > div:nth-child(2)": {
-            padding: "0 7px",
-        },
-    },
     button: {
         display: "flex",
         alignItems: "center",
