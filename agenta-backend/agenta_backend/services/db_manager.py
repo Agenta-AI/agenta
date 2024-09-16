@@ -2819,7 +2819,7 @@ async def update_evaluation_with_aggregated_results(
             aggregated_result = EvaluationAggregatedResultDB(
                 evaluation_id=uuid.UUID(evaluation_id),
                 evaluator_config_id=uuid.UUID(result.evaluator_config),
-                result=result.result.dict(),
+                result=result.result.model_dump(),
             )
             session.add(aggregated_result)
 
@@ -2960,6 +2960,7 @@ async def fetch_evaluator_config_by_appId(
 
 async def create_evaluator_config(
     project_id: str,
+    app_name: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -2969,7 +2970,7 @@ async def create_evaluator_config(
     async with db_engine.get_session() as session:
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
-            name=name,
+            name=f"{name} ({app_name})",
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )

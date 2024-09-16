@@ -64,6 +64,7 @@ async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorCo
 
 async def create_evaluator_config(
     project_id: str,
+    app_name: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -72,6 +73,8 @@ async def create_evaluator_config(
     Create a new evaluator configuration for an app.
 
     Args:
+        project_id (str): The ID of the project.
+        app_name (str): The name of the app.
         name (str): The name of the evaluator config.
         evaluator_key (str): The key of the evaluator.
         settings_values (Optional[Dict[str, Any]]): Additional settings for the evaluator.
@@ -82,6 +85,7 @@ async def create_evaluator_config(
 
     evaluator_config = await db_manager.create_evaluator_config(
         project_id=project_id,
+        app_name=app_name,
         name=name,
         evaluator_key=evaluator_key,
         settings_values=settings_values,
@@ -121,7 +125,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     return await db_manager.delete_evaluator_config(evaluator_config_id)
 
 
-async def create_ready_to_use_evaluators(project_id: str):
+async def create_ready_to_use_evaluators(app_name: str, project_id: str):
     """
     Create configurations for all evaluators that are marked for direct use.
 
@@ -130,6 +134,7 @@ async def create_ready_to_use_evaluators(project_id: str):
     in the database using the database manager.
 
     Args:
+        app_name (str): The name of the application.
         project_id (str): The ID of the project.
 
     Returns:
@@ -157,6 +162,7 @@ async def create_ready_to_use_evaluators(project_id: str):
         ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             project_id=project_id,
+            app_name=app_name,
             name=evaluator.name,
             evaluator_key=evaluator.key,
             settings_values=settings_values,
