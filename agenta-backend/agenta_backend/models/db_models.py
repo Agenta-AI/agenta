@@ -96,6 +96,7 @@ class AppDB(Base):
     )
     app_name = Column(String)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -103,7 +104,8 @@ class AppDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    user = relationship("UserDB")
+    user = relationship("UserDB", foreign_keys=[user_id])
+    modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
     variant = relationship(
         "AppVariantDB", cascade="all, delete-orphan", back_populates="app"
     )
