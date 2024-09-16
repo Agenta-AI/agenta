@@ -416,7 +416,9 @@ async def add_variant_from_image(
         )
 
         logger.debug("Step 8: We create ready-to use evaluators")
-        await evaluator_manager.create_ready_to_use_evaluators(project_id=project_id)
+        await evaluator_manager.create_ready_to_use_evaluators(
+            app_name=app.app_name, project_id=project_id
+        )
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
@@ -590,7 +592,9 @@ async def create_app_and_variant_from_template(
             if isCloudEE()
             else "Step 6: We create ready-to use evaluators"
         )
-        await evaluator_manager.create_ready_to_use_evaluators(project_id=project_id)
+        await evaluator_manager.create_ready_to_use_evaluators(
+            app_name=app.app_name, project_id=project_id
+        )
 
         logger.debug(
             "Step 10: Starting variant and injecting environment variables"

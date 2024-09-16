@@ -148,6 +148,9 @@ async def create_new_evaluator_config(
         project_id = project_utils.get_project_id(
             request=request, project_id=project_id
         )
+        app_db = await db_manager.get_app_instance_by_id(
+            app_id=payload.app_id, project_id=project_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -165,6 +168,7 @@ async def create_new_evaluator_config(
 
         evaluator_config = await evaluator_manager.create_evaluator_config(
             project_id=project_id,
+            app_name=app_db.app_name,
             name=payload.name,
             evaluator_key=payload.evaluator_key,
             settings_values=payload.settings_values,
