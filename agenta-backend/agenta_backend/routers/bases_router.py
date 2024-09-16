@@ -24,7 +24,6 @@ async def list_bases(
     request: Request,
     app_id: str,
     base_name: Optional[str] = None,
-    project_id: Optional[str] = None,
 ) -> List[BaseOutput]:
     """
     Retrieve a list of bases filtered by app_id and base_name.

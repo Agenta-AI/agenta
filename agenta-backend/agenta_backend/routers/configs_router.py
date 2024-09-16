@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
-from agenta_backend.utils import project_utils
+
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
@@ -29,13 +29,11 @@ logger.setLevel(logging.DEBUG)
 async def save_config(
     payload: SaveConfigPayload,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
+        base_db = await db_manager.fetch_base_by_id(
+            payload.base_id, request.state.project_id
         )
-        base_db = await db_manager.fetch_base_by_id(payload.base_id, project_id)
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -51,7 +49,9 @@ async def save_config(
                     status_code=403,
                 )
 
-        variants_db = await db_manager.list_variants_for_base(base_db, project_id)
+        variants_db = await db_manager.list_variants_for_base(
+            base_db, request.state.project_id
+        )
         variant_to_overwrite = None
         for variant_db in variants_db:
             if variant_db.config_name == payload.config_name:
@@ -65,14 +65,14 @@ async def save_config(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
                     user_uid=request.state.user_id,
-                    project_id=project_id,
+                    project_id=request.state.project_id,
                 )
 
                 logger.debug("Deploying to production environment")
                 await db_manager.deploy_to_environment(
                     environment_name="production",
                     variant_id=str(variant_to_overwrite.id),
-                    project_id=project_id,
+                    project_id=request.state.project_id,
                     user_uid=request.state.user_id,
                 )
             else:
@@ -89,7 +89,7 @@ async def save_config(
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
                 user_uid=request.state.user_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
             )
 
     except HTTPException as e:
@@ -110,7 +110,6 @@ async def get_config(
     base_id: str,
     config_name: Optional[str] = None,
     environment_name: Optional[str] = None,
-    project_id: Optional[str] = None,
 ):
     try:
         base_db = await db_manager.fetch_base_by_id(base_id)
@@ -133,7 +132,8 @@ async def get_config(
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app_id)  # type: ignore
+                app_id=str(base_db.app_id),  # type: ignore
+                project_id=request.state.project_id,
             )
             found_variant_revision = next(
                 (
@@ -160,7 +160,9 @@ async def get_config(
                 "parameters": found_variant_revision.config_parameters,
             }
         elif config_name:
-            variants_db = await db_manager.list_variants_for_base(base_db)
+            variants_db = await db_manager.list_variants_for_base(
+                base_db, request.state.project_id
+            )
             found_variant = next(
                 (
                     variant_db
@@ -207,7 +209,6 @@ async def get_config(
 async def get_config_deployment_revision(
     request: Request,
     deployment_revision_id: str,
-    project_id: Optional[str] = None,
 ):
     try:
         environment_revision = await db_manager.fetch_app_environment_revision(
@@ -247,7 +248,6 @@ async def get_config_deployment_revision(
 async def revert_deployment_revision(
     request: Request,
     deployment_revision_id: str,
-    project_id: Optional[str] = None,
 ):
     environment_revision = await db_manager.fetch_app_environment_revision(
         deployment_revision_id
