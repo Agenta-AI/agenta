@@ -134,21 +134,25 @@ async def start_variant(
 
 
 async def update_variant_image(
-    app_variant_db: AppVariantDB, image: Image, user_uid: str
+    app_variant_db: AppVariantDB, project_id: str, image: Image, user_uid: str
 ):
     """Updates the image for app variant in the database.
 
     Arguments:
-        app_variant -- the app variant to update
-        image -- the image to update
+        app_variant (AppVariantDB): the app variant to update
+        project_id (str): The ID of the project
+        image (Image): the image to update
+        user_uid (str): The ID of the user updating the image
     """
 
     valid_image = await deployment_manager.validate_image(image)
     if not valid_image:
         raise ValueError("Image could not be found in registry.")
 
-    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
-    deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
+    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id), project_id)
+    deployment = await db_manager.get_deployment_by_id(
+        str(base.deployment_id), project_id
+    )
 
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(str(deployment.id))
@@ -156,25 +160,21 @@ async def update_variant_image(
     if isOss():
         await deployment_manager.remove_image(base.image)
 
-    await db_manager.remove_image(base.image)
+    await db_manager.remove_image(base.image, project_id)
 
     # Create a new image instance
     db_image = await db_manager.create_image(
         image_type="image",
+        project_id=project_id,
         tags=image.tags,
         docker_id=image.docker_id,
-        user=app_variant_db.user,
         deletable=True,
-        organization=(
-            str(app_variant_db.organization_id) if isCloudEE() else None
-        ),  # noqa
-        workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,  # noqa
     )
     # Update base with new image
     await db_manager.update_base(str(app_variant_db.base_id), image_id=db_image.id)
     # Update variant to remove configuration
     await db_manager.update_variant_parameters(
-        str(app_variant_db.id), parameters={}, user_uid=user_uid
+        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
     )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(
@@ -182,7 +182,7 @@ async def update_variant_image(
     )
 
     # Start variant
-    await start_variant(app_variant_db)
+    await start_variant(app_variant_db, project_id)
 
 
 async def update_last_modified_by(
@@ -389,7 +389,7 @@ async def remove_app(app: AppDB, project_id: str):
         # delete app and its related resources
         try:
             logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(str(app.id))
+            await remove_app_related_resources(str(app.id), project_id)
         except Exception as e:
             logger.error(
                 f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"

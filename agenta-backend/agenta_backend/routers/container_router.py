@@ -66,13 +66,16 @@ async def build_image(
         Image: The Docker image that was built.
     """
     try:
-        app_db = await db_manager.fetch_app_by_id(app_id)
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
+        app_db = await db_manager.fetch_app_by_id(app_id, project_id)
 
         # Check app access
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_db,
+                project_id=project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
@@ -106,10 +109,13 @@ async def restart_docker_container(
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
     logger.debug(f"Restarting container for variant {payload.variant_id}")
-    app_variant_db = await db_manager.fetch_app_variant_by_id(payload.variant_id)
+    project_id = project_utils.get_project_id(request=request, project_id=project_id)
+    app_variant_db = await db_manager.fetch_app_variant_by_id(
+        payload.variant_id, project_id
+    )
     try:
         deployment = await db_manager.get_deployment_by_id(
-            app_variant_db.base.deployment
+            app_variant_db.base.deployment, project_id
         )
         container_id = deployment.container_id
 

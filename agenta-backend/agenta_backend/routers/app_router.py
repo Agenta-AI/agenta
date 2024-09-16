@@ -220,6 +220,9 @@ async def create_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
     try:
+        project_id = project_utils.get_project_id(
+            request=request, project_id=project_id
+        )
         if isCloudEE():
             api_key_from_headers = request.headers.get("Authorization")
             if api_key_from_headers is not None:
@@ -238,37 +241,9 @@ async def create_app(
                         detail="Failed to get user org and workspace data",
                     )
 
-                if payload.organization_id:
-                    organization_id = payload.organization_id
-                    organization = await db_manager_ee.get_organization(organization_id)
-                else:
-                    organization = await get_user_own_org(
-                        user_org_workspace_data["uid"]
-                    )
-                    organization_id = str(organization.id)
-
-                if not organization:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="User Organization not found",
-                    )
-
-                if payload.workspace_id:
-                    workspace_id = payload.workspace_id
-                    workspace = db_manager_ee.get_workspace(workspace_id)
-                else:
-                    workspace = await get_org_default_workspace(organization)
-
-                if not workspace:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="User Organization not found",
-                    )
-
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    workspace_id=str(workspace.id),
-                    organization=organization,
+                    project_id=project_id,
                     permission=Permission.CREATE_APPLICATION,
                 )
                 logger.debug(
@@ -283,12 +258,7 @@ async def create_app(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
-        app_db = await db_manager.create_app_and_envs(
-            payload.app_name,
-            request.state.user_id,
-            organization_id if isCloudEE() else None,
-            str(workspace.id) if isCloudEE() else None,
-        )
+        app_db = await db_manager.create_app_and_envs(payload.app_name, project_id)
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
@@ -396,6 +366,7 @@ async def add_variant_from_image(
         dict: The newly added variant.
     """
 
+    project_id = project_utils.get_project_id(request=request, project_id=project_id)
     if not isCloudEE():
         image = Image(
             type="image",
@@ -411,12 +382,12 @@ async def add_variant_from_image(
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        app = await db_manager.fetch_app_by_id(app_id)
+        app = await db_manager.fetch_app_by_id(app_id, project_id)
 
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app,
+                project_id=project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -431,6 +402,7 @@ async def add_variant_from_image(
 
         variant_db = await app_manager.add_variant_based_on_image(
             app=app,
+            project_id=project_id,
             variant_name=payload.variant_name,
             docker_id_or_template_uri=payload.docker_id,
             tags=payload.tags,
@@ -439,10 +411,12 @@ async def add_variant_from_image(
             is_template_image=False,
             user_uid=request.state.user_id,
         )
-        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
+        app_variant_db = await db_manager.fetch_app_variant_by_id(
+            str(variant_db.id), project_id
+        )
 
         logger.debug("Step 8: We create ready-to use evaluators")
-        await evaluator_manager.create_ready_to_use_evaluators(app=app)
+        await evaluator_manager.create_ready_to_use_evaluators(project_id=project_id)
 
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
