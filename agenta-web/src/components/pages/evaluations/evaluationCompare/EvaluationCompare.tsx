@@ -365,7 +365,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, hiddenVariants, evalIds, selectedCorrectAnswer])
+    }, [rows, hiddenVariants, evalIds, selectedCorrectAnswer, colors, evaluators])
 
     const fetcher = () => {
         setFetching(true)
@@ -410,7 +410,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenVariants.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenVariants],
     )
 
     const getDynamicHeaderName = (params: ColDef): string => {
