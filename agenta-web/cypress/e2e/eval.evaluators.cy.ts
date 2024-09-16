@@ -29,7 +29,7 @@ describe("Evaluators CRUD Operations Test", function () {
 
         it("Should successfully edit an evaluator", () => {
             cy.get(".ant-modal-content").should("exist")
-            cy.get('[data-cy="evaluator-menu-button"]').eq(0).trigger("mouseover")
+            cy.get('[data-cy="evaluator-menu-button"]').eq(0).click()
             cy.get(".ant-dropdown-menu").should("be.visible")
             cy.get(".ant-dropdown-menu-item").eq(0).click()
             cy.get('[data-cy="configure-new-evaluator-modal-input"]').clear()
@@ -39,7 +39,7 @@ describe("Evaluators CRUD Operations Test", function () {
 
         it("Should successfully delete an evaluator", () => {
             cy.get(".ant-modal-content").should("exist")
-            cy.get('[data-cy="evaluator-menu-button"]').eq(0).trigger("mouseover")
+            cy.get('[data-cy="evaluator-menu-button"]').eq(0).click()
             cy.get(".ant-dropdown-menu").should("be.visible")
             cy.get(".ant-dropdown-menu-item")
                 .contains(/delete/i)
