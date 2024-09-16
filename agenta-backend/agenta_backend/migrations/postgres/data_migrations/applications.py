@@ -9,17 +9,17 @@ from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from agenta_backend.models.db_models import (
-    AppDB,
-    EvaluatorConfigDB,
+from agenta_backend.models.deprecated_models import (
+    DeprecatedEvaluatorConfigDB,
+    DeprecatedAppDB,
 )
 
 
 BATCH_SIZE = 1000
 
 
-def get_app_db(session: Session, app_id: str) -> Optional[AppDB]:
-    query = session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+def get_app_db(session: Session, app_id: str) -> Optional[DeprecatedAppDB]:
+    query = session.execute(select(DeprecatedAppDB).filter_by(id=uuid.UUID(app_id)))
     return query.scalars().first()
 
 
@@ -33,7 +33,9 @@ def update_evaluators_with_app_name():
             while True:
                 records = (
                     session.execute(
-                        select(EvaluatorConfigDB).offset(offset).limit(BATCH_SIZE)
+                        select(DeprecatedEvaluatorConfigDB)
+                        .offset(offset)
+                        .limit(BATCH_SIZE)
                     )
                     .scalars()
                     .all()
@@ -46,7 +48,7 @@ def update_evaluators_with_app_name():
                     evaluator_config_app = get_app_db(
                         session=session, app_id=str(record.app_id)
                     )
-                    if evaluator_config_app:
+                    if record.app_id is not None and evaluator_config_app is not None:
                         record.name = f"{record.name} ({evaluator_config_app.app_name})"
 
                 session.commit()
