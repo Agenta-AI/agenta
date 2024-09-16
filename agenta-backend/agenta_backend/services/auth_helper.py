@@ -37,10 +37,18 @@ async def authentication_middleware(request: Request, call_next):
         if project_id_from_request and not hasattr(request.state, "project_id"):
             setattr(request.state, "project_id", project_id_from_request)
         elif not project_id_from_request:
+            logger.info("Retrieving default project from database...")
             project = await fetch_default_project()  # Fetch the default project
             if project is None:
                 raise NoResultFound("Default project not found.")
+
             setattr(request.state, "project_id", str(project.id))
+            logger.info(
+                f"Default project fetched: {str(project.id)} and set in request.state"
+            )
+
+        if not hasattr(request.state, "user_id"):
+            setattr(request.state, "user_id", "0")
 
         # Call the next middleware or route handler
         response = await call_next(request)
@@ -49,8 +57,3 @@ async def authentication_middleware(request: Request, call_next):
         # Handle exceptions, set status code
         status_code = e.status_code if hasattr(e, "status_code") else 500
         raise HTTPException(status_code=status_code, detail=str(e))
-    finally:
-        # Set default user_id if not already set
-        if not hasattr(request.state, "user_id"):
-            logger.warning("user_id not found in request.state, setting to default '0'")
-            setattr(request.state, "user_id", "0")

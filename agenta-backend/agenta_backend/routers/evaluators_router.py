@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from agenta_backend.utils import project_utils
+
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import evaluator_manager, db_manager, app_manager
 
@@ -52,7 +52,6 @@ async def get_evaluators_endpoint():
 async def get_evaluator_configs(
     app_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Endpoint to fetch evaluator configurations for a specific app.
 
@@ -64,9 +63,6 @@ async def get_evaluator_configs(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -82,7 +78,9 @@ async def get_evaluator_configs(
                     status_code=403,
                 )
 
-        evaluators_configs = await evaluator_manager.get_evaluators_configs(project_id)
+        evaluators_configs = await evaluator_manager.get_evaluators_configs(
+            request.state.project_id
+        )
         return evaluators_configs
     except Exception as e:
         raise HTTPException(
@@ -94,7 +92,6 @@ async def get_evaluator_configs(
 async def get_evaluator_config(
     evaluator_config_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Endpoint to fetch evaluator configurations for a specific app.
 
@@ -134,7 +131,6 @@ async def get_evaluator_config(
 async def create_new_evaluator_config(
     payload: NewEvaluatorConfig,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Endpoint to fetch evaluator configurations for a specific app.
 
@@ -145,11 +141,8 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         app_db = await db_manager.get_app_instance_by_id(
-            app_id=payload.app_id, project_id=project_id
+            app_id=payload.app_id, project_id=request.state.project_id
         )
         if isCloudEE():
             has_permission = await check_action_access(
@@ -167,7 +160,7 @@ async def create_new_evaluator_config(
                 )
 
         evaluator_config = await evaluator_manager.create_evaluator_config(
-            project_id=project_id,
+            project_id=request.state.project_id,
             app_name=app_db.app_name,
             name=payload.name,
             evaluator_key=payload.evaluator_key,
@@ -188,7 +181,6 @@ async def update_evaluator_config(
     evaluator_config_id: str,
     payload: UpdateEvaluatorConfig,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Endpoint to update evaluator configurations for a specific app.
 
@@ -197,9 +189,6 @@ async def update_evaluator_config(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -232,7 +221,6 @@ async def update_evaluator_config(
 async def delete_evaluator_config(
     evaluator_config_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Endpoint to delete a specific evaluator configuration.
 

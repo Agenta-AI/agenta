@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, UploadFile, File, Form, Request
 
-from agenta_backend.utils import project_utils
+
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.converters import testset_db_to_pydantic
@@ -54,7 +54,6 @@ async def upload_file(
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_id: str = Form(None),
-    project_id: Optional[str] = None,
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -68,8 +67,9 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
-    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
+    app = await db_manager.fetch_app_by_id(
+        app_id=app_id, project_id=request.state.project_id
+    )
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -116,7 +116,7 @@ async def upload_file(
 
     try:
         testset = await db_manager.create_testset(
-            app=app, project_id=project_id, testset_data=document
+            app=app, project_id=request.state.project_id, testset_data=document
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -135,7 +135,6 @@ async def import_testset(
     endpoint: str = Form(None),
     testset_name: str = Form(None),
     app_id: str = Form(None),
-    project_id: Optional[str] = None,
 ):
     """
     Import JSON testset data from an endpoint and save it to MongoDB.
@@ -148,8 +147,9 @@ async def import_testset(
         dict: The result of the import process.
     """
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
-    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
+    app = await db_manager.fetch_app_by_id(
+        app_id=app_id, project_id=request.state.project_id
+    )
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -184,7 +184,7 @@ async def import_testset(
             document["csvdata"].append(row)
 
         testset = await db_manager.create_testset(
-            app=app, project_id=project_id, testset_data=document
+            app=app, project_id=request.state.project_id, testset_data=document
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -214,7 +214,6 @@ async def create_testset(
     app_id: str,
     csvdata: NewTestset,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
@@ -228,8 +227,9 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
-    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
+    app = await db_manager.fetch_app_by_id(
+        app_id=app_id, project_id=request.state.project_id
+    )
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -251,7 +251,7 @@ async def create_testset(
             "csvdata": csvdata.csvdata,
         }
         testset_instance = await db_manager.create_testset(
-            app=app, project_id=project_id, testset_data=testset_data
+            app=app, project_id=request.state.project_id, testset_data=testset_data
         )
         if testset_instance is not None:
             return TestSetSimpleResponse(
@@ -269,7 +269,6 @@ async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Update a testset with given id, update the testset in MongoDB.
@@ -282,9 +281,8 @@ async def update_testset(
     str: The id of the test set updated.
     """
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
     testset = await db_manager.fetch_testset_by_id(
-        testset_id=testset_id, project_id=project_id
+        testset_id=testset_id, project_id=request.state.project_id
     )
     if testset is None:
         raise HTTPException(status_code=404, detail="testset not found")
@@ -326,7 +324,6 @@ async def update_testset(
 async def get_testsets(
     app_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
@@ -338,8 +335,9 @@ async def get_testsets(
     - `HTTPException` with status code 404 if no testsets are found.
     """
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
-    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
+    app = await db_manager.fetch_app_by_id(
+        app_id=app_id, project_id=request.state.project_id
+    )
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -355,7 +353,9 @@ async def get_testsets(
                 status_code=403,
             )
 
-    testsets = await db_manager.fetch_testsets_by_app_id(project_id=project_id)
+    testsets = await db_manager.fetch_testsets_by_app_id(
+        project_id=request.state.project_id
+    )
     return [
         TestSetOutputResponse(
             _id=str(testset.id),  # type: ignore
@@ -370,7 +370,6 @@ async def get_testsets(
 async def get_single_testset(
     testset_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
@@ -383,11 +382,8 @@ async def get_single_testset(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         test_set = await db_manager.fetch_testset_by_id(
-            testset_id=testset_id, project_id=project_id
+            testset_id=testset_id, project_id=request.state.project_id
         )
         if isCloudEE():
             has_permission = await check_action_access(
@@ -416,7 +412,6 @@ async def get_single_testset(
 async def delete_testsets(
     payload: DeleteTestsets,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Delete specific testsets based on their unique IDs.

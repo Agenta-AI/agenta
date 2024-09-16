@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response, Query
 
 from agenta_backend.models import converters
-from agenta_backend.utils import project_utils
+
 from agenta_backend.tasks.evaluations import evaluate
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.evaluation_model import (
@@ -39,7 +39,6 @@ async def fetch_evaluation_ids(
     resource_type: str,
     request: Request,
     resource_ids: List[str] = Query(None),
-    project_id: Optional[str] = None,
 ):
     """Fetches evaluation ids for a given resource type and id.
 
@@ -55,13 +54,10 @@ async def fetch_evaluation_ids(
         List[str]: A list of evaluation ids.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -75,7 +71,7 @@ async def fetch_evaluation_ids(
                     status_code=403,
                 )
         evaluations = await db_manager.fetch_evaluations_by_resource(
-            resource_type, project_id, resource_ids
+            resource_type, request.state.project_id, resource_ids
         )
         return list(map(lambda x: str(x.id), evaluations))
     except Exception as exc:
@@ -89,7 +85,6 @@ async def fetch_evaluation_ids(
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Creates a new comparison table document
     Raises:
@@ -98,11 +93,8 @@ async def create_evaluation(
         _description_
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         app = await db_manager.fetch_app_by_id(
-            app_id=payload.app_id, project_id=project_id
+            app_id=payload.app_id, project_id=request.state.project_id
         )
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
@@ -110,7 +102,7 @@ async def create_evaluation(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_EVALUATION,
             )
             logger.debug(f"User has permission to create evaluation: {has_permission}")
@@ -133,14 +125,14 @@ async def create_evaluation(
         for variant_id in payload.variant_ids:
             evaluation = await evaluation_service.create_new_evaluation(
                 app_id=payload.app_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
                 variant_id=variant_id,
                 testset_id=payload.testset_id,
             )
 
             evaluate.delay(
                 app_id=payload.app_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
                 variant_id=variant_id,
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
@@ -155,7 +147,7 @@ async def create_evaluation(
             user_uid=request.state.user_id,
             object_id=payload.app_id,
             object_type="app",
-            project_id=project_id,
+            project_id=request.state.project_id,
         )
         logger.debug("Successfully updated last_modified_by app information")
 
@@ -177,7 +169,6 @@ async def create_evaluation(
 async def fetch_evaluation_status(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches the status of the evaluation.
 
@@ -190,10 +181,9 @@ async def fetch_evaluation_status(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
+        evaluation = await db_manager.fetch_evaluation_by_id(
+            evaluation_id, request.state.project_id
         )
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id, project_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -220,7 +210,6 @@ async def fetch_evaluation_status(
 async def fetch_evaluation_results(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches the results of the evaluation
 
@@ -233,11 +222,8 @@ async def fetch_evaluation_results(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluation = await db_manager.fetch_evaluation_by_id(
-            evaluation_id, project_id=project_id
+            evaluation_id, project_id=request.state.project_id
         )
         if isCloudEE():
             has_permission = await check_action_access(
@@ -272,7 +258,6 @@ async def fetch_evaluation_results(
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -287,10 +272,9 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
+        evaluation = await db_manager.fetch_evaluation_by_id(
+            evaluation_id, request.state.project_id
         )
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id, project_id)
         if not evaluation:
             raise HTTPException(
                 status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
@@ -315,7 +299,7 @@ async def fetch_evaluation_scenarios(
 
         eval_scenarios = (
             await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-                evaluation_id=str(evaluation.id)
+                evaluation_id=str(evaluation.id), project_id=request.state.project_id
             )
         )
         return eval_scenarios
@@ -332,7 +316,6 @@ async def fetch_evaluation_scenarios(
 async def fetch_list_evaluations(
     app_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -343,10 +326,7 @@ async def fetch_list_evaluations(
         List[Evaluation]: A list of evaluations.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
-        app = await db_manager.fetch_app_by_id(app_id, project_id)
+        app = await db_manager.fetch_app_by_id(app_id, request.state.project_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -364,7 +344,9 @@ async def fetch_list_evaluations(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_list_evaluations(app, project_id)
+        return await evaluation_service.fetch_list_evaluations(
+            app, request.state.project_id
+        )
     except Exception as exc:
         import traceback
 
@@ -382,7 +364,6 @@ async def fetch_list_evaluations(
 async def fetch_evaluation(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -393,10 +374,9 @@ async def fetch_evaluation(
         Evaluation: The fetched evaluation.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
+        evaluation = await db_manager.fetch_evaluation_by_id(
+            evaluation_id, request.state.project_id
         )
-        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id, project_id)
         if not evaluation:
             raise HTTPException(
                 status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
@@ -430,7 +410,6 @@ async def fetch_evaluation(
 async def delete_evaluations(
     payload: DeleteEvaluation,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
@@ -443,9 +422,6 @@ async def delete_evaluations(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             evaluation_id = random.choice(payload.evaluations_ids)
             has_permission = await check_action_access(
@@ -468,11 +444,13 @@ async def delete_evaluations(
             user_uid=request.state.user_id,
             object_id=random.choice(payload.evaluations_ids),
             object_type="evaluation",
-            project_id=project_id,
+            project_id=request.state.project_id,
         )
         logger.debug("Successfully updated last_modified_by app information")
 
-        await evaluation_service.delete_evaluations(payload.evaluations_ids, project_id)
+        await evaluation_service.delete_evaluations(
+            payload.evaluations_ids, request.state.project_id
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -485,7 +463,6 @@ async def delete_evaluations(
 async def fetch_evaluation_scenarios(
     evaluations_ids: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -499,9 +476,6 @@ async def fetch_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluations_ids_list = evaluations_ids.split(",")
 
         if isCloudEE():
@@ -524,7 +498,7 @@ async def fetch_evaluation_scenarios(
                     )
 
         eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
-            evaluations_ids_list, project_id
+            evaluations_ids_list, request.state.project_id
         )
 
         return eval_scenarios

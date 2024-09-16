@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from fastapi import HTTPException, Body, Request, status, Response
 
 from agenta_backend.models import converters
-from agenta_backend.utils import project_utils
+
 from agenta_backend.services import results_service
 from agenta_backend.services import evaluation_service
 from agenta_backend.services import db_manager, app_manager
@@ -47,7 +47,6 @@ logger.setLevel(logging.DEBUG)
 async def create_evaluation(
     payload: NewHumanEvaluation,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Creates a new comparison table document
     Raises:
@@ -56,11 +55,8 @@ async def create_evaluation(
         _description_
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         app = await db_manager.fetch_app_by_id(
-            app_id=payload.app_id, project_id=project_id
+            app_id=payload.app_id, project_id=request.state.project_id
         )
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
@@ -80,7 +76,7 @@ async def create_evaluation(
                 )
 
         new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
-            payload, request.state.user_id, project_id
+            payload, request.state.user_id, request.state.project_id
         )
         return await converters.human_evaluation_db_to_simple_evaluation_output(
             new_human_evaluation_db
@@ -102,7 +98,6 @@ async def create_evaluation(
 async def fetch_list_human_evaluations(
     app_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -114,9 +109,6 @@ async def fetch_list_human_evaluations(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -131,7 +123,9 @@ async def fetch_list_human_evaluations(
                     status_code=403,
                 )
 
-        return await evaluation_service.fetch_list_human_evaluations(app_id, project_id)
+        return await evaluation_service.fetch_list_human_evaluations(
+            app_id, request.state.project_id
+        )
     except Exception as e:
         status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
         raise HTTPException(status_code=status_code, detail=str(e)) from e
@@ -141,7 +135,6 @@ async def fetch_list_human_evaluations(
 async def fetch_human_evaluation(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -152,11 +145,8 @@ async def fetch_human_evaluation(
         HumanEvaluation: The fetched evaluation.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, project_id
+            evaluation_id, request.state.project_id
         )
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -189,7 +179,6 @@ async def fetch_human_evaluation(
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -204,11 +193,8 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, project_id
+            evaluation_id, request.state.project_id
         )
         if human_evaluation is None:
             raise HTTPException(
@@ -250,7 +236,6 @@ async def update_human_evaluation(
     request: Request,
     evaluation_id: str,
     update_data: HumanEvaluationUpdate = Body(...),
-    project_id: Optional[str] = None,
 ):
     """Updates an evaluation's status.
 
@@ -262,11 +247,8 @@ async def update_human_evaluation(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, project_id
+            evaluation_id, request.state.project_id
         )
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -303,7 +285,6 @@ async def update_evaluation_scenario_router(
     evaluation_type: EvaluationType,
     payload: HumanEvaluationScenarioUpdate,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Updates an evaluation scenario's vote or score based on its type.
 
@@ -314,11 +295,8 @@ async def update_evaluation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluation_scenario_db = await db_manager.fetch_human_evaluation_scenario_by_id(
-            evaluation_scenario_id, project_id
+            evaluation_scenario_id, request.state.project_id
         )
         if evaluation_scenario_db is None:
             raise HTTPException(
@@ -357,7 +335,6 @@ async def update_evaluation_scenario_router(
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ) -> Dict[str, str]:
     """
     Fetch the score of a specific evaluation scenario.
@@ -370,11 +347,8 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id, project_id
+            evaluation_scenario_id, request.state.project_id
         )
         if evaluation_scenario is None:
             raise HTTPException(
@@ -409,7 +383,6 @@ async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Updates the score of an evaluation scenario.
 
@@ -420,11 +393,8 @@ async def update_evaluation_scenario_score_router(
         None: 204 No Content status code upon successful update.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id, project_id
+            evaluation_scenario_id, request.state.project_id
         )
         if evaluation_scenario is None:
             raise HTTPException(
@@ -459,7 +429,6 @@ async def update_evaluation_scenario_score_router(
 async def fetch_results(
     evaluation_id: str,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """Fetch all the results for one the comparison table
 
@@ -471,11 +440,8 @@ async def fetch_results(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, project_id
+            evaluation_id, request.state.project_id
         )
         if evaluation is None:
             raise HTTPException(
@@ -516,7 +482,6 @@ async def fetch_results(
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,
-    project_id: Optional[str] = None,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
@@ -529,9 +494,6 @@ async def delete_evaluations(
     """
 
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
         if isCloudEE():
             evaluation_id = random.choice(delete_evaluations.evaluations_ids)
             has_permission = await check_action_access(
@@ -548,7 +510,7 @@ async def delete_evaluations(
                 )
 
         await evaluation_service.delete_human_evaluations(
-            delete_evaluations.evaluations_ids, project_id
+            delete_evaluations.evaluations_ids, request.state.project_id
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:

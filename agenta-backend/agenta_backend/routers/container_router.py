@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
 
-from agenta_backend.utils import project_utils
+
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import (
     APIRouter,
@@ -51,7 +51,6 @@ async def build_image(
     base_name: str,
     tar_file: UploadFile,
     request: Request,
-    project_id: Optional[str] = None,
 ) -> Image:
     """
     Builds a Docker image from a tar file containing the application code.
@@ -66,16 +65,13 @@ async def build_image(
         Image: The Docker image that was built.
     """
     try:
-        project_id = project_utils.get_project_id(
-            request=request, project_id=project_id
-        )
-        app_db = await db_manager.fetch_app_by_id(app_id, project_id)
+        app_db = await db_manager.fetch_app_by_id(app_id, request.state.project_id)
 
         # Check app access
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=project_id,
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
@@ -101,7 +97,6 @@ async def build_image(
 async def restart_docker_container(
     payload: RestartAppContainer,
     request: Request,
-    project_id: Optional[str] = None,
 ) -> dict:
     """Restart docker container.
 
@@ -109,13 +104,13 @@ async def restart_docker_container(
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
     logger.debug(f"Restarting container for variant {payload.variant_id}")
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
+
     app_variant_db = await db_manager.fetch_app_variant_by_id(
-        payload.variant_id, project_id
+        payload.variant_id, request.state.project_id
     )
     try:
         deployment = await db_manager.get_deployment_by_id(
-            app_variant_db.base.deployment, project_id
+            app_variant_db.base.deployment, request.state.project_id
         )
         container_id = deployment.container_id
 
@@ -129,7 +124,6 @@ async def restart_docker_container(
 @router.get("/templates/", operation_id="container_templates")
 async def container_templates(
     request: Request,
-    project_id: Optional[str] = None,
 ) -> Union[List[Template], str]:
     """
     Returns a list of templates available for creating new containers.
@@ -153,7 +147,6 @@ async def construct_app_container_url(
     request: Request,
     base_id: Optional[str] = None,
     variant_id: Optional[str] = None,
-    project_id: Optional[str] = None,
 ) -> URI:
     """
     Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -172,9 +165,8 @@ async def construct_app_container_url(
     # assert that one of base_id or variant_id is provided
     assert base_id or variant_id, "Please provide either base_id or variant_id"
 
-    project_id = project_utils.get_project_id(request=request, project_id=project_id)
     if base_id:
-        object_db = await db_manager.fetch_base_by_id(base_id, project_id)
+        object_db = await db_manager.fetch_base_by_id(base_id, request.state.project_id)
     elif variant_id and variant_id != "None":
         # NOTE: Backward Compatibility
         # ---------------------------
@@ -185,7 +177,9 @@ async def construct_app_container_url(
         # This change ensures that users can still view their evaluations; however,
         # they will no longer be able to access a deployment URL for the deleted variant.
         # Therefore, we ensure that variant_id is not "None".
-        object_db = await db_manager.fetch_app_variant_by_id(variant_id, project_id)
+        object_db = await db_manager.fetch_app_variant_by_id(
+            variant_id, request.state.project_id
+        )
     else:
         # NOTE: required for backward compatibility
         object_db = None
@@ -205,11 +199,11 @@ async def construct_app_container_url(
     try:
         if getattr(object_db, "deployment_id", None):  # this is a base
             deployment = await db_manager.get_deployment_by_id(
-                str(object_db.deployment_id), project_id  # type: ignore
+                str(object_db.deployment_id), request.state.project_id  # type: ignore
             )
         elif getattr(object_db, "base_id", None):  # this is a variant
             deployment = await db_manager.get_deployment_by_id(
-                str(object_db.base.deployment_id), project_id  # type: ignore
+                str(object_db.base.deployment_id), request.state.project_id  # type: ignore
             )
         else:
             raise HTTPException(
