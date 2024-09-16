@@ -1,7 +1,7 @@
 """scope project_id to db models/entities
 
 Revision ID: c00a326c625a
-Revises: 6cfe239894fb
+Revises: 22d29365f5fc
 Create Date: 2024-09-12 20:34:16.175845
 
 """
@@ -17,7 +17,7 @@ from agenta_backend.migrations.postgres import utils
 
 # revision identifiers, used by Alembic.
 revision: str = "c00a326c625a"
-down_revision: Union[str, None] = "6cfe239894fb"
+down_revision: Union[str, None] = "22d29365f5fc"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
