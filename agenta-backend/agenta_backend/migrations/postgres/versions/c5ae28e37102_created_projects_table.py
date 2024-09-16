@@ -30,7 +30,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("id"),
-        sa.UniqueConstraint("project_name"),
     )
     # ### end Alembic commands ###
 

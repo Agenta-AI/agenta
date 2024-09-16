@@ -32,5 +32,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # ### custom command ###
-    remove_default_project
+    remove_default_project()
     # ### end custom command ###
