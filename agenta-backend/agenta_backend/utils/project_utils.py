@@ -1,30 +1,53 @@
+import json
+import logging
 from typing import Optional
 
 from fastapi import Request
 
 
-def get_project_id(request: Request, project_id: Optional[str] = None) -> str:
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+async def retrieve_project_id_from_request(request: Request) -> Optional[str]:
     """
-    Retrieve the project_id from the request or use the default from the request state.
+    Retrieves the `project_id` from an incoming HTTP request.
+
+    This function attempts to extract the `project_id` from various parts of the request:
+    1. Path parameters
+    2. Query parameters
+    3. Request body (assuming it is JSON)
 
     Args:
-        request (Request): The current request object containing state information.
-        project_id (Optional[str]): The provided project_id from the API endpoint.
+        request (Request): The FastAPI `Request` object from which to extract the `project_id`.
 
     Returns:
-        str: The project_id to use for the operation.
-
-    Raises:
-        ValueError: If no project_id is provided and no default is found in the request state.
+        Optional[str]: The extracted `project_id` if found; otherwise, `None`.
     """
 
-    if project_id is not None:
-        return project_id
+    logger.info("Retrieving project_id from request...")
 
-    default_project_id: str = getattr(request.state, "project_id", None)
-    if default_project_id is None:
-        raise ValueError(
-            "No project_id provided and no default project_id found in the request state."
-        )
+    project_id_from_path_params = request.path_params.get("project_id")
+    if project_id_from_path_params:
+        logger.info("Project ID found in path params")
+        return project_id_from_path_params
 
-    return default_project_id
+    project_id_from_query_params = request.query_params.get("project_id")
+    if project_id_from_query_params:
+        logger.info("Project ID found in query params")
+        return project_id_from_query_params
+
+    try:
+        request_body = await request.body()
+        if request_body:
+            project_id_response_str = request_body.decode("utf-8")
+            response_json = json.loads(project_id_response_str)
+            project_id_from_request_body = response_json.get("project_id")
+            if project_id_from_request_body:
+                logger.info("Project ID found in request body")
+                return project_id_from_request_body
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        logger.error(f"Error decoding request body: {e}")
+
+    logger.info("No project ID found in the request")
+    return None
