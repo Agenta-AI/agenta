@@ -2230,12 +2230,13 @@ async def fetch_human_evaluation_scenarios(evaluation_id: str):
         return evaluation_scenarios
 
 
-async def fetch_evaluation_scenarios(evaluation_id: str):
+async def fetch_evaluation_scenarios(evaluation_id: str, project_id: str):
     """
     Fetches evaluation scenarios.
 
     Args:
         evaluation_id (str):  The evaluation identifier
+        project_id (str): The ID of the project
 
     Returns:
         The evaluation scenarios.
@@ -2244,7 +2245,9 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(EvaluationScenarioDB)
-            .filter_by(evaluation_id=uuid.UUID(evaluation_id))
+            .filter_by(
+                evaluation_id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
+            )
             .options(joinedload(EvaluationScenarioDB.results))
         )
         evaluation_scenarios = result.unique().scalars().all()
@@ -2545,18 +2548,14 @@ async def update_app_variant(
             if hasattr(app_variant, key):
                 setattr(app_variant, key, value)
 
-        relationships_to_load_in_session = [
-            "user",
-            "app",
-            "image",
-            "base",
-        ]
-        if isCloudEE():
-            relationships_to_load_in_session.append("organization")
-
         await session.commit()
         await session.refresh(
-            app_variant, attribute_names=relationships_to_load_in_session
+            app_variant,
+            attribute_names=[
+                "app",
+                "image",
+                "base",
+            ],
         )
 
         return app_variant
@@ -2584,13 +2583,11 @@ async def fetch_app_by_name_and_parameters(app_name: str, project_id: str):
 
 async def create_new_evaluation(
     app: AppDB,
-    user_id: str,
+    project_id: str,
     testset: TestSetDB,
     status: Result,
     variant: str,
     variant_revision: str,
-    organization=None,
-    workspace=None,
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
     Returns:
@@ -2600,28 +2597,18 @@ async def create_new_evaluation(
     async with db_engine.get_session() as session:
         evaluation = EvaluationDB(
             app_id=app.id,
-            user_id=uuid.UUID(user_id),
+            project_id=uuid.UUID(project_id),
             testset_id=testset.id,
-            status=status.dict(),
+            status=status.model_dump(),
             variant_id=uuid.UUID(variant),
             variant_revision_id=uuid.UUID(variant_revision),
         )
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace is also provided, and vice versa
-            assert (
-                organization is not None and workspace is not None
-            ), "organization and workspace must be provided together"
-
-            evaluation.organization_id = uuid.UUID(organization)  # type: ignore
-            evaluation.workspace_id = uuid.UUID(workspace)  # type: ignore
 
         session.add(evaluation)
         await session.commit()
         await session.refresh(
             evaluation,
             attribute_names=[
-                "user",
                 "testset",
                 "variant",
                 "variant_revision",
@@ -2668,13 +2655,16 @@ async def list_evaluations(app_id: str, project_id: str):
         return evaluations
 
 
-async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[str]):
+async def fetch_evaluations_by_resource(
+    resource_type: str, project_id: str, resource_ids: List[str]
+):
     """
     Fetches an evaluations by resource.
 
     Args:
-        resource_type:  The resource type
-        resource_ids:   The resource identifiers
+        resource_type (str):  The resource type
+        project_id (str): The ID of the project
+        resource_ids (List[str]):   The resource identifiers
 
     Returns:
         The evaluations by resource.
@@ -2689,13 +2679,19 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
         if resource_type == "variant":
             result_evaluations = await session.execute(
                 select(EvaluationDB)
-                .filter(EvaluationDB.variant_id.in_(ids))
+                .filter(
+                    EvaluationDB.variant_id.in_(ids),
+                    EvaluationDB.project_id == uuid.UUID(project_id),
+                )
                 .options(load_only(EvaluationDB.id))  # type: ignore
             )
             result_human_evaluations = await session.execute(
                 select(HumanEvaluationDB)
                 .join(HumanEvaluationVariantDB)
-                .filter(HumanEvaluationVariantDB.variant_id.in_(ids))
+                .filter(
+                    HumanEvaluationVariantDB.variant_id.in_(ids),
+                    EvaluationDB.project_id == uuid.UUID(project_id),
+                )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
             res_evaluations = result_evaluations.scalars().all()
@@ -2705,12 +2701,18 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
         if resource_type == "testset":
             result_evaluations = await session.execute(
                 select(EvaluationDB)
-                .filter(EvaluationDB.testset_id.in_(ids))
+                .filter(
+                    EvaluationDB.testset_id.in_(ids),
+                    EvaluationDB.project_id == uuid.UUID(project_id),
+                )
                 .options(load_only(EvaluationDB.id))  # type: ignore
             )
             result_human_evaluations = await session.execute(
                 select(HumanEvaluationDB)
-                .filter(HumanEvaluationDB.testset_id.in_(ids))
+                .filter(
+                    HumanEvaluationDB.testset_id.in_(ids),
+                    EvaluationDB.project_id == uuid.UUID(project_id),
+                )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
             res_evaluations = result_evaluations.scalars().all()
@@ -2721,7 +2723,10 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
             query = (
                 select(EvaluationDB)
                 .join(EvaluationDB.evaluator_configs)
-                .filter(EvaluationEvaluatorConfigDB.evaluator_config_id.in_(ids))
+                .filter(
+                    EvaluationEvaluatorConfigDB.evaluator_config_id.in_(ids),
+                    EvaluationDB.project_id == uuid.UUID(project_id),
+                )
             )
             result = await session.execute(query)
             res = result.scalars().all()
@@ -2733,15 +2738,19 @@ async def fetch_evaluations_by_resource(resource_type: str, resource_ids: List[s
         )
 
 
-async def delete_evaluations(evaluation_ids: List[str]) -> None:
+async def delete_evaluations(evaluation_ids: List[str], project_id: str) -> None:
     """Delete evaluations based on the ids provided from the db.
 
     Args:
         evaluations_ids (list[str]): The IDs of the evaluation
+        project_id (str): The ID of the project
     """
 
     async with db_engine.get_session() as session:
-        query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
+        query = select(EvaluationDB).where(
+            EvaluationDB.id.in_(evaluation_ids),
+            EvaluationDB.project_id == uuid.UUID(project_id),
+        )
         result = await session.execute(query)
         evaluations = result.scalars().all()
         for evaluation in evaluations:
@@ -2750,7 +2759,7 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
 
 
 async def create_new_evaluation_scenario(
-    user_id: str,
+    project_id: str,
     evaluation_id: str,
     variant_id: str,
     inputs: List[EvaluationScenarioInput],
@@ -2759,8 +2768,6 @@ async def create_new_evaluation_scenario(
     is_pinned: Optional[bool],
     note: Optional[str],
     results: List[EvaluationScenarioResult],
-    organization=None,
-    workspace=None,
 ) -> EvaluationScenarioDB:
     """Create a new evaluation scenario.
 
@@ -2770,28 +2777,19 @@ async def create_new_evaluation_scenario(
 
     async with db_engine.get_session() as session:
         evaluation_scenario = EvaluationScenarioDB(
-            user_id=uuid.UUID(user_id),
+            project_id=uuid.UUID(project_id),
             evaluation_id=uuid.UUID(evaluation_id),
             variant_id=uuid.UUID(variant_id),
-            inputs=[input.dict() for input in inputs],
-            outputs=[output.dict() for output in outputs],
+            inputs=[input.model_dump() for input in inputs],
+            outputs=[output.model_dump() for output in outputs],
             correct_answers=(
-                [correct_answer.dict() for correct_answer in correct_answers]
+                [correct_answer.model_dump() for correct_answer in correct_answers]
                 if correct_answers is not None
                 else []
             ),
             is_pinned=is_pinned,
             note=note,
         )
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace is also provided, and vice versa
-            assert (
-                organization is not None and workspace is not None
-            ), "organization and workspace must be provided together"
-
-            evaluation_scenario.organization_id = organization  # type: ignore
-            evaluation_scenario.workspace_id = workspace  # type: ignore
 
         session.add(evaluation_scenario)
         await session.commit()
@@ -2802,7 +2800,7 @@ async def create_new_evaluation_scenario(
             evaluation_scenario_result = EvaluationScenarioResultDB(
                 evaluation_scenario_id=evaluation_scenario.id,
                 evaluator_config_id=uuid.UUID(result.evaluator_config),
-                result=result.result.dict(),
+                result=result.result.model_dump(),
             )
 
             session.add(evaluation_scenario_result)
@@ -3039,13 +3037,14 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
 
 
 async def update_evaluation(
-    evaluation_id: str, updates: Dict[str, Any]
+    evaluation_id: str, project_id: str, updates: Dict[str, Any]
 ) -> EvaluationDB:
     """
     Update an evaluator configuration in the database with the provided id.
 
     Arguments:
         evaluation_id (str): The ID of the evaluator configuration to be updated.
+        project_id (str): The ID of the project.
         updates (Dict[str, Any]): The updates to apply to the evaluator configuration.
 
     Returns:
@@ -3054,7 +3053,9 @@ async def update_evaluation(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(EvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
+            select(EvaluationDB).filter_by(
+                id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
+            )
         )
         evaluation = result.scalars().first()
         for key, value in updates.items():

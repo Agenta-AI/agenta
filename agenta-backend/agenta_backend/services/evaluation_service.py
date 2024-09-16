@@ -142,19 +142,22 @@ async def update_human_evaluation_service(
     )
 
 
-async def fetch_evaluation_scenarios_for_evaluation(evaluation_id: str):
+async def fetch_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, project_id: str
+):
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
+        project_id (str): The ID of the project.
 
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
     evaluation_scenarios = await db_manager.fetch_evaluation_scenarios(
-        evaluation_id=evaluation_id
+        evaluation_id=evaluation_id, project_id=project_id
     )
     return [
         await converters.evaluation_scenario_db_to_pydantic(
@@ -408,8 +411,8 @@ async def create_new_human_evaluation(
 
 async def create_new_evaluation(
     app_id: str,
+    project_id: str,
     variant_id: str,
-    evaluator_config_ids: List[str],
     testset_id: str,
 ) -> Evaluation:
     """
@@ -417,32 +420,34 @@ async def create_new_evaluation(
 
     Args:
         app_id (str): The ID of the app.
+        project_id (str): The ID of the project.
         variant_id (str): The ID of the variant.
-        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
         testset_id (str): The ID of the testset.
 
     Returns:
         Evaluation: The newly created evaluation.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
-    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id=variant_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
+    testset = await db_manager.fetch_testset_by_id(
+        testset_id=testset_id, project_id=project_id
+    )
+    variant_db = await db_manager.get_app_variant_instance_by_id(
+        variant_id=variant_id, project_id=project_id
+    )
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
-        app_variant_id=variant_id, revision=variant_db.revision  # type: ignore
+        app_variant_id=variant_id, project_id=project_id, revision=variant_db.revision  # type: ignore
     )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
-        user_id=str(app.user_id),
+        project_id=project_id,
         testset=testset,
         status=Result(
             value=EvaluationStatusEnum.EVALUATION_INITIALIZED, type="status", error=None
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
-        organization=str(app.organization_id) if isCloudEE() else None,
-        workspace=str(app.workspace_id) if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
@@ -462,10 +467,8 @@ async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
 
 
-async def compare_evaluations_scenarios(
-    evaluations_ids: List[str],
-):
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
+async def compare_evaluations_scenarios(evaluations_ids: List[str], project_id: str):
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0], project_id)
     testset = evaluation.testset
     unique_testset_datapoints = remove_duplicates(testset.csvdata)
     formatted_inputs = extract_inputs_values_from_testset(unique_testset_datapoints)
@@ -475,7 +478,7 @@ async def compare_evaluations_scenarios(
 
     for evaluation_id in evaluations_ids:
         eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
-            evaluation_id=evaluation_id
+            evaluation_id=evaluation_id, project_id=project_id
         )
         all_scenarios.append(eval_scenarios)
 
