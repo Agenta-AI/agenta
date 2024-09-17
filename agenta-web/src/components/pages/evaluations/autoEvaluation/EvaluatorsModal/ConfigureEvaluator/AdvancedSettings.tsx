@@ -78,7 +78,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                                     }
                                 />
                             ) : field.type === "string" || field.type === "regex" ? (
-                                <Input data-cy="new-evaluator-column-name" />
+                                <Input data-cy="new-evaluator-advance-settings-input" />
                             ) : field.type === "number" ? (
                                 <InputNumber min={field.min} max={field.max} step={0.1} />
                             ) : field.type === "boolean" || field.type === "bool" ? (
