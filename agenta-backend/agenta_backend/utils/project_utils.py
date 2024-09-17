@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Optional
 
@@ -16,7 +15,6 @@ async def retrieve_project_id_from_request(request: Request) -> Optional[str]:
     This function attempts to extract the `project_id` from various parts of the request:
     1. Path parameters
     2. Query parameters
-    3. Request body (assuming it is JSON)
 
     Args:
         request (Request): The FastAPI `Request` object from which to extract the `project_id`.
@@ -36,18 +34,6 @@ async def retrieve_project_id_from_request(request: Request) -> Optional[str]:
     if project_id_from_query_params:
         logger.info("Project ID found in query params")
         return project_id_from_query_params
-
-    try:
-        request_body = await request.body()
-        if request_body:
-            project_id_response_str = request_body.decode("utf-8")
-            response_json = json.loads(project_id_response_str)
-            project_id_from_request_body = response_json.get("project_id")
-            if project_id_from_request_body:
-                logger.info("Project ID found in request body")
-                return project_id_from_request_body
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        logger.error(f"Error decoding request body: {e}")
 
     logger.info("No project ID found in the request")
     return None
