@@ -40,6 +40,7 @@ import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
 import {uniqBy} from "lodash"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
+import dayjs from "dayjs"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     button: {
@@ -343,6 +344,9 @@ const AutoEvaluation = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            sorter: {
+                compare: (a, b) => dayjs(a.created_at).valueOf() - dayjs(b.created_at).valueOf(),
+            },
             render: (_, record) => {
                 return formatDay(record.created_at)
             },
