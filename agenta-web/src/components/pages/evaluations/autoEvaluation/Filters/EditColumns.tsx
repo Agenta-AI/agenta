@@ -37,7 +37,7 @@ export const generateEditItems = (columns: ColumnsType, editColumns: string[]) =
                     <Space>
                         <Checkbox
                             value={col.key}
-                            checked={editColumns.includes(col.key as string)}
+                            checked={!editColumns.includes(col.key as string)}
                         />
                         {col.title as string}
                     </Space>
@@ -50,7 +50,7 @@ export const generateEditItems = (columns: ColumnsType, editColumns: string[]) =
                         <Space className="ml-4">
                             <Checkbox
                                 value={child.key}
-                                checked={editColumns.includes(child.key as string)}
+                                checked={!editColumns.includes(child.key as string)}
                             />
                             {child.key as string}
                         </Space>
