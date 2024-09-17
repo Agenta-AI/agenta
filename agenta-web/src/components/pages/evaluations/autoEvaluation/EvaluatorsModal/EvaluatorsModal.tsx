@@ -37,7 +37,11 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     const [variants, setVariants] = useState<Variant[] | null>(null)
     const [testsets, setTestsets] = useState<testset[] | null>(null)
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
-    const [selectedTestcase, setSelectedTestcase] = useState<Record<string, any> | null>(null)
+    const [selectedTestcase, setSelectedTestcase] = useState<{
+        testcase: Record<string, any> | null
+    }>({
+        testcase: null,
+    })
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)

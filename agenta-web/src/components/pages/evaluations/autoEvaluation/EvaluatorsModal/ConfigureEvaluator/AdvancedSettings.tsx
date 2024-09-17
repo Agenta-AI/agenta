@@ -21,7 +21,9 @@ const useStyles = createUseStyles((theme: any) => ({
 
 type AdvancedSettingsProps = {
     settings: Record<string, any>[]
-    selectedTestcase: Record<string, any> | null
+    selectedTestcase: {
+        testcase: Record<string, any> | null
+    }
 }
 
 const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTestcase}) => {
@@ -65,7 +67,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                             rules={rules}
                         >
                             {(field.type === "string" || field.type === "regex") &&
-                            selectedTestcase ? (
+                            selectedTestcase.testcase ? (
                                 <AutoComplete
                                     options={generatePaths(selectedTestcase)}
                                     data-cy="new-evaluator-advance-settings-input"
