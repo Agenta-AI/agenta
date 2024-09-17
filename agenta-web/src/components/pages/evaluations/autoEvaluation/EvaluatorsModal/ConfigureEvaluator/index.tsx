@@ -26,7 +26,9 @@ type ConfigureEvaluatorProps = {
     selectedEvaluator: Evaluator
     variants: Variant[] | null
     testsets: testset[] | null
-    selectedTestcase: Record<string, any> | null
+    selectedTestcase: {
+        testcase: Record<string, any> | null
+    }
     setSelectedVariant: React.Dispatch<React.SetStateAction<Variant | null>>
     selectedVariant: Variant | null
     editMode: boolean
@@ -35,7 +37,11 @@ type ConfigureEvaluatorProps = {
     setEditMode: (value: React.SetStateAction<boolean>) => void
     cloneConfig: boolean
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
-    setSelectedTestcase: React.Dispatch<React.SetStateAction<Record<string, any> | null>>
+    setSelectedTestcase: React.Dispatch<
+        React.SetStateAction<{
+            testcase: Record<string, any> | null
+        }>
+    >
     setDebugEvaluator: React.Dispatch<React.SetStateAction<boolean>>
     debugEvaluator: boolean
     setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
@@ -281,7 +287,7 @@ const ConfigureEvaluator = ({
                             {advancedSettingsFields.length > 0 && (
                                 <AdvancedSettings
                                     settings={advancedSettingsFields}
-                                    selectedTestcase={{testcase: selectedTestcase}}
+                                    selectedTestcase={selectedTestcase}
                                 />
                             )}
                         </Form>
