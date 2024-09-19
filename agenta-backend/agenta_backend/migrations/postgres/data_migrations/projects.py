@@ -160,7 +160,7 @@ def remove_project_id_from_db_entities():
                     records = (
                         session.execute(
                             select(model)
-                            .where(model.project_id == None)
+                            .where(model.project_id != None)
                             .offset(offset)
                             .limit(BATCH_SIZE)
                         )
