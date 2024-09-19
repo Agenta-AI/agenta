@@ -852,9 +852,7 @@ async def get_orga_image_instance_by_docker_id(
         return image
 
 
-async def get_orga_image_instance_by_uri(
-    template_uri: str
-) -> ImageDB:
+async def get_orga_image_instance_by_uri(template_uri: str) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
