@@ -77,7 +77,7 @@ async def add_variant_from_base_and_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -142,8 +142,7 @@ async def remove_variant(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=variant_id,
-                object_type="app_variant",
+                project_id=request.state.project_id,
                 permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             logger.debug(f"User has Permission to delete app variant: {has_permission}")
@@ -202,8 +201,7 @@ async def update_variant_parameters(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=variant_id,
-                object_type="app_variant",
+                project_id=request.state.project_id,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             logger.debug(
@@ -448,7 +446,7 @@ async def get_variant_revisions(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_variant,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to get variant: {has_permission}")

@@ -188,7 +188,7 @@ async def construct_app_container_url(
     if isCloudEE() and object_db is not None:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=object_db,
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:

@@ -43,8 +43,7 @@ async def list_bases(
         if isCloudEE() and app_id is not None:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             if not has_permission:

@@ -73,7 +73,7 @@ async def upload_file(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app,
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to upload Testset: {has_permission}")
@@ -153,7 +153,7 @@ async def import_testset(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app,
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to import Testset: {has_permission}")
@@ -233,7 +233,7 @@ async def create_testset(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app,
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to create Testset: {has_permission}")
@@ -290,7 +290,7 @@ async def update_testset(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=testset,
+            project_id=request.state.project_id,
             permission=Permission.EDIT_TESTSET,
         )
         logger.debug(f"User has Permission to update Testset: {has_permission}")
@@ -341,7 +341,7 @@ async def get_testsets(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app,
+            project_id=request.state.project_id,
             permission=Permission.VIEW_TESTSET,
         )
         logger.debug(f"User has Permission to view Testsets: {has_permission}")
@@ -388,7 +388,7 @@ async def get_single_testset(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=test_set,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_TESTSET,
             )
             logger.debug(f"User has Permission to view Testset: {has_permission}")
@@ -424,11 +424,9 @@ async def delete_testsets(
     """
 
     if isCloudEE():
-        testset_id = random.choice(payload.testset_ids)
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object_id=testset_id,
-            object_type="testset",
+            project_id=request.state.project_id,
             permission=Permission.DELETE_TESTSET,
         )
         logger.debug(f"User has Permission to delete Testset: {has_permission}")

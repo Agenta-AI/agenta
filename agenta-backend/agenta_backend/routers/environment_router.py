@@ -37,8 +37,7 @@ async def deploy_to_environment(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.variant_id,
-                object_type="app_variant",
+                project_id=request.state.project_id,
                 permission=Permission.DEPLOY_APPLICATION,
             )
             logger.debug(f"User has permission deploy to environment: {has_permission}")
