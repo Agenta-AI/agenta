@@ -187,7 +187,7 @@ async def fetch_evaluation_status(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -228,7 +228,7 @@ async def fetch_evaluation_results(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -283,7 +283,7 @@ async def fetch_evaluation_scenarios(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -330,7 +330,7 @@ async def fetch_list_evaluations(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -385,8 +385,7 @@ async def fetch_evaluation(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -423,11 +422,9 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            evaluation_id = random.choice(payload.evaluations_ids)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="evaluation",
+                project_id=request.state.project_id,
                 permission=Permission.DELETE_EVALUATION,
             )
             logger.debug(f"User has permission to delete evaluation: {has_permission}")
@@ -479,23 +476,21 @@ async def fetch_evaluation_scenarios(
         evaluations_ids_list = evaluations_ids.split(",")
 
         if isCloudEE():
-            for evaluation_id in evaluations_ids_list:
-                has_permission = await check_action_access(
-                    user_uid=request.state.user_id,
-                    object_id=evaluation_id,
-                    object_type="evaluation",
-                    permission=Permission.VIEW_EVALUATION,
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION,
+            )
+            logger.debug(
+                f"User has permission to get evaluation scenarios: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
                 )
-                logger.debug(
-                    f"User has permission to get evaluation scenarios: {has_permission}"
-                )
-                if not has_permission:
-                    error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                    logger.error(error_msg)
-                    return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=403,
-                    )
 
         eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
             evaluations_ids_list, request.state.project_id

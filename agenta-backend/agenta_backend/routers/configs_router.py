@@ -38,7 +38,7 @@ async def save_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=request.state.project_id,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -118,7 +118,7 @@ async def get_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=request.state.project_id,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -261,7 +261,7 @@ async def revert_deployment_revision(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=environment_revision,
+            project_id=request.state.project_id,
             permission=Permission.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
         )
         if not has_permission:

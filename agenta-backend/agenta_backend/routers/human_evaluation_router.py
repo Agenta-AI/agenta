@@ -64,8 +64,7 @@ async def create_evaluation(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
@@ -112,8 +111,7 @@ async def fetch_list_human_evaluations(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -154,8 +152,7 @@ async def fetch_human_evaluation(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="human_evaluation",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -205,8 +202,7 @@ async def fetch_evaluation_scenarios(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="human_evaluation",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -256,7 +252,7 @@ async def update_human_evaluation(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=human_evaluation,
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -307,7 +303,7 @@ async def update_evaluation_scenario_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation_scenario_db,
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -359,7 +355,7 @@ async def get_evaluation_scenario_score_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation_scenario,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -405,7 +401,7 @@ async def update_evaluation_scenario_score_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation_scenario,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -451,7 +447,7 @@ async def fetch_results(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=evaluation,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -495,11 +491,9 @@ async def delete_evaluations(
 
     try:
         if isCloudEE():
-            evaluation_id = random.choice(delete_evaluations.evaluations_ids)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluation_id,
-                object_type="human_evaluation",
+                project_id=request.state.project_id,
                 permission=Permission.DELETE_EVALUATION,
             )
             if not has_permission:

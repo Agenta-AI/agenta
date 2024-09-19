@@ -105,8 +105,7 @@ async def list_app_variants(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list app variants: {has_permission}")
@@ -160,8 +159,7 @@ async def get_variant_by_env(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(
@@ -283,7 +281,7 @@ async def update_app(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app,
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATION,
             )
             logger.debug(f"User has Permission to update app: {has_permission}")
@@ -323,7 +321,9 @@ async def list_apps(
     """
     try:
         apps = await db_manager.list_apps(
-            project_id=request.state.project_id, app_name=app_name
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            app_name=app_name,
         )
         return apps
     except Exception as e:
@@ -427,7 +427,7 @@ async def remove_app(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app,
+                project_id=request.state.project_id,
                 permission=Permission.DELETE_APPLICATION,
             )
             logger.debug(f"User has Permission to delete app: {has_permission}")
@@ -649,8 +649,7 @@ async def list_environments(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list environments: {has_permission}")
@@ -691,8 +690,7 @@ async def list_app_environment_revisions(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list environments: {has_permission}")

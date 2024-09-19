@@ -66,8 +66,7 @@ async def get_evaluator_configs(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -106,7 +105,7 @@ async def get_evaluator_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_db.app,
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -147,8 +146,7 @@ async def create_new_evaluator_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.app_id,
-                object_type="app",
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
@@ -192,8 +190,7 @@ async def update_evaluator_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -234,8 +231,7 @@ async def delete_evaluator_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                project_id=request.state.project_id,
                 permission=Permission.DELETE_EVALUATION,
             )
             if not has_permission:
