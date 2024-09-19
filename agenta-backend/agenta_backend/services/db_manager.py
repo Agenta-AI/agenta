@@ -100,7 +100,6 @@ async def add_testset_to_app_variant(
     """Add testset to app variant.
 
     Args:
-        org_id (str): The id of the organization
         template_name (str): The name of the app template image
         app_name (str): The name of the app
         project_id (str): The ID of the project
@@ -192,7 +191,6 @@ async def fetch_app_variant_by_id(
         )
         if isCloudEE():
             query = base_query.options(
-                joinedload(AppVariantDB.organization),
                 joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
             )
         else:
@@ -855,14 +853,11 @@ async def get_orga_image_instance_by_docker_id(
 
 
 async def get_orga_image_instance_by_uri(
-    template_uri: str,
-    organization_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
+    template_uri: str
 ) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
-        organization_id (str): The organization unique identifier
         template_uri (url): The image template url
 
     Returns:
@@ -875,18 +870,6 @@ async def get_orga_image_instance_by_uri(
 
     async with db_engine.get_session() as session:
         query = select(ImageDB).filter_by(template_uri=template_uri)
-
-        if isCloudEE():
-            # assert that if organization is provided, workspace_id is also provided, and vice versa
-            assert (
-                organization_id is not None and workspace_id is not None
-            ), "organization and workspace must be provided together"
-
-            query = query.filter_by(
-                organization_id=uuid.UUID(organization_id),
-                workspace_id=workspace_id,
-            )
-
         result = await session.execute(query)
         image = result.scalars().first()
         return image
@@ -965,10 +948,6 @@ async def add_variant_from_base_and_config(
             config_parameters=parameters,
         )
 
-        if isCloudEE():
-            db_app_variant.organization_id = previous_app_variant_db.organization_id
-            db_app_variant.workspace_id = previous_app_variant_db.workspace_id
-
         session.add(db_app_variant)
         await session.commit()
         await session.refresh(db_app_variant)
@@ -992,6 +971,7 @@ async def add_variant_from_base_and_config(
 
 async def list_apps(
     project_id: str,
+    user_uid: str,
     app_name: Optional[str] = None,
 ):
     """
@@ -2562,7 +2542,7 @@ async def update_app_variant(
 
 
 async def fetch_app_by_name_and_parameters(app_name: str, project_id: str):
-    """Fetch an app by its name, organization id, and workspace_id.
+    """Fetch an app by its name and project identifier.
 
     Args:
         app_name (str): The name of the app

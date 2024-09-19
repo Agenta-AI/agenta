@@ -274,17 +274,13 @@ def app_variant_db_to_pydantic(
     app_variant = AppVariant(
         app_id=str(app_variant_db.app.id),
         app_name=app_variant_db.app.app_name,
+        project_id=str(app_variant_db.project_id),
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
-
-    if isCloudEE():
-        app_variant.organization_id = str(app_variant_db.organization_id)
-        app_variant.workspace_id = str(app_variant_db.workspace_id)
-
     return app_variant
 
 
@@ -313,11 +309,6 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         updated_at=str(app_variant_db.created_at),
         modified_by_id=str(app_variant_db.modified_by_id),
     )
-
-    if isCloudEE():
-        variant_response.organization_id = str(app_variant_db.organization_id)
-        variant_response.workspace_id = str(app_variant_db.workspace_id)
-
     return variant_response
 
 
@@ -399,7 +390,7 @@ async def environment_db_and_revision_to_extended_output(
     )
     if deployed_app_variant_id:
         deployed_app_variant = await db_manager.get_app_variant_instance_by_id(
-            deployed_app_variant_id
+            deployed_app_variant_id, str(environment_db.project_id)
         )
         deployed_variant_name = deployed_app_variant.variant_name
     else:
@@ -430,12 +421,6 @@ async def environment_db_and_revision_to_extended_output(
         revision=environment_db.revision,
         revisions=app_environment_revisions,
     )
-
-    if isCloudEE():
-        environment_output_extended.organization_id = str(
-            environment_db.organization_id
-        )
-        environment_output_extended.workspace_id = str(environment_db.workspace_id)
     return environment_output_extended
 
 
@@ -454,14 +439,10 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     image = ImageExtended(
         docker_id=image_db.docker_id,
+        project_id=str(image_db.project_id),
         tags=image_db.tags,
         id=str(image_db.id),
     )
-
-    if isCloudEE():
-        image.organization_id = str(image_db.organization_id)
-        image.workspace_id = str(image_db.workspace_id)
-
     return image
 
 

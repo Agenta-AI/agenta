@@ -84,6 +84,7 @@ class UpdateVariantParameterPayload(BaseModel):
 class AppVariant(BaseModel):
     app_id: str
     app_name: str
+    project_id: Optional[str] = None
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
@@ -198,6 +199,7 @@ class AddVariantFromImagePayload(BaseModel):
 class ImageExtended(Image):
     # includes the mongodb image id
     id: str
+    project_id: Optional[str] = None
 
 
 class TemplateImageInfo(BaseModel):
