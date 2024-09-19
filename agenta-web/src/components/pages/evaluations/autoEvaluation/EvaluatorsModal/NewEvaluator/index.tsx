@@ -137,7 +137,7 @@ const NewEvaluator = ({
                         </Flex>
                     </div>
                 </div>
-                {evaluatorsDisplay !== "list" ? <Divider className="mt-2 mb-4" /> : <div />}
+                <Divider className="mt-0 mb-4" />
             </div>
 
             <div>

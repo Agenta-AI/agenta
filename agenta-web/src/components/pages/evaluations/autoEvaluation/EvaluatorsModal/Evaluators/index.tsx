@@ -32,7 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         justifyContent: "space-between",
         "& .ant-typography": {
-            fontSize: theme.fontSizeLG,
+            fontSize: theme.fontSizeHeading4,
             fontWeight: theme.fontWeightStrong,
             lineHeight: theme.lineHeightLG,
         },
