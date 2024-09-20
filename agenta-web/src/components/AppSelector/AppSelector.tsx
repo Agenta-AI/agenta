@@ -279,6 +279,29 @@ const AppSelector: React.FC = () => {
             }}
         >
             <div className={classes.container}>
+                {!isLoading && !error ? (
+                    <div className="flex items-center justify-between mb-3">
+                        <h1 className={classes.title}>App Management</h1>
+                        <Button
+                            data-cy="create-new-app-button"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                                if (
+                                    isDemo() &&
+                                    selectedOrg?.is_paying == false &&
+                                    apps.length > 2
+                                ) {
+                                    showMaxAppError()
+                                } else {
+                                    showCreateAppModal()
+                                }
+                            }}
+                        >
+                            Create new app
+                        </Button>
+                    </div>
+                ) : null}
+
                 {isLoading ? (
                     <div>
                         <ResultComponent status={"info"} title="Loading..." spinner={true} />
@@ -289,26 +312,6 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
                     <div className="flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
-                            <h1 className={classes.title}>Applications</h1>
-                            <Button
-                                data-cy="create-new-app-button"
-                                icon={<PlusOutlined />}
-                                onClick={() => {
-                                    if (
-                                        isDemo() &&
-                                        selectedOrg?.is_paying == false &&
-                                        apps.length > 2
-                                    ) {
-                                        showMaxAppError()
-                                    } else {
-                                        showCreateAppModal()
-                                    }
-                                }}
-                            >
-                                Create new app
-                            </Button>
-                        </div>
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
