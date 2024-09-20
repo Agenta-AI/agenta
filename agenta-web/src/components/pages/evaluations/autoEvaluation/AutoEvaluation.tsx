@@ -1,4 +1,4 @@
-import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus} from "@/lib/Types"
 import {
     ArrowsLeftRight,
     Database,
@@ -42,7 +42,7 @@ import {uniqBy} from "lodash"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 import dayjs from "dayjs"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
+const useStyles = createUseStyles(() => ({
     button: {
         display: "flex",
         alignItems: "center",
