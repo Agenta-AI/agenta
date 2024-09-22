@@ -3,7 +3,7 @@ import {isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import posthog from "posthog-js"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
-import {signOut} from "supertokens-auth-react/recipe/passwordless"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
 export const useSession: () => {loading: boolean; doesSessionExist: boolean; logout: () => void} =
     isDemo()
@@ -20,7 +20,7 @@ export const useSession: () => {loading: boolean; doesSessionExist: boolean; log
                           .then(() => {
                               posthog.reset()
                               reset()
-                              router.push("/auth")
+                              router.push("/auth").then(() => router.reload())
                           })
                           .catch(console.error)
                   },
