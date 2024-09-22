@@ -90,7 +90,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             icon={<ArrowRight size={18} />}
                             size="large"
                             onClick={onCreateFromTemplate}
-                            data-key="create-from-template__no-app"
+                            data-cy="create-from-template__no-app"
                         >
                             Start with a template
                         </Button>,
