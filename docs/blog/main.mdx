@@ -2,7 +2,29 @@
 title: "Changelog"
 ---
 
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+```
+
 <section class="changelog">
+### Evaluator Testing Playground and a New Evaluation View
+
+_22 September 2024_
+
+**v0.25.0**
+
+<Stream controls src="41941e8e6b5a119faa5ced10af891f86" height="400px" />
+<br />
+Many users faced challenges configuring evaluators in the web UI. Some
+evaluators, such as `LLM as a judge`, `custom code`, or RAG evaluators can be
+tricky to set up correctly on the first try. Until now, users needed to setup,
+run an evaluation, check the errors, then do it again.
+
+To address this, we've introduced a new evaluator test/debug playground. This feature allows you to test the evaluator live on real data, helping you test the configuration before committing to it and using it for evaluations.
+
+Additionally, we have improved and redesigned the evaluation view. Both automatic and human evaluations are now within the same view but in different tabs. We're moving towards unifying all evaluator results and consolidating them in one view, allowing you to quickly get an overview of what's working.
+
+---
 
 ### UI Redesign and Configuration Management and Overview View
 
