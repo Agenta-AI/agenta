@@ -84,11 +84,13 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                     actions={[
                         <Button
                             type="primary"
+                            key="template"
                             className={classes.button}
                             iconPosition="end"
                             icon={<ArrowRight size={18} />}
                             size="large"
                             onClick={onCreateFromTemplate}
+                            data-key="create-from-template__no-app"
                         >
                             Start with a template
                         </Button>,
@@ -99,8 +101,8 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             Setup an app using our preset LLM config and explore Agenta AI
                         </Typography.Text>
                         <ul className="-ml-5">
-                            {templatePoints.map((temp) => (
-                                <li>{temp}</li>
+                            {templatePoints.map((item) => (
+                                <li key={item}>{item}</li>
                             ))}
                         </ul>
                     </div>
@@ -112,6 +114,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                     actions={[
                         <Button
                             type="primary"
+                            key="ownApp"
                             className={classes.button}
                             iconPosition="end"
                             icon={<ArrowRight size={18} />}
@@ -127,8 +130,8 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             Create your own complex application using any framework.
                         </Typography.Text>
                         <ul className="-ml-5">
-                            {complexLLM.map((temp) => (
-                                <li>{temp}</li>
+                            {complexLLM.map((item) => (
+                                <li key={item}>{item}</li>
                             ))}
                         </ul>
                     </div>
