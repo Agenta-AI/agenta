@@ -62,7 +62,7 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.url().should("include", "/evaluations?configureEvaluatorModal=open")
             cy.get(".ant-modal-content").should("exist")
             cy.get('[data-cy="create-new-evaluator-button"]').click()
-            cy.get('[data-cy="new-evaluator-list"]').eq(0).click()
+            cy.get('[data-cy="new-evaluator-list"]').eq(2).click()
             cy.contains(/configure new evaluator/i)
             cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName)
 
