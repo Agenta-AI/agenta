@@ -65,6 +65,7 @@ def execute_code_safely(
         "json",
         "requests",
         "numpy",
+        "typing",
     ]
 
     # Create a dictionary to simulate allowed imports

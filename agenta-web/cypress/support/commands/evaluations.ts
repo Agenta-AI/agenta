@@ -105,11 +105,7 @@ Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
         url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
         method: "GET",
     }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="new-evaluation-button"]').click()
-        } else {
-            cy.get('[data-cy="new-evaluation-button__no_variants"]').click()
-        }
+        cy.get('[data-cy="new-evaluation-button"]').click()
     })
     cy.get(".ant-modal-content").should("exist")
 

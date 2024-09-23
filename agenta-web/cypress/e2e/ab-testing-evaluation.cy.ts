@@ -43,9 +43,9 @@ describe("A/B Testing Evaluation workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/annotations/human_a_b_testing`)
-            cy.url().should("include", "/annotations/human_a_b_testing")
-            cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
+            cy.visit(`/apps/${app_id}/evaluations?selectedEvaluation=human_ab_testing`)
+            cy.url().should("include", "/evaluations?selectedEvaluation=human_ab_testing")
+            cy.clickLinkAndWait('[data-cy="new-human-eval-modal-button"]')
 
             cy.get(".ant-modal-content").should("exist")
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
