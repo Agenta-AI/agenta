@@ -2,6 +2,7 @@ import {randString} from "../../src/lib/helpers/utils"
 
 describe("Evaluators CRUD Operations Test", function () {
     let newEvalName = randString(5)
+    let editedEvalName = randString(5)
     let app_id
     before(() => {
         cy.createVariant()
@@ -12,30 +13,38 @@ describe("Evaluators CRUD Operations Test", function () {
 
     context("Executing Evaluators CRUD operations", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations/new-evaluator`)
-            cy.location("pathname").should("include", "/evaluations/new-evaluator")
+            cy.visit(`/apps/${app_id}/evaluations?configureEvaluatorModal=open`)
+            cy.url().should("include", "/evaluations?configureEvaluatorModal=open")
         })
 
-        it("Should successfully create an Evaluator", () => {
-            cy.get('[data-cy="evaluator-card"]').should("exist")
-            cy.get(".ant-space > :nth-child(2) > .ant-btn").click()
-            cy.get('[data-cy="new-evaluator-modal"]').should("exist")
-            cy.get('[data-cy^="select-new-evaluator"]').eq(0).click()
-            cy.get('[data-cy="configure-new-evaluator-modal"]').should("exist")
+        it("Should successfully create an evaluator", () => {
+            cy.get(".ant-modal-content").should("exist")
+            cy.get('[data-cy="create-new-evaluator-button"]').click()
+            cy.get('[data-cy="new-evaluator-list"]').eq(0).click()
+            cy.contains(/configure new evaluator/i)
             cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName)
             cy.get('[data-cy="configure-new-evaluator-modal-save-btn"]').click()
-            cy.get('[data-cy="evaluator-card"]').should("have.length", 2)
+            cy.get('[data-cy="evaluator-list"]').should("have.length.gt", 2)
         })
 
-        it("Should click on the edit button and successfully edit an evaluator", () => {
-            cy.get('[data-cy^="evaluator-card-edit-button"]').eq(0).click()
-            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type("edit")
+        it("Should successfully edit an evaluator", () => {
+            cy.get(".ant-modal-content").should("exist")
+            cy.get('[data-cy="evaluator-menu-button"]').eq(0).click()
+            cy.get(".ant-dropdown-menu").should("be.visible")
+            cy.get(".ant-dropdown-menu-item").eq(0).click()
+            cy.get('[data-cy="configure-new-evaluator-modal-input"]').clear()
+            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(editedEvalName)
             cy.get('[data-cy="configure-new-evaluator-modal-save-btn"]').click()
         })
 
-        it("Should click on the delete button and successfully delete an evaluator", () => {
-            cy.get('[data-cy^="evaluator-card-delete-button"]').eq(0).click()
-            cy.get(".ant-modal-confirm-btns > :nth-child(2) > span").click()
+        it("Should successfully delete an evaluator", () => {
+            cy.get(".ant-modal-content").should("exist")
+            cy.get('[data-cy="evaluator-menu-button"]').eq(0).click()
+            cy.get(".ant-dropdown-menu").should("be.visible")
+            cy.get(".ant-dropdown-menu-item")
+                .contains(/delete/i)
+                .click()
+            cy.get(".ant-modal-footer > .ant-btn-primary").click()
         })
     })
 

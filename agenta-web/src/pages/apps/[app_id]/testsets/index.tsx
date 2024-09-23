@@ -122,7 +122,7 @@ export default function Testsets() {
                                 <Button>Start an Automatic Evaluation</Button>
                             </Link>
 
-                            <Link href={`/apps/${appId}/annotations/human_a_b_testing`}>
+                            <Link href={`/apps/${appId}/evaluations/human_a_b_testing`}>
                                 <Button>Start a Human Evaluation</Button>
                             </Link>
                         </Space>

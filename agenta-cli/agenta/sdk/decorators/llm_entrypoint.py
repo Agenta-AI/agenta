@@ -216,9 +216,11 @@ class entrypoint(BaseDecorator):
                 {
                     "func": func.__name__,
                     "endpoint": route,
-                    "params": {**config_params, **func_signature.parameters}
-                    if not config
-                    else func_signature.parameters,
+                    "params": (
+                        {**config_params, **func_signature.parameters}
+                        if not config
+                        else func_signature.parameters
+                    ),
                     "config": config,
                 }
             )
@@ -229,9 +231,11 @@ class entrypoint(BaseDecorator):
             {
                 "func": func.__name__,
                 "endpoint": route,
-                "params": {**config_params, **func_signature.parameters}
-                if not config
-                else func_signature.parameters,
+                "params": (
+                    {**config_params, **func_signature.parameters}
+                    if not config
+                    else func_signature.parameters
+                ),
                 "config": config,
             }
         )
@@ -402,7 +406,7 @@ class entrypoint(BaseDecorator):
 
             # PATCH : if result is not a dict, make it a dict
             if not isinstance(result, dict):
-                data = result
+                data = str(result)
             else:
                 # PATCH : if result is a legacy dict, clean it up
                 if (
@@ -410,7 +414,8 @@ class entrypoint(BaseDecorator):
                     and "cost" in result.keys()
                     and "usage" in result.keys()
                 ):
-                    data = result["message"]
+                    data = str(result["message"])
+
             # END OF PATH
 
             if data is None:
