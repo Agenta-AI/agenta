@@ -17,7 +17,7 @@ Building LLM-powered applications is an iterative process. In each iteration, yo
   src="/images/prompt_management/llm_lifecycle.png"
 />
 
-A prompt management system provide you the tools to do this process systematically by:
+A prompt management system provides you the tools to do this process systematically by:
 
 - **Versioning Prompts**: Keeping track of different prompts you've tested.
 - **Linking Prompt Variants to Experiments**: Connecting each prompt variant to its evaluation metrics to understand the effect of changes and determine the best variant.
@@ -26,7 +26,7 @@ A prompt management system provide you the tools to do this process systematical
 
 ### Why Do I Need a Prompt Management System?
 
-A prompt management system enable everyone on the team—from product owners to subject matter experts—to collaborate in creating prompts. Additionally it helps you answer the following questions:
+A prompt management system enables everyone on the team—from product owners to subject matter experts—to collaborate in creating prompts. Additionally it helps you answer the following questions:
 
 - Which prompts have we tried?
 - What were the outputs of these prompts?
@@ -81,7 +81,7 @@ Every variant is **versioned** and immutable. When you make changes to a variant
 
 ### Deployments
 
-**Deployments** are published versions of your variants. You can commit a `version` of a `variant` to a deployment. You can the integrate your code base to fetch the configuration deployed on that environment. Additionally, you can can directly call the endpoint containing the applications running with that configuration.
+**Deployments** are published versions of your variants. You can commit a `version` of a `variant` to a deployment. You can then integrate it in your codebase to fetch the configuration deployed on that environment. Additionally, you can directly call the endpoint containing the applications running with that configuration.
 
 Application per default come with three different `deployments` :
 
@@ -89,4 +89,4 @@ Application per default come with three different `deployments` :
 - **Staging:** For pre-production testing and quality assurance.
 - **Production:** For live use with real users.
 
-When publishing a `variant` to an `environment` the last `version` of that `variant` get published. Each deployment points to a specific `version` of a `variant` (a certain `commit`), updating the `variant` after publishing does not update the `environment`.
+When publishing a `variant` to an `environment` the last `version` of that `variant` gets published. Each deployment points to a specific `version` of a `variant` (a certain `commit`), updating the `variant` after publishing does not automatically update the `environment`.
