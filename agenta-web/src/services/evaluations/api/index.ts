@@ -1,9 +1,6 @@
 import axios from "@/lib//helpers/axiosConfig"
 import {
-    Annotation,
-    AnnotationScenario,
     ComparisonResultRow,
-    EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
     KeyValuePair,
@@ -67,8 +64,15 @@ export const fetchAllEvaluators = async () => {
 
 // Evaluator Configs
 export const fetchAllEvaluatorConfigs = async (appId: string) => {
+    const tagColors = getTagColors()
+
     const response = await axios.get(`/api/evaluators/configs/`, {params: {app_id: appId}})
-    return response.data as EvaluatorConfig[]
+    const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
+        ...item,
+        icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
+        color: tagColors[stringToNumberInRange(item.evaluator_key, 0, tagColors.length - 1)],
+    })) as EvaluatorConfig[]
+    return evaluatorConfigs
 }
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
@@ -160,60 +164,6 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
         )
     })
     return evaluationScenarios as _EvaluationScenario[]
-}
-
-//annotations
-export const fetchAllAnnotations = async (appId: string) => {
-    const response = await axios.get(`/api/annotations/`, {params: {app_id: appId}})
-    return response.data.map(evaluationTransformer) as Annotation[]
-}
-
-export const fetchAnnotation = async (annotationId: string) => {
-    const response = await axios.get(`/api/annotations/${annotationId}/`)
-    return evaluationTransformer(response.data) as unknown as Annotation
-}
-
-export const fetchAnnotationStatus = async (annotationId: string) => {
-    const response = await axios.get(`/api/annotations/${annotationId}/status/`)
-    return response.data as {status: EvaluationStatus}
-}
-
-export const createAnnotation = async (
-    appId: string,
-    annotation: Omit<CreateEvaluationData, "evaluators_configs"> &
-        Pick<Annotation, "annotation_name">,
-) => {
-    return axios.post(`/api/annotations/`, {...annotation, app_id: appId})
-}
-
-export const deleteAnnotations = async (annotationsIds: string[]) => {
-    return axios.delete(`/api/annotations/`, {data: {annotations_ids: annotationsIds}})
-}
-
-// Annotation Scenarios
-export const fetchAllAnnotationScenarios = async (appId: string, annotationId: string) => {
-    const [{data: annotationScenarios}, annotation] = await Promise.all([
-        axios.get(`/api/annotations/${annotationId}/annotation_scenarios/`, {
-            params: {app_id: appId},
-        }),
-        fetchAnnotation(annotationId),
-    ])
-
-    annotationScenarios.forEach((scenario: AnnotationScenario) => {
-        scenario.annotation = annotation
-    })
-    return annotationScenarios as AnnotationScenario[]
-}
-
-export const updateAnnotationScenario = async (
-    annotationId: string,
-    annotationScenarioId: string,
-    data: Pick<AnnotationScenario, "is_pinned" | "note" | "result">,
-) => {
-    return axios.put(
-        `/api/annotations/${annotationId}/annotation_scenarios/${annotationScenarioId}`,
-        data,
-    )
 }
 
 // Comparison
