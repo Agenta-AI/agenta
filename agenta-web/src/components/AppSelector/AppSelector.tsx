@@ -280,9 +280,10 @@ const AppSelector: React.FC = () => {
         >
             <div className={classes.container}>
                 {!isLoading && !error ? (
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-5">
                         <h1 className={classes.title}>App Management</h1>
                         <Button
+                            type={Array.isArray(apps) && apps.length ? "primary" : "default"}
                             data-cy="create-new-app-button"
                             icon={<PlusOutlined />}
                             onClick={() => {
