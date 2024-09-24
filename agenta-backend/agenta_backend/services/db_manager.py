@@ -430,18 +430,14 @@ async def create_new_app_variant(
 
         session.add(variant)
 
-        attributes_to_refresh = [
-            "app",
-            "image",
-            "base",
-        ]
-        if isCloudEE():
-            attributes_to_refresh.extend(["organization", "workspace"])
-
         await session.commit()
         await session.refresh(
             variant,
-            attribute_names=attributes_to_refresh,
+            attribute_names=[
+                "app",
+                "image",
+                "base",
+            ],
         )  # Ensures the app, image, user and base relationship are loaded
 
         variant_revision = AppVariantRevisionsDB(
