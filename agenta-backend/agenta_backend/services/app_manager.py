@@ -105,7 +105,7 @@ async def start_variant(
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid),
                 project_id=project_id,
-                workspace_id=str(db_app_variant.workspace_id),
+                project_id=project_id,
                 expiration_date=None,
                 hidden=True,
             )
@@ -490,8 +490,6 @@ async def add_variant_based_on_image(
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
             template_uri=docker_id_or_template_uri,
-            organization_id=str(app.organization_id) if isCloudEE() else None,  # type: ignore
-            workspace_id=str(app.workspace_id) if isCloudEE() else None,  # type: ignore
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
