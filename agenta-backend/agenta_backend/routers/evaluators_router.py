@@ -63,10 +63,11 @@ async def get_evaluator_configs(
     """
 
     try:
+        app_db = await db_manager.fetch_app_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app_db.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -78,7 +79,7 @@ async def get_evaluator_configs(
                 )
 
         evaluators_configs = await evaluator_manager.get_evaluators_configs(
-            request.state.project_id
+            str(app_db.project_id)
         )
         return evaluators_configs
     except Exception as e:
@@ -105,7 +106,7 @@ async def get_evaluator_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluator_config_db.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -140,13 +141,11 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
-        app_db = await db_manager.get_app_instance_by_id(
-            app_id=payload.app_id, project_id=request.state.project_id
-        )
+        app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app_db.project_id),
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
@@ -158,7 +157,7 @@ async def create_new_evaluator_config(
                 )
 
         evaluator_config = await evaluator_manager.create_evaluator_config(
-            project_id=request.state.project_id,
+            project_id=str(app_db.project_id),
             app_name=app_db.app_name,
             name=payload.name,
             evaluator_key=payload.evaluator_key,
@@ -187,10 +186,13 @@ async def update_evaluator_config(
     """
 
     try:
+        evaluator_config = await db_manager.fetch_evaluator_config(
+            evaluator_config_id=evaluator_config_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluator_config.project_id),
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -228,10 +230,13 @@ async def delete_evaluator_config(
         bool: True if deletion was successful, False otherwise.
     """
     try:
+        evaluator_config = await db_manager.fetch_evaluator_config(
+            evaluator_config_id=evaluator_config_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluator_config.project_id),
                 permission=Permission.DELETE_EVALUATION,
             )
             if not has_permission:

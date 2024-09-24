@@ -152,7 +152,7 @@ async def update_variant_image(
     if not valid_image:
         raise ValueError("Image could not be found in registry.")
 
-    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id), project_id)
+    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
     deployment = await db_manager.get_deployment_by_id(
         str(base.deployment_id), project_id
     )
@@ -204,9 +204,7 @@ async def update_last_modified_by(
         if object_type == "app":
             return object_id
         elif object_type == "variant":
-            app_variant_db = await db_manager.fetch_app_variant_by_id(
-                object_id, project_id
-            )
+            app_variant_db = await db_manager.fetch_app_variant_by_id(object_id)
             if app_variant_db is None:
                 raise db_manager.NoResultFound(f"Variant with id {object_id} not found")
             return str(app_variant_db.app_id)
@@ -257,9 +255,7 @@ async def terminate_and_remove_app_variant(
     ), "Only one of app_variant_id or app_variant_db must be provided"
 
     if app_variant_id:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            app_variant_id, project_id
-        )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
         logger.debug(f"Fetched app variant {app_variant_db}")
 
     app_id = str(app_variant_db.app_id)  # type: ignore
@@ -274,7 +270,7 @@ async def terminate_and_remove_app_variant(
         )
         if is_last_variant_for_image:
             base_db = await db_manager.fetch_base_by_id(
-                base_id=str(app_variant_db.base_id), project_id=project_id
+                base_id=str(app_variant_db.base_id)
             )
             if not base_db:
                 raise db_manager.NoResultFound(
@@ -323,7 +319,7 @@ async def terminate_and_remove_app_variant(
             logger.debug("remove_app_variant_from_db")
             await db_manager.remove_app_variant_from_db(app_variant_db, project_id)
 
-        app_variants = await db_manager.list_app_variants(app_id, project_id)
+        app_variants = await db_manager.list_app_variants(app_id)
         logger.debug(f"Count of app variants available: {len(app_variants)}")
         if (
             len(app_variants) == 0
@@ -358,14 +354,13 @@ async def remove_app_related_resources(app_id: str, project_id: str):
         raise e from None
 
 
-async def remove_app(app: AppDB, project_id: str):
+async def remove_app(app: AppDB):
     """Removes all app variants from db, if it is the last one using an image, then
     deletes the image from the db, shutdowns the container, deletes it and remove
     the image from the registry
 
     Args:
         app (AppDB): The application instance to remove from database.
-        project_id (str): The ID of the project.
     """
 
     if app is None:
@@ -373,11 +368,11 @@ async def remove_app(app: AppDB, project_id: str):
         logger.error(error_msg)
         raise ValueError(error_msg)
 
-    app_variants = await db_manager.list_app_variants(str(app.id), project_id)
+    app_variants = await db_manager.list_app_variants(str(app.id))
     try:
         for app_variant_db in app_variants:
             await terminate_and_remove_app_variant(
-                project_id=project_id, app_variant_db=app_variant_db
+                project_id=str(app_variant_db.project_id), app_variant_db=app_variant_db
             )
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
@@ -385,14 +380,14 @@ async def remove_app(app: AppDB, project_id: str):
 
         if len(app_variants) == 0:
             logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(str(app.id), project_id)
+            await remove_app_related_resources(str(app.id), str(app.project_id))
 
     except Exception as e:
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
             logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(str(app.id), project_id)
+            await remove_app_related_resources(str(app.id), str(app.project_id))
         except Exception as e:
             logger.error(
                 f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"

@@ -31,14 +31,12 @@ async def save_config(
     request: Request,
 ):
     try:
-        base_db = await db_manager.fetch_base_by_id(
-            payload.base_id, request.state.project_id
-        )
+        base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(base_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -50,7 +48,7 @@ async def save_config(
                 )
 
         variants_db = await db_manager.list_variants_for_base(
-            base_db, request.state.project_id
+            base_db, str(base_db.project_id)
         )
         variant_to_overwrite = None
         for variant_db in variants_db:
@@ -65,14 +63,14 @@ async def save_config(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
                     user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
+                    project_id=str(base_db.project_id),
                 )
 
                 logger.debug("Deploying to production environment")
                 await db_manager.deploy_to_environment(
                     environment_name="production",
                     variant_id=str(variant_to_overwrite.id),
-                    project_id=request.state.project_id,
+                    project_id=str(base_db.project_id),
                     user_uid=request.state.user_id,
                 )
             else:
@@ -89,7 +87,7 @@ async def save_config(
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(base_db.project_id),
             )
 
     except HTTPException as e:
@@ -118,7 +116,7 @@ async def get_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(base_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -133,7 +131,6 @@ async def get_config(
         if environment_name:
             app_environments = await db_manager.list_environments(
                 app_id=str(base_db.app_id),  # type: ignore
-                project_id=request.state.project_id,
             )
             found_variant_revision = next(
                 (
@@ -160,9 +157,7 @@ async def get_config(
                 "parameters": found_variant_revision.config_parameters,
             }
         elif config_name:
-            variants_db = await db_manager.list_variants_for_base(
-                base_db, request.state.project_id
-            )
+            variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = next(
                 (
                     variant_db
@@ -261,7 +256,7 @@ async def revert_deployment_revision(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=request.state.project_id,
+            project_id=str(environment_revision.project_id),
             permission=Permission.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
         )
         if not has_permission:

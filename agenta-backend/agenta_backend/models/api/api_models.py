@@ -58,6 +58,8 @@ class VariantAction(BaseModel):
 
 class CreateApp(BaseModel):
     app_name: str
+    project_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):
@@ -239,6 +241,8 @@ class DockerEnvVars(BaseModel):
 class CreateAppVariant(BaseModel):
     app_name: str
     template_id: str
+    project_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     env_vars: Dict[str, str]
 
 

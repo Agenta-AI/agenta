@@ -34,10 +34,13 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
+        variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=payload.variant_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(variant.project_id),
                 permission=Permission.DEPLOY_APPLICATION,
             )
             logger.debug(f"User has permission deploy to environment: {has_permission}")
@@ -52,7 +55,6 @@ async def deploy_to_environment(
         await db_manager.deploy_to_environment(
             environment_name=payload.environment_name,
             variant_id=payload.variant_id,
-            project_id=request.state.project_id,
             user_uid=request.state.user_id,
         )
 
@@ -61,7 +63,7 @@ async def deploy_to_environment(
             user_uid=request.state.user_id,
             object_id=payload.variant_id,
             object_type="variant",
-            project_id=request.state.project_id,
+            project_id=str(variant.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
     except Exception as e:
