@@ -282,24 +282,26 @@ const AppSelector: React.FC = () => {
                 {!isLoading && !error ? (
                     <div className="flex items-center justify-between mb-5">
                         <h1 className={classes.title}>App Management</h1>
-                        <Button
-                            type={Array.isArray(apps) && apps.length ? "primary" : "default"}
-                            data-cy="create-new-app-button"
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                                if (
-                                    isDemo() &&
-                                    selectedOrg?.is_paying == false &&
-                                    apps.length > 2
-                                ) {
-                                    showMaxAppError()
-                                } else {
-                                    showCreateAppModal()
-                                }
-                            }}
-                        >
-                            Create new app
-                        </Button>
+                        {Array.isArray(apps) && apps.length ? (
+                            <Button
+                                type="primary"
+                                data-cy="create-new-app-button"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    if (
+                                        isDemo() &&
+                                        selectedOrg?.is_paying == false &&
+                                        apps.length > 2
+                                    ) {
+                                        showMaxAppError()
+                                    } else {
+                                        showCreateAppModal()
+                                    }
+                                }}
+                            >
+                                Create new app
+                            </Button>
+                        ) : null}
                     </div>
                 ) : null}
 
