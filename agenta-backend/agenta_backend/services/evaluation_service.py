@@ -331,7 +331,7 @@ async def fetch_human_evaluation(human_evaluation_db) -> HumanEvaluation:
     return await converters.human_evaluation_db_to_pydantic(human_evaluation_db)
 
 
-async def delete_human_evaluations(evaluation_ids: List[str], project_id: str) -> None:
+async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
     """
     Delete evaluations by their IDs.
 
@@ -344,9 +344,7 @@ async def delete_human_evaluations(evaluation_ids: List[str], project_id: str) -
     """
 
     for evaluation_id in evaluation_ids:
-        await db_manager.delete_human_evaluation(
-            evaluation_id=evaluation_id, project_id=project_id
-        )
+        await db_manager.delete_human_evaluation(evaluation_id=evaluation_id)
 
 
 async def delete_evaluations(evaluation_ids: List[str]) -> None:
@@ -363,23 +361,18 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     await db_manager.delete_evaluations(evaluation_ids=evaluation_ids)
 
 
-async def create_new_human_evaluation(
-    payload: NewHumanEvaluation, user_uid: str, project_id: str
-) -> HumanEvaluationDB:
+async def create_new_human_evaluation(payload: NewHumanEvaluation) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
 
     Args:
         payload (NewEvaluation): The evaluation payload.
-        user_uid (str): The user_uid of the user
-        project_id (str): The ID of the project
 
     Returns:
         HumanEvaluationDB
     """
 
-    user = await db_manager.get_user(user_uid)
-    app = await db_manager.fetch_app_by_id(app_id=payload.app_id, project_id=project_id)
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     if app is None:
         raise HTTPException(
             status_code=404,
@@ -388,7 +381,6 @@ async def create_new_human_evaluation(
 
     human_evaluation = await db_manager.create_human_evaluation(
         app=app,
-        project_id=project_id,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         testset_id=payload.testset_id,
@@ -402,7 +394,7 @@ async def create_new_human_evaluation(
     await prepare_csvdata_and_create_evaluation_scenario(
         human_evaluation.testset.csvdata,
         payload.inputs,
-        project_id,
+        str(app.project_id),
         payload.evaluation_type,
         human_evaluation,
     )

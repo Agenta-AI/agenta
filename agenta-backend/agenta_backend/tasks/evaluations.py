@@ -27,7 +27,6 @@ from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     fetch_app_by_id,
     fetch_app_variant_by_id,
-    fetch_evaluation_by_id,
     fetch_evaluator_config,
     fetch_testset_by_id,
     get_deployment_by_id,
@@ -102,26 +101,22 @@ def evaluate(
         )
 
         # 1. Fetch data from the database
-        app = loop.run_until_complete(fetch_app_by_id(app_id, project_id))
-        app_variant_db = loop.run_until_complete(
-            fetch_app_variant_by_id(variant_id, project_id)
-        )
+        app = loop.run_until_complete(fetch_app_by_id(app_id))
+        app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         assert (
             app_variant_db is not None
         ), f"App variant with id {variant_id} not found!"
         app_variant_parameters = app_variant_db.config_parameters
-        testset_db = loop.run_until_complete(
-            fetch_testset_by_id(testset_id, project_id)
-        )
+        testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
         evaluator_config_dbs = []
         for evaluator_config_id in evaluators_config_ids:
             evaluator_config = loop.run_until_complete(
-                fetch_evaluator_config(evaluator_config_id, project_id)
+                fetch_evaluator_config(evaluator_config_id)
             )
             evaluator_config_dbs.append(evaluator_config)
 
         deployment_db = loop.run_until_complete(
-            get_deployment_by_id(str(app_variant_db.base.deployment_id), project_id)
+            get_deployment_by_id(str(app_variant_db.base.deployment_id))
         )
         uri = deployment_manager.get_deployment_uri(uri=deployment_db.uri)  # type: ignore
 

@@ -55,16 +55,14 @@ async def create_evaluation(
         _description_
     """
     try:
-        app = await db_manager.fetch_app_by_id(
-            app_id=payload.app_id, project_id=request.state.project_id
-        )
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
@@ -75,7 +73,7 @@ async def create_evaluation(
                 )
 
         new_human_evaluation_db = await evaluation_service.create_new_human_evaluation(
-            payload, request.state.user_id, request.state.project_id
+            payload
         )
         return await converters.human_evaluation_db_to_simple_evaluation_output(
             new_human_evaluation_db
@@ -108,10 +106,11 @@ async def fetch_list_human_evaluations(
     """
 
     try:
+        app = await db_manager.fetch_app_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -122,7 +121,7 @@ async def fetch_list_human_evaluations(
                 )
 
         return await evaluation_service.fetch_list_human_evaluations(
-            app_id, request.state.project_id
+            app_id, str(app.project_id)
         )
     except Exception as e:
         status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
@@ -143,16 +142,14 @@ async def fetch_human_evaluation(
         HumanEvaluation: The fetched evaluation.
     """
     try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, request.state.project_id
-        )
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
 
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(human_evaluation.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -190,9 +187,7 @@ async def fetch_evaluation_scenarios(
     """
 
     try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, request.state.project_id
-        )
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if human_evaluation is None:
             raise HTTPException(
                 status_code=404,
@@ -202,7 +197,7 @@ async def fetch_evaluation_scenarios(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(human_evaluation.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -243,16 +238,14 @@ async def update_human_evaluation(
     """
 
     try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, request.state.project_id
-        )
+        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if not human_evaluation:
             raise HTTPException(status_code=404, detail="Evaluation not found")
 
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(human_evaluation.project_id),
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -292,7 +285,7 @@ async def update_evaluation_scenario_router(
     """
     try:
         evaluation_scenario_db = await db_manager.fetch_human_evaluation_scenario_by_id(
-            evaluation_scenario_id, request.state.project_id
+            evaluation_scenario_id
         )
         if evaluation_scenario_db is None:
             raise HTTPException(
@@ -303,7 +296,7 @@ async def update_evaluation_scenario_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluation_scenario_db.project_id),
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -344,7 +337,7 @@ async def get_evaluation_scenario_score_router(
     """
     try:
         evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id, request.state.project_id
+            evaluation_scenario_id
         )
         if evaluation_scenario is None:
             raise HTTPException(
@@ -355,7 +348,7 @@ async def get_evaluation_scenario_score_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluation_scenario.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -390,7 +383,7 @@ async def update_evaluation_scenario_score_router(
     """
     try:
         evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id, request.state.project_id
+            evaluation_scenario_id
         )
         if evaluation_scenario is None:
             raise HTTPException(
@@ -401,7 +394,7 @@ async def update_evaluation_scenario_score_router(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluation_scenario.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -436,9 +429,7 @@ async def fetch_results(
     """
 
     try:
-        evaluation = await db_manager.fetch_human_evaluation_by_id(
-            evaluation_id, request.state.project_id
-        )
+        evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
         if evaluation is None:
             raise HTTPException(
                 status_code=404,
@@ -447,7 +438,7 @@ async def fetch_results(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluation.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -476,24 +467,25 @@ async def fetch_results(
 
 @router.delete("/", response_model=List[str])
 async def delete_evaluations(
-    delete_evaluations: DeleteEvaluation,
+    payload: DeleteEvaluation,
     request: Request,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
 
     Args:
-    delete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.
+        payload (List[str]): The unique identifiers of the comparison tables to delete.
 
     Returns:
     A list of the deleted comparison tables' IDs.
     """
 
     try:
+        evaluation = await db_manager.fetch_evaluation_by_id(payload.evaluations_ids[0])
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(evaluation.project_id),
                 permission=Permission.DELETE_EVALUATION,
             )
             if not has_permission:
@@ -503,9 +495,7 @@ async def delete_evaluations(
                     status_code=403,
                 )
 
-        await evaluation_service.delete_human_evaluations(
-            delete_evaluations.evaluations_ids, request.state.project_id
-        )
+        await evaluation_service.delete_human_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         import traceback

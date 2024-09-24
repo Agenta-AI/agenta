@@ -102,10 +102,11 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
     try:
+        app = await db_manager.get_app_instance_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to list app variants: {has_permission}")
@@ -116,9 +117,7 @@ async def list_app_variants(
                     status_code=403,
                 )
 
-        app_variants = await db_manager.list_app_variants(
-            app_id=app_id, project_id=request.state.project_id
-        )
+        app_variants = await db_manager.list_app_variants(app_id=app_id)
         return [
             await converters.app_variant_db_to_output(app_variant)
             for app_variant in app_variants
@@ -156,10 +155,11 @@ async def get_variant_by_env(
         AppVariantResponse: The retrieved app variant.
     """
     try:
+        app = await db_manager.get_app_instance_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(
@@ -231,7 +231,7 @@ async def create_app(
 
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    project_id=request.state.project_id,
+                    project_id=payload.project_id or request.state.project_id,
                     permission=Permission.CREATE_APPLICATION,
                 )
                 logger.debug(
@@ -247,7 +247,9 @@ async def create_app(
                 raise HTTPException(status_code=500, detail=str(e))
 
         app_db = await db_manager.create_app_and_envs(
-            payload.app_name, request.state.project_id
+            payload.app_name,
+            project_id=payload.project_id or request.state.project_id,
+            workspace_id=payload.workspace_id,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -277,11 +279,11 @@ async def update_app(
     """
 
     try:
-        app = await db_manager.fetch_app_by_id(app_id, request.state.project_id)
+        app = await db_manager.fetch_app_by_id(app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.EDIT_APPLICATION,
             )
             logger.debug(f"User has Permission to update app: {has_permission}")
@@ -369,12 +371,11 @@ async def add_variant_from_image(
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        app = await db_manager.fetch_app_by_id(app_id, request.state.project_id)
-
+        app = await db_manager.fetch_app_by_id(app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -389,7 +390,7 @@ async def add_variant_from_image(
 
         variant_db = await app_manager.add_variant_based_on_image(
             app=app,
-            project_id=request.state.project_id,
+            project_id=str(app.project_id),
             variant_name=payload.variant_name,
             docker_id_or_template_uri=payload.docker_id,
             tags=payload.tags,
@@ -398,13 +399,11 @@ async def add_variant_from_image(
             is_template_image=False,
             user_uid=request.state.user_id,
         )
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            str(variant_db.id), request.state.project_id
-        )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
         logger.debug("Step 8: We create ready-to use evaluators")
         await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name, project_id=request.state.project_id
+            app_name=app.app_name, project_id=str(app.project_id)
         )
 
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -424,12 +423,11 @@ async def remove_app(
         app -- App to remove
     """
     try:
-        app = await db_manager.fetch_app_by_id(app_id, request.state.project_id)
-
+        app = await db_manager.fetch_app_by_id(app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=request.state.project_id,
+                project_id=str(app.project_id),
                 permission=Permission.DELETE_APPLICATION,
             )
             logger.debug(f"User has Permission to delete app: {has_permission}")
@@ -440,7 +438,7 @@ async def remove_app(
                     status_code=403,
                 )
 
-        await app_manager.remove_app(app, request.state.project_id)
+        await app_manager.remove_app(app)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         logger.exception(f"Docker error while trying to remove the app: {str(e)}")
@@ -489,9 +487,12 @@ async def create_app_and_variant_from_template(
                 )
 
             logger.debug("Step 3: Checking user has permission to create app")
+            project = await db_manager_ee.get_project_by_workspace(
+                workspace_id=payload.workspace_id
+            )
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
-                project_id=request.state.project_id,
+                project_id=str(project.id),
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -512,7 +513,7 @@ async def create_app_and_variant_from_template(
         )
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_parameters(
-            app_name, request.state.project_id
+            app_name, payload.workspace_id
         )
         if app is not None:
             raise Exception(
@@ -526,7 +527,9 @@ async def create_app_and_variant_from_template(
         )
         if app is None:
             app = await db_manager.create_app_and_envs(
-                app_name, request.state.project_id
+                app_name,
+                project_id=payload.project_id or request.state.project_id,
+                workspace_id=payload.workspace_id,
             )
 
         logger.debug(
