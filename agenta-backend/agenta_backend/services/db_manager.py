@@ -967,6 +967,8 @@ async def list_apps(
     project_id: str,
     user_uid: str,
     app_name: Optional[str] = None,
+    org_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ):
     """
     Lists all the unique app names and their IDs from the database
@@ -999,9 +1001,12 @@ async def list_apps(
                     detail="You do not have access to perform this action. Please contact your organization admin.",
                 )
 
+            project = await db_manager_ee.get_project_by_workspace_and_organization(
+                org_id=org_id, workspace_id=workspace_id
+            )
             async with db_engine.get_session() as session:
                 result = await session.execute(
-                    select(AppDB).filter_by(project_id=uuid.UUID(project_id))
+                    select(AppDB).filter_by(project_id=project.id)
                 )
                 apps = result.unique().scalars().all()
                 return [converters.app_db_to_pydantic(app) for app in apps]

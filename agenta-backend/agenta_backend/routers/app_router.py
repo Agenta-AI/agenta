@@ -304,6 +304,8 @@ async def update_app(
 async def list_apps(
     request: Request,
     app_name: Optional[str] = None,
+    org_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> List[App]:
     """
     Retrieve a list of apps filtered by app_name and org_id.
@@ -324,6 +326,8 @@ async def list_apps(
             project_id=request.state.project_id,
             user_uid=request.state.user_id,
             app_name=app_name,
+            org_id=org_id,
+            workspace_id=workspace_id,
         )
         return apps
     except Exception as e:
