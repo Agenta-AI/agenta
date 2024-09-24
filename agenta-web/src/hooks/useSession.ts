@@ -20,7 +20,7 @@ export const useSession: () => {loading: boolean; doesSessionExist: boolean; log
                           .then(() => {
                               posthog.reset()
                               reset()
-                              router.push("/auth").then(() => router.reload())
+                              router.push("/auth")
                           })
                           .catch(console.error)
                   },
