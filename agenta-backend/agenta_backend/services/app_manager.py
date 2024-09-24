@@ -56,6 +56,7 @@ async def start_variant(
     db_app_variant: AppVariantDB,
     project_id: str,
     env_vars: Optional[DockerEnvVars] = None,
+    user_uid: Optional[str] = None,
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -67,6 +68,7 @@ async def start_variant(
         app_variant (AppVariant): The app variant for which a container is to be started.
         project_id (str): The ID of the project the app variant belongs to.
         env_vars (DockerEnvVars): (optional) The environment variables to be passed to the container.
+        user_uid (str): (optional) The user ID.
 
     Returns:
         URI: The URI of the started Docker container.
@@ -102,8 +104,9 @@ async def start_variant(
             }
         )
         if isCloudEE():
+            user = await db_manager.get_user(user_uid=user_uid)
             api_key = await api_key_service.create_api_key(
-                str(db_app_variant.user.uid),
+                str(user.id),
                 project_id=project_id,
                 expiration_date=None,
                 hidden=True,
