@@ -105,7 +105,6 @@ async def start_variant(
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid),
                 project_id=project_id,
-                project_id=project_id,
                 expiration_date=None,
                 hidden=True,
             )
