@@ -967,7 +967,6 @@ async def list_apps(
     project_id: str,
     user_uid: str,
     app_name: Optional[str] = None,
-    org_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
 ):
     """
@@ -1001,8 +1000,8 @@ async def list_apps(
                     detail="You do not have access to perform this action. Please contact your organization admin.",
                 )
 
-            project = await db_manager_ee.get_project_by_workspace_and_organization(
-                org_id=org_id, workspace_id=workspace_id
+            project = await db_manager_ee.get_project_by_workspace(
+                workspace_id=workspace_id
             )
             async with db_engine.get_session() as session:
                 result = await session.execute(
