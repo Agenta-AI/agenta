@@ -31,8 +31,8 @@ async def start_service(
     """
 
     if isCloudEE():
-        uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
-        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+        uri_path = f"{app_variant_db.project_id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
+        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.project_id}"
     else:
         uri_path = f"{app_variant_db.project_id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
         container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.project_id}"
@@ -137,7 +137,7 @@ async def validate_image(image: Image) -> bool:
         raise ValueError(msg)
 
     if isCloudEE():
-        image = Image(**image.model_dump(exclude={"workspace", "organization"}))
+        image = Image(**image.model_dump())
 
     if not image.tags.startswith(agenta_registry_repo):
         raise ValueError(

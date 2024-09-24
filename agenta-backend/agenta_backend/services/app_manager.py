@@ -95,6 +95,7 @@ async def start_variant(
                 "http://host.docker.internal"  # unclear why this stopped working
             )
             # domain_name = "http://localhost"
+
         env_vars = {} if env_vars is None else env_vars  # type: ignore
         env_vars.update(
             {
