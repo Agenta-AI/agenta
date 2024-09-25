@@ -52,3 +52,4 @@ By inserting to these formatting conventions, you'll maintain the integrity and 
 ## Notes
 
 - Do not update any libraries or packages as this could disrupt the template structure and cause it to break.
+- Please use kebab-case (this-way) instead of snake_case for naming files and folders
