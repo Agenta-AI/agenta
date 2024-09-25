@@ -47,9 +47,7 @@ async def save_config(
                     status_code=403,
                 )
 
-        variants_db = await db_manager.list_variants_for_base(
-            base_db, str(base_db.project_id)
-        )
+        variants_db = await db_manager.list_variants_for_base(base_db)
         variant_to_overwrite = None
         for variant_db in variants_db:
             if variant_db.config_name == payload.config_name:
@@ -70,7 +68,6 @@ async def save_config(
                 await db_manager.deploy_to_environment(
                     environment_name="production",
                     variant_id=str(variant_to_overwrite.id),
-                    project_id=str(base_db.project_id),
                     user_uid=request.state.user_id,
                 )
             else:
