@@ -513,7 +513,9 @@ async def create_app_and_variant_from_template(
         )
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_parameters(
-            app_name, payload.workspace_id
+            app_name,
+            workspace_id=payload.workspace_id,
+            project_id=payload.project_id or request.state.project_id,
         )
         if app is not None:
             raise Exception(
