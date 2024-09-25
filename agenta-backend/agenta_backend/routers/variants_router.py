@@ -109,7 +109,7 @@ async def add_variant_from_base_and_config(
         logger.debug("Successfully updated last_modified_by app information")
 
         app_variant_db = await db_manager.get_app_variant_instance_by_id(
-            str(db_app_variant.id)
+            str(db_app_variant.id), str(db_app_variant.project_id)
         )
         return await converters.app_variant_db_to_output(app_variant_db)
 
