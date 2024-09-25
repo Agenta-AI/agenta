@@ -214,7 +214,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
         app_variant = app_variant_result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 

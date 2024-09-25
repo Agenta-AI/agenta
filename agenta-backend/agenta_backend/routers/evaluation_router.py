@@ -219,9 +219,7 @@ async def fetch_evaluation_results(
     """
 
     try:
-        evaluation = await db_manager.fetch_evaluation_by_id(
-            evaluation_id, project_id=request.state.project_id
-        )
+        evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -416,7 +414,7 @@ async def delete_evaluations(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(evaluation.project),
+                project_id=str(evaluation.project_id),
                 permission=Permission.DELETE_EVALUATION,
             )
             logger.debug(f"User has permission to delete evaluation: {has_permission}")
