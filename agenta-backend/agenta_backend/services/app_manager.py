@@ -154,7 +154,7 @@ async def update_variant_image(
 
     base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
     deployment = await db_manager.get_deployment_by_id(
-        str(base.deployment_id), project_id
+        str(base.deployment_id)
     )
 
     await deployment_manager.stop_and_delete_service(deployment)
@@ -209,7 +209,7 @@ async def update_last_modified_by(
                 raise db_manager.NoResultFound(f"Variant with id {object_id} not found")
             return str(app_variant_db.app_id)
         elif object_type == "deployment":
-            deployment_db = await db_manager.get_deployment_by_id(object_id, project_id)
+            deployment_db = await db_manager.get_deployment_by_id(object_id)
             if deployment_db is None:
                 raise db_manager.NoResultFound(
                     f"Deployment with id {object_id} not found"
@@ -288,7 +288,7 @@ async def terminate_and_remove_app_variant(
             logger.debug("_stop_and_delete_app_container")
             try:
                 deployment = await db_manager.get_deployment_by_id(
-                    str(base_db.deployment_id), project_id
+                    str(base_db.deployment_id)
                 )
             except Exception as e:
                 logger.error(f"Failed to get deployment {e}")
