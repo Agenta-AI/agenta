@@ -567,13 +567,15 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    app = await fetch_app_by_name_and_parameters(app_name)
-    if app is not None:
-        raise ValueError("App with the same name already exists")
-
     if isCloudEE():
         project = await db_manager_ee.get_project_by_workspace(workspace_id)
         project_id = str(project.id)
+
+    app = await fetch_app_by_name_and_parameters(
+        app_name=app_name, project_id=project_id
+    )
+    if app is not None:
+        raise ValueError("App with the same name already exists")
 
     async with db_engine.get_session() as session:
         app = AppDB(app_name=app_name, project_id=uuid.UUID(project_id))
@@ -966,7 +968,9 @@ async def list_apps(
     """
 
     if app_name is not None:
-        app_db = await fetch_app_by_name_and_parameters(app_name=app_name)
+        app_db = await fetch_app_by_name_and_parameters(
+            app_name=app_name, project_id=project_id
+        )
         return [converters.app_db_to_pydantic(app_db)]
 
     elif isCloudEE():
@@ -2500,13 +2504,16 @@ async def update_app_variant(
 
 
 async def fetch_app_by_name_and_parameters(
-    app_name: str, workspace_id: Optional[str] = None
+    app_name: str,
+    workspace_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ):
     """Fetch an app by its name and project identifier.
 
     Args:
         app_name (str): The name of the app
         workspace_id (str, optional): The ID of the workspace. Defaults to None.
+        project_id (str, optional): The ID of the project. Defaults to None.
 
     Returns:
         AppDB: the instance of the app
@@ -2518,7 +2525,9 @@ async def fetch_app_by_name_and_parameters(
         )
         query = select(AppDB).filter_by(app_name=app_name, project_id=project.id)
     else:
-        query = select(AppDB).filter_by(app_name=app_name)
+        query = select(AppDB).filter_by(
+            app_name=app_name, project_id=uuid.UUID(project_id)
+        )
 
     async with db_engine.get_session() as session:
         result = await session.execute(query)
@@ -2683,7 +2692,7 @@ async def fetch_evaluations_by_resource(
         )
 
 
-async def delete_evaluations(evaluation_ids: List[str]) -> None:
+async def delete_evaluations(evaluation_ids: List[str], project_id: str) -> None:
     """Delete evaluations based on the ids provided from the db.
 
     Args:
@@ -2694,6 +2703,7 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     async with db_engine.get_session() as session:
         query = select(EvaluationDB).where(
             EvaluationDB.id.in_(evaluation_ids),
+            EvaluationDB.project_id == uuid.UUID(project_id),
         )
         result = await session.execute(query)
         evaluations = result.scalars().all()
