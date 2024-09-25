@@ -420,10 +420,8 @@ async def create_new_evaluation(
         Evaluation: The newly created evaluation.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id, project_id=project_id)
-    testset = await db_manager.fetch_testset_by_id(
-        testset_id=testset_id, project_id=project_id
-    )
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     variant_db = await db_manager.get_app_variant_instance_by_id(
         variant_id=variant_id, project_id=project_id
     )
@@ -460,7 +458,7 @@ async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
 
 
 async def compare_evaluations_scenarios(evaluations_ids: List[str], project_id: str):
-    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0], project_id)
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
     testset = evaluation.testset
     unique_testset_datapoints = remove_duplicates(testset.csvdata)
     formatted_inputs = extract_inputs_values_from_testset(unique_testset_datapoints)
