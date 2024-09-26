@@ -2644,7 +2644,7 @@ async def fetch_evaluations_by_resource(
                 .join(HumanEvaluationVariantDB)
                 .filter(
                     HumanEvaluationVariantDB.variant_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
+                    HumanEvaluationDB.project_id == uuid.UUID(project_id),
                 )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
@@ -2652,7 +2652,7 @@ async def fetch_evaluations_by_resource(
             res_human_evaluations = result_human_evaluations.scalars().all()
             return res_evaluations + res_human_evaluations
 
-        if resource_type == "testset":
+        elif resource_type == "testset":
             result_evaluations = await session.execute(
                 select(EvaluationDB)
                 .filter(
@@ -2665,7 +2665,8 @@ async def fetch_evaluations_by_resource(
                 select(HumanEvaluationDB)
                 .filter(
                     HumanEvaluationDB.testset_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
+                    HumanEvaluationDB.project_id
+                    == uuid.UUID(project_id),  # Fixed to match HumanEvaluationDB
                 )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
@@ -2673,7 +2674,7 @@ async def fetch_evaluations_by_resource(
             res_human_evaluations = result_human_evaluations.scalars().all()
             return res_evaluations + res_human_evaluations
 
-        if resource_type == "evaluator_config":
+        elif resource_type == "evaluator_config":
             query = (
                 select(EvaluationDB)
                 .join(EvaluationDB.evaluator_configs)
