@@ -435,6 +435,7 @@ async def delete_evaluations(
         )
         logger.debug("Successfully updated last_modified_by app information")
 
+        logger.debug(f"Deleting evaluations {payload.evaluations_ids}...")
         await evaluation_service.delete_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
