@@ -24,7 +24,9 @@ Cypress.Commands.add("createVariant", () => {
             cy.get('[data-cy="create-new-app-button"]').click()
             cy.get('[data-cy="create-from-template"]').click()
         } else {
-            cy.get('[data-cy="create-from-template__no-app"]').eq(0).click()
+            cy.get('[data-cy="create-from-template__no-app"]').within(() => {
+                cy.get("button").eq(0).click()
+            })
         }
     })
 
