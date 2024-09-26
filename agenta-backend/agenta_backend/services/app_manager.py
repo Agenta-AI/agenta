@@ -227,6 +227,7 @@ async def update_last_modified_by(
 
     user = await db_manager.get_user(user_uid=user_uid)
     app_id = await get_appdb_str_by_id(object_id=object_id, object_type=object_type)
+    assert app_id is not None, f"app_id in {object_type} cannot be None"
     await db_manager.update_app(
         app_id=app_id,
         values_to_update={
