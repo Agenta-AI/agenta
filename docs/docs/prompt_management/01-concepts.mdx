@@ -1,0 +1,102 @@
+---
+title: "Core Concepts"
+---
+
+# Core Concepts
+
+This page describes the main concepts used in prompt management in **agenta**.
+
+## Prompt and Configuration Management
+
+### What Is Prompt Management?
+
+Building LLM-powered applications is an iterative process. In each iteration, you aim to improve the application's performance by refining prompts, adjusting configurations, and evaluating outputs.
+
+<img
+  style={{ width: "75%", display: "block", margin: "0 auto" }}
+  src="/images/prompt_management/llm_lifecycle.png"
+/>
+
+A prompt management system provides you the tools to do this process systematically by:
+
+- **Versioning Prompts**: Keeping track of different prompts you've tested.
+- **Linking Prompt Variants to Experiments**: Connecting each prompt variant to its evaluation metrics to understand the effect of changes and determine the best variant.
+- **Publishing Prompts**: Providing a way to publish the best prompt variants to production and maintain a history of changes in production systems.
+- **Associating Prompts with Traces**: Monitoring how changes in prompts affect production metrics.
+
+### Why Do I Need a Prompt Management System?
+
+A prompt management system enables everyone on the team—from product owners to subject matter experts—to collaborate in creating prompts. Additionally it helps you answer the following questions:
+
+- Which prompts have we tried?
+- What were the outputs of these prompts?
+- How do the evaluation results of these prompts compare?
+- Which prompt was used for a specific generation in production?
+- What was the effect of publishing the new version of this prompt in production?
+- Who on the team made changes to a particular prompt in production?
+
+### What Is the Difference Between Prompt and Configuration Management?
+
+Agenta goes beyond prompt management to encompass the entire configuration of your LLM applications.
+
+**Prompts** are a special case of a **configuration**. A **prompt** includes the prompt template, the model, and the model parameters. However, a **configuration** of an LLM application can include additional parameters.
+For instance, an LLM application using a chain of two prompts would have a configuration that includes the two prompts and their respective model parameters. Similarly, an application that includes a RAG pipeline would have a configuration that includes parameters such as `top_k` and `embedding`.
+
+Agenta enables you to version the entire `configuration` of the LLM app as a unit. This makes sense since there is a dependency between the parts of the configuration. For instance in a chain of two prompts, the changes of the first depend on the changes of the second. Therefore you need to version them together to ensure consistency and traceability.
+
+## Taxonomy of Terms and Concepts in agenta
+
+Below are the description to the main terms and concepts used in agenta.
+
+<img
+  style={{ width: "75%", display: "block", margin: "0 auto" }}
+  src="/images/prompt_management/taxonomy_agenta.png"
+/>
+
+### Templates
+
+**Templates** are the workflows used by LLM-powered applications. Agenta comes with two default templates:
+
+- **Completion Application Template:** For single-prompt applications that generate text completions.
+- **Chat Application Template:** For applications that handle conversational interactions.
+
+Agenta also allows you to create custom templates for your workflows using our SDK. Examples include:
+
+- Retrieval-Augmented Generation (RAG) Applications
+- Chains of Multiple Prompts
+- Agents Interacting with External APIs
+
+After creating a template, you can interact with it in the playground, run no-code evaluations, and publish versions all from the webUI.
+
+### Applications
+
+An **application** uses a **template** to solve a specific use case. For instance, an **application** could use the single-prompt **template** for tasks like:
+
+- **Tweet Generation:** Crafting engaging tweets based on input topics.
+- **Article Summarization:** Condensing long articles into key points.
+
+### Variants
+
+Within each application, you can create **variants**. **Variants** are different configurations of the application, allowing you to experiment with and compare multiple approaches. For example, for the "tweet generation" application, you might create **variants** that:
+
+- Use different prompt phrasings.
+- Adjust model parameters like temperature or maximum tokens.
+- Incorporate different styles or tones (e.g., professional vs. casual).
+
+### Versions
+
+Every **variant** is **versioned** and immutable. When you make changes to a **variant**, a new **version** is created. Each **version** has a **commit id** that uniquely identifies it.
+
+### Endpoints
+
+**Endpoints** are the interfaces where your published variants are accessible. You can publish a **version** of a **variant** to an **endpoint**. Each **endpoint** has a user-defined environment name (e.g. development, staging, production) that specifies its context or stage.
+
+You can then integrate the **endpoint** into your codebase to fetch the configuration published on that **endpoint**. Additionally, you can directly call the **endpoint** containing the application running with that configuration.
+
+By default, applications come with three predefined environment names for **endpoints**:
+
+- **Development:** For initial testing and experimentation.
+- **Staging:** For pre-production testing and quality assurance.
+- **Production:** For live use with real users.
+
+When publishing a **variant** to an **endpoint**, the latest **version** of that **variant** gets published. Each **endpoint** points to a specific **version** of a **variant** (a certain **commit**). Updating the **variant** after publishing does not automatically update the **endpoint**.
