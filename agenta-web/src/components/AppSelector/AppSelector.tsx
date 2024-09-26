@@ -290,7 +290,7 @@ const AppSelector: React.FC = () => {
                 ) : Array.isArray(apps) && apps.length ? (
                     <div className="flex flex-col gap-6">
                         <div className="flex items-center justify-between">
-                            <h1 className={classes.title}>Applications</h1>
+                            <h1 className={classes.title}>App management</h1>
                             <Button
                                 data-cy="create-new-app-button"
                                 icon={<PlusOutlined />}
