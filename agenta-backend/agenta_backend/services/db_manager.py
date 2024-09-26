@@ -2693,19 +2693,15 @@ async def fetch_evaluations_by_resource(
         )
 
 
-async def delete_evaluations(evaluation_ids: List[str], project_id: str) -> None:
+async def delete_evaluations(evaluation_ids: List[str]) -> None:
     """Delete evaluations based on the ids provided from the db.
 
     Args:
         evaluations_ids (list[str]): The IDs of the evaluation
-        project_id (str): The ID of the project
     """
 
     async with db_engine.get_session() as session:
-        query = select(EvaluationDB).where(
-            EvaluationDB.id.in_(evaluation_ids),
-            EvaluationDB.project_id == uuid.UUID(project_id),
-        )
+        query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
         result = await session.execute(query)
         evaluations = result.scalars().all()
         for evaluation in evaluations:

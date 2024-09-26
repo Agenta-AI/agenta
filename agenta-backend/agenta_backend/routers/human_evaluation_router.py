@@ -481,7 +481,9 @@ async def delete_evaluations(
     """
 
     try:
-        evaluation = await db_manager.fetch_evaluation_by_id(payload.evaluations_ids[0])
+        evaluation = await db_manager.fetch_human_evaluation_by_id(
+            payload.evaluations_ids[0]
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
