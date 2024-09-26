@@ -279,10 +279,18 @@ const AppSelector: React.FC = () => {
             }}
         >
             <div className={classes.container}>
-                {!isLoading && !error ? (
-                    <div className="flex items-center justify-between mb-5">
-                        <h1 className={classes.title}>App Management</h1>
-                        {Array.isArray(apps) && apps.length ? (
+                {isLoading ? (
+                    <div>
+                        <ResultComponent status={"info"} title="Loading..." spinner={true} />
+                    </div>
+                ) : error ? (
+                    <div>
+                        <ResultComponent status={"error"} title="Failed to load" />
+                    </div>
+                ) : Array.isArray(apps) && apps.length ? (
+                    <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between">
+                            <h1 className={classes.title}>Applications</h1>
                             <Button
                                 type="primary"
                                 data-cy="create-new-app-button"
@@ -301,20 +309,7 @@ const AppSelector: React.FC = () => {
                             >
                                 Create new app
                             </Button>
-                        ) : null}
-                    </div>
-                ) : null}
-
-                {isLoading ? (
-                    <div>
-                        <ResultComponent status={"info"} title="Loading..." spinner={true} />
-                    </div>
-                ) : error ? (
-                    <div>
-                        <ResultComponent status={"error"} title="Failed to load" />
-                    </div>
-                ) : Array.isArray(apps) && apps.length ? (
-                    <div className="flex flex-col gap-6">
+                        </div>
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
