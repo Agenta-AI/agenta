@@ -43,6 +43,8 @@ Cypress.Commands.add("createVariant", () => {
             cy.get("input").type(appName)
         })
 
+    cy.wait(3000)
+
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
 
     cy.url().should("include", "/playground")
