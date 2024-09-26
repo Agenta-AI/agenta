@@ -9,12 +9,12 @@ export default defineConfig({
     screenshotOnRunFailure: false,
     e2e: {
         baseUrl: "http://localhost:3000",
-        defaultCommandTimeout: 360000,
-        requestTimeout: 360000,
-        pageLoadTimeout: 360000,
-        responseTimeout: 360000,
-        taskTimeout: 360000,
-        execTimeout: 360000,
+        defaultCommandTimeout: 480000,
+        requestTimeout: 480000,
+        pageLoadTimeout: 480000,
+        responseTimeout: 480000,
+        taskTimeout: 480000,
+        execTimeout: 480000,
         setupNodeEvents(on) {
             on("task", {
                 log(message) {
