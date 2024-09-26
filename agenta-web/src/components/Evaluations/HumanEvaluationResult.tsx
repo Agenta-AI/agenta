@@ -280,14 +280,6 @@ export default function HumanEvaluationResult({setIsEvalModalOpen}: HumanEvaluat
         },
     ]
 
-    if (isDemo()) {
-        columns.push({
-            title: "User",
-            dataIndex: ["user", "username"],
-            key: "username",
-        })
-    }
-
     columns.push(
         ...[
             {
