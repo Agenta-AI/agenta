@@ -222,7 +222,7 @@ async def update_last_modified_by(
             return str(evaluation_db.app_id)
         else:
             raise ValueError(
-                f"Could not update application. Unsupported type: {object_type}"
+                f"Could not update last_modified_by application information. Unsupported type: {object_type}"
             )
 
     user = await db_manager.get_user(user_uid=user_uid)
