@@ -213,6 +213,17 @@ async def update_last_modified_by(
                     f"Deployment with id {object_id} not found"
                 )
             return str(deployment_db.app_id)
+        elif object_type == "evaluation":
+            evaluation_db = await db_manager.fetch_evaluation_by_id(object_id)
+            if evaluation_db is None:
+                raise db_manager.NoResultFound(
+                    f"Evaluation with id {object_id} not found"
+                )
+            return str(evaluation_db.app_id)
+        else:
+            raise ValueError(
+                f"Could not update application. Unsupported type: {object_type}"
+            )
 
     user = await db_manager.get_user(user_uid=user_uid)
     app_id = await get_appdb_str_by_id(object_id=object_id, object_type=object_type)
