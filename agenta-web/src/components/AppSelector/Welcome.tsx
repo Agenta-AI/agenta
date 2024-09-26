@@ -2,40 +2,43 @@ import React from "react"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 import Image from "next/image"
-import {Button, Card, Typography} from "antd"
+import {Button, Card, Divider, Typography} from "antd"
 import {ArrowRight} from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
-        width: 392,
-        height: 268,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
+        width: 395,
         transition: "all 0.025s ease-in",
         boxShadow:
             "0px 2px 4px 0px rgba(0, 0, 0, 0.02), 0px 1px 6px -1px rgba(0, 0, 0, 0.02), 0px 1px 2px 0px rgba(0, 0, 0, 0.03)",
         "& > .ant-card-head": {
-            minHeight: 0,
             padding: theme.paddingSM,
-
+            minHeight: 46,
             "& .ant-card-head-title": {
                 fontSize: theme.fontSizeLG,
                 fontWeight: theme.fontWeightMedium,
             },
         },
         "& > .ant-card-body": {
-            padding: theme.paddingSM,
-            flex: 1,
-        },
-        "& > .ant-card-actions": {
-            padding: "0 12px",
+            paddingTop: theme.paddingSM,
+            paddingInline: 0,
+            paddingBottom: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
         },
     },
+    cardBody: {
+        gap: 8,
+        paddingInline: theme.paddingSM,
+        flex: 1,
+    },
     button: {
-        width: "100%",
+        width: "94%",
         display: "flex",
         alignItems: "center",
+        marginInline: "auto",
+        marginBottom: theme.marginSM,
         "& > .ant-btn-icon": {
             marginTop: 4,
         },
@@ -78,25 +81,8 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
             </div>
 
             <div className="flex items-center justify-center gap-4">
-                <Card
-                    title="Quick start with a template"
-                    className={classes.card}
-                    data-cy="create-from-template__no-app"
-                    actions={[
-                        <Button
-                            type="primary"
-                            key="template"
-                            className={classes.button}
-                            iconPosition="end"
-                            icon={<ArrowRight size={18} />}
-                            size="large"
-                            onClick={onCreateFromTemplate}
-                        >
-                            Start with a template
-                        </Button>,
-                    ]}
-                >
-                    <div className="gap-2">
+                <Card title="Quick start with a template" className={classes.card}>
+                    <div className={classes.cardBody}>
                         <Typography.Text>
                             Setup an app using our preset LLM config and explore Agenta AI
                         </Typography.Text>
@@ -106,26 +92,25 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             ))}
                         </ul>
                     </div>
-                </Card>
 
-                <Card
-                    title="Build complex LLM apps"
-                    className={classes.card}
-                    actions={[
+                    <div>
+                        <Divider className="mb-3 mt-2" />
                         <Button
                             type="primary"
-                            key="ownApp"
                             className={classes.button}
                             iconPosition="end"
                             icon={<ArrowRight size={18} />}
                             size="large"
-                            onClick={onWriteOwnApp}
+                            onClick={onCreateFromTemplate}
+                            data-cy="create-from-template__no-app"
                         >
-                            Setup your own app
-                        </Button>,
-                    ]}
-                >
-                    <div className="gap-2">
+                            Start with a template
+                        </Button>
+                    </div>
+                </Card>
+
+                <Card title="Build complex LLM apps" className={classes.card}>
+                    <div className={classes.cardBody}>
                         <Typography.Text>
                             Create your own complex application using any framework.
                         </Typography.Text>
@@ -134,6 +119,20 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <li key={item}>{item}</li>
                             ))}
                         </ul>
+                    </div>
+
+                    <div>
+                        <Divider className="mb-3 mt-2" />
+                        <Button
+                            type="primary"
+                            className={classes.button}
+                            iconPosition="end"
+                            icon={<ArrowRight size={18} />}
+                            size="large"
+                            onClick={onWriteOwnApp}
+                        >
+                            Setup your own app
+                        </Button>
                     </div>
                 </Card>
             </div>
