@@ -425,6 +425,11 @@ async def create_new_evaluation(
     variant_db = await db_manager.get_app_variant_instance_by_id(
         variant_id=variant_id, project_id=project_id
     )
+
+    assert variant_db is not None, f"App variant with ID {variant_id} cannot be None."
+    assert (
+        variant_db.revision is not None
+    ), f"Revision of App variant with ID {variant_id} cannot be None"
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
         app_variant_id=variant_id, project_id=project_id, revision=variant_db.revision  # type: ignore
     )
