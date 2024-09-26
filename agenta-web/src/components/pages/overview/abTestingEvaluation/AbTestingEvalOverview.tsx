@@ -258,33 +258,6 @@ const AbTestingEvalOverview = () => {
         },
     ]
 
-    if (isDemo()) {
-        columns.push({
-            title: "User",
-            dataIndex: ["user", "username"],
-            key: "username",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record: any) => {
-                return (
-                    <Space>
-                        <Avatar
-                            size={"small"}
-                            style={{
-                                backgroundColor: getColorFromStr(record.user.id),
-                                color: "#fff",
-                            }}
-                        >
-                            {getInitials(record.user.username)}
-                        </Avatar>
-                        <Typography.Text>{record.user.username}</Typography.Text>
-                    </Space>
-                )
-            },
-        })
-    }
-
     columns.push(
         ...([
             {
