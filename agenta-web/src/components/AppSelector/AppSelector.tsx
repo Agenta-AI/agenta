@@ -388,7 +388,7 @@ const AppSelector: React.FC = () => {
                     className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}
-                    // disabled={appNameExist || newApp.length === 0}
+                    disabled={appNameExist || newApp.length === 0}
                     onClick={handleCreateApp}
                 >
                     Create
