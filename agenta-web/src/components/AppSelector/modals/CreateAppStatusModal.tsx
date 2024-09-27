@@ -1,30 +1,60 @@
-import {GenericObject} from "@/lib/Types"
+import {GenericObject, JSSTheme} from "@/lib/Types"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import {CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined} from "@ant-design/icons"
 import {Alert, Modal, Typography, theme} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
+import CustomAppCreationLoader from "./CustomAppCreationLoader"
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     statusRow: {
-        marginTop: 8,
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         gap: 8,
-
-        "& .anticon": {
-            marginTop: 4,
+    },
+    modal: {
+        "& .ant-modal-content": {
+            padding: 0,
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-footer": {
+                padding: theme.paddingContentHorizontalLG,
+                paddingTop: 0,
+            },
         },
     },
-    warning: {
-        margin: "8px 0",
-        marginLeft: -2,
+    topContainer: {
+        wdith: "100%",
+        height: 200,
+        backgroundColor: "#F5F7FA",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
     },
-    statusSteps: {
-        marginTop: 12,
+    bottomContainer: {
+        padding: theme.paddingContentHorizontalLG,
+        display: "grid",
+        gap: 10,
     },
-})
+    headerText: {
+        lineHeight: theme.lineHeightLG,
+        fontSize: theme.fontSizeHeading4,
+        fontWeight: theme.fontWeightStrong,
+    },
+    text: {
+        display: "flex",
+        alignItems: "center",
+        color: theme.colorTextTertiary,
+        gap: 12,
+    },
+    error: {
+        color: theme.colorError,
+    },
+    subText: {
+        color: theme.colorTextSecondary,
+    },
+}))
 
 interface Props {
     loading: boolean
@@ -45,13 +75,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     const router = useRouter()
     const classes = useStyles()
     const {
-        token: {colorError, colorSuccess, colorPrimary},
+        token: {colorError, colorSuccess = "#36CFC9", colorPrimary},
     } = theme.useToken()
     const [messages, setMessages] = useState<{
         [status: string]: {
             type: "error" | "success" | "loading"
             message: string
-            errorMessage?: string
         }
     }>({})
     const [isDelayed, setIsDelayed] = useState(false)
@@ -88,7 +117,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         ...prev,
                         [status]: {
                             type: "loading",
-                            message: "Creating variant from template image",
+                            message: `Adding application ${appName}`,
                         },
                     }
                     if (obj.fetching_image?.type === "loading") obj.fetching_image.type = "success"
@@ -98,7 +127,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         ...prev,
                         [status]: {
                             type: "loading",
-                            message: "Waiting for the app to start",
+                            message: "Adding template data",
                         },
                     }
                     if (obj.creating_app?.type === "loading") obj.creating_app.type = "success"
@@ -108,32 +137,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         ...prev,
                         [status]: {
                             type: "success",
-                            message: "App created successfully!",
+                            message: "Launching your application",
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
                     if (appId) router.push(`/apps/${appId}/playground`)
                     return obj
-                case "bad_request":
-                case "error":
-                    const lastStatus = Object.keys(prev).pop() ?? ""
-                    return {
-                        ...prev,
-                        [lastStatus]: {
-                            ...prev[lastStatus],
-                            type: "error",
-                            errorMessage: `Error: ${getErrorMessage(details)}`,
-                        },
-                    }
-                case "timeout":
-                    return {
-                        ...prev,
-                        starting_app: {
-                            ...prev.starting_app,
-                            type: "error",
-                            errorMessage: `Error: The app took too long to start. Press the "Retry" button if you want to try again.`,
-                        },
-                    }
                 case "cleanup":
                     return {
                         ...prev,
@@ -165,53 +174,62 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             okText={"Retry"}
             footer={closable ? undefined : null}
             closable={closable}
-            title="App Creation Status"
+            title={null}
             {...props}
             onCancel={closable ? props.onCancel : undefined}
+            className={classes.modal}
+            width={480}
+            centered
         >
-            {!closable && isDelayed && (
-                <Alert
-                    className={classes.warning}
-                    message="This is taking longer than usual. Please be patient."
-                    type="warning"
-                    showIcon
-                />
-            )}
-            <Typography.Text>
-                Creating your app <strong>"{appName}"</strong>. This takes around 30 seconds.
-            </Typography.Text>
-
-            <div className={classes.statusSteps}>
-                {Object.values(messages).map(({type, message, errorMessage}, ix) => (
-                    <div className={classes.statusRow} key={message}>
-                        {type === "success" ? (
-                            <CheckCircleOutlined style={{color: colorSuccess}} />
-                        ) : type === "error" ? (
-                            <CloseCircleOutlined style={{color: colorError}} />
+            <section>
+                <div className={classes.topContainer}>
+                    <div>
+                        {closable ? (
+                            <div className="flex flex-col items-center">
+                                <ExclamationMark size={48} className={`${classes.error} mb-2`} />
+                                <Typography.Text className={classes.subText}>
+                                    Oops, something went wrong.
+                                </Typography.Text>
+                                <Typography.Text className={`${classes.subText} mx-5 text-center`}>
+                                    {isError && getErrorMessage(details)}{" "}
+                                    {isTimeout &&
+                                        'The app took too long to start. Press the "Retry" button if you want to try again.'}
+                                </Typography.Text>
+                            </div>
                         ) : (
-                            <LoadingOutlined style={{color: colorPrimary}} />
+                            <CustomAppCreationLoader isFinish={isSuccess} />
                         )}
-                        <Typography.Text
-                            type={
-                                type === "success"
-                                    ? "success"
-                                    : type === "error"
-                                      ? "danger"
-                                      : "secondary"
-                            }
-                            strong={Object.keys(messages)[ix] === "success"}
-                        >
-                            {message}
-                            {errorMessage && (
-                                <>
-                                    <br />
-                                    {errorMessage}
-                                </>
-                            )}
-                        </Typography.Text>
                     </div>
-                ))}
-            </div>
+                </div>
+
+                <div className={classes.bottomContainer}>
+                    <Typography.Text className={classes.headerText}>
+                        Creating your new app
+                    </Typography.Text>
+                    {Object.values(messages).map(({type, message}) => (
+                        <div className={classes.statusRow} key={message}>
+                            {type === "success" ? (
+                                <Check size={16} style={{color: "#36CFC9"}} />
+                            ) : type === "error" ? (
+                                <ExclamationMark size={16} style={{color: colorError}} />
+                            ) : (
+                                <CircleNotch size={16} className="animate-spin" />
+                            )}
+                            <Typography.Text
+                                color={
+                                    type === "success"
+                                        ? "#36CFC9"
+                                        : type === "error"
+                                          ? colorError
+                                          : colorPrimary
+                                }
+                            >
+                                {message}
+                            </Typography.Text>
+                        </div>
+                    ))}
+                </div>
+            </section>
         </Modal>
     )
 }

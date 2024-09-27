@@ -1,90 +1,198 @@
-import {Modal, Typography} from "antd"
-import React from "react"
+import {Typography, Input, Card, Radio, Space, Button, Flex} from "antd"
+import {ArrowLeft} from "@phosphor-icons/react"
+import {CloseCircleFilled} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
-import AppTemplateCard from "../AppTemplateCard"
-import {Template} from "@/lib/Types"
+import {JSSTheme, Template} from "@/lib/Types"
+import {isAppNameInputValid} from "@/lib/helpers/utils"
 
-const useStyles = createUseStyles({
+const {Text} = Typography
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
-        "& .ant-modal-close": {
-            top: 23,
+        display: "flex",
+        flexDirection: "column",
+        gap: 24,
+        padding: "20px 24px",
+    },
+    modalError: {
+        color: theme.colorError,
+        marginTop: 2,
+    },
+    headerText: {
+        "& .ant-typography": {
+            lineHeight: theme.lineHeightLG,
+            fontSize: theme.fontSizeHeading4,
+            fontWeight: theme.fontWeightStrong,
         },
     },
     title: {
-        margin: 0,
+        fontSize: theme.fontSizeLG,
+        fontWeight: theme.fontWeightMedium,
+        lineHeight: theme.lineHeightLG,
     },
-    body: {
-        width: "100%",
-        marginTop: 20,
-        display: "flex",
-        gap: 20,
+    label: {
+        fontWeight: theme.fontWeightMedium,
     },
-    row: {
-        marginTop: 20,
-    },
-})
+    card: {
+        width: 208,
+        height: 180,
+        cursor: "pointer",
+        transitionDuration: "0.3s",
+        "&:hover": {
+            boxShadow:
+                "0px 9px 28px 8px #0000000D, 0px 3px 6px -4px #0000001F, 0px 6px 16px 0px #00000014",
+        },
+        "& > .ant-card-head": {
+            minHeight: 0,
+            padding: theme.paddingSM,
 
-const {Title} = Typography
+            "& .ant-card-head-title": {
+                fontSize: theme.fontSize,
+                fontWeight: theme.fontWeightMedium,
+                lineHeight: theme.lineHeight,
+            },
+        },
+        "& > .ant-card-body": {
+            padding: theme.paddingSM,
+            "& > .ant-typography": {
+                color: theme.colorTextSecondary,
+            },
+        },
+    },
+    inputName: {
+        borderColor: `${theme.colorError} !important`,
+    },
+    clearInputIcon: {
+        color: theme.colorError,
+        position: "absolute",
+        top: 9,
+        right: 10,
+        cursor: "pointer",
+    },
+}))
 
-type Props = React.ComponentProps<typeof Modal> & {
+type Props = {
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    appLuanch: boolean
     newApp: string
+    setNewApp: React.Dispatch<React.SetStateAction<string>>
     templates: Template[]
     noTemplateMessage: string
     onCardClick: (template: Template) => void
+    appNameExist: boolean
+    handleCreateApp: () => void
+    templateId: string | undefined
 }
 
-const AddAppFromTemplatedModal: React.FC<Props> = ({
+const AddAppFromTemplatedModal = ({
+    setCurrent,
+    appLuanch,
     newApp,
+    setNewApp,
     templates,
     noTemplateMessage,
     onCardClick,
-    ...props
-}) => {
+    appNameExist,
+    handleCreateApp,
+    templateId,
+}: Props) => {
     const classes = useStyles()
 
-    return (
-        <Modal
-            data-cy="choose-template-modal"
-            rootClassName={classes.modal}
-            centered
-            footer={null}
-            title={
-                <Title level={4} className={classes.title}>
-                    Choose template
-                </Title>
-            }
-            width={templates.length <= 1 || !!noTemplateMessage ? 620 : 700}
-            {...props}
-        >
-            <div className={classes.body}>
-                {noTemplateMessage ? (
-                    <div>
-                        <AppTemplateCard
-                            title="No Templates Available"
-                            body={noTemplateMessage}
-                            noTemplate={true}
-                            onClick={() => {}}
-                        />
-                    </div>
-                ) : (
-                    templates.map((template) => (
-                        <div key={template.id} style={{flex: 1}}>
-                            <AppTemplateCard
-                                title={template.image.title}
-                                body={template.image.description}
-                                noTemplate={false}
-                                onClick={() => {
-                                    onCardClick(template)
-                                }}
+    const isError = appNameExist || (newApp.length > 0 && !isAppNameInputValid(newApp))
 
-                                // commented to remove the tag amd64 tag
-                                // tag={template.image.architecture}
-                            />
-                        </div>
-                    ))
+    const handleEnterKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") {
+            handleCreateApp()
+        }
+    }
+
+    return (
+        <section className={classes.modal}>
+            <Space className={classes.headerText}>
+                {appLuanch && (
+                    <Button
+                        icon={<ArrowLeft size={14} />}
+                        className="flex items-center justify-center"
+                        onClick={() => setCurrent(0)}
+                    />
+                )}
+
+                <Typography.Text>Start with a template</Typography.Text>
+            </Space>
+
+            <Text>Create a an application using our preset LLM configuration.</Text>
+
+            <div className="space-y-2">
+                <Text className={classes.label}>Provide the name of the application</Text>
+                <div className="relative">
+                    <Input
+                        placeholder="Enter a name"
+                        value={newApp}
+                        onChange={(e) => setNewApp(e.target.value)}
+                        onKeyDown={handleEnterKeyPress}
+                        className={`${isError && classes.inputName}`}
+                    />
+
+                    {isError && (
+                        <CloseCircleFilled
+                            size={16}
+                            className={classes.clearInputIcon}
+                            onClick={() => setNewApp("")}
+                        />
+                    )}
+                </div>
+
+                {appNameExist && (
+                    <Typography.Text className={classes.modalError}>
+                        App name already exists
+                    </Typography.Text>
+                )}
+                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
+                    <Typography.Text
+                        className={classes.modalError}
+                        data-cy="enter-app-name-modal-text-warning"
+                    >
+                        App name must contain only letters, numbers, underscore, or dash without any
+                        spaces.
+                    </Typography.Text>
                 )}
             </div>
-        </Modal>
+
+            <div className="space-y-2">
+                <Text className={classes.label}>Choose your template</Text>
+                <Flex gap={16}>
+                    {noTemplateMessage ? (
+                        <Card title="No Templates Available" className={classes.card}>
+                            <Text>{noTemplateMessage}</Text>
+                        </Card>
+                    ) : (
+                        templates.map((temp) => (
+                            <Card
+                                key={temp.id}
+                                title={temp.image.title}
+                                extra={<Radio checked={temp.id?.includes(templateId as string)} />}
+                                className={classes.card}
+                                onClick={() => {
+                                    onCardClick(temp)
+                                }}
+                            >
+                                <Text>{temp.image.description}</Text>
+                            </Card>
+                        ))
+                    )}
+                </Flex>
+            </div>
+
+            <div className="flex justify-end">
+                <Button
+                    type="primary"
+                    disabled={!newApp || isError || !templateId}
+                    onClick={handleCreateApp}
+                >
+                    Create new app
+                </Button>
+            </div>
+        </section>
     )
 }
 
