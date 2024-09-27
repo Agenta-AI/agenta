@@ -1,4 +1,4 @@
-import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import {HumanEvaluationListTableDataType} from "@/lib/Types"
 import {
     Evaluation,
     GenericObject,
@@ -15,6 +15,7 @@ import {capitalize, round} from "lodash"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 import {formatCurrency, formatLatency} from "./formatters"
+import {isDemo} from "./utils"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -351,4 +352,73 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
 
 export const removeCorrectAnswerPrefix = (str: string) => {
     return str.replace(/^correctAnswer_/, "")
+}
+
+export const mapTestcaseAndEvalValues = (
+    settingsValues: Record<string, any>,
+    selectedTestcase: Record<string, any>,
+) => {
+    let testcaseObj: Record<string, any> = {}
+    let evalMapObj: Record<string, any> = {}
+
+    Object.entries(settingsValues).forEach(([key, value]) => {
+        if (typeof value === "string" && value.startsWith("testcase.")) {
+            testcaseObj[key] = selectedTestcase[value.split(".")[1]]
+        } else {
+            evalMapObj[key] = value
+        }
+    })
+
+    return {testcaseObj, evalMapObj}
+}
+
+export const transformTraceKeysInSettings = (
+    settingsValues: Record<string, any>,
+): Record<string, any> => {
+    return Object.keys(settingsValues).reduce(
+        (acc, curr) => {
+            if (
+                !acc[curr] &&
+                typeof settingsValues[curr] === "string" &&
+                settingsValues[curr].startsWith("trace.")
+            ) {
+                acc[curr] = settingsValues[curr].replace("trace.", "")
+            } else {
+                acc[curr] = settingsValues[curr]
+            }
+
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
+
+export const getEvaluatorTags = () => {
+    const evaluatorTags = [
+        {
+            label: "Classifiers",
+            value: "classifiers",
+        },
+        {
+            label: "Similarity",
+            value: "similarity",
+        },
+        {
+            label: "AI / LLM",
+            value: "ai_llm",
+        },
+        {
+            label: "Functional",
+            value: "functional",
+        },
+    ]
+
+    if (isDemo()) {
+        evaluatorTags.unshift({
+            label: "RAG",
+            value: "rag",
+        })
+    }
+
+    return evaluatorTags
 }

@@ -356,6 +356,8 @@ export interface Evaluator {
     direct_use?: boolean
     description: string
     oss?: boolean
+    requires_llm_api_keys?: boolean
+    tags: string[]
 }
 
 export interface EvaluatorConfig {
@@ -364,6 +366,9 @@ export interface EvaluatorConfig {
     name: string
     settings_values: Record<string, any>
     created_at: string
+    color?: string
+    updated_at: string
+    tags?: string[]
 }
 
 export type EvaluationError = {
@@ -621,4 +626,36 @@ export interface TraceSpanTreeNode {
     title: React.ReactElement
     key: string
     children?: TraceSpanTreeNode[]
+}
+
+interface VariantVotesData {
+    number_of_votes: number
+    percentage: number
+}
+export interface HumanEvaluationListTableDataType {
+    key: string
+    variants: string[]
+    testset: {
+        _id: string
+        name: string
+    }
+    evaluationType: string
+    status: EvaluationFlow
+    votesData: {
+        nb_of_rows: number
+        variants: string[]
+        flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        variants_votes_data: Record<string, VariantVotesData>
+    }
+    createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+    variantNames: string[]
 }

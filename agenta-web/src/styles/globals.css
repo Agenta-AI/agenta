@@ -82,3 +82,15 @@ body {
 .editable-card.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
     transition: none;
 }
+
+.ant-input-search-button {
+    height: 30px !important;
+    padding-top: 1px;
+}
+
+/* It aligns the settings icon in the table column  */
+.ant-table-cell-fix-right-first svg {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto;
+}
