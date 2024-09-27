@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+from enum import Enum
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
@@ -73,6 +74,7 @@ from agenta_backend.models.db_models import (
 
 from agenta_backend.models.shared_models import (
     Result,
+    AppType,
     ConfigDB,
     TemplateType,
     CorrectAnswer,
@@ -617,11 +619,33 @@ async def create_deployment(
             raise Exception(f"Error while creating deployment: {e}")
 
 
+async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
+    """Get the application type from the specified template.
+
+    Args:
+        template_id (Optional[str]): The ID of the template
+
+    Returns:
+        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
+    """
+
+    if template_id is None:
+        return AppType.CUSTOM
+
+    template_db = await get_template(template_id=template_id)
+    if "Single Prompt" in template_db.title:
+        return AppType.PROMPT_TEMPLATE
+    elif "Chat Application" in template_db.title:
+        return AppType.CHAT_TEMPLATE
+    return AppType.CUSTOM
+
+
 async def create_app_and_envs(
     app_name: str,
     user_uid: str,
     organization_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    template_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -631,6 +655,7 @@ async def create_app_and_envs(
         user_uid (str): The UID of the user that the app belongs to.
         organization_id (str): The ID of the organization that the app belongs to.
         workspace_id (str): The ID of the workspace that the app belongs to.
+        template_id (str): The ID of the template
 
     Returns:
         AppDB: The created app.
@@ -649,8 +674,9 @@ async def create_app_and_envs(
     if app is not None:
         raise ValueError("App with the same name already exists")
 
+    app_type = await get_app_type_from_template_by_id(template_id)
     async with db_engine.get_session() as session:
-        app = AppDB(app_name=app_name, user_id=user.id)
+        app = AppDB(app_name=app_name, user_id=user.id, app_type=app_type)
 
         if isCloudEE():
             # assert that if organization_id is provided, workspace_id is also provided, and vice versa
