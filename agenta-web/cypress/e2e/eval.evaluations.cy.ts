@@ -12,8 +12,8 @@ describe("Evaluations CRUD Operations Test", function () {
 
     context("Executing Evaluations CRUD operations", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations/results`)
-            cy.location("pathname").should("include", "/evaluations/results")
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.location("pathname").should("include", "/evaluations")
         })
 
         it("Should successfully create an Evaluation", () => {
@@ -29,15 +29,17 @@ describe("Evaluations CRUD Operations Test", function () {
         })
 
         it("Should verify the successful creation and completion of the evaluation", () => {
-            cy.get('.ag-row[row-index="0"]').should("exist")
-            cy.get('.ag-cell[col-id="status"]').should("contain.text", "Completed")
+            cy.get(".ant-table-row").eq(0).should("exist")
+            cy.get('[data-cy="evaluation-status-cell"]').should("contain.text", "Completed")
         })
 
         it("Should select evaluation and successfully delete it", () => {
-            cy.get(".ag-root-wrapper").should("exist")
-            cy.get("div.ag-selection-checkbox input").eq(0).check()
-            cy.get(":nth-child(1) > .ant-btn > .ant-btn-icon > .anticon > svg").click()
-            cy.get(".ant-modal-confirm-btns > :nth-child(2) > span").click()
+            cy.get(".ant-checkbox-wrapper").should("exist")
+            cy.get(".ant-checkbox-input").eq(0).check()
+            cy.get('[data-cy="delete-evaluation-button"]').click()
+
+            cy.get(".ant-modal-content").should("exist")
+            cy.get(".ant-modal-footer > .ant-btn-primary").click()
         })
     })
 
@@ -56,35 +58,32 @@ describe("Evaluations CRUD Operations Test", function () {
         })
 
         it("Should successfully create an Evaluator", () => {
-            cy.visit(`/apps/${app_id}/evaluations/new-evaluator`)
-            cy.location("pathname").should("include", "/evaluations/new-evaluator")
-            cy.get('[data-cy="evaluator-card"]').should("exist")
-            cy.get(".ant-space > :nth-child(2) > .ant-btn").click()
-            cy.get('[data-cy="new-evaluator-modal"]').should("exist")
-            cy.get('[data-cy^="select-new-evaluator"]').eq(0).click()
-            cy.get('[data-cy="configure-new-evaluator-modal"]').should("exist")
-            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName, {
-                force: true,
-            })
+            cy.visit(`/apps/${app_id}/evaluations?configureEvaluatorModal=open`)
+            cy.url().should("include", "/evaluations?configureEvaluatorModal=open")
+            cy.get(".ant-modal-content").should("exist")
+            cy.get('[data-cy="create-new-evaluator-button"]').click()
+            cy.get('[data-cy="new-evaluator-list"]').eq(2).click()
+            cy.contains(/configure new evaluator/i)
+            cy.get('[data-cy="configure-new-evaluator-modal-input"]').type(newEvalName)
+
             cy.get('[data-cy="new-evaluator-advance-settings"]').click()
-            cy.get('[data-cy="new-evaluator-column-name"]').clear()
-            cy.get('[data-cy="new-evaluator-column-name"]').type("answer")
+            cy.get('[data-cy="new-evaluator-advance-settings-input"]').clear()
+            cy.get('[data-cy="new-evaluator-advance-settings-input"]').type("answer")
             cy.get('[data-cy="configure-new-evaluator-modal-save-btn"]').click()
-            cy.get('[data-cy="evaluator-card"]').should("have.length", 2)
-            cy.wait(1000)
+            cy.get('[data-cy="evaluator-list"]').should("have.length.gt", 2)
         })
 
         it("Should successfully create an Evaluation", () => {
-            cy.visit(`/apps/${app_id}/evaluations/results`)
-            cy.location("pathname").should("include", "/evaluations/results")
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.location("pathname").should("include", "/evaluations")
             cy.createNewEvaluation(newEvalName)
         })
 
         it("Should verify the successful creation and completion of the evaluation", () => {
-            cy.visit(`/apps/${app_id}/evaluations/results`)
-            cy.location("pathname").should("include", "/evaluations/results")
-            cy.get('.ag-row[row-index="0"]').should("exist")
-            cy.get('.ag-cell[col-id="status"]').should("contain.text", "Completed")
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.location("pathname").should("include", "/evaluations")
+            cy.get(".ant-table-row").eq(0).should("exist")
+            cy.get('[data-cy="evaluation-status-cell"]').should("contain.text", "Completed")
         })
     })
 

@@ -15,7 +15,10 @@ import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
 
-const inter = Inter({subsets: ["latin"]})
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-inter",
+})
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {
@@ -48,7 +51,7 @@ export default function App({Component, pageProps}: AppProps) {
                 <title>Agenta: The LLMOps platform.</title>
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
-            <main className={inter.className}>
+            <main className={`${inter.variable} font-sans`}>
                 <PostHogProvider client={posthog}>
                     <ThemeContextProvider>
                         <ProfileContextProvider>

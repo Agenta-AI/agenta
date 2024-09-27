@@ -1,6 +1,10 @@
 import json
-from typing import List, Dict, Any, Tuple, Union
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Union, Tuple
+
+from agenta_backend.services import db_manager
+from agenta_backend.models.api.evaluation_model import LMProvidersEnum
+from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
 
 def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
@@ -76,3 +80,65 @@ def convert_to_utc_datetime(dt: Union[datetime, str, None]) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def format_llm_provider_keys(
+    llm_provider_keys: Dict[LMProvidersEnum, str]
+) -> Dict[str, str]:
+    """Formats a dictionary of LLM provider keys into a dictionary of strings.
+
+    Args:
+        llm_provider_keys (Dict[LMProvidersEnum, str]): LLM provider keys
+
+    Returns:
+        Dict[str, str]: formatted llm provided keys
+
+    Example:
+        Input: {<LMProvidersEnum.mistralai: 'MISTRAL_API_KEY'>: '...', ...}
+        Output:  {'MISTRAL_API_KEY': '...', ...}
+    """
+
+    llm_provider_keys = {key.value: value for key, value in llm_provider_keys.items()}
+    return llm_provider_keys
+
+
+async def ensure_required_llm_keys_exist(
+    evaluator_configs: List[str], llm_provider_keys: Dict[str, str]
+) -> Tuple[bool, None]:
+    """
+    Validates if necessary LLM API keys are present when required evaluators are used.
+
+    Args:
+        evaluator_configs (List[str]): List of evaluator configurations to check.
+        llm_provider_keys (Dict[str, str]): Dictionary of LLM provider keys (e.g., {"OPENAI_API_KEY": "your-key"}).
+
+    Returns:
+        Tuple[bool, None]: Returns (True, None) if validation passes.
+
+    Raises:
+        ValueError: If an evaluator requiring LLM keys is configured but no LLM API key is provided.
+
+    """
+
+    evaluators_requiring_llm_keys = [
+        evaluator["key"]
+        for evaluator in get_all_evaluators()
+        if evaluator.get("requires_llm_api_keys", False)
+        or (
+            evaluator.get("settings_template", {})
+            .get("requires_llm_api_keys", {})
+            .get("default", False)
+        )
+    ]
+    evaluators_found = (
+        await db_manager.check_if_evaluators_exist_in_list_of_evaluators_configs(
+            evaluator_configs, evaluators_requiring_llm_keys
+        )
+    )
+
+    if evaluators_found and "OPENAI_API_KEY" not in llm_provider_keys:
+        raise ValueError(
+            "OpenAI API key is required to run one or more of the specified evaluators."
+        )
+
+    return True, None

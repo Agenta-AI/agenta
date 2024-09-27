@@ -1,7 +1,9 @@
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Union
+
+from pydantic import BaseModel, Field, model_validator
+
 from agenta_backend.models.api.api_models import Result
 
 
@@ -12,6 +14,8 @@ class Evaluator(BaseModel):
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False
+    requires_llm_api_keys: Optional[bool] = False
+    tags: List[str]
 
 
 class EvaluatorConfig(BaseModel):
@@ -78,6 +82,25 @@ class Evaluation(BaseModel):
     average_latency: Optional[Result] = None
     created_at: datetime
     updated_at: datetime
+
+
+class EvaluatorInputInterface(BaseModel):
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    settings: Optional[Dict[str, Any]] = None
+    credentials: Optional[Dict[str, Any]] = None
+
+
+class EvaluatorOutputInterface(BaseModel):
+    outputs: Dict[str, Any]
+
+
+class EvaluatorMappingInputInterface(BaseModel):
+    inputs: Dict[str, Any]
+    mapping: Dict[str, Any]
+
+
+class EvaluatorMappingOutputInterface(BaseModel):
+    outputs: Dict[str, Any]
 
 
 class SimpleEvaluationOutput(BaseModel):
