@@ -226,14 +226,16 @@ def evaluate(
                 )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
 
-                result = evaluators_service.evaluate(
-                    evaluator_key=evaluator_config_db.evaluator_key,
-                    output=app_output.result.value,
-                    data_point=data_point,
-                    settings_values=evaluator_config_db.settings_values,
-                    app_params=app_variant_parameters,  # type: ignore
-                    inputs=data_point,
-                    lm_providers_keys=lm_providers_keys,
+                result = loop.run_until_complete(
+                    evaluators_service.evaluate(
+                        evaluator_key=evaluator_config_db.evaluator_key,
+                        output=app_output.result.value,
+                        data_point=data_point,
+                        settings_values=evaluator_config_db.settings_values,
+                        app_params=app_variant_parameters,  # type: ignore
+                        inputs=data_point,
+                        lm_providers_keys=lm_providers_keys,
+                    )
                 )
 
                 # Update evaluators aggregated data

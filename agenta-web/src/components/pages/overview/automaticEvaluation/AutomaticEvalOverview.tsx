@@ -9,28 +9,22 @@ import {
     fetchAllEvaluators,
     fetchEvaluationStatus,
 } from "@/services/evaluations/api"
-import {
-    EditOutlined,
-    InfoCircleOutlined,
-    MoreOutlined,
-    PlusOutlined,
-    SwapOutlined,
-} from "@ant-design/icons"
+import {EditOutlined, MoreOutlined, PlusOutlined, SwapOutlined} from "@ant-design/icons"
 import {Database, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Popover, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import StatusRenderer from "./StatusRenderer"
-import NewEvaluationModal from "../../evaluations/evaluationResults/NewEvaluationModal"
+import StatusRenderer from "../../evaluations/cellRenderers/StatusRenderer"
+import NewEvaluationModal from "../../evaluations/NewEvaluation/NewEvaluationModal"
 import {useAtom} from "jotai"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
-import NewEvaluatorModal from "../../evaluations/evaluators/NewEvaluatorModal"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
 
 const {Title} = Typography
 
@@ -250,26 +244,7 @@ const AutomaticEvalOverview = () => {
                             )
 
                             return result.result.error ? (
-                                <Popover
-                                    key={index}
-                                    placement="bottom"
-                                    trigger={"hover"}
-                                    arrow={false}
-                                    content={
-                                        <div className="w-[256px]">
-                                            {result.result.error?.stacktrace}
-                                        </div>
-                                    }
-                                    title={result.result.error?.message}
-                                >
-                                    <Button
-                                        onClick={(e) => e.stopPropagation()}
-                                        icon={<InfoCircleOutlined />}
-                                        type="link"
-                                    >
-                                        Read more
-                                    </Button>
-                                </Popover>
+                                <EvaluationErrorPopover key={index} result={result.result} />
                             ) : (
                                 <Popover
                                     key={index}
@@ -430,7 +405,7 @@ const AutomaticEvalOverview = () => {
             <div className="flex items-center justify-between">
                 <Space>
                     <Title>Automatic Evaluations</Title>
-                    <Button size="small" href={`/apps/${appId}/evaluations/results`}>
+                    <Button size="small" href={`/apps/${appId}/evaluations`}>
                         View all
                     </Button>
                 </Space>
@@ -490,19 +465,6 @@ const AutomaticEvalOverview = () => {
                     setNewEvalModalOpen(false)
                     fetchEvaluations()
                 }}
-            />
-
-            <NewEvaluatorModal
-                open={false}
-                onSuccess={() => {
-                    setIsEditEvalConfigOpen(false)
-                    fetchEvaluations()
-                }}
-                newEvalModalConfigOpen={isEditEvalConfigOpen}
-                setNewEvalModalConfigOpen={setIsEditEvalConfigOpen}
-                setNewEvalModalOpen={() => {}}
-                editMode={true}
-                initialValues={selectedConfigEdit}
             />
 
             {selectedEvalRecord && (
