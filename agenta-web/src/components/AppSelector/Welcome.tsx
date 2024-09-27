@@ -10,6 +10,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: 392,
         height: 268,
         display: "flex",
+        cursor: "pointer",
         flexDirection: "column",
         justifyContent: "space-between",
         transition: "all 0.025s ease-in",
@@ -30,6 +31,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "& > .ant-card-actions": {
             padding: "0 12px",
+        },
+        "&:hover": {
+            boxShadow: theme.boxShadow,
         },
     },
     button: {
@@ -112,6 +116,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <Card
                     title="Build complex LLM apps"
                     className={classes.card}
+                    onClick={onWriteOwnApp}
                     actions={[
                         <Button
                             type="primary"
@@ -120,7 +125,6 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             iconPosition="end"
                             icon={<ArrowRight size={18} />}
                             size="large"
-                            onClick={onWriteOwnApp}
                         >
                             Setup your own app
                         </Button>,
