@@ -39,7 +39,26 @@ class UserDB(Base):
     )
 
 
-# TODO: Rename ImageDB to DockerImageDB ?
+class ProjectDB(Base):
+    __tablename__ = "projects"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    project_name = Column(String, nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class ImageDB(Base):
     __tablename__ = "docker_images"
 
