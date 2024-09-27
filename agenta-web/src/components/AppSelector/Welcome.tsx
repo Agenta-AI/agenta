@@ -82,16 +82,16 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <Card
                     title="Quick start with a template"
                     className={classes.card}
+                    data-cy="create-from-template__no-app"
                     actions={[
                         <Button
-                            data-cy="create-from-template__no-app"
+                            onClick={onCreateFromTemplate}
                             type="primary"
                             key="template"
                             className={classes.button}
                             iconPosition="end"
                             icon={<ArrowRight size={18} />}
                             size="large"
-                            onClick={onCreateFromTemplate}
                         >
                             Start with a template
                         </Button>,
