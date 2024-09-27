@@ -24,7 +24,11 @@ Cypress.Commands.add("createVariant", () => {
             cy.get('[data-cy="create-new-app-button"]').click()
             cy.get('[data-cy="create-from-template"]').click()
         } else {
-            cy.get('button.ant-btn[data-cy="create-from-template__no-app"]').click()
+            cy.get('[data-cy="create-from-template__no-app"]').within(() => {
+                cy.get("ul.ant-card-actions").within(() => {
+                    cy.get("button.ant-btn").click()
+                })
+            })
         }
     })
 
