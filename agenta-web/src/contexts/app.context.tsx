@@ -7,6 +7,7 @@ import useSWR from "swr"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {HookAPI} from "antd/es/modal/useModal"
 import {useLocalStorage} from "usehooks-ts"
+import {useProfileData} from "./profile.context"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -31,6 +32,7 @@ const initialValues: AppContextType = {
 
 const useApps = () => {
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {user} = useProfileData()
 
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
@@ -40,11 +42,13 @@ const useApps = () => {
 
     const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
-        `${getAgentaApiUrl()}/api/apps/` +
-            (isDemo()
-                ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
-                : ""),
-        isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher,
+        !!user
+            ? `${getAgentaApiUrl()}/api/apps/` +
+                  (isDemo()
+                      ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
+                      : "")
+            : null,
+        !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
         {
             shouldRetryOnError: false,
         },
