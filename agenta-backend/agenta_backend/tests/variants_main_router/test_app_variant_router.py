@@ -1,5 +1,6 @@
 import os
 import httpx
+import random
 import pytest
 import logging
 from bson import ObjectId
@@ -9,6 +10,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
+    ProjectDB,
     AppDB,
     DeploymentDB,
     VariantBaseDB,
@@ -113,22 +115,22 @@ async def test_create_app_variant(get_first_user_object):
         )
         app = result.scalars().first()
 
+        project_result = await session.execute(
+            select(ProjectDB).filter_by(is_default=True)
+        )
+        project = project_result.scalars().first()
+
         db_image = ImageDB(
             docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             tags="agentaai/templates_v2:local_test_prompt",
-            user_id=user.id,
+            project_id=project.id,
         )
         session.add(db_image)
         await session.commit()
 
-        db_config = ConfigDB(
-            config_name="default",
-            parameters={},
-        )
-
         db_deployment = DeploymentDB(
             app_id=app.id,
-            user_id=user.id,
+            project_id=project.id,
             container_name="container_a_test",
             container_id="w243e34red",
             uri="http://localhost/app/w243e34red",
@@ -140,7 +142,7 @@ async def test_create_app_variant(get_first_user_object):
         db_base = VariantBaseDB(
             base_name="app",
             app_id=app.id,
-            user_id=user.id,
+            project_id=project.id,
             image_id=db_image.id,
             deployment_id=db_deployment.id,
         )
@@ -151,7 +153,7 @@ async def test_create_app_variant(get_first_user_object):
             app_id=app.id,
             variant_name="app",
             image_id=db_image.id,
-            user_id=user.id,
+            project_id=project.id,
             config_parameters={},
             base_name="app",
             config_name="default",

@@ -24,7 +24,7 @@ describe("Evaluation Scenarios Test", function () {
 
         it("Should double click on the Evaluation and successfully navigate to the evalaution results page", () => {
             cy.get(".ant-table-row").eq(0).should("exist")
-            cy.get(".ant-table-row").click()
+            cy.get(".ant-table-row").click({force: true})
             cy.wait(1000)
             cy.contains(/Evaluation Results/i)
             cy.get('[data-cy="evalaution-scenarios-table"]').should("exist")
