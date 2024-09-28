@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
+    ProjectDB,
     AppDB,
     UserDB,
     DeploymentDB,
@@ -75,7 +76,12 @@ async def get_first_user_app(get_first_user_object):
     user = await get_first_user_object
 
     async with db_engine.get_session() as session:
-        app = AppDB(app_name="myapp", user_id=user.id)
+        project = ProjectDB(project_name="default", is_default=True)
+        session.add(project)
+        await session.commit()
+        await session.refresh(project)
+
+        app = AppDB(app_name="myapp", project_id=project.id)
         session.add(app)
         await session.commit()
         await session.refresh(app)
@@ -83,7 +89,7 @@ async def get_first_user_app(get_first_user_object):
         db_image = ImageDB(
             docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             tags="agentaai/templates_v2:local_test_prompt",
-            user_id=user.id,
+            project_id=project.id,
         )
         session.add(db_image)
         await session.commit()
@@ -96,7 +102,7 @@ async def get_first_user_app(get_first_user_object):
 
         db_deployment = DeploymentDB(
             app_id=app.id,
-            user_id=user.id,
+            project_id=project.id,
             container_name="container_a_test",
             container_id="w243e34red",
             uri="http://localhost/app/w243e34red",
@@ -107,7 +113,7 @@ async def get_first_user_app(get_first_user_object):
         db_base = VariantBaseDB(
             base_name="app",
             image_id=db_image.id,
-            user_id=user.id,
+            project_id=project.id,
             app_id=app.id,
             deployment_id=db_deployment.id,
         )
@@ -119,7 +125,7 @@ async def get_first_user_app(get_first_user_object):
             app_id=app.id,
             variant_name="app",
             image_id=db_image.id,
-            user_id=user.id,
+            project_id=project.id,
             config_parameters={},
             base_name="app",
             config_name="default",
