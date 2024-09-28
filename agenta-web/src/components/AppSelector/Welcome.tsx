@@ -1,125 +1,50 @@
 import React from "react"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import {CheckCircleFilled} from "@ant-design/icons"
-import {StyleProps} from "@/lib/Types"
+import {JSSTheme} from "@/lib/Types"
 import Image from "next/image"
+import {Button, Card, Typography} from "antd"
+import {ArrowRight} from "@phosphor-icons/react"
 
-const useStyles = createUseStyles({
-    head: {
-        marginBottom: 30,
-        "& h2": {
-            fontSize: 18,
-            margin: "20px 0",
-            textAlign: "center",
-        },
-    },
-    heading: {
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    card: {
+        width: 392,
+        height: 268,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "1rem",
-        "& > h1": {
-            margin: 0,
-            fontSize: 36,
-        },
-
-        "& > img": {
-            animation: "$wave 1.8s ease-in-out infinite",
-            height: 44,
-        },
-    },
-    "@keyframes wave": {
-        "0%": {
-            transform: "rotate(0deg)",
-        },
-        "10%": {
-            transform: "rotate(-10deg)",
-        },
-        "20%": {
-            transform: "rotate(12deg)",
-        },
-        "30%": {
-            transform: "rotate(-10deg)",
-        },
-        "40%": {
-            transform: "rotate(9deg)",
-        },
-        "50%": {
-            transform: "rotate(0deg)",
-        },
-        "100%": {
-            transform: "rotate(0deg)",
-        },
-    },
-    description: {
-        lineHeight: 1.7,
-    },
-    wrapper: {
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 20,
-        maxWidth: "1250px",
-        margin: "0 auto",
-        width: "100%",
-    },
-    container: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        justifyContent: "space-between",
         cursor: "pointer",
         flexDirection: "column",
-        border: `1px solid ${themeMode === "dark" ? "rgb(13, 17, 23)" : "#91caff"}`,
-        padding: "15px",
-        borderRadius: 10,
-        flex: 1,
-        backgroundColor: themeMode === "dark" ? "#000" : "#fff",
-        transition: "all 0.3s ease-out",
-        "&:hover": {
-            backgroundColor: themeMode === "dark" ? "" : "#f3faff",
-            boxShadow: themeMode === "dark" ? "0 0 10px rgba(225, 225, 225, 0.3)" : "",
+        justifyContent: "space-between",
+        transition: "all 0.025s ease-in",
+        boxShadow:
+            "0px 2px 4px 0px rgba(0, 0, 0, 0.02), 0px 1px 6px -1px rgba(0, 0, 0, 0.02), 0px 1px 2px 0px rgba(0, 0, 0, 0.03)",
+        "& > .ant-card-head": {
+            minHeight: 0,
+            padding: theme.paddingSM,
+
+            "& .ant-card-head-title": {
+                fontSize: theme.fontSizeLG,
+                fontWeight: theme.fontWeightMedium,
+            },
         },
-    }),
-    title: {
+        "& > .ant-card-body": {
+            padding: theme.paddingSM,
+            flex: 1,
+        },
+        "& > .ant-card-actions": {
+            padding: "0 12px",
+        },
+        "&:hover": {
+            boxShadow: theme.boxShadow,
+        },
+    },
+    button: {
+        width: "100%",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
-        gap: "15px",
-        "& h1": {
-            fontWeight: 600,
-            fontSize: 24,
+        "& > .ant-btn-icon": {
+            marginTop: 4,
         },
     },
-    tag: {
-        padding: "2px 6px",
-        fontWeight: "bold",
-    },
-    img: ({themeMode}: StyleProps) => ({
-        width: "100%",
-        height: "auto",
-        filter: themeMode === "dark" ? "invert(1)" : "none",
-    }),
-    steps: ({themeMode}: StyleProps) => ({
-        fontSize: 16,
-        margin: "20px 0 0",
-        display: "flex",
-        flexDirection: "column",
-        listStyleType: "none",
-        padding: 20,
-        "& li": {
-            marginBottom: 10,
-        },
-        "& svg": {
-            color: themeMode === "dark" ? "#fff" : "#0958d9",
-            marginRight: 10,
-        },
-        "& span": {
-            fontWeight: 600,
-        },
-    }),
-    text: {
-        marginLeft: 25,
-    },
-})
+}))
 
 interface Props {
     onWriteOwnApp: () => void
@@ -127,100 +52,97 @@ interface Props {
 }
 
 const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles()
+
+    const templatePoints = [
+        "Compare prompts and models",
+        "Create testsets",
+        "Evaluate outputs",
+        "Deploy in one click",
+    ]
+    const complexLLM = [
+        "Use Langchain, Llama Index, or any framework",
+        "Use OpenAI, Cohere, or self-hosted open-source models",
+        "Continue in the UI: Everything in the left",
+        "Streamline collaboration between devs and domain experts!",
+    ]
 
     return (
-        <>
-            <section>
-                <section className={classes.head}>
-                    <div className={classes.heading}>
-                        <h1>Welcome to Agenta</h1>
-                        <Image src="/assets/wave.png" alt="wave" width={44} height={44} />
-                    </div>
-                    <h2>The developer-first open source LLMOps platform.</h2>
-                </section>
-                <section className={classes.wrapper}>
-                    <div
-                        className={classes.container}
-                        onClick={onCreateFromTemplate}
-                        data-cy="create-from-template__no-app"
-                    >
-                        <div className={classes.title}>
-                            <h1>Quickstart From a Template</h1>
-                        </div>
+        <section className="h-[75vh] flex flex-col justify-center gap-10">
+            <div className="text-center">
+                <Image
+                    src="/assets/light-complete-transparent-CROPPED.png"
+                    alt="agenta-ai"
+                    width={114}
+                    height={40}
+                    className="block mx-auto"
+                />
+                <Typography.Title level={3}>
+                    Start building and testing your LLM <br /> applications with Agenta AI.{" "}
+                </Typography.Title>
+            </div>
 
-                        <Image
-                            src="/assets/simple-img.png"
-                            alt="Simple start Image"
-                            className={classes.img}
-                            sizes="100vw"
-                            width={500}
-                            height={300}
-                            priority
-                        />
-
-                        <ul className={classes.steps}>
-                            <li>
-                                <CheckCircleFilled /> <span>Start from a template</span>
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> <span>Compare</span> prompts and models
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Create testsets
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> <span>Evaluate</span> outputs
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> <span>Deploy</span> in one click
-                            </li>
+            <div className="flex items-center justify-center gap-4">
+                <Card
+                    title="Quick start with a template"
+                    className={classes.card}
+                    onClick={onCreateFromTemplate}
+                    data-cy="create-from-template__no-app"
+                    actions={[
+                        <Button
+                            type="primary"
+                            key="template"
+                            className={classes.button}
+                            iconPosition="end"
+                            icon={<ArrowRight size={18} />}
+                            size="large"
+                        >
+                            Start with a template
+                        </Button>,
+                    ]}
+                >
+                    <div className="gap-2">
+                        <Typography.Text>
+                            Setup an app using our preset LLM config and explore Agenta AI
+                        </Typography.Text>
+                        <ul className="-ml-5">
+                            {templatePoints.map((item) => (
+                                <li key={item}>{item}</li>
+                            ))}
                         </ul>
                     </div>
-                    <div className={classes.container} onClick={onWriteOwnApp}>
-                        <div>
-                            <div className={classes.title}>
-                                <h1>Build Complex LLM apps</h1>
-                            </div>
+                </Card>
 
-                            <Image
-                                src="/assets/complex-img.png"
-                                alt="Complex build Image"
-                                className={classes.img}
-                                sizes="100vw"
-                                width={500}
-                                height={300}
-                                priority
-                            />
-                        </div>
-
-                        <ul className={classes.steps}>
-                            <li>
-                                <CheckCircleFilled /> <span>Start from code</span>
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Use <span>Langchain</span>,{" "}
-                                <span>Llama Index</span>, or any framework
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Use <span>OpenAI</span>, <span>Cohere</span>,
-                                or self-hosted open-source models
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> <span>Continue in the UI: </span>Everything in
-                                the left
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Streamline <span>collaboration</span> between
-                                devs and domain experts!
-                            </li>
+                <Card
+                    title="Build complex LLM apps"
+                    className={classes.card}
+                    onClick={onWriteOwnApp}
+                    actions={[
+                        <Button
+                            type="primary"
+                            key="ownApp"
+                            className={classes.button}
+                            iconPosition="end"
+                            icon={<ArrowRight size={18} />}
+                            size="large"
+                        >
+                            Setup your own app
+                        </Button>,
+                    ]}
+                >
+                    <div className="gap-2">
+                        <Typography.Text>
+                            Create your own complex application using any framework.
+                        </Typography.Text>
+                        <ul className="-ml-5">
+                            {complexLLM.map((item) => (
+                                <li key={item}>{item}</li>
+                            ))}
                         </ul>
                     </div>
-                </section>
-            </section>
-        </>
+                </Card>
+            </div>
+        </section>
     )
 }
-
 export default Welcome

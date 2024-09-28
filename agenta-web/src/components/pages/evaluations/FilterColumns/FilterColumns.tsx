@@ -1,7 +1,7 @@
 import {JSSTheme} from "@/lib/Types"
 import {CheckOutlined, DownOutlined} from "@ant-design/icons"
 import {Button, Dropdown, Space} from "antd"
-import {ItemType} from "antd/es/menu/hooks/useItems"
+import {ItemType} from "antd/es/menu/interface"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {ColDef} from "ag-grid-community"
