@@ -117,7 +117,7 @@ const AppSelector: React.FC = () => {
 
     const showWriteAppModal = () => {
         setIsCreateAppModalOpen(true)
-        setCurrent(appLuanch ? 2 : 0)
+        setCurrent(appLuanch ? 2 : 1)
     }
 
     useEffect(() => {
