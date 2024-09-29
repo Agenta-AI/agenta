@@ -107,7 +107,6 @@ export const useSidebarConfig = () => {
             isCloudFeature: true && isOss,
             link: `/apps/${appId || recentlyVisitedAppId}/observability`,
             cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
-            tag: "beta",
         },
         {
             key: "invite-teammate-link",
