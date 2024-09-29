@@ -89,7 +89,7 @@ const AppSelector: React.FC = () => {
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
 
-    const appLuanch = Array.isArray(apps) && apps.length > 0
+    const hasApps = Array.isArray(apps) && apps.length > 0
 
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
@@ -109,12 +109,12 @@ const AppSelector: React.FC = () => {
         setTemplateId(undefined)
         setNewApp("")
         setIsCreateAppModalOpen(true)
-        setCurrent(appLuanch ? 1 : 0)
+        setCurrent(hasApps ? 1 : 0)
     }
 
     const showWriteAppModal = () => {
         setIsCreateAppModalOpen(true)
-        setCurrent(appLuanch ? 2 : 1)
+        setCurrent(hasApps ? 2 : 1)
     }
 
     useEffect(() => {
@@ -220,43 +220,31 @@ const AppSelector: React.FC = () => {
         }
     }
 
-    const filteredApps = useMemo(() => {
-        let filtered = apps
-
-        if (searchTerm) {
-            filtered = filtered.filter((item) =>
-                item.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-
-        return filtered
-    }, [searchTerm])
-
     const steps = [
         {
             content: (
                 <AddAppFromTemplatedModal
-                    setCurrent={setCurrent}
-                    appLuanch={appLuanch}
+                    hasApps={hasApps}
                     newApp={newApp}
-                    setNewApp={setNewApp}
                     templates={templates}
                     noTemplateMessage={templateMessage}
                     templateId={templateId}
+                    appNameExist={appNameExist}
+                    setCurrent={setCurrent}
+                    setNewApp={setNewApp}
                     onCardClick={(template) => {
                         setTemplateId(template.id)
                     }}
-                    appNameExist={appNameExist}
                     handleCreateApp={handleCreateApp}
                 />
             ),
         },
         {
-            content: <WriteOwnAppModal setCurrent={setCurrent} appLuanch={appLuanch} />,
+            content: <WriteOwnAppModal setCurrent={setCurrent} hasApps={hasApps} />,
         },
     ]
 
-    if (appLuanch) {
+    if (hasApps) {
         steps.unshift({
             content: (
                 <section className={classes.appTemplate}>
@@ -326,11 +314,17 @@ const AppSelector: React.FC = () => {
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    {filteredApps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))}
+                                    {apps
+                                        .filter((item) =>
+                                            item.app_name
+                                                .toLowerCase()
+                                                .includes(searchTerm.toLowerCase()),
+                                        )
+                                        .map((app, index: number) => (
+                                            <div key={index}>
+                                                <AppCard app={app} />
+                                            </div>
+                                        ))}
                                 </>
                             )}
                         </div>

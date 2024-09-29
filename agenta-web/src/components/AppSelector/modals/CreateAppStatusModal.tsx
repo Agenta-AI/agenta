@@ -1,11 +1,13 @@
 import {GenericObject, JSSTheme} from "@/lib/Types"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import {Alert, Modal, Typography, theme} from "antd"
+import {Modal, Typography, theme} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
+
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     statusRow: {
@@ -42,12 +44,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: theme.fontSizeHeading4,
         fontWeight: theme.fontWeightStrong,
     },
-    text: {
-        display: "flex",
-        alignItems: "center",
-        color: theme.colorTextTertiary,
-        gap: 12,
-    },
     error: {
         color: theme.colorError,
     },
@@ -75,15 +71,15 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     const router = useRouter()
     const classes = useStyles()
     const {
-        token: {colorError, colorSuccess = "#36CFC9", colorPrimary},
+        token: {colorError, cyan5: colorSuccess},
     } = theme.useToken()
     const [messages, setMessages] = useState<{
         [status: string]: {
             type: "error" | "success" | "loading"
             message: string
+            errorMessage?: string
         }
     }>({})
-    const [isDelayed, setIsDelayed] = useState(false)
 
     const {appId, status, details} = statusData
     const isError = ["bad_request", "error"].includes(status)
@@ -93,7 +89,6 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
     const reset = () => {
         setMessages({})
-        setIsDelayed(false)
     }
 
     const onOk = (e: any) => {
@@ -143,6 +138,26 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
                     if (appId) router.push(`/apps/${appId}/playground`)
                     return obj
+                case "bad_request":
+                case "error":
+                    const lastStatus = Object.keys(prev).pop() ?? ""
+                    return {
+                        ...prev,
+                        [lastStatus]: {
+                            ...prev[lastStatus],
+                            type: "error",
+                            errorMessage: `Error: ${getErrorMessage(details)}`,
+                        },
+                    }
+                case "timeout":
+                    return {
+                        ...prev,
+                        starting_app: {
+                            ...prev.starting_app,
+                            type: "error",
+                            errorMessage: `Error: The app took too long to start. Press the "Retry" button if you want to try again.`,
+                        },
+                    }
                 case "cleanup":
                     return {
                         ...prev,
@@ -155,16 +170,6 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             return prev
         })
     }, [status])
-
-    useEffect(() => {
-        if (!props.open) reset()
-        else {
-            const timeout = setTimeout(() => {
-                setIsDelayed(true)
-            }, 20000)
-            return () => clearTimeout(timeout)
-        }
-    }, [props.open])
 
     return (
         <Modal
@@ -187,14 +192,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         {closable ? (
                             <div className="flex flex-col items-center">
                                 <ExclamationMark size={48} className={`${classes.error} mb-2`} />
-                                <Typography.Text className={classes.subText}>
-                                    Oops, something went wrong.
-                                </Typography.Text>
-                                <Typography.Text className={`${classes.subText} mx-5 text-center`}>
+                                <Text className={classes.subText}>Oops, something went wrong.</Text>
+                                <Text className={`${classes.subText} mx-6 text-center`}>
                                     {isError && getErrorMessage(details)}{" "}
                                     {isTimeout &&
                                         'The app took too long to start. Press the "Retry" button if you want to try again.'}
-                                </Typography.Text>
+                                </Text>
                             </div>
                         ) : (
                             <CustomAppCreationLoader isFinish={isSuccess} />
@@ -203,29 +206,19 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                 </div>
 
                 <div className={classes.bottomContainer}>
-                    <Typography.Text className={classes.headerText}>
-                        Creating your new app
-                    </Typography.Text>
+                    <Text className={classes.headerText}>Creating your new app</Text>
                     {Object.values(messages).map(({type, message}) => (
                         <div className={classes.statusRow} key={message}>
                             {type === "success" ? (
-                                <Check size={16} style={{color: "#36CFC9"}} />
+                                <Check size={16} style={{color: colorSuccess}} />
                             ) : type === "error" ? (
                                 <ExclamationMark size={16} style={{color: colorError}} />
                             ) : (
                                 <CircleNotch size={16} className="animate-spin" />
                             )}
-                            <Typography.Text
-                                color={
-                                    type === "success"
-                                        ? "#36CFC9"
-                                        : type === "error"
-                                          ? colorError
-                                          : colorPrimary
-                                }
-                            >
+                            <Text style={{color: type === "error" ? colorError : ""}}>
                                 {message}
-                            </Typography.Text>
+                            </Text>
                         </div>
                     ))}
                 </div>

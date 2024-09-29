@@ -46,10 +46,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    appLuanch: boolean
+    hasApps: boolean
 }
 
-const WriteOwnAppModal = ({setCurrent, appLuanch}: Props) => {
+const WriteOwnAppModal = ({setCurrent, hasApps}: Props) => {
     const classes = useStyles()
     const router = useRouter()
     const [isCopied, setIsCopied] = useState<number | null>(null)
@@ -94,7 +94,7 @@ const WriteOwnAppModal = ({setCurrent, appLuanch}: Props) => {
         <section className={classes.modal}>
             <div className="flex items-center justify-between">
                 <Space className={classes.headerText}>
-                    {appLuanch && (
+                    {hasApps && (
                         <Button
                             icon={<ArrowLeft size={14} />}
                             className="flex items-center justify-center"
