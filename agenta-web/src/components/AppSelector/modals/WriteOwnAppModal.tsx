@@ -13,7 +13,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         gap: 16,
-        padding: "20px 24px",
     },
     headerText: {
         "& .ant-typography": {

@@ -71,7 +71,7 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
                 title="Quick start with a template"
                 className={classes.card}
                 onClick={onCreateFromTemplate}
-                data-cy="create-from-template__no-app"
+                data-cy="create-from-template"
                 actions={[
                     <Button
                         type="primary"

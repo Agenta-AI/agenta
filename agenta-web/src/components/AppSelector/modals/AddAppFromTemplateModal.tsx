@@ -11,7 +11,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         gap: 24,
-        padding: "20px 24px",
     },
     modalError: {
         color: theme.colorError,
@@ -121,6 +120,7 @@ const AddAppFromTemplatedModal = ({
                 <Text className={classes.label}>Provide the name of the application</Text>
                 <Input
                     placeholder="Enter a name"
+                    data-cy="enter-app-name-input"
                     value={newApp}
                     onChange={(e) => setNewApp(e.target.value)}
                     onKeyDown={handleEnterKeyPress}
@@ -155,6 +155,7 @@ const AddAppFromTemplatedModal = ({
                         templates.map((temp) => (
                             <Card
                                 key={temp.id}
+                                data-cy="app-template-card"
                                 title={temp.image.title}
                                 extra={<Radio checked={temp.id?.includes(templateId as string)} />}
                                 className={classes.card}
@@ -173,6 +174,7 @@ const AddAppFromTemplatedModal = ({
                 <Button
                     type="primary"
                     disabled={!newApp || isError || !templateId}
+                    data-cy="create-app-from-template-button"
                     onClick={handleCreateApp}
                 >
                     Create new app
