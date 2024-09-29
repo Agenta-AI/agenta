@@ -1,6 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import {PlusOutlined} from "@ant-design/icons"
-import {Modal, ConfigProvider, theme, Button, notification, Typography} from "antd"
+import {Modal, ConfigProvider, theme, Button, notification, Typography, Input, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -81,6 +81,7 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
     const [current, setCurrent] = useState(0)
+    const [searchTerm, setSearchTerm] = useState("")
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
@@ -222,6 +223,18 @@ const AppSelector: React.FC = () => {
         }
     }
 
+    const filteredApps = useMemo(() => {
+        let filtered = apps
+
+        if (searchTerm) {
+            filtered = filtered.filter((item) =>
+                item.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+
+        return filtered
+    }, [searchTerm])
+
     const steps = [
         {
             content: (
@@ -304,10 +317,19 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
                     <div className="flex flex-col gap-6">
+                        <div>
+                            <Input.Search
+                                placeholder="Search"
+                                className="w-[400px]"
+                                allowClear
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <Divider />
+                        </div>
                         <div className={classes.cardsList}>
                             {Array.isArray(apps) && (
                                 <>
-                                    {apps.map((app, index: number) => (
+                                    {filteredApps.map((app, index: number) => (
                                         <div key={index}>
                                             <AppCard app={app} />
                                         </div>
