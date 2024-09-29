@@ -54,21 +54,21 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
     const classes = useStyles()
 
     const templatePoints = [
-        "Compare prompts and models",
-        "Create testsets",
-        "Evaluate outputs",
-        "Deploy in one click",
+        "Test and compare prompts and models",
+        "Evaluate outputs in the webUI",
+        "Deploy and version prompts",
+        "Track all LLM calls",
     ]
     const complexLLM = [
+        "Create a playground for RAG, chain-of-prompts or agents",
         "Use Langchain, Llama Index, or any framework",
-        "Use OpenAI, Cohere, or self-hosted open-source models",
-        "Continue in the UI: Everything in the left",
-        "Streamline collaboration between devs and domain experts!",
+        "Evaluate and publish configuration from the webUI",
+        "Collaborate with subject matter experts ",
     ]
     return (
         <section className="flex items-center gap-4">
             <Card
-                title="Quick start with a template"
+                title="Create your first prompt"
                 className={classes.card}
                 onClick={onCreateFromTemplate}
                 data-cy="create-from-template"
@@ -81,14 +81,12 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
                         icon={<ArrowRight size={18} />}
                         size="large"
                     >
-                        Start with a template
+                        Create a new prompt
                     </Button>,
                 ]}
             >
                 <div className="gap-2">
-                    <Typography.Text>
-                        Setup an app using our preset LLM config and explore Agenta AI
-                    </Typography.Text>
+                    <Typography.Text>Quickly create a prompt and:</Typography.Text>
                     <ul className="-ml-5">
                         {templatePoints.map((item) => (
                             <li key={item}>{item}</li>
@@ -98,7 +96,7 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
             </Card>
 
             <Card
-                title="Build complex LLM apps"
+                title="Build custom workflows"
                 className={classes.card}
                 onClick={onWriteOwnApp}
                 actions={[
@@ -110,7 +108,7 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
                         icon={<ArrowRight size={18} />}
                         size="large"
                     >
-                        Setup your own app
+                        Create your own app
                     </Button>,
                 ]}
             >

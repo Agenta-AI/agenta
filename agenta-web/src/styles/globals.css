@@ -95,6 +95,7 @@ body {
     margin: 0 auto;
 }
 
+/* Custom loading circle for app creation proccess  */
 .loading-circle {
     display: flex;
     justify-content: center;
@@ -102,7 +103,7 @@ body {
     width: 160px;
     height: 160px;
 }
-.segment {
+.loading-circle path {
     stroke-width: 2;
     animation: colorChange 1.6s infinite;
     transition:
@@ -111,16 +112,16 @@ body {
     transition-duration: 0.5s;
 }
 
-.segment:nth-child(1) {
+.loading-circle path:nth-child(1) {
     animation-delay: 0s;
 }
-.segment:nth-child(2) {
+.loading-circle path:nth-child(2) {
     animation-delay: 0.4s;
 }
-.segment:nth-child(3) {
+.loading-circle path:nth-child(3) {
     animation-delay: 0.8s;
 }
-.segment:nth-child(4) {
+.loading-circle path:nth-child(4) {
     animation-delay: 1.2s;
 }
 @keyframes colorChange {

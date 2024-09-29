@@ -15,7 +15,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             top: 17,
         },
     },
-
     image: {
         background: "linear-gradient(180deg, #1F2D43 0%, #3A547E 100%)",
         borderRadius: theme.borderRadiusLG,

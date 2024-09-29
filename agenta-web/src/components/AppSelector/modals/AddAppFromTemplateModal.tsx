@@ -67,7 +67,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    appLuanch: boolean
+    hasApps: boolean
     newApp: string
     setNewApp: React.Dispatch<React.SetStateAction<string>>
     templates: Template[]
@@ -80,7 +80,7 @@ type Props = {
 
 const AddAppFromTemplatedModal = ({
     setCurrent,
-    appLuanch,
+    hasApps,
     newApp,
     setNewApp,
     templates,
@@ -103,7 +103,7 @@ const AddAppFromTemplatedModal = ({
     return (
         <section className={classes.modal}>
             <Space className={classes.headerText}>
-                {appLuanch && (
+                {hasApps && (
                     <Button
                         icon={<ArrowLeft size={14} />}
                         className="flex items-center justify-center"
