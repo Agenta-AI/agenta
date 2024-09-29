@@ -42,10 +42,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: "24px",
     },
     modal: {
-        transitionDuration: "0.3s",
+        transition: "width 0.3s ease",
         "& .ant-modal-content": {
             overflow: "hidden",
-            padding: 0,
             borderRadius: 16,
             "& > .ant-modal-close": {
                 top: 16,
@@ -53,7 +52,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     mainContainer: {
-        padding: "20px 24px",
         gap: 16,
         display: "flex",
         flexDirection: "column",
@@ -101,7 +99,6 @@ const AppSelector: React.FC = () => {
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
-        setCurrent(0)
     }
 
     const showMaxAppError = () => {
