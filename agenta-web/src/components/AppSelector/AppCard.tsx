@@ -21,10 +21,22 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
+        boxShadow:
+            "0px 2px 4px 0px #00000005, 0px 1px 6px -1px #00000005, 0px 1px 2px 0px #00000008",
+        "@media (max-width: 1200px)": {
+            width: 280,
+        },
+        "@media (min-width: 1201px) and (max-width: 1700px)": {
+            width: 331,
+        },
+        "@media (min-width: 1701px)": {
+            width: 421,
+        },
         "& > .ant-card-head": {
             minHeight: 0,
-            padding: theme.paddingSM,
-
+            paddingInline: theme.paddingSM,
+            paddingTop: theme.paddingXS,
+            paddingBottom: theme.paddingXS,
             "& .ant-card-head-title": {
                 fontSize: theme.fontSizeLG,
                 fontWeight: theme.fontWeightMedium,

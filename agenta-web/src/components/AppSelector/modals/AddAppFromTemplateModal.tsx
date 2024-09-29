@@ -1,6 +1,5 @@
 import {Typography, Input, Card, Radio, Space, Button, Flex} from "antd"
 import {ArrowLeft} from "@phosphor-icons/react"
-import {CloseCircleFilled} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, Template} from "@/lib/Types"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
@@ -61,13 +60,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     inputName: {
         borderColor: `${theme.colorError} !important`,
-    },
-    clearInputIcon: {
-        color: theme.colorError,
-        position: "absolute",
-        top: 9,
-        right: 10,
-        cursor: "pointer",
+        "&  .ant-input-clear-icon": {
+            color: theme.colorError,
+        },
     },
 }))
 
@@ -124,23 +119,14 @@ const AddAppFromTemplatedModal = ({
 
             <div className="space-y-2">
                 <Text className={classes.label}>Provide the name of the application</Text>
-                <div className="relative">
-                    <Input
-                        placeholder="Enter a name"
-                        value={newApp}
-                        onChange={(e) => setNewApp(e.target.value)}
-                        onKeyDown={handleEnterKeyPress}
-                        className={`${isError && classes.inputName}`}
-                    />
-
-                    {isError && (
-                        <CloseCircleFilled
-                            size={16}
-                            className={classes.clearInputIcon}
-                            onClick={() => setNewApp("")}
-                        />
-                    )}
-                </div>
+                <Input
+                    placeholder="Enter a name"
+                    value={newApp}
+                    onChange={(e) => setNewApp(e.target.value)}
+                    onKeyDown={handleEnterKeyPress}
+                    className={`${isError && classes.inputName}`}
+                    allowClear
+                />
 
                 {appNameExist && (
                     <Typography.Text className={classes.modalError}>
