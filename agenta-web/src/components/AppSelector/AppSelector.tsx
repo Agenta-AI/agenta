@@ -51,7 +51,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
-    mainContainer: {
+    appTemplate: {
         gap: 16,
         display: "flex",
         flexDirection: "column",
@@ -259,7 +259,7 @@ const AppSelector: React.FC = () => {
     if (appLuanch) {
         steps.unshift({
             content: (
-                <section className={classes.mainContainer}>
+                <section className={classes.appTemplate}>
                     <Typography.Text className={classes.headerText}>Add new app</Typography.Text>
 
                     <AppTemplateCard
@@ -313,11 +313,11 @@ const AppSelector: React.FC = () => {
                         <ResultComponent status={"error"} title="Failed to load" />
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
-                    <div className="flex flex-col gap-6">
-                        <div>
+                    <div className="flex flex-col gap-2">
+                        <div className="-mx-6">
                             <Input.Search
                                 placeholder="Search"
-                                className="w-[400px]"
+                                className="w-[400px] mx-6"
                                 allowClear
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
