@@ -121,7 +121,7 @@ const WriteOwnAppModal = ({setCurrent, hasApps}: Props) => {
             </Text>
 
             {listOfCommands.map((item, ind) => (
-                <div className="grid gap-4">
+                <div className="grid gap-4" key={ind}>
                     {item.title.includes("API Key") ? (
                         <div className="space-y-2">
                             <Text className={classes.label}>
