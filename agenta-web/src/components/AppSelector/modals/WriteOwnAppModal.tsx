@@ -12,7 +12,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: 24,
     },
     headerText: {
         "& .ant-typography": {
@@ -96,7 +96,7 @@ const WriteOwnAppModal = ({setCurrent, hasApps}: Props) => {
                 <Space className={classes.headerText}>
                     {hasApps && (
                         <Button
-                            icon={<ArrowLeft size={14} />}
+                            icon={<ArrowLeft size={14} className="mt-0.5" />}
                             className="flex items-center justify-center"
                             onClick={() => setCurrent(0)}
                         />
@@ -115,31 +115,30 @@ const WriteOwnAppModal = ({setCurrent, hasApps}: Props) => {
             <Text>
                 Create your own complex application using any framework. To learn more about how to
                 write your own LLM app here,{" "}
-                <a href="#" className="!underline !underline-offset-2">
+                <a
+                    href="https://docs.agenta.ai/guides/tutorials/a-more-complicated-tutorial-draft"
+                    target="_blank"
+                    className="!underline !underline-offset-2"
+                >
                     Click here
                 </a>
             </Text>
 
             {listOfCommands.map((item, ind) => (
                 <div className="grid gap-4" key={ind}>
-                    {item.title.includes("API Key") ? (
-                        <div className="space-y-2">
-                            <Text className={classes.label}>
-                                Step {ind}: {item.title}
-                            </Text>
+                    <div className="space-y-2">
+                        <Text className={classes.label}>
+                            Step {ind + 1}: {item.title}
+                        </Text>
+
+                        {item.title.includes("API Key") ? (
                             <Button
                                 className="block"
                                 onClick={() => router.push("/settings?tab=apiKeys")}
                             >
                                 Get an API key
                             </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <Text className={classes.label}>
-                                Step {ind}: {item.title}
-                            </Text>
-
+                        ) : (
                             <div className="flex items-center justify-between gap-2">
                                 <div className={classes.command}>{item.code}</div>
 
@@ -151,8 +150,8 @@ const WriteOwnAppModal = ({setCurrent, hasApps}: Props) => {
                                     className={classes.copyBtn}
                                 />
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             ))}
         </section>

@@ -112,7 +112,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         ...prev,
                         [status]: {
                             type: "loading",
-                            message: `Adding application ${appName}`,
+                            message: "Adding application",
                         },
                     }
                     if (obj.fetching_image?.type === "loading") obj.fetching_image.type = "success"
@@ -217,7 +217,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                                 <CircleNotch size={16} className="animate-spin" />
                             )}
                             <Text style={{color: type === "error" ? colorError : ""}}>
-                                {message}
+                                {message}{" "}
+                                {message == "Adding application" && (
+                                    <span className="font-medium">{appName}</span>
+                                )}
                             </Text>
                         </div>
                     ))}

@@ -105,7 +105,7 @@ const AddAppFromTemplatedModal = ({
             <Space className={classes.headerText}>
                 {hasApps && (
                     <Button
-                        icon={<ArrowLeft size={14} />}
+                        icon={<ArrowLeft size={14} className="mt-0.5" />}
                         className="flex items-center justify-center"
                         onClick={() => setCurrent(0)}
                     />
