@@ -29,7 +29,16 @@ evaluators = [
         "name": "Exact Match",
         "key": "auto_exact_match",
         "direct_use": True,
-        "settings_template": {},
+        "settings_template": {
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
+                "description": "The name of the column in the test data that contains the correct answer",
+            },
+        },
         "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
         "oss": True,
         "tags": ["functional"],
