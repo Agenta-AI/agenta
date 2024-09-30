@@ -33,5 +33,4 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
         </section>
     )
 }
-
 export default Welcome

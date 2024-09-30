@@ -5,13 +5,14 @@ import traceback
 
 import click
 import asyncpg
+
+from sqlalchemy import inspect, text, Engine
 from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, text
 from alembic.script import ScriptDirectory
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 from agenta_backend.utils.common import isCloudEE, isCloudDev
 
@@ -173,3 +174,31 @@ async def check_if_templates_table_exist():
             await engine.dispose()
 
         return True
+
+
+def unique_constraint_exists(
+    engine: Engine, table_name: str, constraint_name: str
+) -> bool:
+    """
+    The function checks if a unique constraint with a specific name exists on a table in a PostgreSQL
+    database.
+
+    Args:
+        - engine (Engine): instance of a database engine that represents a connection to a database.
+        - table_name (str): name of the table to check the existence of the unique constraint.
+        - constraint_name (str): name of the unique constraint to check for existence.
+
+    Returns:
+        - returns a boolean value indicating whether a unique constraint with the specified `constraint_name` exists in the table.
+    """
+
+    with engine.connect() as conn:
+        result = conn.execute(
+            text(
+                f"""
+        SELECT conname FROM pg_constraint
+        WHERE conname = '{constraint_name}' AND conrelid = '{table_name}'::regclass;
+        """
+            )
+        )
+        return result.fetchone() is not None

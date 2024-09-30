@@ -266,7 +266,7 @@ const AppSelector: React.FC = () => {
             }}
         >
             <div className={classes.container}>
-                {!isLoading && !error ? (
+                {!isLoading && !error && (
                     <div className="flex items-center justify-between mb-5">
                         <h1 className={classes.title}>App Management</h1>
                         {Array.isArray(apps) && apps.length ? (
@@ -290,7 +290,7 @@ const AppSelector: React.FC = () => {
                             </Button>
                         ) : null}
                     </div>
-                ) : null}
+                )}
 
                 {isLoading ? (
                     <div>
