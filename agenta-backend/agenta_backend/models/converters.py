@@ -413,6 +413,7 @@ async def environment_db_and_revision_to_extended_output(
     environment_output_extended = EnvironmentOutputExtended(
         name=environment_db.name,
         app_id=str(environment_db.app_id),
+        project_id=str(environment_db.project_id),
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
         deployed_app_variant_revision_id=str(
