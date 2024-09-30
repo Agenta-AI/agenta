@@ -166,57 +166,70 @@ const App: React.FC<LayoutProps> = ({children}) => {
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
                 <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                    <Layout hasSider className={classes.layout}>
-                        <Sidebar />
+                    {router.pathname.includes("/auth") ||
+                    router.pathname.includes("/post-signup") ? (
                         <Layout className={classes.layout}>
-                            <div>
-                                <div className={classes.breadcrumbContainer}>
-                                    <Breadcrumb
-                                        items={[
-                                            {
-                                                title: (
-                                                    <div className="flex items-center gap-1">
-                                                        <Lightning size={16} />
-                                                        <Link href="/apps">Apps</Link>
-                                                    </div>
-                                                ),
-                                            },
-                                            {title: capitalizedAppName},
-                                        ]}
-                                    />
-                                    <div className={classes.topRightBar}>
-                                        <Text>agenta v{packageJsonData.version}</Text>
-                                    </div>
-                                </div>
-                                <Content className={classes.content}>
-                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                        {children}
-                                        {contextHolder}
-                                    </ErrorBoundary>
-                                </Content>
-                            </div>
-                            <Footer ref={footerRef} className={classes.footer}>
-                                <Space className={classes.footerLeft} size={10}>
-                                    <Link
-                                        href={"https://github.com/Agenta-AI/agenta"}
-                                        target="_blank"
-                                    >
-                                        <GithubFilled className={classes.footerLinkIcon} />
-                                    </Link>
-                                    <Link
-                                        href={"https://www.linkedin.com/company/agenta-ai/"}
-                                        target="_blank"
-                                    >
-                                        <LinkedinFilled className={classes.footerLinkIcon} />
-                                    </Link>
-                                    <Link href={"https://twitter.com/agenta_ai"} target="_blank">
-                                        <TwitterOutlined className={classes.footerLinkIcon} />
-                                    </Link>
-                                </Space>
-                                <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                            </Footer>
+                            <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                {children}
+                                {contextHolder}
+                            </ErrorBoundary>
                         </Layout>
-                    </Layout>
+                    ) : (
+                        <Layout hasSider className={classes.layout}>
+                            <Sidebar />
+                            <Layout className={classes.layout}>
+                                <div>
+                                    <div className={classes.breadcrumbContainer}>
+                                        <Breadcrumb
+                                            items={[
+                                                {
+                                                    title: (
+                                                        <div className="flex items-center gap-1">
+                                                            <Lightning size={16} />
+                                                            <Link href="/apps">Apps</Link>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {title: capitalizedAppName},
+                                            ]}
+                                        />
+                                        <div className={classes.topRightBar}>
+                                            <Text>agenta v{packageJsonData.version}</Text>
+                                        </div>
+                                    </div>
+                                    <Content className={classes.content}>
+                                        <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                            {children}
+                                            {contextHolder}
+                                        </ErrorBoundary>
+                                    </Content>
+                                </div>
+                                <Footer ref={footerRef} className={classes.footer}>
+                                    <Space className={classes.footerLeft} size={10}>
+                                        <Link
+                                            href={"https://github.com/Agenta-AI/agenta"}
+                                            target="_blank"
+                                        >
+                                            <GithubFilled className={classes.footerLinkIcon} />
+                                        </Link>
+                                        <Link
+                                            href={"https://www.linkedin.com/company/agenta-ai/"}
+                                            target="_blank"
+                                        >
+                                            <LinkedinFilled className={classes.footerLinkIcon} />
+                                        </Link>
+                                        <Link
+                                            href={"https://twitter.com/agenta_ai"}
+                                            target="_blank"
+                                        >
+                                            <TwitterOutlined className={classes.footerLinkIcon} />
+                                        </Link>
+                                    </Space>
+                                    <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
+                                </Footer>
+                            </Layout>
+                        </Layout>
+                    )}
                 </ThemeProvider>
             )}
         </NoSSRWrapper>

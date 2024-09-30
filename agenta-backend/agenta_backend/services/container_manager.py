@@ -30,7 +30,7 @@ logger.setLevel(logging.INFO)
 
 async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Image:
     app_name = app_db.app_name
-    user_id = str(app_db.user_id)
+    project_id = str(app_db.project_id)
 
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
     # Get event loop
@@ -47,6 +47,7 @@ async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Im
     tar_path = temp_dir / tar_file.filename
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
+
     future = loop.run_in_executor(
         thread_pool,
         build_image_job,
@@ -56,7 +57,7 @@ async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Im
             tar_path,
             image_name,
             temp_dir,
-            user_id,
+            project_id,
         ),
     )
     image_result = await asyncio.wrap_future(future)
@@ -69,7 +70,7 @@ def build_image_job(
     tar_path: Path,
     image_name: str,
     temp_dir: Path,
-    user_id: str,
+    project_id: str,
 ) -> Image:
     """Business logic for building a docker image from a tar file
 
@@ -86,7 +87,7 @@ def build_image_job(
             image that will be built. It is used as the tag for the image
         temp_dir --  The `temp_dir` parameter is a `Path` object that represents the temporary directory
             where the contents of the tar file will be extracted
-        user_id -- The id of the user that owns the app
+        project_id -- The id of the project that owns the app
 
     Raises:
         HTTPException: _description_
@@ -108,7 +109,7 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{user_id}/{app_name}/{base_name}"},
+            buildargs={"ROOT_PATH": f"/{project_id}/{app_name}/{base_name}"},
             rm=True,
             dockerfile=dockerfile,
             pull=True,

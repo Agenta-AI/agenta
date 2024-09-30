@@ -1,9 +1,9 @@
-import uuid
 import logging
 
 from typing import List, Optional, Union
 from fastapi.responses import JSONResponse
 from fastapi import Request, UploadFile, HTTPException
+
 
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import (
@@ -66,12 +66,10 @@ async def build_image(
     """
     try:
         app_db = await db_manager.fetch_app_by_id(app_id)
-
-        # Check app access
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_db,
+                project_id=str(app_db.project_id),
                 permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
@@ -104,6 +102,7 @@ async def restart_docker_container(
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
     logger.debug(f"Restarting container for variant {payload.variant_id}")
+
     app_variant_db = await db_manager.fetch_app_variant_by_id(payload.variant_id)
     try:
         deployment = await db_manager.get_deployment_by_id(
@@ -183,7 +182,7 @@ async def construct_app_container_url(
     if isCloudEE() and object_db is not None:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=object_db,
+            project_id=str(object_db.project_id),
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
