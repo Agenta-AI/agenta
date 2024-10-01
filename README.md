@@ -64,7 +64,7 @@
       <picture >
         <source width="800" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cf6d4713-4558-4c6c-9e1b-ee4eab261f4c"  >
         <source width="800" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a"  >
-        <img alt="Mockup agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a" >
+        <img alt="Mockup agenta" src="https://github.com/user-attachments/assets/90c436b4-3cd6-4176-87d7-b8b5fafd1057" >
       </picture>
     </div>
 
