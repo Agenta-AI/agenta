@@ -21,6 +21,7 @@ import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import AppTemplateCard from "./AppTemplateCard"
+import Image from "next/image"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -60,6 +61,24 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: theme.lineHeightLG,
         fontSize: theme.fontSizeHeading4,
         fontWeight: theme.fontWeightStrong,
+    },
+    notFound: {
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 80,
+        gap: 16,
+        "& > span": {
+            lineHeight: theme.lineHeightHeading4,
+            fontSize: theme.fontSizeHeading4,
+            fontWeight: theme.fontWeightMedium,
+            color: theme.colorText,
+        },
+        "& > div": {
+            color: theme.colorTextSecondary,
+        },
     },
 }))
 
@@ -220,6 +239,12 @@ const AppSelector: React.FC = () => {
         }
     }
 
+    const filteredApps = useMemo(() => {
+        return searchTerm
+            ? apps.filter((app) => app.app_name.toLowerCase().includes(searchTerm.toLowerCase()))
+            : apps
+    }, [apps, searchTerm])
+
     const steps = [
         {
             content: (
@@ -312,21 +337,27 @@ const AppSelector: React.FC = () => {
                             <Divider />
                         </div>
                         <div className={classes.cardsList}>
-                            {Array.isArray(apps) && (
-                                <>
-                                    {apps
-                                        .filter((item) =>
-                                            item.app_name
-                                                .toLowerCase()
-                                                .includes(searchTerm.toLowerCase()),
-                                        )
-                                        .map((app, index: number) => (
-                                            <div key={index}>
-                                                <AppCard app={app} />
-                                            </div>
-                                        ))}
-                                </>
-                            )}
+                            {Array.isArray(apps) &&
+                                (filteredApps.length > 0 ? (
+                                    filteredApps.map((app, index: number) => (
+                                        <div key={index}>
+                                            <AppCard app={app} />
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className={classes.notFound}>
+                                        <Image
+                                            src="/assets/not-found.png"
+                                            alt="not-found"
+                                            width={240}
+                                            height={210}
+                                        />
+                                        <Typography.Text>No Results found</Typography.Text>
+                                        <Typography.Paragraph>
+                                            No results match the search criteria.
+                                        </Typography.Paragraph>
+                                    </div>
+                                ))}
                         </div>
 
                         <TipsAndFeatures />
