@@ -172,8 +172,8 @@ const VariantDrawer = ({
                                                             ).map(([key, value], index) => (
                                                                 <ResultTag
                                                                     key={index}
-                                                                    title={key}
-                                                                    value={value}
+                                                                    value1={key}
+                                                                    value2={value}
                                                                 />
                                                             ))}
                                                     </div>
