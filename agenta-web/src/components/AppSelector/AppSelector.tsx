@@ -29,14 +29,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
-    cardsList: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        flexWrap: "wrap",
+    cardsList: {
+        width: "100%",
+        display: "grid",
         gap: 16,
-        "& .ant-card-bordered, .ant-card-actions": {
-            borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
+        "@media (max-width: 1199px)": {
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         },
-    }),
+        "@media (min-width: 1200px) and (max-width: 1699px)": {
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        },
+        "@media (min-width: 1700px) and (max-width: 2000px)": {
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        },
+        "@media (min-width: 2001px)": {
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        },
+    },
     title: {
         fontSize: 16,
         fontWeight: theme.fontWeightMedium,
