@@ -118,11 +118,15 @@ export default function Testsets() {
 
                     {testsets.length > 0 && (
                         <Space className={classes.startLink}>
-                            <Link href={`/apps/${appId}/evaluations/results`}>
+                            <Link
+                                href={`/apps/${appId}/evaluations?selectedEvaluation=auto_evaluation`}
+                            >
                                 <Button>Start an Automatic Evaluation</Button>
                             </Link>
 
-                            <Link href={`/apps/${appId}/evaluations/human_a_b_testing`}>
+                            <Link
+                                href={`/apps/${appId}/evaluations?selectedEvaluation=human_ab_testing`}
+                            >
                                 <Button>Start a Human Evaluation</Button>
                             </Link>
                         </Space>
