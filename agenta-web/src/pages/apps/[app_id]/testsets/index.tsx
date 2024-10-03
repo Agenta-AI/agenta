@@ -1,68 +1,46 @@
-import {Button, Table, Space} from "antd"
-import Link from "next/link"
-import {useRouter} from "next/router"
-import {ColumnsType} from "antd/es/table"
-import {useState} from "react"
+import TestsetModal from "@/components/pages/testset/modals"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {DeleteOutlined} from "@ant-design/icons"
-import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
-import {createUseStyles} from "react-jss"
-import {testset} from "@/lib/Types"
-import {isDemo} from "@/lib/helpers/utils"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import {JSSTheme, testset} from "@/lib/Types"
+import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Avatar, Button, Dropdown, Input, Spin, Table, Tag, Typography} from "antd"
+import {ColumnsType} from "antd/es/table/interface"
+import {useRouter} from "next/router"
+import React, {useMemo, useState} from "react"
+import {createUseStyles} from "react-jss"
 
-const useStyles = createUseStyles({
-    container: {
-        marginTop: 20,
-        marginBottom: 40,
-    },
-    btnContainer: {
-        display: "flex",
-        justifyContent: "space-between",
-        marginTop: "20px",
-    },
-    deleteBtn: {
-        marginTop: "30px",
-        "& svg": {
-            color: "red",
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    modal: {
+        transition: "width 0.3s ease",
+        "& .ant-modal-content": {
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-close": {
+                top: 16,
+            },
         },
     },
-    linksContainer: {
-        display: "flex",
-        gap: "10px",
-        flexWrap: "wrap",
+    headingTest: {
+        fontSize: theme.fontSizeHeading4,
+        lineHeight: theme.lineHeightHeading4,
+        fontWeight: theme.fontWeightMedium,
     },
-    startLink: {
+    button: {
         display: "flex",
         alignItems: "center",
-        gap: 8,
     },
-})
+}))
 
-export default function Testsets() {
+const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
-
-    const columns: ColumnsType<testset> = [
-        {
-            title: "Name",
-            dataIndex: "name",
-            key: "name",
-            className: "testset-column",
-        },
-        {
-            title: "Creation date",
-            dataIndex: "created_at",
-            key: "created_at",
-            render: (date: string) => {
-                return formatDate(date)
-            },
-            className: "testset-column",
-        },
-    ]
+    const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
+    const [searchTerm, setSearchTerm] = useState("")
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -86,79 +64,195 @@ export default function Testsets() {
         } catch {}
     }
 
-    return (
-        <div>
-            <div className={classes.container}>
-                <div className={classes.btnContainer}>
-                    <div className={classes.linksContainer}>
-                        <Link
-                            data-cy="testset-new-upload-link"
-                            href={`/apps/${appId}/testsets/new/upload`}
+    const filteredTestset = useMemo(() => {
+        return testsets
+            ? testsets.filter((item: any) =>
+                  item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+              )
+            : testsets
+    }, [searchTerm, testsets])
+
+    const columns: ColumnsType<testset> = [
+        {
+            title: "Name",
+            dataIndex: "name",
+            key: "name",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+        },
+        {
+            title: "Date Modified",
+            dataIndex: "date_modified",
+            key: "date_modified",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (date: string) => {
+                return formatDate(date)
+            },
+        },
+        {
+            title: "Modified By",
+            dataIndex: "modified_by",
+            key: "modified_by",
+            render: (date: string) => {
+                return (
+                    <div className="flex items-center gap-2">
+                        <Avatar
+                            className="w-4 h-4 text-[10px] flex items-center justify-center"
+                            size="small"
                         >
-                            <Button type="primary">Upload Test Set</Button>
-                        </Link>
-                        <Link
-                            data-cy="testset-new-manual-link"
-                            href={`/apps/${appId}/testsets/new/manual`}
-                        >
-                            <Button>Create Test Set in UI</Button>
-                        </Link>
-                        <Link
-                            data-cy="testset-new-api-link"
-                            href={`/apps/${appId}/testsets/new/api`}
-                        >
-                            <Button>Create a test set with API</Button>
-                        </Link>
-                        {!isDemo() && (
-                            <Link href={`/apps/${appId}/testsets/new/endpoint`}>
-                                <Button>Import from Endpoint</Button>
-                            </Link>
-                        )}
+                            A
+                        </Avatar>
+                        <Typography.Text>Username</Typography.Text>
                     </div>
-
-                    {testsets.length > 0 && (
-                        <Space className={classes.startLink}>
-                            <Link href={`/apps/${appId}/evaluations/results`}>
-                                <Button>Start an Automatic Evaluation</Button>
-                            </Link>
-
-                            <Link href={`/apps/${appId}/evaluations/human_a_b_testing`}>
-                                <Button>Start a Human Evaluation</Button>
-                            </Link>
-                        </Space>
-                    )}
-                </div>
-
-                {selectedRowKeys.length > 0 && (
-                    <Button
-                        data-cy="app-testset-delete-button"
-                        onClick={onDelete}
-                        className={classes.deleteBtn}
+                )
+            },
+        },
+        {
+            title: "Tags",
+            dataIndex: "tags",
+            key: "tags",
+            onHeaderCell: () => ({
+                style: {minWidth: 144},
+            }),
+            render: (date: string) => {
+                return [1].map((tag) => <Tag>Defailt</Tag>)
+            },
+        },
+        {
+            title: "Date created",
+            dataIndex: "date_created",
+            key: "date_created",
+            render: (date: string) => {
+                return formatDate(date)
+            },
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+        },
+        {
+            title: <GearSix size={16} />,
+            key: "key",
+            width: 56,
+            fixed: "right",
+            align: "center",
+            render: (_, record) => {
+                return (
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "details",
+                                    label: "View details",
+                                    icon: <Note size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(
+                                            `/apps/${appId}/evaluations/single_model_test/${record}`,
+                                        )
+                                    },
+                                },
+                                {
+                                    key: "clone",
+                                    label: "Clone",
+                                    icon: <Copy size={16} />,
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "rename",
+                                    label: "Rename",
+                                    icon: <PencilSimple size={16} />,
+                                },
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                },
+                            ],
+                        }}
                     >
-                        <DeleteOutlined key="delete" />
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
+                    </Dropdown>
+                )
+            },
+        },
+    ]
+
+    return (
+        <>
+            <section className="w-full flex flex-col gap-4 mb-2">
+                <div className="flex items-center justify-between">
+                    <Typography.Title level={4} className={classes.headingTest}>
+                        Test sets
+                    </Typography.Title>
+
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setIsCreateTestsetModalOpen(true)}
+                    >
+                        Create new test set
+                    </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                    <Input.Search
+                        placeholder="Search"
+                        className="w-[400px]"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Button
+                        danger
+                        type="text"
+                        icon={<Trash size={14} />}
+                        className={classes.button}
+                        disabled={selectedRowKeys.length == 0}
+                        onClick={onDelete}
+                    >
                         Delete
                     </Button>
-                )}
-            </div>
+                </div>
+            </section>
 
-            <div>
+            <Spin spinning={isTestsetsLoading}>
                 <Table
-                    data-cy="app-testset-list"
                     rowSelection={{
                         type: "checkbox",
+                        columnWidth: 48,
                         ...rowSelection,
                     }}
+                    className="ph-no-capture"
                     columns={columns}
-                    dataSource={testsets}
+                    dataSource={filteredTestset}
                     rowKey="_id"
                     loading={isTestsetsLoading}
+                    bordered
+                    pagination={false}
                     onRow={(record) => {
                         return {
                             onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
                         }
                     }}
                 />
-            </div>
-        </div>
+            </Spin>
+
+            <TestsetModal
+                open={isCreateTestsetModalOpen}
+                onCancel={() => {
+                    setIsCreateTestsetModalOpen(false)
+                }}
+            />
+        </>
     )
 }
+
+export default Testset
