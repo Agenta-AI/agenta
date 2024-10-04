@@ -130,7 +130,7 @@ const Testset = () => {
                 style: {minWidth: 144},
             }),
             render: (date: string) => {
-                return [1].map((tag) => <Tag>Defailt</Tag>)
+                return [1].map((tag) => <Tag key={tag}>Defailt</Tag>)
             },
         },
         {
