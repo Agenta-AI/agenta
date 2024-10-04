@@ -41,6 +41,10 @@ const Testset = () => {
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
+    const [cloneConfig, setCloneConfig] = useState(false)
+    const [renameTestsetConfig, setRenameTestsetConfig] = useState(false)
+    const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
+    const [current, setCurrent] = useState(0)
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -48,7 +52,7 @@ const Testset = () => {
         },
     }
 
-    const onDelete = async () => {
+    const onDeleteMultipleTestset = async () => {
         const testsetsIds = selectedRowKeys.map((key) => key.toString())
         try {
             if (
@@ -59,6 +63,14 @@ const Testset = () => {
             )
                 return
             await deleteTestsets(testsetsIds)
+            mutate()
+            setSelectedRowKeys([])
+        } catch {}
+    }
+
+    const onDelete = async (testsetsId: string[]) => {
+        try {
+            await deleteTestsets(testsetsId)
             mutate()
             setSelectedRowKeys([])
         } catch {}
@@ -151,27 +163,43 @@ const Testset = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(
-                                            `/apps/${appId}/evaluations/single_model_test/${record}`,
-                                        )
+                                        router.push(`/apps/${appId}/testsets/${record._id}`)
                                     },
                                 },
                                 {
                                     key: "clone",
                                     label: "Clone",
                                     icon: <Copy size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setCloneConfig(true)
+                                        setEditTestsetValues(record)
+                                        setCurrent(1)
+                                        setIsCreateTestsetModalOpen(true)
+                                    },
                                 },
                                 {type: "divider"},
                                 {
                                     key: "rename",
                                     label: "Rename",
                                     icon: <PencilSimple size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setRenameTestsetConfig(true)
+                                        setEditTestsetValues(record)
+                                        setCurrent(1)
+                                        setIsCreateTestsetModalOpen(true)
+                                    },
                                 },
                                 {
                                     key: "delete_eval",
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        onDelete([record._id])
+                                    },
                                 },
                             ],
                         }}
@@ -216,7 +244,7 @@ const Testset = () => {
                         icon={<Trash size={14} />}
                         className={classes.button}
                         disabled={selectedRowKeys.length == 0}
-                        onClick={onDelete}
+                        onClick={onDeleteMultipleTestset}
                     >
                         Delete
                     </Button>
@@ -246,6 +274,14 @@ const Testset = () => {
             </Spin>
 
             <TestsetModal
+                cloneConfig={cloneConfig}
+                setCloneConfig={setCloneConfig}
+                editTestsetValues={editTestsetValues}
+                setEditTestsetValues={setEditTestsetValues}
+                current={current}
+                setCurrent={setCurrent}
+                renameTestsetConfig={renameTestsetConfig}
+                setRenameTestsetConfig={setRenameTestsetConfig}
                 open={isCreateTestsetModalOpen}
                 onCancel={() => {
                     setIsCreateTestsetModalOpen(false)
