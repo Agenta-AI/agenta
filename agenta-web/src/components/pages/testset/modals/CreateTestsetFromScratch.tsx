@@ -54,22 +54,25 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     const [isLoading, setIsLoading] = useState(false)
     const {mutate} = useLoadTestsetsList(appId)
 
-    const handleCreateTestset = async () => {
+    const handleCreateTestset = async (data?: KeyValuePair[]) => {
         try {
             setIsLoading(true)
+            let rowData = data
 
-            const backendVariants = await fetchVariants(appId)
-            const variant = backendVariants[0]
-            const inputParams = await getVariantInputParameters(appId, variant)
-            const colData = inputParams.map((param) => ({field: param.name}))
-            colData.push({field: "correct_answer"})
+            if (!rowData) {
+                const backendVariants = await fetchVariants(appId)
+                const variant = backendVariants[0]
+                const inputParams = await getVariantInputParameters(appId, variant)
+                const colData = inputParams.map((param) => ({field: param.name}))
+                colData.push({field: "correct_answer"})
 
-            const initialRowData = Array(3).fill({})
-            const separateRowData = initialRowData.map(() => {
-                return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
-            })
+                const initialRowData = Array(3).fill({})
+                rowData = initialRowData.map(() => {
+                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
+                })
+            }
 
-            const response = await createNewTestset(appId, testsetName, separateRowData)
+            const response = await createNewTestset(appId, testsetName, rowData)
             message.success("Test set created successfully")
             router.push(`/apps/${appId}/testsets/${response.data.id}`)
         } catch (error) {
@@ -87,19 +90,11 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const fetchTestsetValues = await fetchTestset(editTestsetValues?._id as string)
 
             if (fetchTestsetValues.csvdata) {
-                const response = await createNewTestset(
-                    appId,
-                    testsetName,
-                    fetchTestsetValues.csvdata,
-                )
-                message.success("Test set cloned successfully")
-                router.push(`/apps/${appId}/testsets/${response.data.id}`)
+                await handleCreateTestset(fetchTestsetValues.csvdata)
             } else {
                 message.error("Failed to load intances")
             }
         } catch (error) {
-            message.error("Something went wrong. Please tru again later!")
-        } finally {
             setIsLoading(false)
         }
     }
@@ -123,7 +118,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 message.error("Failed to load intances")
             }
         } catch (error) {
-            message.error("Something went wrong. Please tru again later!")
+            message.error("Something went wrong. Please try again later!")
         } finally {
             setIsLoading(false)
         }
