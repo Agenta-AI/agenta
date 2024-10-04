@@ -1,4 +1,4 @@
-import { isDemo } from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
