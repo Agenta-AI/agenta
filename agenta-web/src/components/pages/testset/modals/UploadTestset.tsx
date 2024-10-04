@@ -5,11 +5,9 @@ import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, Uploa
 import {createUseStyles} from "react-jss"
 import {UploadOutlined} from "@ant-design/icons"
 import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
-import axios from "axios"
 import {useRouter} from "next/router"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
-import {useLoadTestsetsList} from "@/services/testsets/api"
+import {uploadTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -86,14 +84,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
             try {
                 setUploadLoading(true)
-                // TODO: move to api.ts
-                await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                    },
-                    //@ts-ignore
-                    _ignoreError: true,
-                })
+                await uploadTestsets(formData)
                 form.resetFields()
                 setTestsetName("")
                 mutate()

@@ -4,9 +4,7 @@ import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, message, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {useRouter} from "next/router"
-import {useLoadTestsetsList} from "@/services/testsets/api"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
-import axios from "@/lib/helpers/axiosConfig"
+import {importTestsetsViaEndpoint, useLoadTestsetsList} from "@/services/testsets/api"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -53,10 +51,7 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
         formData.append("app_id", appId)
 
         try {
-            // TODO: move to api.ts
-            await axios.post(`${getAgentaApiUrl()}/api/testsets/endpoint/`, formData, {
-                headers: {"Content-Type": "multipart/form-data"},
-            })
+            await importTestsetsViaEndpoint(formData)
             mutate()
             onCancel()
         } catch (_) {
