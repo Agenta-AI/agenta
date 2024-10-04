@@ -104,7 +104,6 @@ export const useSidebarConfig = () => {
             title: "Observability",
             icon: <ChartLineUp size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            isCloudFeature: true && isOss,
             link: `/apps/${appId || recentlyVisitedAppId}/observability`,
             cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
         },
