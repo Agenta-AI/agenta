@@ -22,14 +22,26 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
-    headingTest: {
-        fontSize: theme.fontSizeHeading4,
-        lineHeight: theme.lineHeightHeading4,
-        fontWeight: theme.fontWeightMedium,
+    headerText: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        "& > .ant-typography": {
+            fontSize: theme.fontSizeHeading4,
+            lineHeight: theme.lineHeightHeading4,
+            fontWeight: theme.fontWeightMedium,
+            margin: 0,
+        },
     },
     button: {
         display: "flex",
         alignItems: "center",
+    },
+    table: {
+        "& table": {
+            border: "1px solid",
+            borderColor: theme.colorBorderSecondary,
+        },
     },
 }))
 
@@ -221,15 +233,13 @@ const Testset = () => {
 
     return (
         <>
-            <section className="w-full flex flex-col gap-4 mb-2">
-                <div className="flex items-center justify-between">
-                    <Typography.Title level={4} className={classes.headingTest}>
-                        Test sets
-                    </Typography.Title>
+            <section className="w-full flex flex-col gap-6 mb-2">
+                <div className={classes.headerText}>
+                    <Typography.Title level={4}>Test sets</Typography.Title>
 
                     <Button
                         type="primary"
-                        icon={<PlusOutlined />}
+                        icon={<PlusOutlined className="mt-[1px]" />}
                         onClick={() => setIsCreateTestsetModalOpen(true)}
                         data-cy="create-testset-modal-button"
                     >
@@ -245,7 +255,7 @@ const Testset = () => {
                     <Button
                         danger
                         type="text"
-                        icon={<Trash size={14} />}
+                        icon={<Trash size={14} className="mt-0.5" />}
                         className={classes.button}
                         disabled={selectedRowKeys.length == 0}
                         onClick={onDeleteMultipleTestset}
@@ -263,13 +273,12 @@ const Testset = () => {
                         ...rowSelection,
                     }}
                     data-cy="app-testset-list"
-                    className="ph-no-capture"
+                    className={`ph-no-capture ${classes.table}`}
                     columns={columns}
                     dataSource={filteredTestset}
                     rowKey="_id"
                     loading={isTestsetsLoading}
                     scroll={{x: true}}
-                    bordered
                     pagination={false}
                     onRow={(record) => {
                         return {
