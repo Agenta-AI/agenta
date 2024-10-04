@@ -13,6 +13,8 @@ import {
 import {fetchVariants} from "@/services/api"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 
+const {Text} = Typography
+
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
         lineHeight: theme.lineHeightLG,
@@ -140,15 +142,19 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     onClick={backForward}
                 />
 
-                <Typography.Text className={classes.headerText}>
-                    Create from scratch
-                </Typography.Text>
+                <Text className={classes.headerText}>
+                    {cloneConfig
+                        ? "Clone Test set"
+                        : renameTestsetConfig
+                          ? "Rename Test set"
+                          : "Create from scratch"}
+                </Text>
             </div>
 
-            <Typography.Text>Create a new test set directly from the webUI</Typography.Text>
+            <Text>Create a new test set directly from the webUI</Text>
 
             <div className="grid gap-1">
-                <Typography.Text className={classes.label}>Name of testset</Typography.Text>
+                <Text className={classes.label}>Name of testset</Text>
                 <Input
                     placeholder="Enter a name"
                     value={testsetName}
@@ -165,9 +171,11 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     type="primary"
                     disabled={!testsetName}
                     onClick={() => {
-                        cloneConfig && handleCloneTestset()
-                        renameTestsetConfig && handleRenameTestset()
-                        !cloneConfig && !renameTestsetConfig ? handleCreateTestset() : null
+                        cloneConfig
+                            ? handleCloneTestset()
+                            : renameTestsetConfig
+                              ? handleRenameTestset()
+                              : handleCreateTestset()
                     }}
                     loading={isLoading}
                     data-cy="create-new-testset-button"

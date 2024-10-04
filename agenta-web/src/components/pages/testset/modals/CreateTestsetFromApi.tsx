@@ -1,3 +1,4 @@
+import React, {useState} from "react"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
@@ -5,7 +6,6 @@ import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Radio, Tabs, Typography} from "antd"
 import {useRouter} from "next/router"
-import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import pythonCode from "@/code_snippets/testsets/create_with_json/python"
 import cURLCode from "@/code_snippets/testsets/create_with_json/curl"
@@ -14,6 +14,8 @@ import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import pythonCodeUpload from "@/code_snippets/testsets/create_with_upload/python"
 import cURLCodeUpload from "@/code_snippets/testsets/create_with_upload/curl"
 import tsCodeUpload from "@/code_snippets/testsets/create_with_upload/typescript"
+
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -102,25 +104,21 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Typography.Text className={classes.headerText}>
-                    Create a test set with API
-                </Typography.Text>
+                <Text className={classes.headerText}>Create a test set with API</Text>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Typography.Text>Create a new test set directly from the webUI</Typography.Text>
+                <Text>Create a new test set directly from the webUI</Text>
 
                 <div className="grid gap-2">
-                    <Typography.Text className={classes.label}>Select type</Typography.Text>
+                    <Text className={classes.label}>Select type</Text>
                     <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
                         <Radio value="csv">CSV</Radio>
                         <Radio value="json">JSON</Radio>
                     </Radio.Group>
                 </div>
 
-                <Typography.Text>
-                    Use this endpoint to create a new Test set for your App using JSON
-                </Typography.Text>
+                <Text>Use this endpoint to create a new Test set for your App using JSON</Text>
 
                 <div>
                     <Tabs
@@ -167,7 +165,13 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="w-full flex items-center justify-between">
-                <Button type="link">Read the docs</Button>
+                <Typography.Link
+                    href="https://docs.agenta.ai/evaluation/create-test-sets#creating-a-test-set-using-the-api"
+                    target="_blank"
+                >
+                    <Button type="link">Read the docs</Button>
+                </Typography.Link>
+
                 <Button onClick={onCancel}>Close</Button>
             </div>
         </section>
