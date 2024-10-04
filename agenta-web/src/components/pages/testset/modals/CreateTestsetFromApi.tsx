@@ -148,7 +148,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         selectedLang={selectedLang}
                                     />
                                 ),
-                                icon: <FileTs size={14} />,
+                                icon: <FileTs size={14} className="!-mb-[3px]" />,
                             },
                             {
                                 key: "bash",
@@ -159,7 +159,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         selectedLang={selectedLang}
                                     />
                                 ),
-                                icon: <FileCode size={14} />,
+                                icon: <FileCode size={14} className="!-mb-[3px]" />,
                             },
                         ]}
                     />
