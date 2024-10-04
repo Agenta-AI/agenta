@@ -6,6 +6,8 @@ import CreateTestset from "./CreateTestset"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 import UploadTestset from "./UploadTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
+import CreateTestsetFromEndpoint from "./CreateTestsetFromEndpoint"
+import {isDemo} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
@@ -77,6 +79,15 @@ const TestsetModal: React.FC<Props> = ({
         {
             content: <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} />,
         },
+        ...(!isDemo()
+            ? [
+                  {
+                      content: (
+                          <CreateTestsetFromEndpoint setCurrent={setCurrent} onCancel={onCancel} />
+                      ),
+                  },
+              ]
+            : []),
     ]
 
     return (

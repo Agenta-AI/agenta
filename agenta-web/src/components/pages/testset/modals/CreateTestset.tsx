@@ -1,3 +1,4 @@
+import { isDemo } from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
 import React from "react"
@@ -60,6 +61,14 @@ const CreateTestset: React.FC<Props> = ({setCurrent}) => {
                         Create a test set programmatically using our API endpoints
                     </Typography.Paragraph>
                 </div>
+                {!isDemo() && (
+                    <div className={classes.template} onClick={() => setCurrent(4)}>
+                        <Typography.Text>Import from endpoint</Typography.Text>
+                        <Typography.Paragraph>
+                            Import test set using your own endpoint
+                        </Typography.Paragraph>
+                    </div>
+                )}
             </div>
         </section>
     )
