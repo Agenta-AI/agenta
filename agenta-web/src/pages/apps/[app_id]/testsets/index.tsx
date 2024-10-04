@@ -95,8 +95,8 @@ const Testset = () => {
         },
         {
             title: "Date Modified",
-            dataIndex: "date_modified",
-            key: "date_modified",
+            dataIndex: "updated_at",
+            key: "updated_at",
             onHeaderCell: () => ({
                 style: {minWidth: 220},
             }),
@@ -104,38 +104,38 @@ const Testset = () => {
                 return formatDate(date)
             },
         },
-        {
-            title: "Modified By",
-            dataIndex: "modified_by",
-            key: "modified_by",
-            onHeaderCell: () => ({
-                style: {minWidth: 220},
-            }),
-            render: (date: string) => {
-                return (
-                    <div className="flex items-center gap-2">
-                        <Avatar
-                            className="w-4 h-4 text-[10px] flex items-center justify-center"
-                            size="small"
-                        >
-                            A
-                        </Avatar>
-                        <Typography.Text>Username</Typography.Text>
-                    </div>
-                )
-            },
-        },
-        {
-            title: "Tags",
-            dataIndex: "tags",
-            key: "tags",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (date: string) => {
-                return [1].map((tag) => <Tag key={tag}>Defailt</Tag>)
-            },
-        },
+        // {
+        //     title: "Modified By",
+        //     dataIndex: "modified_by",
+        //     key: "modified_by",
+        //     onHeaderCell: () => ({
+        //         style: {minWidth: 220},
+        //     }),
+        //     render: (date: string) => {
+        //         return (
+        //             <div className="flex items-center gap-2">
+        //                 <Avatar
+        //                     className="w-4 h-4 text-[10px] flex items-center justify-center"
+        //                     size="small"
+        //                 >
+        //                     A
+        //                 </Avatar>
+        //                 <Typography.Text>Username</Typography.Text>
+        //             </div>
+        //         )
+        //     },
+        // },
+        // {
+        //     title: "Tags",
+        //     dataIndex: "tags",
+        //     key: "tags",
+        //     onHeaderCell: () => ({
+        //         style: {minWidth: 160},
+        //     }),
+        //     render: (date: string) => {
+        //         return [1].map((tag) => <Tag key={tag}>Defailt</Tag>)
+        //     },
+        // },
         {
             title: "Date created",
             dataIndex: "created_at",
