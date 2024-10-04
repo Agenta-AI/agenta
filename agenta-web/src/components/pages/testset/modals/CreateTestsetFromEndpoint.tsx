@@ -6,6 +6,8 @@ import {createUseStyles} from "react-jss"
 import {useRouter} from "next/router"
 import {importTestsetsViaEndpoint, useLoadTestsetsList} from "@/services/testsets/api"
 
+const {Text} = Typography
+
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
         lineHeight: theme.lineHeightLG,
@@ -71,17 +73,15 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Typography.Text className={classes.headerText}>
-                    Import from endpoint
-                </Typography.Text>
+                <Text className={classes.headerText}>Import from endpoint</Text>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Typography.Text>Currently, we only support the JSON format</Typography.Text>
+                <Text>Currently, we only support the JSON format</Text>
 
                 <Form onFinish={onFinish} form={form} className="flex flex-col gap-6">
                     <div className="grid gap-1">
-                        <Typography.Text className={classes.label}>Test Set Name</Typography.Text>
+                        <Text className={classes.label}>Test Set Name</Text>
                         <Form.Item<FieldType>
                             name="name"
                             rules={[{required: true, type: "string", whitespace: true}]}
@@ -92,9 +92,7 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
                     </div>
 
                     <div className="grid gap-1">
-                        <Typography.Text className={classes.label}>
-                            Test Set Endpoint
-                        </Typography.Text>
+                        <Text className={classes.label}>Test Set Endpoint</Text>
                         <Form.Item<FieldType>
                             name="endpoint"
                             rules={[{required: true, type: "url"}]}
@@ -115,18 +113,16 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 label: "Instructions",
                                 children: (
                                     <div className="flex flex-col items-start gap-4">
-                                        <Typography.Text>
+                                        <Text>
                                             Currently, we only support the JSON format which must
                                             meet the following requirements:
-                                        </Typography.Text>
+                                        </Text>
                                         <div className="flex flex-col">
-                                            <Typography.Text>
-                                                1. A JSON with an array of rows
-                                            </Typography.Text>
-                                            <Typography.Text>
+                                            <Text>1. A JSON with an array of rows</Text>
+                                            <Text>
                                                 2. Each row in the array should be an object of
                                                 column header name as key and row data as value
-                                            </Typography.Text>
+                                            </Text>
                                         </div>
                                         <pre>
                                             {JSON.stringify(
@@ -144,8 +140,12 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
                                                 2,
                                             )}
                                         </pre>
-
-                                        <Button>Read the docs</Button>
+                                        <Typography.Link
+                                            href="https://docs.agenta.ai/evaluation/create-test-sets"
+                                            target="_blank"
+                                        >
+                                            <Button>Read the docs</Button>
+                                        </Typography.Link>
                                     </div>
                                 ),
                             },

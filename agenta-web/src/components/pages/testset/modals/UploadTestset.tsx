@@ -1,6 +1,6 @@
 import React, {useState} from "react"
 import {GenericObject, JSSTheme} from "@/lib/Types"
-import {ArrowLeft, FileCsv, Trash} from "@phosphor-icons/react"
+import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 import {UploadOutlined} from "@ant-design/icons"
@@ -8,6 +8,8 @@ import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
 import {useRouter} from "next/router"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {uploadTestsets, useLoadTestsetsList} from "@/services/testsets/api"
+
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -29,8 +31,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         position: "relative",
         overflow: "hidden",
     },
-    subText: {
+    trashIcon: {
         color: theme.colorTextSecondary,
+        cursor: "pointer",
     },
     progressBar: {
         position: "absolute",
@@ -39,7 +42,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         left: 0,
         right: 0,
         backgroundColor: theme["cyan5"],
-        opacity: 0.4,
+        opacity: 0.3,
     },
 }))
 
@@ -112,14 +115,14 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Typography.Text className={classes.headerText}>Upload a test set</Typography.Text>
+                <Text className={classes.headerText}>Upload a test set</Text>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Typography.Text>Create a new test set directly from the webUI</Typography.Text>
+                <Text>Create a new test set directly from the webUI</Text>
 
                 <div className="grid gap-2">
-                    <Typography.Text className={classes.label}>Select type</Typography.Text>
+                    <Text className={classes.label}>Select type</Text>
                     <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
                         <Radio value="CSV">CSV</Radio>
                         <Radio value="JSON">JSON</Radio>
@@ -127,7 +130,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 </div>
 
                 <div className="grid gap-1">
-                    <Typography.Text className={classes.label}>Name of testset</Typography.Text>
+                    <Text className={classes.label}>Name of testset</Text>
                     <Input
                         placeholder="Enter a name"
                         value={testsetName}
@@ -138,9 +141,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <Typography.Text className={classes.label}>
-                            Upload CSV or JSON
-                        </Typography.Text>
+                        <Text className={classes.label}>Upload CSV or JSON</Text>
 
                         <Form onFinish={onFinish} form={form}>
                             <Form.Item
@@ -182,14 +183,14 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 {uploadType === "CSV" ? (
                                     <FileCsv size={32} />
                                 ) : (
-                                    <FileCsv size={32} />
+                                    <FileCode size={32} />
                                 )}
-                                <Typography.Text>{fileProgress.name}</Typography.Text>
+                                <Text>{fileProgress.name}</Text>
                             </div>
 
                             <Trash
                                 size={22}
-                                className={classes.subText}
+                                className={classes.trashIcon}
                                 onClick={() => {
                                     form.resetFields()
                                     setTestsetName("")
@@ -212,18 +213,15 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                     <div className="flex flex-col items-start gap-4">
                                         {uploadType === "CSV" ? (
                                             <>
-                                                {" "}
-                                                <Typography.Text>
+                                                <Text>
                                                     The test set should be in CSV format with the
                                                     following requirements:
-                                                </Typography.Text>
+                                                </Text>
                                                 <div className="flex flex-col">
-                                                    <Typography.Text>
-                                                        1. Comma separated values
-                                                    </Typography.Text>
-                                                    <Typography.Text>
+                                                    <Text>1. Comma separated values</Text>
+                                                    <Text>
                                                         2. The first row should contain the headers
-                                                    </Typography.Text>
+                                                    </Text>
                                                 </div>
                                                 <Typography.Paragraph>
                                                     Here is an example of a valid CSV file: <br />
@@ -234,33 +232,50 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                             </>
                                         ) : (
                                             <>
-                                                <Typography.Text>
+                                                <Text>
                                                     The test set should be in JSON format with the
                                                     following requirements:
-                                                </Typography.Text>
+                                                </Text>
 
                                                 <div className="flex flex-col">
-                                                    <Typography.Text>
+                                                    <Text>
                                                         1. A json file with an array of rows
-                                                    </Typography.Text>
-                                                    <Typography.Text>
+                                                    </Text>
+                                                    <Text>
                                                         2. Each row in the array should be an object
-                                                    </Typography.Text>
-                                                    <Typography.Text>
+                                                    </Text>
+                                                    <Text>
                                                         of column header name as key and row data as
                                                         value.
-                                                    </Typography.Text>
+                                                    </Text>
                                                 </div>
 
                                                 <Typography.Paragraph>
                                                     Here is an example of a valid JSON file: <br />
-                                                    {`[{ "recipe_name": "Chicken Parmesan","correct_answer": "Chicken" },
-{ "recipe_name": "a, special, recipe","correct_answer": "Beef" }]`}
+                                                    {JSON.stringify(
+                                                        [
+                                                            {
+                                                                recipe_name: "Chicken Parmesan",
+                                                                correct_answer: "Chicken",
+                                                            },
+                                                            {
+                                                                recipe_name: "a, special, recipe",
+                                                                correct_answer: "Beef",
+                                                            },
+                                                        ],
+                                                        null,
+                                                        2,
+                                                    )}
                                                 </Typography.Paragraph>
                                             </>
                                         )}
 
-                                        <Button>Read the docs</Button>
+                                        <Typography.Link
+                                            href="https://docs.agenta.ai/evaluation/create-test-sets#creating-a-test-set-from-a-csv-or-json"
+                                            target="_blank"
+                                        >
+                                            <Button>Read the docs</Button>
+                                        </Typography.Link>
                                     </div>
                                 ),
                             },

@@ -1,8 +1,10 @@
+import React from "react"
 import {isDemo} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
+
+const {Text, Paragraph} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -43,38 +45,34 @@ const CreateTestset: React.FC<Props> = ({setCurrent}) => {
     const classes = useStyles()
     return (
         <section className={classes.appTemplate}>
-            <Typography.Text className={classes.headerText}>Create new test set</Typography.Text>
+            <Text className={classes.headerText}>Create new test set</Text>
             <div className="flex flex-col gap-6">
                 <div
                     className={classes.template}
                     onClick={() => setCurrent(1)}
                     data-cy="create-testset-from-scratch"
                 >
-                    <Typography.Text>Create from scratch</Typography.Text>
-                    <Typography.Paragraph>
-                        Create a new test set directly from the webUI
-                    </Typography.Paragraph>
+                    <Text>Create from scratch</Text>
+                    <Paragraph>Create a new test set directly from the webUI</Paragraph>
                 </div>
                 <div
                     className={classes.template}
                     onClick={() => setCurrent(2)}
                     data-cy="upload-testset"
                 >
-                    <Typography.Text>Upload a test set</Typography.Text>
-                    <Typography.Paragraph>Upload your test set as CSV or JSON</Typography.Paragraph>
+                    <Text>Upload a test set</Text>
+                    <Paragraph>Upload your test set as CSV or JSON</Paragraph>
                 </div>
                 <div className={classes.template} onClick={() => setCurrent(3)}>
-                    <Typography.Text>Create with API</Typography.Text>
-                    <Typography.Paragraph>
+                    <Text>Create with API</Text>
+                    <Paragraph>
                         Create a test set programmatically using our API endpoints
-                    </Typography.Paragraph>
+                    </Paragraph>
                 </div>
                 {!isDemo() && (
                     <div className={classes.template} onClick={() => setCurrent(4)}>
-                        <Typography.Text>Import from endpoint</Typography.Text>
-                        <Typography.Paragraph>
-                            Import test set using your own endpoint
-                        </Typography.Paragraph>
+                        <Text>Import from endpoint</Text>
+                        <Paragraph>Import test set using your own endpoint</Paragraph>
                     </div>
                 )}
             </div>

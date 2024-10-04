@@ -1,3 +1,4 @@
+import React, {useMemo, useState} from "react"
 import TestsetModal from "@/components/pages/testset/modals"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
@@ -8,7 +9,6 @@ import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Avatar, Button, Dropdown, Input, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table/interface"
 import {useRouter} from "next/router"
-import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -64,8 +64,8 @@ const Testset = () => {
         },
     }
 
-    const onDeleteMultipleTestset = async () => {
-        const testsetsIds = selectedRowKeys.map((key) => key.toString())
+    const onDelete = async (testsetsId?: string[]) => {
+        const testsetsIds = !testsetsId ? selectedRowKeys.map((key) => key.toString()) : testsetsId
         try {
             if (
                 !(await checkIfResourceValidForDeletion({
@@ -75,14 +75,6 @@ const Testset = () => {
             )
                 return
             await deleteTestsets(testsetsIds)
-            mutate()
-            setSelectedRowKeys([])
-        } catch {}
-    }
-
-    const onDelete = async (testsetsId: string[]) => {
-        try {
-            await deleteTestsets(testsetsId)
             mutate()
             setSelectedRowKeys([])
         } catch {}
@@ -116,38 +108,6 @@ const Testset = () => {
                 return formatDate(date)
             },
         },
-        // {
-        //     title: "Modified By",
-        //     dataIndex: "modified_by",
-        //     key: "modified_by",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 220},
-        //     }),
-        //     render: (date: string) => {
-        //         return (
-        //             <div className="flex items-center gap-2">
-        //                 <Avatar
-        //                     className="w-4 h-4 text-[10px] flex items-center justify-center"
-        //                     size="small"
-        //                 >
-        //                     A
-        //                 </Avatar>
-        //                 <Typography.Text>Username</Typography.Text>
-        //             </div>
-        //         )
-        //     },
-        // },
-        // {
-        //     title: "Tags",
-        //     dataIndex: "tags",
-        //     key: "tags",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 160},
-        //     }),
-        //     render: (date: string) => {
-        //         return [1].map((tag) => <Tag key={tag}>Defailt</Tag>)
-        //     },
-        // },
         {
             title: "Date created",
             dataIndex: "created_at",
@@ -258,7 +218,7 @@ const Testset = () => {
                         icon={<Trash size={14} className="mt-0.5" />}
                         className={classes.button}
                         disabled={selectedRowKeys.length == 0}
-                        onClick={onDeleteMultipleTestset}
+                        onClick={() => onDelete()}
                     >
                         Delete
                     </Button>
