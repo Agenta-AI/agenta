@@ -1,9 +1,15 @@
 import React, {useState} from "react"
-import {JSSTheme} from "@/lib/Types"
+import {GenericObject, JSSTheme} from "@/lib/Types"
 import {ArrowLeft, FileCsv, Trash} from "@phosphor-icons/react"
-import {Button, Collapse, Input, Radio, Typography} from "antd"
+import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 import {UploadOutlined} from "@ant-design/icons"
+import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
+import axios from "axios"
+import {useRouter} from "next/router"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {useLoadTestsetsList} from "@/services/testsets/api"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     headerText: {
@@ -22,9 +28,20 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: "1px solid",
         borderColor: theme.colorBorder,
         borderRadius: theme.borderRadiusLG,
+        position: "relative",
+        overflow: "hidden",
     },
     subText: {
         color: theme.colorTextSecondary,
+    },
+    progressBar: {
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: theme["cyan5"],
+        opacity: 0.4,
     },
 }))
 
@@ -35,7 +52,64 @@ type Props = {
 
 const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
-    const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
+    const router = useRouter()
+    const [form] = Form.useForm()
+    const appId = router.query.app_id as string
+    const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
+    const [testsetName, setTestsetName] = useState("")
+    const [uploadLoading, setUploadLoading] = useState(false)
+    const [fileProgress, setFileProgress] = useState<UploadFile>({} as UploadFile)
+    const {mutate} = useLoadTestsetsList(appId)
+
+    const onFinish = async (values: any) => {
+        const {file} = values
+        const fileObj = file[0].originFileObj
+        const malformedFileError = `The file you uploaded is either malformed or is not a valid ${uploadType} file`
+
+        if (file && file.length > 0 && uploadType) {
+            const isValidFile = await (uploadType == "CSV"
+                ? isValidCSVFile(fileObj)
+                : isValidJSONFile(fileObj))
+            if (!isValidFile) {
+                message.error(malformedFileError)
+                return
+            }
+
+            const formData = new FormData()
+            formData.append("upload_type", uploadType)
+            formData.append("file", fileObj)
+            if (values.testsetName && values.testsetName.trim() !== "") {
+                formData.append("testset_name", values.testsetName)
+            }
+            formData.append("app_id", appId)
+
+            try {
+                setUploadLoading(true)
+                // TODO: move to api.ts
+                await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                    },
+                    //@ts-ignore
+                    _ignoreError: true,
+                })
+                form.resetFields()
+                setTestsetName("")
+                mutate()
+                onCancel()
+            } catch (e: any) {
+                if (
+                    e?.response?.data?.detail?.find((item: GenericObject) =>
+                        item?.loc?.includes("csvdata"),
+                    )
+                )
+                    message.error(malformedFileError)
+                else globalErrorHandler(e)
+            } finally {
+                setUploadLoading(false)
+            }
+        }
+    }
 
     return (
         <section className="grid gap-4">
@@ -55,14 +129,18 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 <div className="grid gap-2">
                     <Typography.Text className={classes.label}>Select type</Typography.Text>
                     <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)}>
-                        <Radio value="csv">CSV</Radio>
-                        <Radio value="json">JSON</Radio>
+                        <Radio value="CSV">CSV</Radio>
+                        <Radio value="JSON">JSON</Radio>
                     </Radio.Group>
                 </div>
 
                 <div className="grid gap-1">
                     <Typography.Text className={classes.label}>Name of testset</Typography.Text>
-                    <Input placeholder="Enter a name" />
+                    <Input
+                        placeholder="Enter a name"
+                        value={testsetName}
+                        onChange={(e) => setTestsetName(e.target.value)}
+                    />
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -70,17 +148,63 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                         <Typography.Text className={classes.label}>
                             Upload CSV or JSON
                         </Typography.Text>
-                        <Button icon={<UploadOutlined size={16} />}>Upload</Button>
+
+                        <Form onFinish={onFinish} form={form}>
+                            <Form.Item
+                                name="file"
+                                valuePropName="fileList"
+                                getValueFromEvent={(e) => e.fileList}
+                                className="mb-0"
+                                rules={[{required: true}]}
+                            >
+                                <Upload
+                                    name="file"
+                                    accept={uploadType == "CSV" ? ".csv" : ".json"}
+                                    multiple={false}
+                                    maxCount={1}
+                                    showUploadList={false}
+                                    onChange={(e) => {
+                                        setFileProgress(e.fileList[0])
+                                        !testsetName &&
+                                            setTestsetName(
+                                                e.fileList[0].name.split(".")[0] as string,
+                                            )
+                                    }}
+                                >
+                                    <Button icon={<UploadOutlined />}>Upload</Button>
+                                </Upload>
+                            </Form.Item>
+                        </Form>
                     </div>
 
-                    <div className={classes.uploadContainer}>
-                        <div className="flex items-center gap-2">
-                            <FileCsv size={32} />
-                            <Typography.Text>File-name</Typography.Text>
+                    {fileProgress.name && (
+                        <div className={classes.uploadContainer}>
+                            {fileProgress.status == "uploading" && (
+                                <div
+                                    className={classes.progressBar}
+                                    style={{width: `${fileProgress.percent}%`}}
+                                ></div>
+                            )}
+                            <div className="flex items-center gap-2">
+                                {uploadType === "CSV" ? (
+                                    <FileCsv size={32} />
+                                ) : (
+                                    <FileCsv size={32} />
+                                )}
+                                <Typography.Text>{fileProgress.name}</Typography.Text>
+                            </div>
+
+                            <Trash
+                                size={22}
+                                className={classes.subText}
+                                onClick={() => {
+                                    form.resetFields()
+                                    setTestsetName("")
+                                    setFileProgress({} as UploadFile)
+                                }}
+                            />
                         </div>
-
-                        <Trash size={22} className={classes.subText} />
-                    </div>
+                    )}
                 </div>
 
                 <div>
@@ -93,7 +217,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                 label: "Instructions",
                                 children: (
                                     <div className="flex flex-col items-start gap-4">
-                                        {uploadType === "csv" ? (
+                                        {uploadType === "CSV" ? (
                                             <>
                                                 {" "}
                                                 <Typography.Text>
@@ -153,8 +277,16 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="flex justify-end gap-2 mt-3">
-                <Button onClick={onCancel}>Cancel</Button>
-                <Button type="primary">Create test set</Button>
+                <Button disabled={uploadLoading} onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button
+                    disabled={uploadLoading || !testsetName}
+                    type="primary"
+                    onClick={() => form.submit()}
+                >
+                    Create test set
+                </Button>
             </div>
         </section>
     )

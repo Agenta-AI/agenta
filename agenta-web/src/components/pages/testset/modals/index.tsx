@@ -1,5 +1,5 @@
-import React, {useState} from "react"
-import {JSSTheme} from "@/lib/Types"
+import React from "react"
+import {JSSTheme, testset} from "@/lib/Types"
 import {Modal} from "antd"
 import {createUseStyles} from "react-jss"
 import CreateTestset from "./CreateTestset"
@@ -20,20 +20,56 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-type Props = React.ComponentProps<typeof Modal> & {}
+type Props = {
+    cloneConfig: boolean
+    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
+    editTestsetValues: testset | null
+    setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
+    current: number
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    renameTestsetConfig: boolean
+    setRenameTestsetConfig: React.Dispatch<React.SetStateAction<boolean>>
+} & React.ComponentProps<typeof Modal>
 
-const TestsetModal: React.FC<Props> = ({...props}) => {
+const TestsetModal: React.FC<Props> = ({
+    cloneConfig,
+    setCloneConfig,
+    editTestsetValues,
+    setEditTestsetValues,
+    current,
+    setCurrent,
+    renameTestsetConfig,
+    setRenameTestsetConfig,
+    ...props
+}) => {
     const classes = useStyles()
-    const [current, setCurrent] = useState(0)
 
     const onCancel = () => props.onCancel?.({} as any)
+
+    const onCloseModal = () => {
+        setCloneConfig(false)
+        setEditTestsetValues(null)
+        setRenameTestsetConfig(false)
+        setCurrent(0)
+    }
 
     const steps = [
         {
             content: <CreateTestset setCurrent={setCurrent} />,
         },
         {
-            content: <CreateTestsetFromScratch setCurrent={setCurrent} onCancel={onCancel} />,
+            content: (
+                <CreateTestsetFromScratch
+                    setCurrent={setCurrent}
+                    onCancel={onCancel}
+                    cloneConfig={cloneConfig}
+                    setCloneConfig={setCloneConfig}
+                    editTestsetValues={editTestsetValues}
+                    setEditTestsetValues={setEditTestsetValues}
+                    renameTestsetConfig={renameTestsetConfig}
+                    setRenameTestsetConfig={setRenameTestsetConfig}
+                />
+            ),
         },
         {
             content: <UploadTestset setCurrent={setCurrent} onCancel={onCancel} />,
@@ -45,7 +81,7 @@ const TestsetModal: React.FC<Props> = ({...props}) => {
 
     return (
         <Modal
-            afterClose={() => setCurrent(0)}
+            afterClose={onCloseModal}
             footer={null}
             title={null}
             className={classes.modal}
