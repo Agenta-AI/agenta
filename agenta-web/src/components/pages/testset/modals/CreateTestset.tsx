@@ -45,13 +45,21 @@ const CreateTestset: React.FC<Props> = ({setCurrent}) => {
         <section className={classes.appTemplate}>
             <Typography.Text className={classes.headerText}>Create new test set</Typography.Text>
             <div className="flex flex-col gap-6">
-                <div className={classes.template} onClick={() => setCurrent(1)}>
+                <div
+                    className={classes.template}
+                    onClick={() => setCurrent(1)}
+                    data-cy="create-testset-from-scratch"
+                >
                     <Typography.Text>Create from scratch</Typography.Text>
                     <Typography.Paragraph>
                         Create a new test set directly from the webUI
                     </Typography.Paragraph>
                 </div>
-                <div className={classes.template} onClick={() => setCurrent(2)}>
+                <div
+                    className={classes.template}
+                    onClick={() => setCurrent(2)}
+                    data-cy="upload-testset"
+                >
                     <Typography.Text>Upload a test set</Typography.Text>
                     <Typography.Paragraph>Upload your test set as CSV or JSON</Typography.Paragraph>
                 </div>

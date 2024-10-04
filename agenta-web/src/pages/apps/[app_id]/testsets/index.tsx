@@ -90,7 +90,7 @@ const Testset = () => {
             dataIndex: "name",
             key: "name",
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 220},
             }),
         },
         {
@@ -98,7 +98,7 @@ const Testset = () => {
             dataIndex: "date_modified",
             key: "date_modified",
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 220},
             }),
             render: (date: string) => {
                 return formatDate(date)
@@ -108,6 +108,9 @@ const Testset = () => {
             title: "Modified By",
             dataIndex: "modified_by",
             key: "modified_by",
+            onHeaderCell: () => ({
+                style: {minWidth: 220},
+            }),
             render: (date: string) => {
                 return (
                     <div className="flex items-center gap-2">
@@ -127,7 +130,7 @@ const Testset = () => {
             dataIndex: "tags",
             key: "tags",
             onHeaderCell: () => ({
-                style: {minWidth: 144},
+                style: {minWidth: 160},
             }),
             render: (date: string) => {
                 return [1].map((tag) => <Tag key={tag}>Defailt</Tag>)
@@ -135,13 +138,13 @@ const Testset = () => {
         },
         {
             title: "Date created",
-            dataIndex: "date_created",
-            key: "date_created",
+            dataIndex: "created_at",
+            key: "created_at",
             render: (date: string) => {
                 return formatDate(date)
             },
             onHeaderCell: () => ({
-                style: {minWidth: 160},
+                style: {minWidth: 220},
             }),
         },
         {
@@ -228,6 +231,7 @@ const Testset = () => {
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setIsCreateTestsetModalOpen(true)}
+                        data-cy="create-testset-modal-button"
                     >
                         Create new test set
                     </Button>
@@ -258,11 +262,13 @@ const Testset = () => {
                         columnWidth: 48,
                         ...rowSelection,
                     }}
+                    data-cy="app-testset-list"
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={filteredTestset}
                     rowKey="_id"
                     loading={isTestsetsLoading}
+                    scroll={{x: true}}
                     bordered
                     pagination={false}
                     onRow={(record) => {

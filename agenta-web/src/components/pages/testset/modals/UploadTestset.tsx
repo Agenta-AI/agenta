@@ -54,6 +54,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
     const router = useRouter()
     const [form] = Form.useForm()
+    const testsetFile = Form.useWatch("file", form)
     const appId = router.query.app_id as string
     const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
     const [testsetName, setTestsetName] = useState("")
@@ -78,8 +79,8 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             const formData = new FormData()
             formData.append("upload_type", uploadType)
             formData.append("file", fileObj)
-            if (values.testsetName && values.testsetName.trim() !== "") {
-                formData.append("testset_name", values.testsetName)
+            if (testsetName && testsetName.trim() !== "") {
+                formData.append("testset_name", testsetName)
             }
             formData.append("app_id", appId)
 
@@ -140,6 +141,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                         placeholder="Enter a name"
                         value={testsetName}
                         onChange={(e) => setTestsetName(e.target.value)}
+                        data-cy="upload-testset-file-name"
                     />
                 </div>
 
@@ -281,9 +283,11 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     Cancel
                 </Button>
                 <Button
-                    disabled={uploadLoading || !testsetName}
+                    disabled={!testsetName || !testsetFile}
+                    loading={uploadLoading}
                     type="primary"
                     onClick={() => form.submit()}
+                    data-cy="testset-upload-button"
                 >
                     Create test set
                 </Button>
