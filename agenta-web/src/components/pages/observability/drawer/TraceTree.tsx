@@ -17,6 +17,7 @@ import {createUseStyles} from "react-jss"
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     tree: {
         overflowY: "auto",
+        height: "100%",
         "& .ant-tree-node-content-wrapper": {
             width: 240,
         },
