@@ -1,5 +1,5 @@
-import React, {useState} from "react"
-import {JSSTheme, KeyValuePair, testset} from "@/lib/Types"
+import React, {useMemo, useState} from "react"
+import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/lib/Types"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, message, Typography} from "antd"
 import {createUseStyles} from "react-jss"
@@ -27,23 +27,19 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Props = {
-    cloneConfig: boolean
-    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
+    mode: TestsetCreationMode
+    setMode: React.Dispatch<React.SetStateAction<TestsetCreationMode>>
     editTestsetValues: testset | null
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    renameTestsetConfig: boolean
-    setRenameTestsetConfig: React.Dispatch<React.SetStateAction<boolean>>
     onCancel: () => void
 }
 
 const CreateTestsetFromScratch: React.FC<Props> = ({
-    cloneConfig,
-    setCloneConfig,
+    mode,
+    setMode,
     editTestsetValues,
     setEditTestsetValues,
-    renameTestsetConfig,
-    setRenameTestsetConfig,
     setCurrent,
     onCancel,
 }) => {
@@ -51,86 +47,102 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     const router = useRouter()
     const appId = router.query.app_id as string
     const [testsetName, setTestsetName] = useState(
-        renameTestsetConfig ? (editTestsetValues?.name as string) : "",
+        mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
     const {mutate} = useLoadTestsetsList(appId)
 
+    const generateInitialRowData = async (): Promise<KeyValuePair[]> => {
+        const backendVariants = await fetchVariants(appId)
+        const variant = backendVariants[0]
+        const inputParams = await getVariantInputParameters(appId, variant)
+        const fields = [...inputParams.map((param) => param.name), "correct_answer"]
+        return Array(3)
+            .fill({})
+            .map(() => fields.reduce((acc, field) => ({...acc, [field]: ""}), {}))
+    }
+
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
+        setIsLoading(true)
         try {
-            setIsLoading(true)
-            let rowData = data
-
-            if (!rowData) {
-                const backendVariants = await fetchVariants(appId)
-                const variant = backendVariants[0]
-                const inputParams = await getVariantInputParameters(appId, variant)
-                const colData = inputParams.map((param) => ({field: param.name}))
-                colData.push({field: "correct_answer"})
-
-                const initialRowData = Array(3).fill({})
-                rowData = initialRowData.map(() => {
-                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
-                })
-            }
-
+            const rowData = data || (await generateInitialRowData())
             const response = await createNewTestset(appId, testsetName, rowData)
             message.success("Test set created successfully")
             router.push(`/apps/${appId}/testsets/${response.data.id}`)
         } catch (error) {
             console.error("Error saving test set:", error)
-            message.success("Failed to create Test set. Please try again!")
+            message.error("Failed to create Test set. Please try again!")
         } finally {
             setIsLoading(false)
         }
     }
 
-    const handleCloneTestset = async () => {
+    const handleCloneTestset = async (testsetId: string) => {
+        setIsLoading(true)
         try {
-            setIsLoading(true)
-
-            const fetchTestsetValues = await fetchTestset(editTestsetValues?._id as string)
-
-            if (fetchTestsetValues.csvdata) {
-                await handleCreateTestset(fetchTestsetValues.csvdata)
+            const fetchedTestset = await fetchTestset(testsetId)
+            if (fetchedTestset.csvdata) {
+                await handleCreateTestset(fetchedTestset.csvdata)
             } else {
-                message.error("Failed to load intances")
+                throw new Error("Failed to load instances")
             }
         } catch (error) {
+            console.error("Error cloning test set:", error)
+            message.error("Failed to clone Test set. Please try again!")
+        } finally {
             setIsLoading(false)
         }
     }
 
-    const handleRenameTestset = async () => {
+    const handleRenameTestset = async (testsetId: string) => {
+        setIsLoading(true)
         try {
-            setIsLoading(true)
-
-            const fetchTestsetValues = await fetchTestset(editTestsetValues?._id as string)
-
-            if (fetchTestsetValues.csvdata) {
-                await updateTestset(
-                    editTestsetValues?._id as string,
-                    testsetName,
-                    fetchTestsetValues.csvdata,
-                )
+            const fetchedTestset = await fetchTestset(testsetId)
+            if (fetchedTestset.csvdata) {
+                await updateTestset(testsetId, testsetName, fetchedTestset.csvdata)
                 message.success("Test set renamed successfully")
                 mutate()
                 onCancel()
             } else {
-                message.error("Failed to load intances")
+                throw new Error("Failed to load instances")
             }
         } catch (error) {
-            message.error("Something went wrong. Please try again later!")
+            console.error("Error renaming test set:", error)
+            message.error("Failed to rename Test set. Please try again!")
         } finally {
             setIsLoading(false)
         }
     }
 
-    const backForward = () => {
-        setCloneConfig(false)
+    const onSubmit = () => {
+        switch (mode) {
+            case "create":
+                handleCreateTestset()
+                break
+            case "clone":
+                handleCloneTestset(editTestsetValues?._id as string)
+                break
+            case "rename":
+                handleRenameTestset(editTestsetValues?._id as string)
+                break
+        }
+    }
+
+    const getHeaderText = useMemo(() => {
+        switch (mode) {
+            case "create":
+                return "Create from scratch"
+            case "clone":
+                return "Clone Test set"
+            case "rename":
+                return "Rename Test set"
+        }
+    }, [mode])
+
+    const goBackToInitialStep = () => {
+        setMode("create")
         setEditTestsetValues(null)
         setCurrent(0)
-        setRenameTestsetConfig(false)
     }
 
     return (
@@ -139,22 +151,16 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 <Button
                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
-                    onClick={backForward}
+                    onClick={goBackToInitialStep}
                 />
 
-                <Text className={classes.headerText}>
-                    {cloneConfig
-                        ? "Clone Test set"
-                        : renameTestsetConfig
-                          ? "Rename Test set"
-                          : "Create from scratch"}
-                </Text>
+                <Text className={classes.headerText}>{getHeaderText}</Text>
             </div>
 
             <Text>Create a new test set directly from the webUI</Text>
 
             <div className="grid gap-1">
-                <Text className={classes.label}>Name of testset</Text>
+                <Text className={classes.label}>Test Set Name</Text>
                 <Input
                     placeholder="Enter a name"
                     value={testsetName}
@@ -170,17 +176,11 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 <Button
                     type="primary"
                     disabled={!testsetName}
-                    onClick={() => {
-                        cloneConfig
-                            ? handleCloneTestset()
-                            : renameTestsetConfig
-                              ? handleRenameTestset()
-                              : handleCreateTestset()
-                    }}
+                    onClick={onSubmit}
                     loading={isLoading}
                     data-cy="create-new-testset-button"
                 >
-                    Create test set
+                    {mode === "rename" ? "Rename" : "Create test set"}
                 </Button>
             </div>
         </section>

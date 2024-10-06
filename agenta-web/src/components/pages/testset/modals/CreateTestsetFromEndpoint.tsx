@@ -66,7 +66,7 @@ const CreateTestsetFromEndpoint: React.FC<Props> = ({setCurrent, onCancel}) => {
 
     return (
         <section className="grid gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-1">
                 <Button
                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"

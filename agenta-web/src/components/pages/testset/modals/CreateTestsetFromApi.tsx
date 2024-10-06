@@ -97,7 +97,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
 
     return (
         <section className="grid gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-1">
                 <Button
                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
@@ -108,7 +108,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Create a new test set directly from the webUI</Text>
+                <Text>Create a test set programmatically using our API endpoints</Text>
 
                 <div className="grid gap-2">
                     <Text className={classes.label}>Select type</Text>

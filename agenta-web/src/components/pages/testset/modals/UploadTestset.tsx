@@ -108,7 +108,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
 
     return (
         <section className="grid gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-1">
                 <Button
                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                     className="flex items-center justify-center"
@@ -119,7 +119,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Create a new test set directly from the webUI</Text>
+                <Text>Upload your test set as CSV or JSON</Text>
 
                 <div className="grid gap-2">
                     <Text className={classes.label}>Select type</Text>
@@ -130,7 +130,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 </div>
 
                 <div className="grid gap-1">
-                    <Text className={classes.label}>Name of testset</Text>
+                    <Text className={classes.label}>Test Set Name</Text>
                     <Input
                         placeholder="Enter a name"
                         value={testsetName}
