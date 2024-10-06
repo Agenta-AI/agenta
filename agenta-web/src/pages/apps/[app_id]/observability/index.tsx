@@ -1,10 +1,10 @@
 import GenericDrawer from "@/components/GenericDrawer"
+import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
+import TraceTree from "@/components/pages/observability/drawer/TraceTree"
 import {useQueryParam} from "@/hooks/useQuery"
 import {JSSTheme} from "@/lib/Types"
-import {DeleteOutlined} from "@ant-design/icons"
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
-import {Button, Space, Tag, Typography} from "antd"
+import {Button, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
@@ -36,6 +36,8 @@ const ObservabilityDashboard: React.FC<Props> = () => {
                 onClose={() => setSelectedTraceId("")}
                 expandable
                 headerExtra={<TraceHeader />}
+                mainContent={<TraceContent />}
+                sideContent={<TraceTree />}
             />
         </div>
     )
