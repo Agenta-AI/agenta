@@ -24,7 +24,6 @@ class TestSetSimpleResponse(BaseModel):
     id: str
     name: str
     created_at: str
-    updated_at: str
 
 
 class DeleteTestsets(BaseModel):
