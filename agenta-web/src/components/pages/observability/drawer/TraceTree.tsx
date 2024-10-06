@@ -24,6 +24,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-tree-node-selected": {
             border: `1px solid ${theme.colorBorder}`,
         },
+        "& .ant-tree-switcher-leaf-line": {
+            "&:after": {
+                height: "36px !important",
+                width: 13,
+            },
+        },
+        "& .ant-tree-treenode-leaf-last .ant-tree-switcher-leaf-line:before": {
+            height: "36px !important",
+        },
     },
     treeTitle: {
         fontSize: theme.fontSizeLG,
@@ -274,17 +283,15 @@ const TraceTree = () => {
     ]
 
     return (
-        <div className="w-[320px] h-full flex flex-col">
-            <Tree
-                showLine={{showLeafIcon: false}}
-                showIcon={false}
-                defaultExpandedKeys={["0-0-0"]}
-                treeData={treeData}
-                className={classes.tree}
-                defaultExpandAll
-                defaultSelectedKeys={["0-2"]}
-            />
-        </div>
+        <Tree
+            showLine={{showLeafIcon: false}}
+            showIcon={false}
+            defaultExpandedKeys={["0-0-0"]}
+            treeData={treeData}
+            className={classes.tree}
+            defaultExpandAll
+            defaultSelectedKeys={["0-2"]}
+        />
     )
 }
 
