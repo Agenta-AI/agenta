@@ -1,12 +1,12 @@
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Drawer, Flex} from "antd"
 import React, {ReactNode, useState} from "react"
-import TraceTree from "../pages/observability/drawer/TraceTree"
-import TraceContent from "../pages/observability/drawer/TraceContent"
 
 type GenericDrawerProps = {
     expandable?: boolean
     headerExtra?: ReactNode
+    mainContent: ReactNode
+    sideContent?: ReactNode
 } & React.ComponentProps<typeof Drawer>
 
 const GenericDrawer = ({...props}: GenericDrawerProps) => {
@@ -51,8 +51,10 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
             {...props}
         >
             <div className="flex h-full">
-                <TraceTree />
-                <TraceContent />
+                {props.sideContent && (
+                    <div className="w-[320px] h-full flex flex-col">{props.sideContent}</div>
+                )}
+                {props.mainContent}
             </div>
         </Drawer>
     )
