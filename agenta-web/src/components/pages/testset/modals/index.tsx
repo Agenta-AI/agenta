@@ -1,5 +1,5 @@
 import React from "react"
-import {JSSTheme, testset} from "@/lib/Types"
+import {JSSTheme, testset, TestsetCreationMode} from "@/lib/Types"
 import {Modal} from "antd"
 import {createUseStyles} from "react-jss"
 import CreateTestset from "./CreateTestset"
@@ -23,25 +23,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Props = {
-    cloneConfig: boolean
-    setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
+    testsetCreationMode: TestsetCreationMode
+    setTestsetCreationMode: React.Dispatch<React.SetStateAction<TestsetCreationMode>>
     editTestsetValues: testset | null
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    renameTestsetConfig: boolean
-    setRenameTestsetConfig: React.Dispatch<React.SetStateAction<boolean>>
 } & React.ComponentProps<typeof Modal>
 
 const TestsetModal: React.FC<Props> = ({
-    cloneConfig,
-    setCloneConfig,
+    testsetCreationMode,
+    setTestsetCreationMode,
     editTestsetValues,
     setEditTestsetValues,
     current,
     setCurrent,
-    renameTestsetConfig,
-    setRenameTestsetConfig,
     ...props
 }) => {
     const classes = useStyles()
@@ -49,9 +45,8 @@ const TestsetModal: React.FC<Props> = ({
     const onCancel = () => props.onCancel?.({} as any)
 
     const onCloseModal = () => {
-        setCloneConfig(false)
+        setTestsetCreationMode("create")
         setEditTestsetValues(null)
-        setRenameTestsetConfig(false)
         setCurrent(0)
     }
 
@@ -62,14 +57,12 @@ const TestsetModal: React.FC<Props> = ({
         {
             content: (
                 <CreateTestsetFromScratch
+                    mode={testsetCreationMode}
+                    setMode={setTestsetCreationMode}
                     setCurrent={setCurrent}
                     onCancel={onCancel}
-                    cloneConfig={cloneConfig}
-                    setCloneConfig={setCloneConfig}
                     editTestsetValues={editTestsetValues}
                     setEditTestsetValues={setEditTestsetValues}
-                    renameTestsetConfig={renameTestsetConfig}
-                    setRenameTestsetConfig={setRenameTestsetConfig}
                 />
             ),
         },

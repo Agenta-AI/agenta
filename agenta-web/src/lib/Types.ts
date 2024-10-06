@@ -19,6 +19,8 @@ export interface TestSet {
     csvdata: KeyValuePair[]
 }
 
+export type TestsetCreationMode = "create" | "clone" | "rename"
+
 export interface ListAppsItem {
     app_id: string
     app_name: string

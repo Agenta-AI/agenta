@@ -2,11 +2,11 @@ import React, {useMemo, useState} from "react"
 import TestsetModal from "@/components/pages/testset/modals"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
-import {JSSTheme, testset} from "@/lib/Types"
+import {JSSTheme, testset, TestsetCreationMode} from "@/lib/Types"
 import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Avatar, Button, Dropdown, Input, Spin, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table/interface"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -53,8 +53,7 @@ const Testset = () => {
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
-    const [cloneConfig, setCloneConfig] = useState(false)
-    const [renameTestsetConfig, setRenameTestsetConfig] = useState(false)
+    const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
     const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
     const [current, setCurrent] = useState(0)
 
@@ -147,7 +146,7 @@ const Testset = () => {
                                     icon: <Copy size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        setCloneConfig(true)
+                                        setTestsetCreationMode("clone")
                                         setEditTestsetValues(record)
                                         setCurrent(1)
                                         setIsCreateTestsetModalOpen(true)
@@ -160,7 +159,7 @@ const Testset = () => {
                                     icon: <PencilSimple size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        setRenameTestsetConfig(true)
+                                        setTestsetCreationMode("rename")
                                         setEditTestsetValues(record)
                                         setCurrent(1)
                                         setIsCreateTestsetModalOpen(true)
@@ -249,14 +248,12 @@ const Testset = () => {
             </Spin>
 
             <TestsetModal
-                cloneConfig={cloneConfig}
-                setCloneConfig={setCloneConfig}
                 editTestsetValues={editTestsetValues}
                 setEditTestsetValues={setEditTestsetValues}
                 current={current}
                 setCurrent={setCurrent}
-                renameTestsetConfig={renameTestsetConfig}
-                setRenameTestsetConfig={setRenameTestsetConfig}
+                testsetCreationMode={testsetCreationMode}
+                setTestsetCreationMode={setTestsetCreationMode}
                 open={isCreateTestsetModalOpen}
                 onCancel={() => {
                     setIsCreateTestsetModalOpen(false)
