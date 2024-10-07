@@ -120,7 +120,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         }
 
         if (writeMode === "edit" && testset_id) {
-            setIsDataChanged(true)
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
