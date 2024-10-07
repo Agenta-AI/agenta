@@ -79,18 +79,6 @@ def validate_json_output(
             raise Exception(
                 f"Evaluator {evaluator_key} requires the output to be a JSON string or object."
             )
-
-    if not isinstance(
-        output,
-        (
-            str,
-            dict,
-        ),
-    ):
-        raise Exception(
-            f"Evaluator {evaluator_key} requires the output to be either a JSON string or object, but received {type(output).__name__} instead."
-        )
-
     return output
 
 
