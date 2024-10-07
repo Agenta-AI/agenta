@@ -53,47 +53,6 @@ def validate_string_output(
     return output
 
 
-def validate_json_output(
-    evaluator_key: str, output: Union[str, Dict[str, Any]]
-) -> Union[str, dict]:
-    """Checks and validate the output to be of type JSON string or dictionary.
-
-    Args:
-        evaluator_key (str): the key of the evaluator
-        output (Union[str, Dict[str, Any]]): the llm response
-
-    Raises:
-        Exception: requires output to be a JSON string
-
-    Returns:
-        str, dict: output
-    """
-
-    output = output.get("data", "") if isinstance(output, dict) else output
-    if isinstance(output, dict):
-        output = json.dumps(output)
-    elif isinstance(output, str):
-        try:
-            json.loads(output)
-        except json.JSONDecodeError:
-            raise Exception(
-                f"Evaluator {evaluator_key} requires the output to be a JSON string or object."
-            )
-
-    if not isinstance(
-        output,
-        (
-            str,
-            dict,
-        ),
-    ):
-        raise Exception(
-            f"Evaluator {evaluator_key} requires the output to be either a JSON string or object, but received {type(output).__name__} instead."
-        )
-
-    return output
-
-
 async def map(
     mapping_input: EvaluatorMappingInputInterface,
 ) -> EvaluatorMappingOutputInterface:
@@ -832,8 +791,12 @@ async def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        output = validate_json_output("json_diff", output)
+        # 1. extract llm app output if app output format is v2+
+        output = output.get("data", "") if isinstance(output, dict) else output 
+
+        # 2. extract ground truth from data point
         correct_answer = get_correct_answer(data_point, settings_values)
+
         response = await json_diff(
             input=EvaluatorInputInterface(
                 **{
@@ -843,7 +806,16 @@ async def auto_json_diff(
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except (ValueError, json.JSONDecodeError, Exception):
+    except json.JSONDecodeError:
+        return Result(
+            type="error",
+            value=None,
+            error=Error(
+                message="Expected answer is not a valid JSON",
+                stacktrace=traceback.format_exc(),
+            ),
+        )
+    except (ValueError, Exception):
         return Result(
             type="error",
             value=None,
@@ -855,12 +827,23 @@ async def auto_json_diff(
 
 
 async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    average_score = compare_jsons(
-        ground_truth=input.inputs["ground_truth"],
-        app_output=json.loads(input.inputs["prediction"]),
+    ground_truth = input.inputs["ground_truth"]
+    if isinstance(ground_truth, str):
+        ground_truth = json.loads(ground_truth) # if this fails we will return an error
+
+    app_output = input.inputs["prediction"]
+    assert isinstance(app_output, str), "App output is expected to be a string"
+    try:
+        app_output = json.loads(app_output)
+    except json.JSONDecodeError:
+        app_output = {} # we will return 0 score for json diff in case we cannot parse the output as json
+    
+    score = compare_jsons(
+        ground_truth=ground_truth,
+        app_output=app_output,
         settings_values=input.settings,
     )
-    return {"outputs": {"score": average_score}}
+    return {"outputs": {"score": score}}
 
 
 async def measure_rag_consistency(
