@@ -37,8 +37,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         cursor: "pointer",
         transitionDuration: "0.3s",
         "&:hover": {
-            boxShadow:
-                "0px 9px 28px 8px #0000000D, 0px 3px 6px -4px #0000001F, 0px 6px 16px 0px #00000014",
+            boxShadow: theme.boxShadow,
         },
         "& > .ant-card-head": {
             minHeight: 0,
@@ -95,7 +94,7 @@ const AddAppFromTemplatedModal = ({
     const isError = appNameExist || (newApp.length > 0 && !isAppNameInputValid(newApp))
 
     const handleEnterKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && templateId) {
             handleCreateApp()
         }
     }
