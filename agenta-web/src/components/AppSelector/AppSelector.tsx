@@ -83,10 +83,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             lineHeight: theme.lineHeightHeading4,
             fontSize: theme.fontSizeHeading4,
             fontWeight: theme.fontWeightMedium,
-            color: theme.colorText,
-        },
-        "& > div": {
-            color: theme.colorTextSecondary,
         },
     },
 }))
@@ -101,7 +97,7 @@ const AppSelector: React.FC = () => {
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
     const {user} = useProfileData()
-    const [templateMessage, setTemplateMessage] = useState("")
+    const [noTemplateMessage, setNoTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
@@ -152,7 +148,7 @@ const AppSelector: React.FC = () => {
             if (typeof data == "object") {
                 setTemplates(data)
             } else {
-                setTemplateMessage(data)
+                setNoTemplateMessage(data)
             }
         }
 
@@ -261,7 +257,7 @@ const AppSelector: React.FC = () => {
                     hasAvailableApps={hasAvailableApps}
                     newApp={newApp}
                     templates={templates}
-                    noTemplateMessage={templateMessage}
+                    noTemplateMessage={noTemplateMessage}
                     templateId={templateId}
                     appNameExist={appNameExist}
                     setCurrent={setCurrent}
@@ -365,7 +361,7 @@ const AppSelector: React.FC = () => {
                                     height={210}
                                 />
                                 <Typography.Text>No Results found</Typography.Text>
-                                <Typography.Paragraph>
+                                <Typography.Paragraph type="secondary">
                                     No results match the search criteria.
                                 </Typography.Paragraph>
                             </div>
@@ -397,7 +393,7 @@ const AppSelector: React.FC = () => {
             </Modal>
 
             <MaxAppModal
-                open={isMaxAppModalOpen}
+                open={true}
                 onCancel={() => {
                     setIsMaxAppModalOpen(false)
                 }}
