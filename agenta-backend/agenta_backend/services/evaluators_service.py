@@ -644,9 +644,11 @@ async def auto_contains_json(
 ) -> Result:
     try:
         # parsing llm app output format if v2
-        output = output.get("data", "") if isinstance(output, dict) else output 
+        output = output.get("data", "") if isinstance(output, dict) else output
         if isinstance(output, dict):
-            output = json.dumps(output) # contains_json expects inputs.prediction to be a string
+            output = json.dumps(
+                output
+            )  # contains_json expects inputs.prediction to be a string
         elif not isinstance(output, (str, dict)):
             raise Exception(
                 f"Evaluator contains_json requires the app output to be either a JSON string or object, but received {type(output).__name__} instead."
@@ -792,7 +794,7 @@ async def auto_json_diff(
 ) -> Result:
     try:
         # 1. extract llm app output if app output format is v2+
-        output = output.get("data", "") if isinstance(output, dict) else output 
+        output = output.get("data", "") if isinstance(output, dict) else output
 
         # 2. extract ground truth from data point
         correct_answer = get_correct_answer(data_point, settings_values)
@@ -829,15 +831,17 @@ async def auto_json_diff(
 async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     ground_truth = input.inputs["ground_truth"]
     if isinstance(ground_truth, str):
-        ground_truth = json.loads(ground_truth) # if this fails we will return an error
+        ground_truth = json.loads(ground_truth)  # if this fails we will return an error
 
     app_output = input.inputs["prediction"]
     assert isinstance(app_output, str), "App output is expected to be a string"
     try:
         app_output = json.loads(app_output)
     except json.JSONDecodeError:
-        app_output = {} # we will return 0 score for json diff in case we cannot parse the output as json
-    
+        app_output = (
+            {}
+        )  # we will return 0 score for json diff in case we cannot parse the output as json
+
     score = compare_jsons(
         ground_truth=ground_truth,
         app_output=app_output,
