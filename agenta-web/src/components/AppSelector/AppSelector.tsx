@@ -22,6 +22,7 @@ import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import AppTemplateCard from "./AppTemplateCard"
 import Image from "next/image"
+import dayjs from "dayjs"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -249,9 +250,16 @@ const AppSelector: React.FC = () => {
     }
 
     const filteredApps = useMemo(() => {
-        return searchTerm
-            ? apps.filter((app) => app.app_name.toLowerCase().includes(searchTerm.toLowerCase()))
-            : apps
+        let filtered = apps.sort(
+            (a, b) => dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
+        )
+
+        if (searchTerm) {
+            filtered = apps.filter((app) =>
+                app.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+        return filtered
     }, [apps, searchTerm])
 
     const steps = [
