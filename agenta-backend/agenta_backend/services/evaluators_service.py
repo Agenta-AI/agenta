@@ -79,6 +79,18 @@ def validate_json_output(
             raise Exception(
                 f"Evaluator {evaluator_key} requires the output to be a JSON string or object."
             )
+
+    if not isinstance(
+        output,
+        (
+            str,
+            dict,
+        ),
+    ):
+        raise Exception(
+            f"Evaluator {evaluator_key} requires the output to be either a JSON string or object, but received {type(output).__name__} instead."
+        )
+
     return output
 
 
@@ -672,7 +684,14 @@ async def auto_contains_json(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        output = validate_json_output("contains_json", output)
+        # parsing llm app output format if v2
+        output = output.get("data", "") if isinstance(output, dict) else output 
+        if isinstance(output, dict):
+            output = json.dumps(output) # contains_json expects inputs.prediction to be a string
+        elif not isinstance(output, (str, dict)):
+            raise Exception(
+                f"Evaluator contains_json requires the app output to be either a JSON string or object, but received {type(output).__name__} instead."
+            )
         response = await contains_json(
             input=EvaluatorInputInterface(**{"inputs": {"prediction": output}})
         )
@@ -695,7 +714,7 @@ async def contains_json(input: EvaluatorInputInterface) -> EvaluatorOutputInterf
         potential_json = str(input.inputs["prediction"])[start_index:end_index]
         json.loads(potential_json)
         contains_json = True
-    except (ValueError, json.JSONDecodeError):
+    except (ValueError, json.JSONDecodeError) as e:
         contains_json = False
 
     return {"outputs": {"success": contains_json}}
