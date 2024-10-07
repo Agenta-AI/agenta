@@ -2,7 +2,7 @@ import React, {useMemo, useState} from "react"
 import TestsetModal from "@/components/pages/testset/modals"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
-import {JSSTheme, testset, TestsetCreationMode} from "@/lib/Types"
+import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
 import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
@@ -10,6 +10,7 @@ import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table/interface"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
+import dayjs from "dayjs"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
@@ -81,9 +82,14 @@ const Testset = () => {
 
     const filteredTestset = useMemo(() => {
         return testsets
-            ? testsets.filter((item: any) =>
-                  item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-              )
+            ? testsets
+                  .filter((item: TestSet) =>
+                      item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+                  )
+                  .sort(
+                      (a: TestSet, b: TestSet) =>
+                          dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf(),
+                  )
             : testsets
     }, [searchTerm, testsets])
 

@@ -56,7 +56,7 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
                 <CopyButton buttonText={null} text={codeSnippets[selectedLang]} icon={true} />
             </div>
 
-            <div className="w-[430px] max-h-[380px] !overflow-auto">
+            <div className="w-[430px] max-h-[380px] !overflow-y-auto">
                 <CodeBlock
                     key={selectedLang}
                     language={selectedLang}
@@ -168,8 +168,9 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                 <Typography.Link
                     href="https://docs.agenta.ai/evaluation/create-test-sets#creating-a-test-set-using-the-api"
                     target="_blank"
+                    className={classes.subText}
                 >
-                    <Button type="link">Read the docs</Button>
+                    Read the docs
                 </Typography.Link>
 
                 <Button onClick={onCancel}>Close</Button>
