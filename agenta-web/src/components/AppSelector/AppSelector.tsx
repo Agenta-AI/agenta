@@ -401,7 +401,7 @@ const AppSelector: React.FC = () => {
             </Modal>
 
             <MaxAppModal
-                open={true}
+                open={isMaxAppModalOpen}
                 onCancel={() => {
                     setIsMaxAppModalOpen(false)
                 }}
