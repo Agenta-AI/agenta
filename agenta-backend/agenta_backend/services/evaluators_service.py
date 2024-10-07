@@ -793,9 +793,6 @@ async def auto_json_diff(
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
     try:
-        # 1. extract llm app output if app output format is v2+
-        output = output.get("data", "") if isinstance(output, dict) else output
-
         # 2. extract ground truth from data point
         correct_answer = get_correct_answer(data_point, settings_values)
 
@@ -833,14 +830,21 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     if isinstance(ground_truth, str):
         ground_truth = json.loads(ground_truth)  # if this fails we will return an error
 
+    # 1. extract llm app output if app output format is v2+
     app_output = input.inputs["prediction"]
-    assert isinstance(app_output, str), "App output is expected to be a string"
-    try:
-        app_output = json.loads(app_output)
-    except json.JSONDecodeError:
-        app_output = (
-            {}
-        )  # we will return 0 score for json diff in case we cannot parse the output as json
+    assert isinstance(
+        app_output, (str, dict)
+    ), "App output is expected to be a string or a JSON object"
+    app_output = (
+        app_output.get("data", "") if isinstance(app_output, dict) else app_output
+    )
+    if isinstance(app_output, str):
+        try:
+            app_output = json.loads(app_output)
+        except json.JSONDecodeError:
+            app_output = (
+                {}
+            )  # we will return 0 score for json diff in case we cannot parse the output as json
 
     score = compare_jsons(
         ground_truth=ground_truth,
