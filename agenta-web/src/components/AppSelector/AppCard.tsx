@@ -20,13 +20,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
-        boxShadow:
-            "0px 2px 4px 0px #00000005, 0px 1px 6px -1px #00000005, 0px 1px 2px 0px #00000008",
+        boxShadow: theme.boxShadowTertiary,
         "& > .ant-card-head": {
             minHeight: 0,
-            paddingInline: theme.paddingSM,
-            paddingTop: theme.paddingXS,
-            paddingBottom: theme.paddingXS,
+            padding: `${theme.paddingXS}px ${theme.paddingSM}px`,
             "& .ant-card-head-title": {
                 fontSize: theme.fontSizeLG,
                 fontWeight: theme.fontWeightMedium,
@@ -90,7 +87,7 @@ const AppCard: React.FC<{
                 onClick={() => router.push(`/apps/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
-                        trigger={["hover"]}
+                        trigger={["click"]}
                         overlayStyle={{width: 180}}
                         menu={{
                             items: [

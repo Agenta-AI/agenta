@@ -117,7 +117,7 @@ const AppSelector: React.FC = () => {
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
 
-    const hasApps = Array.isArray(apps) && apps.length > 0
+    const hasAvailableApps = Array.isArray(apps) && apps.length > 0
 
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
@@ -137,12 +137,12 @@ const AppSelector: React.FC = () => {
         setTemplateId(undefined)
         setNewApp("")
         setIsCreateAppModalOpen(true)
-        setCurrent(hasApps ? 1 : 0)
+        setCurrent(hasAvailableApps ? 1 : 0)
     }
 
     const showWriteAppModal = () => {
         setIsCreateAppModalOpen(true)
-        setCurrent(hasApps ? 2 : 1)
+        setCurrent(hasAvailableApps ? 2 : 1)
     }
 
     useEffect(() => {
@@ -258,7 +258,7 @@ const AppSelector: React.FC = () => {
         {
             content: (
                 <AddAppFromTemplatedModal
-                    hasApps={hasApps}
+                    hasAvailableApps={hasAvailableApps}
                     newApp={newApp}
                     templates={templates}
                     noTemplateMessage={templateMessage}
@@ -274,11 +274,13 @@ const AppSelector: React.FC = () => {
             ),
         },
         {
-            content: <WriteOwnAppModal setCurrent={setCurrent} hasApps={hasApps} />,
+            content: (
+                <WriteOwnAppModal setCurrent={setCurrent} hasAvailableApps={hasAvailableApps} />
+            ),
         },
     ]
 
-    if (hasApps) {
+    if (hasAvailableApps) {
         steps.unshift({
             content: (
                 <section className={classes.appTemplate}>
@@ -345,29 +347,29 @@ const AppSelector: React.FC = () => {
                             />
                             <Divider />
                         </div>
-                        <div className={classes.cardsList}>
-                            {Array.isArray(apps) &&
-                                (filteredApps.length > 0 ? (
-                                    filteredApps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className={classes.notFound}>
-                                        <Image
-                                            src="/assets/not-found.png"
-                                            alt="not-found"
-                                            width={240}
-                                            height={210}
-                                        />
-                                        <Typography.Text>No Results found</Typography.Text>
-                                        <Typography.Paragraph>
-                                            No results match the search criteria.
-                                        </Typography.Paragraph>
+
+                        {Array.isArray(apps) && filteredApps.length ? (
+                            <div className={classes.cardsList}>
+                                {filteredApps.map((app, index: number) => (
+                                    <div key={index}>
+                                        <AppCard app={app} />
                                     </div>
                                 ))}
-                        </div>
+                            </div>
+                        ) : (
+                            <div className={classes.notFound}>
+                                <Image
+                                    src="/assets/not-found.png"
+                                    alt="not-found"
+                                    width={240}
+                                    height={210}
+                                />
+                                <Typography.Text>No Results found</Typography.Text>
+                                <Typography.Paragraph>
+                                    No results match the search criteria.
+                                </Typography.Paragraph>
+                            </div>
+                        )}
 
                         <TipsAndFeatures />
                     </div>
