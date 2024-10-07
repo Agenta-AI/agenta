@@ -81,16 +81,16 @@ const Testset = () => {
     }
 
     const filteredTestset = useMemo(() => {
-        return testsets
-            ? testsets
-                  .filter((item: TestSet) =>
-                      item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-                  )
-                  .sort(
-                      (a: TestSet, b: TestSet) =>
-                          dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf(),
-                  )
-            : testsets
+        let allTestsets = testsets.sort(
+            (a: TestSet, b: TestSet) =>
+                dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
+        )
+        if (searchTerm) {
+            allTestsets = testsets.filter((item: TestSet) =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+        return allTestsets
     }, [searchTerm, testsets])
 
     const columns: ColumnsType<testset> = [
