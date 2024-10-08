@@ -1083,6 +1083,10 @@ def parse_inline_trace(
 
     agenta_span_dtos = [parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos]
 
+    #################
+    ### THIS FILE ###
+    #################
+
     _spans = [
         loads(span_dto.model_dump_json(exclude_none=True)) for span_dto in agenta_span_dtos
     ]
