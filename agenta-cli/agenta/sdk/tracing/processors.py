@@ -10,12 +10,13 @@ from opentelemetry.sdk.trace.export import (
     _DEFAULT_MAX_QUEUE_SIZE,
 )
 
+# LOAD CONTEXT, HERE
+
 
 class TraceProcessor(BatchSpanProcessor):
     def __init__(
         self,
         span_exporter: SpanExporter,
-        scope: Dict[str, Any] = None,
         max_queue_size: int = None,
         schedule_delay_millis: float = None,
         max_export_batch_size: int = None,
@@ -29,39 +30,31 @@ class TraceProcessor(BatchSpanProcessor):
             _DEFAULT_EXPORT_TIMEOUT_MILLIS,
         )
 
-        self.registry = dict()
-        self.scope = scope
+        self._registry = dict()
+        self._exporter = span_exporter
 
-    def on_start(
-        self,
-        span: Span,
-        parent_context: Optional[Context] = None,
-    ) -> None:
-        super().on_start(span, parent_context=parent_context)
+    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
+        # ADD LINKS FROM CONTEXT, HERE
 
-        span.set_attributes(
-            attributes={f"ag.extra.{k}": v for k, v in self.scope.items()}
-        )
+        if span.context.trace_id not in self._registry:
+            self._registry[span.context.trace_id] = dict()
 
-        if span.context.trace_id not in self.registry:
-            self.registry[span.context.trace_id] = dict()
+        self._registry[span.context.trace_id][span.context.span_id] = True
 
-        self.registry[span.context.trace_id][span.context.span_id] = True
-
-    def on_end(
-        self,
-        span: ReadableSpan,
-    ):
+    def on_end(self, span: ReadableSpan):
         super().on_end(span)
 
-        del self.registry[span.context.trace_id][span.context.span_id]
+        del self._registry[span.context.trace_id][span.context.span_id]
 
-        if self.is_done():
+        if self.is_ready(span.get_span_context().trace_id):
             self.force_flush()
 
-    def is_done(
-        self,
-    ):
-        return all(
-            not len(self.registry[trace_id]) for trace_id in self.registry.keys()
-        )
+    def is_ready(self, trace_id: Optional[int] = None) -> bool:
+        is_ready = not len(self._registry.get(trace_id, {}))
+
+        return is_ready
+
+    def fetch(self, trace_id: Optional[int] = None) -> Dict[str, ReadableSpan]:
+        trace = self._exporter.fetch(trace_id)  # type: ignore
+
+        return trace

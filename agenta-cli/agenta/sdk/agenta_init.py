@@ -7,7 +7,7 @@ from importlib.metadata import version
 from agenta.sdk.utils.logging import log
 from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi
-from agenta.sdk.tracing.opentelemetry import Tracing
+from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
 
@@ -29,10 +29,13 @@ class AgentaSingleton:
 
     def init(
         self,
-        app_id: Optional[str] = None,
+        *,
         host: Optional[str] = None,
+        project_id: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
+        #
+        app_id: Optional[str] = None,
     ) -> None:
         log.info(f"\n--------------------------------")
         log.info(f"Using Agenta Python SDK version: {version('agenta')}")
@@ -81,14 +84,25 @@ class AgentaSingleton:
                 "3. As an environment variable 'AGENTA_APP_ID'."
             )
 
+        self.project_id = (
+            project_id
+            or config.get("project_id")
+            or os.environ.get("AGENTA_PROJECT_ID")
+        )
+
         self.api_key = (
             api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
         )
 
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/traces",  # type: ignore
-            app_id=self.app_id,
+        )
+
+        self.tracing.configure(
+            project_id=self.project_id,
             api_key=self.api_key,
+            # DEPRECATED
+            app_id=self.app_id,
         )
 
         self.base_id = os.environ.get("AGENTA_BASE_ID")
@@ -237,9 +251,11 @@ class Config:
 
 def init(
     host: Optional[str] = None,
-    app_id: Optional[str] = None,
+    project_id: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
+    # DEPRECATED
+    app_id: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
 
@@ -267,9 +283,11 @@ def init(
 
     singleton.init(
         host=host,
-        app_id=app_id,
+        project_id=project_id,
         api_key=api_key,
         config_fname=config_fname,
+        # DEPRECATED
+        app_id=app_id,
     )
 
     set_global(

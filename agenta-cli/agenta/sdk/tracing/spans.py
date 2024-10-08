@@ -1,126 +1,124 @@
-from json import loads, dumps
 from typing import Optional, Union, Any, Dict
 
-from opentelemetry.sdk.trace import Span, Status, StatusCode
-from opentelemetry.sdk.trace.export import ReadableSpan
+from opentelemetry.trace import SpanContext
+from opentelemetry.trace.status import Status, StatusCode
+from opentelemetry.sdk.trace import Span
+
+from agenta.sdk.tracing.attributes import serialize
 
 
-def set_status(span: Span, status: str, message: Optional[str] = None) -> None:
-    if status == "OK":
-        if span.status.status_code != StatusCode.ERROR:
-            span.set_status(
-                Status(status_code=StatusCode.OK, description=message),
-            )
-    elif status == "ERROR":
-        span.set_status(
-            Status(status_code=StatusCode.ERROR, description=message),
+class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
+    def __init__(self, span: Span) -> None:
+        super().__init__(  # INHERITANCE FOR TYPING ONLY
+            name=span.name,
+            context=span.context,
+            parent=span.parent,
+            sampler=span._sampler,
+            trace_config=span._trace_config,
+            resource=span.resource,
+            attributes=span.attributes,
+            events=span.events,
+            links=span.links,
+            kind=span.kind,
+            span_processor=span._span_processor,
+            instrumentation_info=span.instrumentation_info,
+            record_exception=span._record_exception,
+            set_status_on_exception=span._set_status_on_exception,
+            limits=span._limits,
+            instrumentation_scope=span.instrumentation_scope,
         )
 
+        self._span = span
 
-def add_event(span: Span, name, attributes=None, timestamp=None) -> None:
-    span.add_event(
-        name=name,
-        attributes=_serialize_attributes(None, attributes),
-        timestamp=timestamp,
-    )
+    ## --- PROXY METHODS --- ##
 
+    def get_span_context(self):
+        return self._span.get_span_context()
 
-def record_exception(span: Span, exception, attributes=None, timestamp=None) -> None:
-    span.record_exception(
-        exception=exception,
-        attributes=_serialize_attributes(None, attributes),
-        timestamp=timestamp,
-        escaped=None,
-    )
+    def is_recording(self) -> bool:
+        return self._span.is_recording()
 
+    def update_name(self, name: str) -> None:
+        self._span.update_name(name)
 
-def set_attributes(
-    span: Span, namespace: Optional[str], attributes: Dict[str, Any]
-) -> None:
-    if isinstance(attributes, dict):
-        span.set_attributes(_serialize_attributes(namespace, attributes).items())
+    def set_status(
+        self,
+        status: Union[Status, StatusCode],
+        description: Optional[str] = None,
+    ) -> None:
+        self._span.set_status(status=status, description=description)
 
+    def end(self) -> None:
+        self._span.end()
 
-def get_attributes(span: Union[ReadableSpan, Span], namespace: str):
-    return _deserialize_attributes(
-        namespace,
-        {
-            key: value
-            for key, value in span.attributes.items()
-            if key != _decode_key(namespace, key)
-        },
-    )
+    ## --- CUSTOM METHODS W/ ATTRIBUTES SERALIZATION --- ##
 
+    def set_attributes(
+        self,
+        attributes: Dict[str, Any],
+        namespace: Optional[str] = None,
+        max_depth: Optional[int] = None,
+    ) -> None:
+        self._span.set_attributes(
+            attributes=serialize(
+                namespace=namespace,
+                attributes=attributes,
+                max_depth=max_depth,
+            )
+        )
 
-def _serialize_attributes(
-    namespace: str,
-    attributes: Dict[str, Any],
-) -> Dict[str, str]:
-    if not isinstance(attributes, dict):
-        return {}
+    def set_attribute(
+        self,
+        key: str,
+        value: Any,
+        namespace: Optional[str] = None,
+    ) -> None:
+        self.set_attributes({key: value}, namespace)
 
-    return {
-        _encode_key(namespace, key): _encode_value(value)
-        for key, value in attributes.items()
-    }
+    def add_event(
+        self,
+        name: str,
+        attributes: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[int] = None,
+        namespace: Optional[str] = None,
+    ) -> None:
+        self._span.add_event(
+            name=name,
+            attributes=serialize(
+                namespace=namespace,
+                attributes=attributes,
+            ),
+            timestamp=timestamp,
+        )
 
+    def add_link(
+        self,
+        context: SpanContext,
+        attributes: Optional[Dict[str, Any]] = None,
+        namespace: Optional[str] = None,
+    ) -> None:
+        self._span.add_link(
+            context=context,
+            attributes=serialize(
+                namespace=namespace,
+                attributes=attributes,
+            ),
+        )
 
-def _deserialize_attributes(
-    namespace: str,
-    attributes: Dict[str, Any],
-) -> Dict[str, Any]:
-    if not isinstance(attributes, dict):
-        return {}
-
-    return {
-        _decode_key(namespace, key): _decode_value(value)
-        for key, value in attributes.items()
-    }
-
-
-def _encode_key(namespace: Optional[str] = None, key: str = "") -> str:
-    if namespace is None:
-        return key
-
-    return f"ag.{namespace}.{key}"
-
-
-def _decode_key(namespace: Optional[str] = None, key: str = "") -> str:
-    if namespace is None:
-        return key
-
-    return key.replace(f"ag.{namespace}.", "")
-
-
-def _encode_value(value: Any) -> Any:
-    if value is None:
-        value = "@ag.type=none:"
-        return value
-
-    if isinstance(value, (str, int, float, bool, bytes)):
-        return value
-
-    if isinstance(value, dict) or isinstance(value, list):
-        encoded = dumps(value)
-        value = "@ag.type=json:" + encoded
-        return value
-
-    return repr(value)
-
-
-def _decode_value(value: Any) -> Any:
-    if isinstance(value, (int, float, bool, bytes)):
-        return value
-
-    if isinstance(value, str):
-        if value == "@ag.type=none:":
-            return None
-
-        if value.startswith("@ag.type=json:"):
-            encoded = value[len("@ag.type=json:") :]
-            value = loads(encoded)
-            return value
-
-        return value
-
-    return value
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+        namespace: Optional[str] = None,
+    ) -> None:
+        self._span.record_exception(
+            exception=exception,
+            attributes=serialize(
+                namespace=namespace,
+                attributes=attributes,
+            ),
+            timestamp=timestamp,
+            escaped=escaped,
+        )
