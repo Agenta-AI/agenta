@@ -163,6 +163,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             closeIcon={null}
             title={null}
             className={classes.modalWrapper}
+            maskClosable={false}
             centered
             {...props}
         >
