@@ -13,7 +13,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
 from importlib.metadata import version
-from contextlib import suppress
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
@@ -22,6 +21,7 @@ import agenta as ag
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.router import router as router
+from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
     DictInput,
@@ -397,20 +397,29 @@ class entrypoint:
         except Exception as e:
             self.handle_exception(e)
 
-        with suppress(Exception):
-            if inline_trace:
-                if WAIT_FOR_SPANS:
-                    remaining_steps = NOFSTEPS
+        with suppress():
+            root_context: Dict[str, Any] = tracing_context.get().get("root")
 
-                    while ag.tracing.is_processing() and remaining_steps > 0:
-                        await asyncio.sleep(TIMESTEP)
-                        remaining_steps -= 1
+            trace_id = root_context.get("trace_id") if root_context else None
 
-                    await asyncio.sleep(FINALSTEP)
+            if trace_id is not None:
+                if inline_trace:
+                    if WAIT_FOR_SPANS:
+                        remaining_steps = NOFSTEPS
 
-                trace = ag.tracing.get_inline_trace()
-            else:
-                trace = ag.tracing.get_trace_id_only()
+                        while (
+                            not ag.tracing.is_inline_trace_ready(trace_id)
+                            and remaining_steps > 0
+                        ):
+                            await asyncio.sleep(TIMESTEP)
+
+                            remaining_steps -= 1
+
+                        await asyncio.sleep(FINALSTEP)
+
+                    trace = ag.tracing.get_inline_trace(trace_id)
+                else:
+                    trace = {"trace_id": trace_id}
 
         response = BaseResponse(data=data, trace=trace)
 
@@ -651,9 +660,9 @@ class entrypoint:
 
         log.info(f"trace_id: {result.trace['trace_id']}")
         if SHOW_DETAILS:
-            log.info(f"latency:  {result.trace['latency']}")
-            log.info(f"cost:     {result.trace['cost']}")
-            log.info(f"tokens:   {list(result.trace['tokens'].values())}")
+            log.info(f"latency:  {result.trace.get('latency')}")
+            log.info(f"cost:     {result.trace.get('cost')}")
+            log.info(f"tokens:   {list(result.trace.get('tokens', {}).values())}")
 
         if SHOW_DATA:
             log.info(" ")
@@ -664,13 +673,7 @@ class entrypoint:
             log.info(" ")
             log.info(f"trace:")
             log.info(f"----------------")
-            for span in result.trace["spans"]:
-                log.info(
-                    f"{span['id']} {span['spankind'].ljust(10)} {span['status'].ljust(5)} {span['name']}"
-                )
-                if SHOW_SPAN_ATTRIBUTES:
-                    [log.info(f"    {attribute}") for attribute in span["attributes"]]
-                    log.info(" ")
+            log.info(json.dumps(result.trace.get("spans", []), indent=2))
             log.info(f"----------------")
 
         log.info("\n==========================\n")
