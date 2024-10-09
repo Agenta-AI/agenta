@@ -1,0 +1,56 @@
+---
+title: "Fetch prompts"
+description: "How to fetch the deployed version of your prompt using the Agenta SDK."
+---
+
+This guide shows you how to fetch the deployed version of your prompt in your code. You can do this using the Agenta SDK (Python) or the REST API.
+
+## Fetching prompts with the Agenta SDK
+
+### Step 1: Setup
+
+Make sure to install the latest version of the agenta Python SDK (`pip -U install agenta`).
+
+- Set up environment variables:
+  - `AGENTA_API_KEY` for cloud users.
+  - `AGENTA_HOST` set to `http://localhost` if you are self-hosting.
+  - `AGENTA_PROJECT_ID` set to the project ID.
+
+### Step 2: Fetch the prompt
+
+```python
+import agenta as ag
+from agenta import DeploymentManager, PromptManager
+ag.init()
+
+# fetch the deployment (id)
+deployment = DeploymentManager.get_deployment_by_name(deployment_name="production",
+                                                      app_slug="my-app")
+# fetch latest configuration deployed here
+prompt_obj = PromptManager.get_from_registry(deployment_id=deployment.id)
+```
+
+The prompt object is a dictionary that will have both the information about the configuration version and the data (under the field data)
+
+```python
+{
+ variant_slug: "my-variant",
+ app_slug: "my-app""
+ version: 3,
+ commit-id: "afae3232",
+ data: {
+    'temperature': 1.0,
+    'model': 'gpt-3.5-turbo',
+    'max_tokens': -1,
+    'prompt_system': 'You are an expert in geography.',
+    'prompt_user': 'What is the capital of {country}?',
+    'top_p': 1.0,
+    'frequence_penalty': 0.0,
+    'presence_penalty': 0.0,
+    'force_json': 0
+}
+```
+
+## Fetching prompts with the REST API
+
+@jp-agenta how would that look like?
