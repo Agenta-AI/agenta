@@ -1,0 +1,57 @@
+---
+title: "Integrating with agenta"
+description: "Integrate applications and prompts created in Agenta into your projects."
+---
+
+Agenta easily integrates with your workflow, allowing you to use the latest version of the deployed prompt in your application. With Agenta, **you can update prompts directly from the web interface without modifying your code** each time.
+
+Here are the two ways you can integrate your application with Agenta:
+
+:::info Using Observability
+In addition to prompt management, agenta provides observability features.
+
+If you're using Agenta [as a proxy](#2-as-a-middleware--model-proxy), all your calls are traced automatically without any additional setup. However, if you're using Agenta [as prompt management system](#1-as-a-prompt-management-system) (i.e. only fetching the prompts), you need to integrate observability manually into your code base. You can learn how to do this [here](/observability/quickstart).
+:::
+
+### [1. As a prompt management system](/prompt-management/integration/02-fetch-prompts):
+
+In this approach, prompts are managed and stored in the Agenta backend. You use the Agenta SDK to fetch the latest deployed version of your prompt and use it in your application.
+
+**Advantages**:
+
+- Agenta operates outside your application's critical path.
+- Allows ou to fetch and cache the latest prompt version for zero latency usage.
+
+**Considerations**:
+
+- You need to manage the [integration with observability](/observability/quickstart) yourself.
+
+<img
+  class="bg-white"
+  src="/images/prompt_management/as-a-prompt-management.png"
+  loading="lazy"
+  alt="A sequence diagram showing how to integrate with Agenta as a prompt management system"
+/>
+
+### **[2. As a middleware / model proxy](/prompt-management/integration/03-proxy-calls)**:
+
+In this setup, Agenta provides you with an endpoint that forwards requests to the LLM on your behalf.
+
+**Advantages**:
+
+- Simplified deployment.
+- Automatic tracing without any changes to your code.
+
+**Considerations**:
+
+- Adds a slight latency to the response (approximately 0.3 seconds).
+- Currently, we don't support streaming for these endpoints.
+
+Overall, this approach is best suited for applications where latency isn't critical.
+
+<img
+  class="bg-white"
+  src="/images/prompt_management/as-a-proxy.png"
+  loading="lazy"
+  alt="A sequence diagram showing how to integrate with Agenta as    a proxy"
+/>
