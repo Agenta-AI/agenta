@@ -60,39 +60,24 @@ that deployment and not the **variant** itself!
 To see the code snippet needed to use the prompt, click on the name of the deployment and you will see a drawer with the integration code. For example for python
 
 ```python
-import agenta as ag
-from agenta import DeploymentManager, PromptManager
-
-# os.environment["AGENTA_API_KEY"] = "ag-xxx"
-# os.environment["AGENTA_PROJECT_ID] = "ag-xxx"
-ag.init()
-
-# fetch the deployment (id)
-deployment = DeploymentManager.get_deployment_by_name(deployment_name="production",
-                                                      app_slug="my-app")
-# fetch latest configuration deployed here
-prompt_obj = PromptManager.get_from_registry(deployment_id=deployment.id)
+from agenta import Agenta
+agenta = Agenta()
+config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
 ```
 
-The prompt object will have both the information about the configuration version and the data (under the field data)
+The prompt object will be like this:
 
 ```python
-{
- variant_slug: "my-variant",
- app_slug: "my-app""
- version: 3,
- commit-id: "afae3232",
- data: {
-    'temperature': 1.0,
-    'model': 'gpt-3.5-turbo',
-    'max_tokens': -1,
-    'prompt_system': 'You are an expert in geography.',
-    'prompt_user': 'What is the capital of {country}?',
-    'top_p': 1.0,
-    'frequence_penalty': 0.0,
-    'presence_penalty': 0.0,
-    'force_json': 0
-}
+{'temperature': 1.0,
+'model': 'gpt-3.5-turbo',
+'max_tokens': -1,
+'prompt_system': 'You are an expert in geography.',
+'prompt_user': 'What is the capital of {country}?',
+'top_p': 1.0,
+'frequence_penalty': 0.0,
+'presence_penalty': 0.0,
+'force_json': 0}
+
 ```
 
 ## 4. Revert to previous deployment (optional)
