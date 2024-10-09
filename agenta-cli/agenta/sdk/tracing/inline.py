@@ -1,7 +1,6 @@
 ############################
 ### services.shared.dtos ###
-############################
-
+### -------------------- ###
 
 from typing import Optional
 
@@ -10,9 +9,6 @@ from uuid import UUID
 from datetime import datetime
 from enum import Enum
 from collections import OrderedDict
-
-
-## --- DISPLAY --- ##
 
 
 NOF_CHARS = 8
@@ -86,14 +82,8 @@ class DisplayBase(BaseModel):
         return _repr(self)
 
 
-## --- SCOPE --- ##
-
-
 class ProjectScopeDTO(DisplayBase):
     project_id: UUID
-
-
-## --- LIFECYCLE --- ##
 
 
 class LifecycleDTO(DisplayBase):
@@ -102,11 +92,14 @@ class LifecycleDTO(DisplayBase):
 
     updated_by_id: Optional[UUID] = None
 
+### -------------------- ###
+### services.shared.dtos ###
+############################
+
 
 ###################################
 ### services.observability.dtos ###
-###################################
-
+### --------------------------- ###
 
 from typing import List, Dict, Any, Union, Optional, Sequence
 
@@ -114,16 +107,11 @@ from enum import Enum
 from datetime import datetime
 from uuid import UUID
 
-## --- TIME --- ##
-
 
 class TimeDTO(DisplayBase):
     start: datetime
     end: datetime
     span: int
-
-
-## --- STATUS --- ##
 
 
 class StatusCode(Enum):
@@ -138,18 +126,7 @@ class StatusDTO(DisplayBase):
     stacktrace: Optional[str] = None
 
 
-## --- ATTRIBUTES --- ##
-
-AttributeValueType = Any  #
-"""
-AttributeValueType = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[Union[str, bool, int, float]],
-]
-"""
+AttributeValueType = Any
 Attributes = Dict[str, AttributeValueType]
 
 
@@ -159,9 +136,6 @@ class AttributesDTO(DisplayBase):
     meta: Optional[Attributes] = None
     tags: Optional[Attributes] = None
     semconv: Optional[Attributes] = None
-
-
-## --- HIERARCHICAL STRUCTURE --- ##
 
 
 class TreeType(Enum):
@@ -264,11 +238,8 @@ class OTelExtraDTO(DisplayBase):
     links: Optional[List[OTelLinkDTO]] = None
 
 
-## --- ENTITIES --- ##
-
-
-class SpanDTO(DisplayBase):  # DBE
-    scope: ProjectScopeDTO  # DBA
+class SpanDTO(DisplayBase):
+    scope: ProjectScopeDTO
 
     lifecycle: LifecycleDTO
 
@@ -294,8 +265,8 @@ class SpanDTO(DisplayBase):  # DBE
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
 
 
-class SpanCreateDTO(DisplayBase):  # DBE
-    scope: ProjectScopeDTO  # DBA
+class SpanCreateDTO(DisplayBase):
+    scope: ProjectScopeDTO
 
     root: RootDTO
     tree: TreeDTO
@@ -335,11 +306,14 @@ class OTelSpanDTO(DisplayBase):
     parent: Optional[OTelContextDTO] = None
     links: Optional[List[OTelLinkDTO]] = None
 
-
+### --------------------------- ###
+### services.observability.dtos ###
 ###################################
-### services.observability.utils ##
-###################################
 
+
+####################################
+### services.observability.utils ###
+### ---------------------------- ###
 
 from typing import List, Dict, OrderedDict
 
@@ -526,11 +500,14 @@ def _connect_tree_dfs(
         if len(parent_span.nodes) == 0:
             parent_span.nodes = None
 
+### ---------------------------- ###
+### services.observability.utils ###
+####################################
+
 
 ########################################################
 ### apis.fastapi.observability.opentelemetry.semconv ###
-########################################################
-
+### ------------------------------------------------ ###
 
 VERSION = "0.4.1"
 
@@ -600,11 +577,14 @@ KEYS = {
 
 CODEX = {"maps": MAPS[VERSION], "keys": KEYS[VERSION]}
 
+### ------------------------------------------------ ###
+### apis.fastapi.observability.opentelemetry.semconv ###
+########################################################
+
 
 ########################################
 ### apis.fastapi.observability.utils ###
-########################################
-
+### -------------------------------- ###
 
 from typing import Optional, Union, Tuple, Any, List, Dict
 from uuid import UUID
@@ -700,21 +680,6 @@ def _decode_key(
     key: str,
 ) -> str:
     return key.replace(f"ag.{namespace}.", "")
-
-
-def _encode_value(value: Any) -> Optional[Any]:
-    if value is None:
-        return None
-
-    if isinstance(value, (str, int, float, bool, bytes)):
-        return value
-
-    if isinstance(value, dict) or isinstance(value, list):
-        encoded = dumps(value)
-        value = "@ag.type=json:" + encoded
-        return value
-
-    return repr(value)
 
 
 def _decode_value(
@@ -1025,14 +990,12 @@ def parse_to_agenta_span_dto(
 
     return span_dto
 
+### -------------------------------- ###
+### apis.fastapi.observability.utils ###
+########################################
 
-#################
-### THIS FILE ###
-#################
 
-
-from typing import Dict
-
+from copy import deepcopy
 from opentelemetry.sdk.trace import ReadableSpan
 
 
@@ -1040,62 +1003,84 @@ def parse_inline_trace(
     project_id: str,
     spans: Dict[str, ReadableSpan],
 ):
-    print("-----------------------------")
-
     otel_span_dtos = _parse_readable_spans(spans)
 
     ############################################################
     ### apis.fastapi.observability.api.otlp_collect_traces() ###
-    ############################################################
-
-    span_dtos = [
+    ### ---------------------------------------------------- ###
+    span_dtos = [               
         parse_from_otel_span_dto(project_id, otel_span_dto)
         for otel_span_dto in otel_span_dtos
     ]
+    ### ---------------------------------------------------- ###
+    ### apis.fastapi.observability.api.otlp_collect_traces() ###
+    ############################################################
 
     #####################################################
     ### services.observability.service.ingest/query() ###
-    #####################################################
-
+    ### --------------------------------------------- ###
     span_idx = parse_span_dtos_to_span_idx(span_dtos)
-
     span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
+    ### --------------------------------------------- ###
+    ### services.observability.service.ingest/query() ###
+    #####################################################
 
     ###############################################
     ### services.observability.service.ingest() ###
-    ###############################################
-
+    ### --------------------------------------- ###
     cumulate_costs(span_id_tree, span_idx)
-
     cumulate_tokens(span_id_tree, span_idx)
-
+    ### --------------------------------------- ###
+    ### services.observability.service.ingest() ###
+    ###############################################
+    
     ##############################################
+    ### services.observability.service.query() ###
+    ### -------------------------------------- ###
+    connect_children(span_id_tree, span_idx)
+    root_span_dtos = [span_dto for span_dto in span_idx.values()]
+    agenta_span_dtos = [parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos]
+    ### -------------------------------------- ###
     ### services.observability.service.query() ###
     ##############################################
 
-    connect_children(span_id_tree, span_idx)
+    LEGACY = True
+    inline_trace = None
 
-    root_span_dtos = [span_dto for span_dto in span_idx.values()]
+    if LEGACY:
+        legacy_spans = [_parse_to_legacy_span(span_dto) for span_dto in span_idx.values()]
 
-    ############################################################
-    ### apis.fastapi.observability.api.query() ###
-    ############################################################
+        root_span = root_span_dtos[0]
 
-    agenta_span_dtos = [parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos]
+        trace_id = root_span.root.id.hex
+        latency = root_span.time.span
+        cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
+        tokens = {
+            "prompt_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("prompt", 0),
+            "completion_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("completion", 0),
+            "total_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("total", 0),
+        }
 
-    #################
-    ### THIS FILE ###
-    #################
+        spans = [
+            loads(span.model_dump_json(exclude_none=True)) for span in legacy_spans
+        ]
 
-    _spans = [
-        loads(span_dto.model_dump_json(exclude_none=True)) for span_dto in agenta_span_dtos
-    ]
+        inline_trace = {
+            "trace_id": trace_id,
+            "latency": latency,
+            "cost": cost,
+            "tokens": tokens,
+            "spans": spans,
+        }
+    
+    else:
+        spans = [
+            loads(span_dto.model_dump_json(exclude_none=True)) for span_dto in agenta_span_dtos
+        ]
 
-    [print(_span) for _span in _spans]
+        inline_trace = spans # turn into Agenta Model ?
 
-    print("-----------------------------")
-
-    return _spans
+    return inline_trace
 
 
 def _parse_readable_spans(
@@ -1164,3 +1149,82 @@ def _timestamp_ns_to_datetime(timestamp_ns):
     )
 
     return _datetime
+
+
+class LlmTokens(BaseModel):
+    prompt_tokens: Optional[int] = 0
+    completion_tokens: Optional[int] = 0
+    total_tokens: Optional[int] = 0
+
+
+class CreateSpan(BaseModel):
+    id: str
+    app_id: str
+    variant_id: Optional[str] = None
+    variant_name: Optional[str] = None
+    inputs: Optional[Dict[str, Optional[Any]]] = None
+    internals: Optional[Dict[str, Optional[Any]]] = None
+    outputs: Optional[Union[str, Dict[str, Optional[Any]], List[Any]]] = None
+    config: Optional[Dict[str, Optional[Any]]] = None
+    environment: Optional[str] = None
+    tags: Optional[List[str]] = None
+    token_consumption: Optional[int] = None
+    name: str
+    parent_span_id: Optional[str] = None
+    attributes: Optional[Dict[str, Optional[Any]]] = None
+    spankind: str
+    status: str
+    user: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+    tokens: Optional[LlmTokens] = None
+    cost: Optional[float] = None
+
+
+def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
+    attributes = None
+    if span.otel:
+        attributes = span.otel.attributes
+
+        for event in span.otel.events:
+            if event.name == "exception":
+                attributes.update(**event.attributes)
+
+    legacy_span = CreateSpan(
+        id=span.node.id.hex,
+        spankind=span.node.type,
+        name=span.node.name,
+        #
+        status=span.status.code.name,
+        #
+        start_time=span.time.start,
+        end_time=span.time.end,
+        #
+        parent_span_id=span.parent.id.hex if span.parent else None,
+        #
+        inputs=span.data.get("inputs") if span.data else {},
+        internals=span.data.get("internals") if span.data else {},
+        outputs=span.data.get("outputs") if span.data else {},
+        #
+        environment=span.meta.get("environment") if span.meta else None,
+        config=span.meta.get("configuration") if span.meta else None,
+        #
+        tokens=LlmTokens(
+            prompt_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("prompt", 0.0),
+            completion_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("completion", 0.0),
+            total_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("total", 0.0),
+        ) if span.metrics else None,
+        cost=span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0) if span.metrics else None,
+        #
+        app_id=span.refs.get("application", {}).get("id", "missing-app-id") if span.refs else "missing-app-id",
+        #
+        attributes=attributes,
+        #
+        variant_id=None,
+        variant_name=None,
+        tags=None,
+        token_consumption=None,
+        user=None,
+    )
+
+    return legacy_span

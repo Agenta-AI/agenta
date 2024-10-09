@@ -17,6 +17,7 @@ class TraceProcessor(BatchSpanProcessor):
     def __init__(
         self,
         span_exporter: SpanExporter,
+        references: Dict[str, str] = None,
         max_queue_size: int = None,
         schedule_delay_millis: float = None,
         max_export_batch_size: int = None,
@@ -32,9 +33,13 @@ class TraceProcessor(BatchSpanProcessor):
 
         self._registry = dict()
         self._exporter = span_exporter
+        self.references = references or dict()
 
     def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
         # ADD LINKS FROM CONTEXT, HERE
+
+        for key in self.references.keys():
+            span.set_attribute(f"ag.refs.{key}", self.references[key])
 
         if span.context.trace_id not in self._registry:
             self._registry[span.context.trace_id] = dict()
