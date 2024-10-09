@@ -95,6 +95,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex !important",
         alignItems: "center",
     },
+    avatarMainContainer: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "4px 16px 4px 8px",
+        borderRadius: theme.borderRadiusLG,
+    },
     avatarContainer: {
         display: "flex",
         alignItems: "center",
@@ -417,7 +426,7 @@ const Sidebar: React.FC = () => {
                                     },
                                 }}
                             >
-                                <Button className="flex w-full h-full items-center justify-between">
+                                <Button className={classes.avatarMainContainer}>
                                     <div className={classes.avatarContainer}>
                                         <Avatar
                                             shape="square"
