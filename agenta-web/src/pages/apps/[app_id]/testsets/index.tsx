@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from "react"
 import TestsetModal from "@/components/pages/testset/modals"
+import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
@@ -42,6 +43,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& table": {
             border: "1px solid",
             borderColor: theme.colorBorderSecondary,
+        },
+        "& .ant-table-expanded-row-fixed": {
+            width: "100% !important",
         },
     },
 }))
@@ -213,6 +217,7 @@ const Testset = () => {
                 </div>
                 <div className="flex items-center justify-between">
                     <Input.Search
+                        allowClear
                         placeholder="Search"
                         className="w-[400px]"
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -250,6 +255,7 @@ const Testset = () => {
                             onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
                         }
                     }}
+                    locale={{emptyText: <NoResultsFound />}}
                 />
             </Spin>
 
