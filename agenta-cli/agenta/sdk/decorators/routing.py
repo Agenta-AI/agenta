@@ -392,7 +392,6 @@ class entrypoint:
                 if inspect.iscoroutinefunction(func)
                 else func(*args, **func_params["params"])
             )
-
             data = self.patch_result(result)
         except Exception as e:
             self.handle_exception(e)

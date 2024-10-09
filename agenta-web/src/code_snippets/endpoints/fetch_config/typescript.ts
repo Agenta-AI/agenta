@@ -6,7 +6,7 @@ export default function tsCode(baseId: string, env_name: string): string {
 
     const getConfig = async (baseId: string, environmentName: string) => {
         try {
-            const baseUrl = 'https://cloud.agenta.ai/api';
+            const baseUrl = '${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api';
             const params = {
                 base_id: baseId,
                 environment_name: environmentName

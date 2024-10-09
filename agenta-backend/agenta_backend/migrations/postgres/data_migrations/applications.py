@@ -6,7 +6,7 @@ from typing import Optional
 
 import click
 from sqlalchemy.future import select
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker, Session
 
 from agenta_backend.models.deprecated_models import (
@@ -34,6 +34,7 @@ def update_evaluators_with_app_name():
                 records = (
                     session.execute(
                         select(DeprecatedEvaluatorConfigDB)
+                        .filter(DeprecatedEvaluatorConfigDB.app_id.isnot(None))
                         .offset(offset)
                         .limit(BATCH_SIZE)
                     )
@@ -54,6 +55,13 @@ def update_evaluators_with_app_name():
                 session.commit()
                 offset += BATCH_SIZE
 
+            # Delete deprecated evaluator configs with app_id as None
+            session.execute(
+                delete(DeprecatedEvaluatorConfigDB).where(
+                    DeprecatedEvaluatorConfigDB.app_id.is_(None)
+                )
+            )
+            session.commit()
         except Exception as e:
             session.rollback()
             click.echo(

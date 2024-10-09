@@ -550,7 +550,7 @@ async def create_app_and_variant_from_template(
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
-            project_id=request.state.project_id,
+            project_id=str(app.project_id),
             variant_name="app.default",
             docker_id_or_template_uri=(  # type: ignore
                 template_db.template_uri if isCloudProd() else template_db.digest
@@ -570,7 +570,7 @@ async def create_app_and_variant_from_template(
         await db_manager.add_testset_to_app_variant(
             template_name=template_db.name,  # type: ignore
             app_name=app.app_name,  # type: ignore
-            project_id=request.state.project_id,
+            project_id=str(app.project_id),
         )
 
         logger.debug(
@@ -579,7 +579,7 @@ async def create_app_and_variant_from_template(
             else "Step 6: We create ready-to use evaluators"
         )
         await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name, project_id=request.state.project_id
+            app_name=app.app_name, project_id=str(app.project_id)
         )
 
         logger.debug(
@@ -619,7 +619,7 @@ async def create_app_and_variant_from_template(
             envvars = {} if payload.env_vars is None else payload.env_vars
         await app_manager.start_variant(
             app_variant_db,
-            request.state.project_id,
+            str(app.project_id),
             envvars,
             user_uid=request.state.user_id,
         )

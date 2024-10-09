@@ -58,11 +58,13 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
-    cy.get('[data-cy="app-testsets-link"]').trigger("mouseout")
-    cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
-    const testsetName = randString(5)
+    cy.get('[data-cy="create-testset-modal-button"]').click()
+    cy.get(".ant-modal-content").should("exist")
+    cy.get('[data-cy="create-testset-from-scratch"]').click()
 
+    const testsetName = randString(5)
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
+    cy.clickLinkAndWait('[data-cy="create-new-testset-button"]')
     cy.wrap(testsetName).as("testsetName")
 
     cy.get(".ag-row").should("have.length", 3)
@@ -105,11 +107,7 @@ Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
         url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
         method: "GET",
     }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="new-evaluation-button"]').click()
-        } else {
-            cy.get('[data-cy="new-evaluation-button__no_variants"]').click()
-        }
+        cy.get('[data-cy="new-evaluation-button"]').click()
     })
     cy.get(".ant-modal-content").should("exist")
 

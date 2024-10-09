@@ -1,68 +1,66 @@
-import {Button, Table, Space} from "antd"
-import Link from "next/link"
-import {useRouter} from "next/router"
-import {ColumnsType} from "antd/es/table"
-import {useState} from "react"
+import React, {useMemo, useState} from "react"
+import TestsetModal from "@/components/pages/testset/modals"
+import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {DeleteOutlined} from "@ant-design/icons"
-import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
-import {createUseStyles} from "react-jss"
-import {testset} from "@/lib/Types"
-import {isDemo} from "@/lib/helpers/utils"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
+import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
+import {ColumnsType} from "antd/es/table/interface"
+import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
+import dayjs from "dayjs"
 
-const useStyles = createUseStyles({
-    container: {
-        marginTop: 20,
-        marginBottom: 40,
-    },
-    btnContainer: {
-        display: "flex",
-        justifyContent: "space-between",
-        marginTop: "20px",
-    },
-    deleteBtn: {
-        marginTop: "30px",
-        "& svg": {
-            color: "red",
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    modal: {
+        transition: "width 0.3s ease",
+        "& .ant-modal-content": {
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-close": {
+                top: 16,
+            },
         },
     },
-    linksContainer: {
-        display: "flex",
-        gap: "10px",
-        flexWrap: "wrap",
-    },
-    startLink: {
+    headerText: {
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        justifyContent: "space-between",
+        "& > .ant-typography": {
+            fontSize: theme.fontSizeHeading4,
+            lineHeight: theme.lineHeightHeading4,
+            fontWeight: theme.fontWeightMedium,
+            margin: 0,
+        },
     },
-})
+    button: {
+        display: "flex",
+        alignItems: "center",
+    },
+    table: {
+        "& table": {
+            border: "1px solid",
+            borderColor: theme.colorBorderSecondary,
+        },
+        "& .ant-table-expanded-row-fixed": {
+            width: "100% !important",
+        },
+    },
+}))
 
-export default function Testsets() {
+const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
-
-    const columns: ColumnsType<testset> = [
-        {
-            title: "Name",
-            dataIndex: "name",
-            key: "name",
-            className: "testset-column",
-        },
-        {
-            title: "Creation date",
-            dataIndex: "created_at",
-            key: "created_at",
-            render: (date: string) => {
-                return formatDate(date)
-            },
-            className: "testset-column",
-        },
-    ]
+    const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
+    const [searchTerm, setSearchTerm] = useState("")
+    const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
+    const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
+    const [current, setCurrent] = useState(0)
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -70,8 +68,8 @@ export default function Testsets() {
         },
     }
 
-    const onDelete = async () => {
-        const testsetsIds = selectedRowKeys.map((key) => key.toString())
+    const onDelete = async (testsetsId?: string[]) => {
+        const testsetsIds = !testsetsId ? selectedRowKeys.map((key) => key.toString()) : testsetsId
         try {
             if (
                 !(await checkIfResourceValidForDeletion({
@@ -86,79 +84,195 @@ export default function Testsets() {
         } catch {}
     }
 
-    return (
-        <div>
-            <div className={classes.container}>
-                <div className={classes.btnContainer}>
-                    <div className={classes.linksContainer}>
-                        <Link
-                            data-cy="testset-new-upload-link"
-                            href={`/apps/${appId}/testsets/new/upload`}
-                        >
-                            <Button type="primary">Upload Test Set</Button>
-                        </Link>
-                        <Link
-                            data-cy="testset-new-manual-link"
-                            href={`/apps/${appId}/testsets/new/manual`}
-                        >
-                            <Button>Create Test Set in UI</Button>
-                        </Link>
-                        <Link
-                            data-cy="testset-new-api-link"
-                            href={`/apps/${appId}/testsets/new/api`}
-                        >
-                            <Button>Create a test set with API</Button>
-                        </Link>
-                        {!isDemo() && (
-                            <Link href={`/apps/${appId}/testsets/new/endpoint`}>
-                                <Button>Import from Endpoint</Button>
-                            </Link>
-                        )}
-                    </div>
+    const filteredTestset = useMemo(() => {
+        let allTestsets = testsets.sort(
+            (a: TestSet, b: TestSet) =>
+                dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
+        )
+        if (searchTerm) {
+            allTestsets = testsets.filter((item: TestSet) =>
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+        return allTestsets
+    }, [searchTerm, testsets])
 
-                    {testsets.length > 0 && (
-                        <Space className={classes.startLink}>
-                            <Link href={`/apps/${appId}/evaluations/results`}>
-                                <Button>Start an Automatic Evaluation</Button>
-                            </Link>
-
-                            <Link href={`/apps/${appId}/annotations/human_a_b_testing`}>
-                                <Button>Start a Human Evaluation</Button>
-                            </Link>
-                        </Space>
-                    )}
-                </div>
-
-                {selectedRowKeys.length > 0 && (
-                    <Button
-                        data-cy="app-testset-delete-button"
-                        onClick={onDelete}
-                        className={classes.deleteBtn}
+    const columns: ColumnsType<testset> = [
+        {
+            title: "Name",
+            dataIndex: "name",
+            key: "name",
+            onHeaderCell: () => ({
+                style: {minWidth: 220},
+            }),
+        },
+        {
+            title: "Date Modified",
+            dataIndex: "updated_at",
+            key: "updated_at",
+            onHeaderCell: () => ({
+                style: {minWidth: 220},
+            }),
+            render: (date: string) => {
+                return formatDate(date)
+            },
+        },
+        {
+            title: "Date created",
+            dataIndex: "created_at",
+            key: "created_at",
+            render: (date: string) => {
+                return formatDate(date)
+            },
+            onHeaderCell: () => ({
+                style: {minWidth: 220},
+            }),
+        },
+        {
+            title: <GearSix size={16} />,
+            key: "key",
+            width: 56,
+            fixed: "right",
+            align: "center",
+            render: (_, record) => {
+                return (
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "details",
+                                    label: "View details",
+                                    icon: <Note size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/apps/${appId}/testsets/${record._id}`)
+                                    },
+                                },
+                                {
+                                    key: "clone",
+                                    label: "Clone",
+                                    icon: <Copy size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setTestsetCreationMode("clone")
+                                        setEditTestsetValues(record)
+                                        setCurrent(1)
+                                        setIsCreateTestsetModalOpen(true)
+                                    },
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "rename",
+                                    label: "Rename",
+                                    icon: <PencilSimple size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setTestsetCreationMode("rename")
+                                        setEditTestsetValues(record)
+                                        setCurrent(1)
+                                        setIsCreateTestsetModalOpen(true)
+                                    },
+                                },
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        onDelete([record._id])
+                                    },
+                                },
+                            ],
+                        }}
                     >
-                        <DeleteOutlined key="delete" />
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
+                    </Dropdown>
+                )
+            },
+        },
+    ]
+
+    return (
+        <>
+            <section className="w-full flex flex-col gap-6 mb-2">
+                <div className={classes.headerText}>
+                    <Typography.Title level={4}>Test sets</Typography.Title>
+
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined className="mt-[1px]" />}
+                        onClick={() => setIsCreateTestsetModalOpen(true)}
+                        data-cy="create-testset-modal-button"
+                    >
+                        Create new test set
+                    </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                    <Input.Search
+                        allowClear
+                        placeholder="Search"
+                        className="w-[400px]"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Button
+                        danger
+                        type="text"
+                        icon={<Trash size={14} className="mt-0.5" />}
+                        className={classes.button}
+                        disabled={selectedRowKeys.length == 0}
+                        onClick={() => onDelete()}
+                    >
                         Delete
                     </Button>
-                )}
-            </div>
+                </div>
+            </section>
 
-            <div>
+            <Spin spinning={isTestsetsLoading}>
                 <Table
-                    data-cy="app-testset-list"
                     rowSelection={{
                         type: "checkbox",
+                        columnWidth: 48,
                         ...rowSelection,
                     }}
+                    data-cy="app-testset-list"
+                    className={`ph-no-capture ${classes.table}`}
                     columns={columns}
-                    dataSource={testsets}
+                    dataSource={filteredTestset}
                     rowKey="_id"
                     loading={isTestsetsLoading}
+                    scroll={{x: true}}
+                    pagination={false}
                     onRow={(record) => {
                         return {
                             onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
                         }
                     }}
+                    locale={{emptyText: <NoResultsFound />}}
                 />
-            </div>
-        </div>
+            </Spin>
+
+            <TestsetModal
+                editTestsetValues={editTestsetValues}
+                setEditTestsetValues={setEditTestsetValues}
+                current={current}
+                setCurrent={setCurrent}
+                testsetCreationMode={testsetCreationMode}
+                setTestsetCreationMode={setTestsetCreationMode}
+                open={isCreateTestsetModalOpen}
+                onCancel={() => {
+                    setIsCreateTestsetModalOpen(false)
+                }}
+            />
+        </>
     )
 }
+
+export default Testset

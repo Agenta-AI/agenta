@@ -2644,7 +2644,7 @@ async def fetch_evaluations_by_resource(
                 .join(HumanEvaluationVariantDB)
                 .filter(
                     HumanEvaluationVariantDB.variant_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
+                    HumanEvaluationDB.project_id == uuid.UUID(project_id),
                 )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
@@ -2652,7 +2652,7 @@ async def fetch_evaluations_by_resource(
             res_human_evaluations = result_human_evaluations.scalars().all()
             return res_evaluations + res_human_evaluations
 
-        if resource_type == "testset":
+        elif resource_type == "testset":
             result_evaluations = await session.execute(
                 select(EvaluationDB)
                 .filter(
@@ -2665,7 +2665,8 @@ async def fetch_evaluations_by_resource(
                 select(HumanEvaluationDB)
                 .filter(
                     HumanEvaluationDB.testset_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
+                    HumanEvaluationDB.project_id
+                    == uuid.UUID(project_id),  # Fixed to match HumanEvaluationDB
                 )
                 .options(load_only(HumanEvaluationDB.id))  # type: ignore
             )
@@ -2673,7 +2674,7 @@ async def fetch_evaluations_by_resource(
             res_human_evaluations = result_human_evaluations.scalars().all()
             return res_evaluations + res_human_evaluations
 
-        if resource_type == "evaluator_config":
+        elif resource_type == "evaluator_config":
             query = (
                 select(EvaluationDB)
                 .join(EvaluationDB.evaluator_configs)
@@ -2692,19 +2693,15 @@ async def fetch_evaluations_by_resource(
         )
 
 
-async def delete_evaluations(evaluation_ids: List[str], project_id: str) -> None:
+async def delete_evaluations(evaluation_ids: List[str]) -> None:
     """Delete evaluations based on the ids provided from the db.
 
     Args:
         evaluations_ids (list[str]): The IDs of the evaluation
-        project_id (str): The ID of the project
     """
 
     async with db_engine.get_session() as session:
-        query = select(EvaluationDB).where(
-            EvaluationDB.id.in_(evaluation_ids),
-            EvaluationDB.project_id == uuid.UUID(project_id),
-        )
+        query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
         result = await session.execute(query)
         evaluations = result.scalars().all()
         for evaluation in evaluations:
@@ -2860,13 +2857,17 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         return evaluator_config
 
 
-async def check_if_ai_critique_exists_in_list_of_evaluators_configs(
-    evaluators_configs_ids: List[str],
+async def check_if_evaluators_exist_in_list_of_evaluators_configs(
+    evaluators_configs_ids: List[str], evaluators_keys: List[str]
 ) -> bool:
-    """Fetch evaluator configurations from the database.
+    """Check if the provided evaluators exist in the database within the given evaluator configurations.
+
+    Arguments:
+        evaluators_configs_ids (List[str]): List of evaluator configuration IDs to search within.
+        evaluators_keys (List[str]): List of evaluator keys to check for existence.
 
     Returns:
-        EvaluatorConfigDB: the evaluator configuration object.
+        bool: True if all evaluators exist, False otherwise.
     """
 
     async with db_engine.get_session() as session:
@@ -2875,15 +2876,18 @@ async def check_if_ai_critique_exists_in_list_of_evaluators_configs(
             for evaluator_config_id in evaluators_configs_ids
         ]
 
-        query = select(EvaluatorConfigDB).where(
+        query = select(EvaluatorConfigDB.id, EvaluatorConfigDB.evaluator_key).where(
             EvaluatorConfigDB.id.in_(evaluator_config_uuids),
-            EvaluatorConfigDB.evaluator_key == "auto_ai_critique",
+            EvaluatorConfigDB.evaluator_key.in_(evaluators_keys),
         )
-
         result = await session.execute(query)
-        evaluators_configs = result.scalars().all()
 
-        return bool(evaluators_configs)
+        # NOTE: result.all() returns the records as a list of tuples
+        # 0 is the evaluator_id and 1 is evaluator_key
+        fetched_evaluators_keys = {config[1] for config in result.all()}
+
+        # Ensure the passed evaluators are found in the fetched evaluator keys
+        return any(key in fetched_evaluators_keys for key in evaluators_keys)
 
 
 async def fetch_evaluator_config_by_appId(

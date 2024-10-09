@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.24.4"
+version = "0.25.2"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
@@ -18,7 +18,6 @@ python-multipart = "^0.0.7"
 backoff = "^2.2.1"
 redis = "^4.6.0"
 aiodocker = "^0.21.0"
-supertokens-python = "^0.15.1"
 sendgrid = "^6.10.0"
 restrictedpython = { version = "^6.2", python = ">=3.9,<3.12" }
 pytest-mock = "^3.11.1"
@@ -42,6 +41,7 @@ tqdm = "^4.66.4"
 alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
+supertokens-python = "^0.24.2"
 
 protobuf = "^4.25.4"
 

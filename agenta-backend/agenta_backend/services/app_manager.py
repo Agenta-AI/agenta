@@ -44,6 +44,7 @@ else:
     from agenta_backend.services import deployment_manager
 
 if isCloudEE():
+    from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.services import (
         api_key_service,
     )  # noqa pylint: disable-all
@@ -106,9 +107,10 @@ async def start_variant(
         )
         if isCloudEE():
             user = await db_manager.get_user(user_uid=user_uid)
+            project = await db_manager_ee.get_project_by_id(project_id=project_id)
             api_key = await api_key_service.create_api_key(
                 str(user.id),
-                project_id=project_id,
+                workspace_id=str(project.workspace_id),
                 expiration_date=None,
                 hidden=True,
             )
@@ -213,9 +215,21 @@ async def update_last_modified_by(
                     f"Deployment with id {object_id} not found"
                 )
             return str(deployment_db.app_id)
+        elif object_type == "evaluation":
+            evaluation_db = await db_manager.fetch_evaluation_by_id(object_id)
+            if evaluation_db is None:
+                raise db_manager.NoResultFound(
+                    f"Evaluation with id {object_id} not found"
+                )
+            return str(evaluation_db.app_id)
+        else:
+            raise ValueError(
+                f"Could not update last_modified_by application information. Unsupported type: {object_type}"
+            )
 
     user = await db_manager.get_user(user_uid=user_uid)
     app_id = await get_appdb_str_by_id(object_id=object_id, object_type=object_type)
+    assert app_id is not None, f"app_id in {object_type} cannot be None"
     await db_manager.update_app(
         app_id=app_id,
         values_to_update={
