@@ -67,7 +67,6 @@ describe("Single Model Test workflow", () => {
             cy.visit(`/apps/${app_id}/testsets`)
             cy.url().should("include", "/testsets")
             cy.get('[data-cy="app-testset-list"]').as("table")
-            cy.get("@table").get(".ant-table-pagination li a").last().click()
             cy.get("@table").contains(saved_testset_name).as("tempTestSet").should("be.visible")
         })
     })
