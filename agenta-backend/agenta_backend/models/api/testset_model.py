@@ -48,6 +48,7 @@ class TestSetOutputResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
     created_at: str
+    updated_at: str
 
     class Config:
         allow_population_by_field_name = True

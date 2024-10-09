@@ -93,51 +93,11 @@ export const useSidebarConfig = () => {
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
-            key: "app-auto-evaluations-link",
-            title: "Automatic Evaluation",
+            key: "app-evaluations-link",
+            title: "Evaluations",
+            link: `/apps/${appId || recentlyVisitedAppId}/evaluations`,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
-            submenu: [
-                {
-                    key: "app-evaluators-link",
-                    title: "Evaluators",
-                    tooltip:
-                        "Select and customize evaluators such as custom code or regex evaluators.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/new-evaluator`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-evaluations-results-link",
-                    title: "Results",
-                    tooltip: "Choose your variants and evaluators to start the evaluation process.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/results`,
-                    icon: <Dot size={16} />,
-                },
-            ],
-        },
-        {
-            key: "app-human-evaluations-link",
-            title: "Human Evaluation",
-            icon: <PersonSimpleRun size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
-            submenu: [
-                {
-                    key: "app-human-ab-testing-link",
-                    title: "A/B Evaluation",
-                    tooltip:
-                        "A/B tests allow you to compare the performance of two different variants manually.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/human_a_b_testing`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-single-model-test-link",
-                    title: "Single Model Eval.",
-                    tooltip:
-                        "Single model test allows you to score the performance of a single LLM app manually.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/single_model_test`,
-                    icon: <Dot size={16} />,
-                },
-            ],
         },
         {
             key: "app-observability-link",

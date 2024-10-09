@@ -176,7 +176,6 @@ async def fetch_evaluation_results(evaluation_id):
         f"{BACKEND_API_HOST}/evaluations/{evaluation_id}/results/", timeout=timeout
     )
     response_data = response.json()
-    print("Response Data: ", response_data)
 
     assert response.status_code == 200
     assert response_data["evaluation_id"] == evaluation_id
@@ -270,6 +269,63 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
 
 
 @pytest.mark.asyncio
+async def test_create_evaluation_with_no_llm_keys(evaluators_requiring_llm_keys):
+    async with db_engine.get_session() as session:
+        app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
+        app = app_result.scalars().first()
+
+        app_variant_result = await session.execute(
+            select(AppVariantDB).filter_by(app_id=app.id)
+        )
+        app_variant = app_variant_result.scalars().first()
+
+        testset_result = await session.execute(
+            select(TestSetDB).filter_by(project_id=app.project_id)
+        )
+        testset = testset_result.scalars().first()
+
+        # Prepare payload
+        payload = {
+            "app_id": str(app.id),
+            "variant_ids": [str(app_variant.id)],
+            "evaluators_configs": [],
+            "testset_id": str(testset.id),
+            "lm_providers_keys": {"MISTRAL_API_KEY": OPEN_AI_KEY},
+            "rate_limit": {
+                "batch_size": 10,
+                "max_retries": 3,
+                "retry_delay": 3,
+                "delay_between_batches": 5,
+            },
+        }
+
+        # Fetch evaluator configs
+        response = await test_client.get(
+            f"{BACKEND_API_HOST}/evaluators/configs/?app_id={payload['app_id']}",
+            timeout=timeout,
+        )
+        list_of_configs_ids = []
+        evaluator_configs = response.json()
+        for evaluator_config in evaluator_configs:
+            if evaluator_config["evaluator_key"] in evaluators_requiring_llm_keys:
+                list_of_configs_ids.append(evaluator_config["id"])
+
+        # Update payload with list of configs ids
+        payload["evaluators_configs"] = list_of_configs_ids
+
+        # Make request to create evaluation
+        response = await test_client.post(
+            f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
+        )
+
+        assert response.status_code == 500
+        assert (
+            response.json()["detail"]
+            == "OpenAI API key is required to run one or more of the specified evaluators."
+        )
+
+
+@pytest.mark.asyncio
 async def test_create_evaluation_auto_exact_match():
     await create_evaluation_with_evaluator("auto_exact_match_evaluator_config")
 
@@ -358,3 +414,103 @@ async def test_remove_running_template_app_container():
         assert True
     except:
         assert False
+
+
+@pytest.mark.asyncio
+async def test_rag_experiment_tree_maps_correctly(
+    rag_experiment_data_tree, mapper_to_run_rag_faithfulness_evaluation
+):
+    payload = {
+        "inputs": rag_experiment_data_tree,
+        "mapping": mapper_to_run_rag_faithfulness_evaluation,
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/map/",
+        json=payload,
+        timeout=timeout,
+    )
+    response_data = response.json()
+    assert response.status_code == 200
+    assert (
+        "question" in response_data["outputs"]
+        and "contexts" in response_data["outputs"]
+        and "answer" in response_data["outputs"]
+    ) == True
+
+
+@pytest.mark.asyncio
+async def test_simple_experiment_tree_maps_correctly(
+    simple_experiment_data_tree, mapper_to_run_auto_exact_match_evaluation
+):
+    payload = {
+        "inputs": simple_experiment_data_tree,
+        "mapping": mapper_to_run_auto_exact_match_evaluation,
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/map/",
+        json=payload,
+        timeout=timeout,
+    )
+    response_data = response.json()
+    assert response.status_code == 200
+    assert (
+        "prediction" in response_data["outputs"]
+        and isinstance(response_data["outputs"]["prediction"], str)
+    ) == True
+
+
+@pytest.mark.asyncio
+async def test_rag_faithfulness_evaluator_run(
+    rag_faithfulness_evaluator_run_inputs,
+):
+    payload = {
+        "inputs": rag_faithfulness_evaluator_run_inputs,
+        "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run/",
+        json=payload,
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert 0.0 <= response.json()["outputs"]["score"] <= 1.0
+    assert isinstance(response.json()["outputs"]["score"], float)
+
+
+@pytest.mark.asyncio
+async def test_custom_code_evaluator_run(custom_code_snippet):
+    payload = {
+        "inputs": {
+            "ground_truth": "The correct answer is 42",
+            "prediction": "The answer is 42",
+            "app_config": {},
+        },
+        "settings": {
+            "code": custom_code_snippet,
+            "correct_answer_key": "correct_answer",
+        },
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run/",
+        json=payload,
+        timeout=timeout,
+    )
+    assert response.status_code == 200
+    assert 0.0 <= response.json()["outputs"]["score"] <= 1.0
+    assert isinstance(response.json()["outputs"]["score"], float)
+
+
+@pytest.mark.asyncio
+async def test_run_evaluators_via_api(
+    evaluators_payload_data,
+):
+    evaluators_response_status_code = []
+    for evaluator_key, evaluator_payload in evaluators_payload_data.items():
+        response = await test_client.post(
+            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run/",
+            json=evaluator_payload,
+            timeout=timeout,
+        )
+        evaluators_response_status_code.append(response.status_code)
+
+    assert evaluators_response_status_code.count(200) == 14

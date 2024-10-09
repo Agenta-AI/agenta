@@ -5,6 +5,7 @@ from typing import Any, List, Optional
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status, Response, Query
 
+from agenta_backend.services import helpers
 from agenta_backend.models import converters
 
 from agenta_backend.tasks.evaluations import evaluate
@@ -14,9 +15,6 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     NewEvaluation,
     DeleteEvaluation,
-)
-from agenta_backend.services.evaluator_manager import (
-    check_ai_critique_inputs,
 )
 from agenta_backend.services import evaluation_service, db_manager, app_manager
 
@@ -113,8 +111,9 @@ async def create_evaluation(
                     status_code=403,
                 )
 
-        success, response = await check_ai_critique_inputs(
-            payload.evaluators_configs, payload.lm_providers_keys
+        llm_provider_keys = helpers.format_llm_provider_keys(payload.lm_providers_keys)
+        success, response = await helpers.ensure_required_llm_keys_exist(
+            payload.evaluators_configs, llm_provider_keys
         )
         if not success:
             return response
@@ -136,8 +135,8 @@ async def create_evaluation(
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,
                 evaluation_id=evaluation.id,
-                rate_limit_config=payload.rate_limit.dict(),
-                lm_providers_keys=payload.lm_providers_keys,
+                rate_limit_config=payload.rate_limit.model_dump(),
+                lm_providers_keys=llm_provider_keys,
             )
             evaluations.append(evaluation)
 
@@ -435,9 +434,8 @@ async def delete_evaluations(
         )
         logger.debug("Successfully updated last_modified_by app information")
 
-        await evaluation_service.delete_evaluations(
-            payload.evaluations_ids, str(evaluation.project_id)
-        )
+        logger.debug(f"Deleting evaluations {payload.evaluations_ids}...")
+        await evaluation_service.delete_evaluations(payload.evaluations_ids)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
