@@ -5,7 +5,7 @@ import random
 import logging
 import requests
 from typing import Optional, List
-
+from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from fastapi.responses import JSONResponse
@@ -298,6 +298,7 @@ async def update_testset(
         testset_update = {
             "name": csvdata.name,
             "csvdata": csvdata.csvdata,
+            "updated_at": datetime.now(timezone.utc),
         }
         await db_manager.update_testset(
             testset_id=str(testset.id), values_to_update=testset_update
@@ -351,6 +352,7 @@ async def get_testsets(
             _id=str(testset.id),  # type: ignore
             name=testset.name,
             created_at=str(testset.created_at),
+            updated_at=str(testset.updated_at),
         )
         for testset in testsets
     ]
