@@ -1,4 +1,4 @@
-import {Button, Table, Space} from "antd"
+import {Button, Table, Space, message} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import {ColumnsType} from "antd/es/table"
@@ -8,8 +8,9 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 import {createUseStyles} from "react-jss"
 import {testset} from "@/lib/Types"
-import {isDemo} from "@/lib/helpers/utils"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
+import {useAppsData} from "@/contexts/app.context"
+import {useUpdateEffect} from "usehooks-ts"
 
 const useStyles = createUseStyles({
     container: {
@@ -42,9 +43,17 @@ const useStyles = createUseStyles({
 export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
-    const appId = router.query.app_id as string
+    const {apps, isLoading: isAppsLoading} = useAppsData()
+    const appId = apps[0]?.app_id
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
+
+    useUpdateEffect(() => {
+        if ((apps.length === 0 || !apps) && !isAppsLoading) {
+            message.warning("To view the test set, you first need to create an app.")
+            router.push("/apps")
+        }
+    }, [isAppsLoading])
 
     const columns: ColumnsType<testset> = [
         {
@@ -80,6 +89,7 @@ export default function Testsets() {
                 }))
             )
                 return
+
             await deleteTestsets(testsetsIds)
             mutate()
             setSelectedRowKeys([])
@@ -91,29 +101,15 @@ export default function Testsets() {
             <div className={classes.container}>
                 <div className={classes.btnContainer}>
                     <div className={classes.linksContainer}>
-                        <Link
-                            data-cy="testset-new-upload-link"
-                            href={`/apps/${appId}/testsets/new/upload`}
-                        >
+                        <Link data-cy="testset-new-upload-link" href={`/apps/testsets/new/upload`}>
                             <Button type="primary">Upload Test Set</Button>
                         </Link>
-                        <Link
-                            data-cy="testset-new-manual-link"
-                            href={`/apps/${appId}/testsets/new/manual`}
-                        >
+                        <Link data-cy="testset-new-manual-link" href={`/apps/testsets/new/manual`}>
                             <Button>Create Test Set in UI</Button>
                         </Link>
-                        <Link
-                            data-cy="testset-new-api-link"
-                            href={`/apps/${appId}/testsets/new/api`}
-                        >
+                        <Link data-cy="testset-new-api-link" href={`/apps/testsets/new/api`}>
                             <Button>Create a test set with API</Button>
                         </Link>
-                        {!isDemo() && (
-                            <Link href={`/apps/${appId}/testsets/new/endpoint`}>
-                                <Button>Import from Endpoint</Button>
-                            </Link>
-                        )}
                     </div>
 
                     {testsets.length > 0 && (
@@ -155,10 +151,10 @@ export default function Testsets() {
                     columns={columns}
                     dataSource={testsets}
                     rowKey="_id"
-                    loading={isTestsetsLoading}
+                    loading={isTestsetsLoading || isAppsLoading}
                     onRow={(record) => {
                         return {
-                            onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
+                            onClick: () => router.push(`/apps/testsets/${record._id}`),
                         }
                     }}
                 />

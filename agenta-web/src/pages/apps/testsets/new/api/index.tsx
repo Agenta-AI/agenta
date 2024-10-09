@@ -8,9 +8,9 @@ import pythonCodeUpload from "@/code_snippets/testsets/create_with_upload/python
 import cURLCodeUpload from "@/code_snippets/testsets/create_with_upload/curl"
 import tsCodeUpload from "@/code_snippets/testsets/create_with_upload/typescript"
 import {Typography} from "antd"
-import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import { useAppsData } from "@/contexts/app.context"
 
 const useStyles = createUseStyles({
     title: {
@@ -20,8 +20,8 @@ const useStyles = createUseStyles({
 
 export default function NewTestsetWithAPI() {
     const classes = useStyles()
-    const router = useRouter()
-    const appId = router.query.app_id as string
+    const {apps} = useAppsData()
+    const appId = apps[0]?.app_id
 
     const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
     const jsonURI = `${getAgentaApiUrl()}/api/testsets/${appId}`
