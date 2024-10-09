@@ -5,8 +5,10 @@ title: "Core Concepts"
 Below are the description to the main terms and concepts used in agenta.
 
 <img
-  style={{ width: "75%", display: "block", margin: "0 auto" }}
-  src="/images/prompt_management/taxonomy_agenta.png"
+  style={{ display: "block", margin: "0 auto" }}
+  src="/images/prompt_management/taxonomy-concepts.png"
+  alt="Taxonomy of concepts in Agenta"
+  loading="lazy"
 />
 
 ### Templates
@@ -22,7 +24,7 @@ Agenta also allows you to create custom templates for your workflows using our S
 - Chains of Multiple Prompts
 - Agents Interacting with External APIs
 
-After creating a template, you can interact with it in the playground, run no-code evaluations, and publish versions all from the webUI.
+After creating a template, you can interact with it in the playground, run no-code evaluations, and deploy versions all from the web UI.
 
 ### Applications
 
@@ -43,16 +45,18 @@ Within each application, you can create **variants**. **Variants** are different
 
 Every **variant** is **versioned** and immutable. When you make changes to a **variant**, a new **version** is created. Each **version** has a **commit id** that uniquely identifies it.
 
-### Endpoints
+### Environments
 
-**Endpoints** are the interfaces where your published variants are accessible. You can publish a **version** of a **variant** to an **endpoint**. Each **endpoint** has a user-defined environment name (e.g. development, staging, production) that specifies its context or stage.
+**Environments** are the interfaces where your deployed variants are accessible. You can deploy a **version** of a **variant** to an **environment**. Each **environment** has a user-defined environment name (e.g. development, staging, production) that specifies its context or stage.
 
-You can then integrate the **endpoint** into your codebase to fetch the configuration published on that **endpoint**. Additionally, you can directly call the **endpoint** containing the application running with that configuration.
+You can then integrate the **environment** into your codebase to fetch the configuration deployed on that **environment**. Additionally, you can directly invoke the endpoints relating to the **environment** containing the application running with that configuration.
 
-By default, applications come with three predefined environment names for **endpoints**:
+By default, applications come with three predefined **environments**:
 
 - **Development:** For initial testing and experimentation.
 - **Staging:** For pre-production testing and quality assurance.
 - **Production:** For live use with real users.
 
-When publishing a **variant** to an **endpoint**, the latest **version** of that **variant** gets published. Each **endpoint** points to a specific **version** of a **variant** (a certain **commit**). Updating the **variant** after publishing does not automatically update the **endpoint**.
+:::warning
+When deploying a **variant** to an **environment**, the latest **version** of that **variant** gets deployed. Each **environment** points to a specific **version** of a **variant** (a certain **commit**). Updating the **variant** after deploying does not automatically update the **environment**.
+:::
