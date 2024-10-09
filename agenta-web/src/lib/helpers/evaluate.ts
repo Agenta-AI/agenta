@@ -239,7 +239,14 @@ export const getVotesPercentage = (record: HumanEvaluationListTableDataType, ind
 export const checkIfResourceValidForDeletion = async (
     data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
 ) => {
-    const appId = getAppValues().currentApp?.app_id
+    let appId
+
+    if (data.resourceType === "testset") {
+        appId = getAppValues().apps[0]?.app_id
+    } else {
+        appId = getAppValues().currentApp?.app_id
+    }
+
     if (!appId) return false
 
     const response = await fetchEvaluatonIdsByResource({...data, appId})

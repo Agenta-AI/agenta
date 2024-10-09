@@ -8,6 +8,7 @@ import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
 import {GenericObject} from "@/lib/Types"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles({
     fileFormatBtn: {
@@ -29,12 +30,17 @@ const useStyles = createUseStyles({
 export default function AddANewTestset() {
     const classes = useStyles()
     const router = useRouter()
-    const appId = router.query.app_id as string
+    const {apps} = useAppsData()
+    const appId = apps[0]?.app_id
     const [form] = Form.useForm()
     const [uploadLoading, setUploadLoading] = useState(false)
     const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
 
     const onFinish = async (values: any) => {
+        if (!appId) {
+            message.warning("To view the test set, you first need to create an app.")
+        }
+
         const {file} = values
         const fileObj = file[0].originFileObj
         const malformedFileError = `The file you uploaded is either malformed or is not a valid ${uploadType} file`
@@ -67,7 +73,7 @@ export default function AddANewTestset() {
                     _ignoreError: true,
                 })
                 form.resetFields()
-                router.push(`/apps/${appId}/testsets`)
+                router.push(`/apps/testsets`)
             } catch (e: any) {
                 if (
                     e?.response?.data?.detail?.find((item: GenericObject) =>
