@@ -60,7 +60,7 @@ def _p_ora(o, open="{", close="}", sep=": ", foo=repr):
         return f"[{', '.join([repr(el) for el in o])}]"
     elif isinstance(o, dict):
         o = OrderedDict(sorted(o.items()))
-        return f"{open}{', '.join([f"{foo(elk)}{sep}{_p_ora(elv)}" for elk, elv in o.items()])}{close}"
+        return f"{open}{', '.join([f'{foo(elk)}{sep}{_p_ora(elv)}' for elk, elv in o.items()])}{close}"
     else:
         if o is not None:
             return repr(o)
@@ -91,6 +91,7 @@ class LifecycleDTO(DisplayBase):
     updated_at: Optional[datetime] = None
 
     updated_by_id: Optional[UUID] = None
+
 
 ### -------------------- ###
 ### services.shared.dtos ###
@@ -306,6 +307,7 @@ class OTelSpanDTO(DisplayBase):
     parent: Optional[OTelContextDTO] = None
     links: Optional[List[OTelLinkDTO]] = None
 
+
 ### --------------------------- ###
 ### services.observability.dtos ###
 ###################################
@@ -429,9 +431,15 @@ def cumulate_tokens(
         if tokens.get("prompt", 0.0) != 0.0:
             span.metrics["acc.tokens.prompt"] = tokens.get("prompt", 0.0)
         if tokens.get("completion", 0.0) != 0.0:
-            span.metrics["acc.tokens.completion"] = tokens.get("completion", 0.0) if tokens.get("completion", 0.0) != 0.0 else None
+            span.metrics["acc.tokens.completion"] = (
+                tokens.get("completion", 0.0)
+                if tokens.get("completion", 0.0) != 0.0
+                else None
+            )
         if tokens.get("total", 0.0) != 0.0:
-            span.metrics["acc.tokens.total"] = tokens.get("total", 0.0) if tokens.get("total", 0.0) != 0.0 else None
+            span.metrics["acc.tokens.total"] = (
+                tokens.get("total", 0.0) if tokens.get("total", 0.0) != 0.0 else None
+            )
 
     _cumulate_tree_dfs(spans_id_tree, spans_idx, _get_unit, _get_acc, _acc, _set)
 
@@ -499,6 +507,7 @@ def _connect_tree_dfs(
 
         if len(parent_span.nodes) == 0:
             parent_span.nodes = None
+
 
 ### ---------------------------- ###
 ### services.observability.utils ###
@@ -990,6 +999,7 @@ def parse_to_agenta_span_dto(
 
     return span_dto
 
+
 ### -------------------------------- ###
 ### apis.fastapi.observability.utils ###
 ########################################
@@ -1008,7 +1018,7 @@ def parse_inline_trace(
     ############################################################
     ### apis.fastapi.observability.api.otlp_collect_traces() ###
     ### ---------------------------------------------------- ###
-    span_dtos = [               
+    span_dtos = [
         parse_from_otel_span_dto(project_id, otel_span_dto)
         for otel_span_dto in otel_span_dtos
     ]
@@ -1033,13 +1043,15 @@ def parse_inline_trace(
     ### --------------------------------------- ###
     ### services.observability.service.ingest() ###
     ###############################################
-    
+
     ##############################################
     ### services.observability.service.query() ###
     ### -------------------------------------- ###
     connect_children(span_id_tree, span_idx)
     root_span_dtos = [span_dto for span_dto in span_idx.values()]
-    agenta_span_dtos = [parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos]
+    agenta_span_dtos = [
+        parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos
+    ]
     ### -------------------------------------- ###
     ### services.observability.service.query() ###
     ##############################################
@@ -1048,7 +1060,9 @@ def parse_inline_trace(
     inline_trace = None
 
     if LEGACY:
-        legacy_spans = [_parse_to_legacy_span(span_dto) for span_dto in span_idx.values()]
+        legacy_spans = [
+            _parse_to_legacy_span(span_dto) for span_dto in span_idx.values()
+        ]
 
         root_span = root_span_dtos[0]
 
@@ -1056,9 +1070,15 @@ def parse_inline_trace(
         latency = root_span.time.span
         cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
         tokens = {
-            "prompt_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("prompt", 0),
-            "completion_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("completion", 0),
-            "total_tokens": root_span.metrics.get("acc", {}).get("tokens", {}).get("total", 0),
+            "prompt_tokens": root_span.metrics.get("acc", {})
+            .get("tokens", {})
+            .get("prompt", 0),
+            "completion_tokens": root_span.metrics.get("acc", {})
+            .get("tokens", {})
+            .get("completion", 0),
+            "total_tokens": root_span.metrics.get("acc", {})
+            .get("tokens", {})
+            .get("total", 0),
         }
 
         spans = [
@@ -1072,13 +1092,14 @@ def parse_inline_trace(
             "tokens": tokens,
             "spans": spans,
         }
-    
+
     else:
         spans = [
-            loads(span_dto.model_dump_json(exclude_none=True)) for span_dto in agenta_span_dtos
+            loads(span_dto.model_dump_json(exclude_none=True))
+            for span_dto in agenta_span_dtos
         ]
 
-        inline_trace = spans # turn into Agenta Model ?
+        inline_trace = spans  # turn into Agenta Model ?
 
     return inline_trace
 
@@ -1095,7 +1116,10 @@ def _parse_readable_spans(
                 span_id=_int_to_hex(span.get_span_context().span_id, 64),
             ),
             name=span.name,
-            kind=OTelSpanKind("SPAN_KIND_" + (span.kind if isinstance(span.kind, str) else span.kind.name)),
+            kind=OTelSpanKind(
+                "SPAN_KIND_"
+                + (span.kind if isinstance(span.kind, str) else span.kind.name)
+            ),
             start_time=_timestamp_ns_to_datetime(span.start_time),
             end_time=_timestamp_ns_to_datetime(span.end_time),
             status_code=OTelStatusCode("STATUS_CODE_" + span.status.status_code.name),
@@ -1109,10 +1133,14 @@ def _parse_readable_spans(
                 )
                 for event in span.events
             ],
-            parent=OTelContextDTO(
-                trace_id=_int_to_hex(span.parent.trace_id, 128),
-                span_id=_int_to_hex(span.parent.span_id, 64)
-            ) if span.parent else None,
+            parent=(
+                OTelContextDTO(
+                    trace_id=_int_to_hex(span.parent.trace_id, 128),
+                    span_id=_int_to_hex(span.parent.span_id, 64),
+                )
+                if span.parent
+                else None
+            ),
             links=[
                 OTelLinkDTO(
                     context=OTelContextDTO(
@@ -1124,7 +1152,6 @@ def _parse_readable_spans(
                 for link in span.links
             ],
         )
-
 
         otel_span_dtos.append(otel_span_dto)
 
@@ -1209,14 +1236,32 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         environment=span.meta.get("environment") if span.meta else None,
         config=span.meta.get("configuration") if span.meta else None,
         #
-        tokens=LlmTokens(
-            prompt_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("prompt", 0.0),
-            completion_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("completion", 0.0),
-            total_tokens=span.metrics.get("acc", {}).get("tokens", {}).get("total", 0.0),
-        ) if span.metrics else None,
-        cost=span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0) if span.metrics else None,
+        tokens=(
+            LlmTokens(
+                prompt_tokens=span.metrics.get("acc", {})
+                .get("tokens", {})
+                .get("prompt", 0.0),
+                completion_tokens=span.metrics.get("acc", {})
+                .get("tokens", {})
+                .get("completion", 0.0),
+                total_tokens=span.metrics.get("acc", {})
+                .get("tokens", {})
+                .get("total", 0.0),
+            )
+            if span.metrics
+            else None
+        ),
+        cost=(
+            span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
+            if span.metrics
+            else None
+        ),
         #
-        app_id=span.refs.get("application", {}).get("id", "missing-app-id") if span.refs else "missing-app-id",
+        app_id=(
+            span.refs.get("application", {}).get("id", "missing-app-id")
+            if span.refs
+            else "missing-app-id"
+        ),
         #
         attributes=attributes,
         #
