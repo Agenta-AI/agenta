@@ -157,7 +157,7 @@ const Testset = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/${appId}/testsets/${record._id}`)
+                                        router.push(`/apps/testsets/${record._id}`)
                                     },
                                 },
                                 {
