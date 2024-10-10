@@ -10,7 +10,6 @@ import {
     Desktop,
     GithubLogo,
     PaperPlane,
-    PersonSimpleRun,
     Phone,
     Question,
     Scroll,

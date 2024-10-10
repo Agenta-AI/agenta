@@ -263,6 +263,7 @@ const Testset = () => {
                     onRow={(record) => {
                         return {
                             onClick: () => router.push(`/apps/testsets/${record._id}`),
+                            style: {cursor: "pointer"},
                         }
                     }}
                     locale={{emptyText: <NoResultsFound />}}
