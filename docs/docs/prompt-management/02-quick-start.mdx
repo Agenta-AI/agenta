@@ -4,7 +4,7 @@ title: "Quick Start"
 
 ## Introduction
 
-In this tutorial, we will **create a prompt** in the web UI, **publish** it to a deployment, **integrate** it with our code base.
+In this tutorial, we will **create a prompt** in the web UI, **deploy** it to an environment, and **integrate** it with our code base.
 
 :::note
 If you want to do this whole process programatically, jump to [this guide](/prompt-management/prompt-management-from-sdk)
@@ -23,20 +23,20 @@ We will create a prompt from the web UI. This can be done simply by going to the
 />
 <br />
 
-## 2. Publish a variant
+## 2. Deploy a variant
 
 You can create in each LLM application multiple variants. You can think of variants as git branches. Each variant is versioned with each variant version having it's own commit number and being immutable.
 
-When you are satified with a commit (after evaluating it for instance) you can publish it to a deployment. The deployment is tagged with an environment (`production`, `development` or `staging`) and provides you access to endpoint for both the published configuration and to a proxy for the calls.
+When you are satified with a commit (after evaluating it for instance) you can deploy it to an environment. The deployment is tagged with an environment (`production`, `development` or `staging`) and provides you access to endpoint for both the deployed configuration and to a proxy for the calls.
 
-To publish a variant, go to overview, click on the three dots on the **variant** that you want to publish and select Deploy (see screenshto)
+To deploy a variant, go to overview, click on the three dots on the **variant** that you want to deploy and select Deploy (see screenshto)
 
 <img
   style={{ width: "75%", display: "block", margin: "0 auto" }}
   src="/images/prompt_management/deploy-action.png"
 />
 <br />
-You can select now which deployments you want to publish the variant to
+You can select now which environment you want to deploy the variant to
 
 <img
   style={{ width: "75%", display: "block", margin: "0 auto" }}
@@ -47,11 +47,11 @@ You can select now which deployments you want to publish the variant to
 :::caution
 
 New change
-to the **variant** will not be automaticly published to the **deployment** unless
-we explicitly **publish it**.
+to the **variant** will not be automaticly deployed to the **environment** unless
+we explicitly **deploy it**.
 
-The reason is that we have published the last **version**/**commit** of the **variant** to
-that deployment and not the **variant** itself!
+The reason is that we have deployed the last **version**/**commit** of the **variant** to
+that environment and not the **variant** itself!
 
 :::
 
@@ -86,7 +86,7 @@ The prompt object will be like this:
 This feature is only available in cloud and enterprise version
 :::
 
-Optionally you would like to revert to a previously published commit. For this click on the deployment in the overview view, then click on **history**, you will see all the previous published version. You can revert to a previous version by clicking on revert.
+Optionally you would like to revert to a previously deployed commit. For this click on the deployment in the overview view, then click on **history**, you will see all the previous deployed version. You can revert to a previous version by clicking on revert.
 
 <img
   style={{ width: "75%", display: "block", margin: "0 auto" }}
@@ -95,4 +95,4 @@ Optionally you would like to revert to a previously published commit. For this c
 
 ## Next steps
 
-Now that you've created and published your first prompt, you can learn how to do [prompt engineering in the playground](/prompt_management/prompt_engineering) or dive deeper into [the capabilities of the prompt management SDK](/prompt-management/the-sdk)
+Now that you've created and deployed your first prompt, you can learn how to do [prompt engineering in the playground](/prompt_management/prompt_engineering) or dive deeper into [the capabilities of the prompt management SDK](/prompt-management/the-sdk)
