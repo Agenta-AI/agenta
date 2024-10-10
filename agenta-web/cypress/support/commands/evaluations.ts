@@ -57,8 +57,7 @@ Cypress.Commands.add("createVariant", () => {
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
-    cy.visit(`/apps/testsets`)
-    cy.location("pathname").should("include", "/testsets")
+    cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.get('[data-cy="create-testset-modal-button"]').click()
     cy.get(".ant-modal-content").should("exist")
     cy.get('[data-cy="create-testset-from-scratch"]').click()
