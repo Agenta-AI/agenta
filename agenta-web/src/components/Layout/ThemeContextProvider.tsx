@@ -55,7 +55,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         setAppTheme(getAppTheme(themeMode))
     }, [themeMode])
 
-    const val = appTheme || ThemeMode.Light
+    const val = ThemeMode.Light
 
     return (
         <ThemeContext.Provider
@@ -67,8 +67,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         >
             <ConfigProvider
                 theme={{
-                    algorithm:
-                        val === ThemeMode.Dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                    algorithm: theme.defaultAlgorithm,
                     ...antdTokens,
                 }}
             >

@@ -8,6 +8,7 @@ export interface testset {
     _id: string
     name: string
     created_at: string
+    updated_at: string
 }
 
 export interface TestSet {
@@ -17,6 +18,8 @@ export interface TestSet {
     updated_at: string
     csvdata: KeyValuePair[]
 }
+
+export type TestsetCreationMode = "create" | "clone" | "rename"
 
 export interface ListAppsItem {
     app_id: string

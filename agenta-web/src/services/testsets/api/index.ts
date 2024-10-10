@@ -60,6 +60,24 @@ export const fetchTestset = async (testsetId: string | null) => {
     return response.data
 }
 
+export const uploadTestsets = async (formData: FormData) => {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+        //@ts-ignore
+        _ignoreError: true,
+    })
+    return response
+}
+
+export const importTestsetsViaEndpoint = async (formData: FormData) => {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/endpoint/`, formData, {
+        headers: {"Content-Type": "multipart/form-data"},
+    })
+    return response
+}
+
 export const deleteTestsets = async (ids: string[]) => {
     const response = await axios({
         method: "delete",

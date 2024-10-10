@@ -1,18 +1,4 @@
-  <div align="center" style="margin: 30px">
-  <a href="https://docs.agenta.ai/self-host/migration/migration-to-postgres">
-    Important: We are migrating from MongoDB to PostgreSQL in v0.19! Follow this guide to migrate your data.
-  </a>
-  </div>
-  </br>
-  </br>
-
 <div align="center" style="margin: 30px">
-  <div>
-    <a href="https://agentaai.notion.site/Careers-at-agenta-fb8a76d4d9044e27bd3a32678818dbc8/">
-      <img src="https://github.com/Agenta-AI/agenta/raw/main/.github/images/we-are-hiring.svg" alt="We are hiring! Join our team!" width="350" height="60" alt="We are hiring! Join our team!" width="350" height="60">
-    </a> 
-  </div>
-
   <a href="https://agenta.ai/">
     <div  align="center" >
       <picture >
@@ -76,12 +62,9 @@
   <br />
       <div  align="center" >
       <picture >
-        <source width="800" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cf6d4713-4558-4c6c-9e1b-ee4eab261f4c"  >
-        <source width="800" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a"  >
-        <img alt="Mockup agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a" >
+        <img alt="Glamour Shot" src="https://github.com/user-attachments/assets/32e95ddb-e001-4462-b92e-72bf4cc78597" >
       </picture>
     </div>
-
 </div>
 <br />
 <br />
