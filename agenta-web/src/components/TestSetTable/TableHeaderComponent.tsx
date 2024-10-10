@@ -105,6 +105,7 @@ const TableHeaderComponent = ({
             setInputValues(scopedInputValues)
             updateTable(scopedInputValues)
             setIsEditInputOpen(false)
+            setIsDataChanged(true)
         }
     }
 
@@ -112,7 +113,6 @@ const TableHeaderComponent = ({
         const values = [...inputValues]
         values[index] = event.target.value
         setScopedInputValues(values)
-        setIsDataChanged(true)
     }
 
     const onAddColumn = () => {
