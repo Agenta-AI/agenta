@@ -7,11 +7,13 @@ import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
 import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
+import {Button, Dropdown, Input, message, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table/interface"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
+import {useUpdateEffect} from "usehooks-ts"
+import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
@@ -53,7 +55,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
-    const appId = router.query.app_id as string
+    const {apps, isLoading: isAppsLoading} = useAppsData()
+    const appId = apps[0]?.app_id
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
@@ -61,6 +64,13 @@ const Testset = () => {
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
     const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
     const [current, setCurrent] = useState(0)
+
+    useUpdateEffect(() => {
+        if ((apps.length === 0 || !apps) && !isAppsLoading) {
+            message.warning("To view the test set, you first need to create an app.")
+            router.push("/apps")
+        }
+    }, [isAppsLoading])
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -147,7 +157,7 @@ const Testset = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/${appId}/testsets/${record._id}`)
+                                        router.push(`/apps/testsets/${record._id}`)
                                     },
                                 },
                                 {
@@ -247,12 +257,13 @@ const Testset = () => {
                     columns={columns}
                     dataSource={filteredTestset}
                     rowKey="_id"
-                    loading={isTestsetsLoading}
+                    loading={isTestsetsLoading || isAppsLoading}
                     scroll={{x: true}}
                     pagination={false}
                     onRow={(record) => {
                         return {
-                            onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
+                            onClick: () => router.push(`/apps/testsets/${record._id}`),
+                            style: {cursor: "pointer"},
                         }
                     }}
                     locale={{emptyText: <NoResultsFound />}}
@@ -267,6 +278,7 @@ const Testset = () => {
                 testsetCreationMode={testsetCreationMode}
                 setTestsetCreationMode={setTestsetCreationMode}
                 open={isCreateTestsetModalOpen}
+                appId={appId}
                 onCancel={() => {
                     setIsCreateTestsetModalOpen(false)
                 }}

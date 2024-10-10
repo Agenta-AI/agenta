@@ -17,6 +17,7 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
+import {useAppsData} from "@/contexts/app.context"
 
 type TestsetTableProps = {
     mode: "edit"
@@ -91,7 +92,9 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
 
-    const appId = router.query.app_id as string
+    const {apps, isLoading: isAppsLoading} = useAppsData()
+
+    const appId = apps[0]?.app_id
     const {testset_id} = router.query
 
     useBlockNavigation(unSavedChanges, {
@@ -111,6 +114,13 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
             setUnSavedChanges(true)
         }
     }, [rowData, testsetName, columnDefs, inputValues])
+
+    useUpdateEffect(() => {
+        if ((apps.length === 0 || !apps) && !isAppsLoading) {
+            message.warning("To view the test set, you first need to create an app.")
+            router.push("/apps")
+        }
+    }, [isAppsLoading])
 
     useEffect(() => {
         async function applyColData(colData: {field: string}[] = []) {

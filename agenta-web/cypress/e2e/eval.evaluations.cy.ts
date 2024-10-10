@@ -45,7 +45,7 @@ describe("Evaluations CRUD Operations Test", function () {
 
     context("Executing Evaluation with different answer column", () => {
         it("Should successfully rename the testset columns", () => {
-            cy.visit(`/apps/${app_id}/testsets`)
+            cy.visit(`/apps/testsets`)
             cy.location("pathname").should("include", "/testsets")
             cy.get(".ant-table-row").eq(0).click()
             cy.wait(1000)

@@ -12,7 +12,7 @@ import {axiosFetcher} from "@/services/api"
 
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
-        `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
+        () => (appId ? `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}` : null),
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
     )

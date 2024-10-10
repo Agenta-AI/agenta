@@ -349,7 +349,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/${appId}/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/apps/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>

@@ -10,7 +10,6 @@ import {
     Desktop,
     GithubLogo,
     PaperPlane,
-    PersonSimpleRun,
     Phone,
     Question,
     Scroll,
@@ -40,7 +39,7 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp, recentlyVisitedAppId} = useAppsData()
+    const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
@@ -55,12 +54,21 @@ export const useSidebarConfig = () => {
 
     const sidebarConfig: SidebarConfig[] = [
         {
-            key: "app-management-link",
-            title: "App Management",
+            key: "application-link",
+            title: "Applications",
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,
+            divider: apps.length === 0 ? true : false,
+        },
+        {
+            key: "app-testsets-link",
+            title: "Test Sets",
+            tooltip: "Create and manage testsets for evaluation purposes.",
+            link: `/apps/testsets`,
+            icon: <DatabaseOutlined />,
             divider: true,
+            isHidden: apps.length === 0,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -82,14 +90,6 @@ export const useSidebarConfig = () => {
                 "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
             link: `/apps/${appId || recentlyVisitedAppId}/playground`,
             icon: <RocketOutlined />,
-            isHidden: !appId && !recentlyVisitedAppId,
-        },
-        {
-            key: "app-testsets-link",
-            title: "Test Sets",
-            tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/${appId || recentlyVisitedAppId}/testsets`,
-            icon: <DatabaseOutlined />,
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {

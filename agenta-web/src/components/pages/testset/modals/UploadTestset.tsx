@@ -49,14 +49,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
+    appId: string
 }
 
-const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
+const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
     const classes = useStyles()
     const router = useRouter()
     const [form] = Form.useForm()
     const testsetFile = Form.useWatch("file", form)
-    const appId = router.query.app_id as string
     const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
     const [testsetName, setTestsetName] = useState("")
     const [uploadLoading, setUploadLoading] = useState(false)
