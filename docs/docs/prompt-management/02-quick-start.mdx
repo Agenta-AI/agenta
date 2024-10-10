@@ -2,6 +2,8 @@
 title: "Quick Start"
 ---
 
+import Image from "@theme/IdealImage";
+
 ## Introduction
 
 In this tutorial, we will **create a prompt** in the web UI, **publish** it to a deployment, **integrate** it with our code base.
@@ -17,9 +19,9 @@ We will create a prompt from the web UI. This can be done simply by going to the
 - A text prompt is useful for single turn LLM applications such as question answering, text generation, entity extraction, and classification, etc.
 - A chat application is designed for multi-turn applications like chatbots.
 
-<img
+<Image
   style={{ width: "80%", display: "block", margin: "0 auto" }}
-  src="/images/prompt_management/create-prompt-modal.png"
+  img={require("/images/prompt_management/create-prompt-modal.png")}
 />
 <br />
 
@@ -31,16 +33,16 @@ When you are satified with a commit (after evaluating it for instance) you can p
 
 To publish a variant, go to overview, click on the three dots on the **variant** that you want to publish and select Deploy (see screenshto)
 
-<img
+<Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
-  src="/images/prompt_management/deploy-action.png"
+  img={require("/images/prompt_management/deploy-action.png")}
 />
 <br />
 You can select now which deployments you want to publish the variant to
 
-<img
+<Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
-  src="/images/prompt_management/deployment-modal.png"
+  img={require("/images/prompt_management/deployment-modal.png")}
 />
 
 <br />
@@ -88,9 +90,9 @@ This feature is only available in cloud and enterprise version
 
 Optionally you would like to revert to a previously published commit. For this click on the deployment in the overview view, then click on **history**, you will see all the previous published version. You can revert to a previous version by clicking on revert.
 
-<img
+<Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
-  src="/images/prompt_management/revert-deployment.png"
+  img={require("/images/prompt_management/revert-deployment.png")}
 />
 
 ## Next steps
