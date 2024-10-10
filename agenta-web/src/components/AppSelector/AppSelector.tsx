@@ -21,8 +21,8 @@ import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import AppTemplateCard from "./AppTemplateCard"
-import Image from "next/image"
 import dayjs from "dayjs"
+import NoResultsFound from "../NoResultsFound/NoResultsFound"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -71,20 +71,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: theme.lineHeightLG,
         fontSize: theme.fontSizeHeading4,
         fontWeight: theme.fontWeightStrong,
-    },
-    notFound: {
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingTop: 80,
-        gap: 16,
-        "& > span": {
-            lineHeight: theme.lineHeightHeading4,
-            fontSize: theme.fontSizeHeading4,
-            fontWeight: theme.fontWeightMedium,
-        },
     },
 }))
 
@@ -361,18 +347,7 @@ const AppSelector: React.FC = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className={classes.notFound}>
-                                <Image
-                                    src="/assets/not-found.png"
-                                    alt="not-found"
-                                    width={240}
-                                    height={210}
-                                />
-                                <Typography.Text>No Results found</Typography.Text>
-                                <Typography.Paragraph type="secondary">
-                                    No results match the search criteria.
-                                </Typography.Paragraph>
-                            </div>
+                            <NoResultsFound />
                         )}
 
                         <TipsAndFeatures />
