@@ -1,15 +1,14 @@
 ---
-title: "Evaluations with sdk"
+title: "Evaluations with SDK"
 ---
 
-
-
 :::note
-  This guide is also available as a [Jupyter Notebook](https://github.com/Agenta-AI/agenta/blob/main/cookbook/evaluations_with_sdk.ipynb).
+This guide is also available as a [Jupyter Notebook](https://github.com/Agenta-AI/agenta/blob/main/cookbook/evaluations_with_sdk.ipynb).
 :::
 
 # Using evaluations with the SDK
-In this cookbook we will show how to interact with evaluation in agenta programatically. Either using the SDK (or the raw API). 
+
+In this cookbook we will show how to interact with evaluation in agenta programatically. Either using the SDK (or the raw API).
 
 We will do the following:
 
@@ -18,24 +17,20 @@ We will do the following:
 - Run an evaluation
 - Retrieve the results of evaluations
 
-We assume that you have already created an LLM application and variants in agenta. 
-
+We assume that you have already created an LLM application and variants in agenta.
 
 ### Architectural Overview:
-In this scenario, evaluations are executed on the Agenta backend. Specifically, Agenta invokes the LLM application for each row in the test set and subsequently processes the output using the designated evaluator. 
+
+In this scenario, evaluations are executed on the Agenta backend. Specifically, Agenta invokes the LLM application for each row in the test set and subsequently processes the output using the designated evaluator.
 This operation is managed through Celery tasks. The interactions with the LLM application are asynchronous, batched, and include retry mechanisms. Additionally, the batching configuration can be adjusted to avoid exceeding the rate limits imposed by the LLM provider.
 
-
-## Setup 
-
+## Setup
 
 ```python
 ! pip install -U agenta
 ```
 
 ## Configuration Setup
-
-
 
 ```python
 # Assuming an application has already been created through the user interface, you will need to obtain the application ID.
@@ -47,7 +42,6 @@ from agenta.client.backend.client import AgentaApi
 client.apps.list_apps()
 ```
 
-
 ```python
 
 app_id = "667d8cfad1812781f7e375d9"
@@ -55,7 +49,7 @@ app_id = "667d8cfad1812781f7e375d9"
 # You can create the API key under the settings page. If you are using the OSS version, you should keep this as an empty string
 api_key = "EUqJGOUu.xxxx"
 
-# Host. 
+# Host.
 host = "https://cloud.agenta.ai"
 
 # Initialize the client
@@ -64,7 +58,6 @@ client = AgentaApi(base_url=host + "/api", api_key=api_key)
 ```
 
 ## Create a test set
-
 
 ```python
 from agenta.client.backend.types.new_testset import NewTestset
@@ -89,7 +82,6 @@ client.testsets.update_testset(testset_id=test_set_id, request=NewTestset(name="
 
 # Create evaluators
 
-
 ```python
 # Create an evaluator that performs an exact match comparison on the 'capital' column
 # You can find the list of evaluator keys and evaluators and their configurations in https://github.com/Agenta-AI/agenta/blob/main/agenta-backend/agenta_backend/resources/evaluators/evaluators.py
@@ -103,7 +95,7 @@ def evaluate(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: str,  # output of the llm app
-    datapoint: Dict[str, str]  # contains the testset row 
+    datapoint: Dict[str, str]  # contains the testset row
 ) -> float:
     if output and output[0].isupper():
         return 1.0
@@ -115,7 +107,6 @@ response = client.evaluators.create_new_evaluator_config(app_id=app_id, name="ca
 letter_match_eval_id = response.id
 ```
 
-
 ```python
 # get list of all evaluators
 client.evaluators.get_evaluator_configs(app_id=app_id)
@@ -123,13 +114,11 @@ client.evaluators.get_evaluator_configs(app_id=app_id)
 
 # Run an evaluation
 
-
 ```python
 response = client.apps.list_app_variants(app_id=app_id)
 print(response)
 myvariant_id = response[0].variant_id
 ```
-
 
 ```python
 # Run an evaluation
@@ -144,12 +133,10 @@ response = client.evaluations.create_evaluation(app_id=app_id, variant_ids=[myva
 print(response)
 ```
 
-
 ```python
 # check the status
 client.evaluations.fetch_evaluation_status('667d98fbd1812781f7e3761a')
 ```
-
 
 ```python
 # fetch the overall results
@@ -158,7 +145,6 @@ response = client.evaluations.fetch_evaluation_results('667d98fbd1812781f7e3761a
 results = [(evaluator["evaluator_config"]["name"], evaluator["result"]) for evaluator in response["results"]]
 # End of  Selection
 ```
-
 
 ```python
 # fetch the detailed results
