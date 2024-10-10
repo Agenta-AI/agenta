@@ -2,6 +2,8 @@
 title: "Create Test Sets"
 ---
 
+import Image from "@theme/IdealImage";
+
 This guide outlines the various methods for creating test sets in Agenta and provides specifications for the test set schema.
 
 Test sets are used for runnning automatic or human evaluation. They can also be loaded into the playground, allowing you to experiment with different prompts.
@@ -24,7 +26,7 @@ To create a test set from a CSV or JSON file:
 2. Click `Upload test sets`
 3. Select either `CSV` or `JSON`
 
-<img src="/images/test-sets/upload_test_set.png" />
+<Image img={require("/images/test-sets/upload_test_set.png")} />
 
 ### CSV Format
 
@@ -110,7 +112,7 @@ To create or edit a test set from the UI:
 
 Remember to click `Save test set`
 
-<img src="/images/test-sets/add_test_set_ui.png" />
+<Image img={require("/images/test-sets/add_test_set_ui.png")} />
 
 ## Creating a Test Set from the Playground
 
@@ -128,7 +130,7 @@ Currently, when adding a test point from the playground, the correct answer is a
 When adding a new data point, ensure that the column names in the test set match those of the LLM application. All columns from the playground (input columns and `correct_answer`) must exist in the test set. They will be created automatically if you're making a new test set. Any additional columns in the test set not available in the playground will be left empty.
 :::
 
-<img src="/images/test-sets/add_test_set_playground.png" />
+<Image img={require("/images/test-sets/add_test_set_playground.png")} />
 
 ### Adding Chat History from the Playground
 

@@ -267,6 +267,16 @@ const config: Config = {
         api_host: "https://app.posthog.com",
       },
     ],
+    [
+      "@docusaurus/plugin-ideal-image",
+      {
+        quality: 85,
+        max: 1000, // max resized image's size.
+        min: 600, // min resized image's size. if original is lower, use that size.
+        steps: 2, // the max number of images generated between min and max (inclusive)
+        disableInDev: false,
+      },
+    ],
 
     "docusaurus-plugin-image-zoom",
   ],

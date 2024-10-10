@@ -3,6 +3,8 @@ title: "Integrating with agenta"
 description: "Integrate applications and prompts created in Agenta into your projects."
 ---
 
+import Image from "@theme/IdealImage";
+
 Agenta easily integrates with your workflow, allowing you to use the latest version of the deployed prompt in your application. With Agenta, **you can update prompts directly from the web interface without modifying your code** each time.
 
 Here are the two ways you can use the prompts from Agenta in your code:
@@ -26,9 +28,9 @@ In this approach, prompts are managed and stored in the Agenta backend. You use 
 
 - You need to manage the [integration with observability](/observability/quickstart) yourself.
 
-<img
+<Image
   class="bg-white"
-  src="/images/prompt_management/as-a-prompt-management.png"
+  img={require("/images/prompt_management/as-a-prompt-management.png")}
   loading="lazy"
   alt="A sequence diagram showing how to integrate with Agenta as a prompt management system"
 />
@@ -49,9 +51,9 @@ In this setup, Agenta provides you with an endpoint that forwards requests to th
 
 Overall, this approach is best suited for applications where latency isn't critical.
 
-<img
+<Image
   class="bg-white"
-  src="/images/prompt_management/as-a-proxy.png"
+  img={require("/images/prompt_management/as-a-proxy.png")}
   loading="lazy"
   alt="A sequence diagram showing how to integrate with Agenta as    a proxy"
 />

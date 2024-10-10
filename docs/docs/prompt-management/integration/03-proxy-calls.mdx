@@ -3,15 +3,17 @@ title: "Proxy LLM calls"
 description: "How to invoke the deployed version of your prompt through the REST API."
 ---
 
+import Image from "@theme/IdealImage";
+
 Agenta offers a straightforward way to invoke the deployed version of your prompt through the Agenta SDK or via the REST API. When invoking a prompt, all calls are automatically traced and logged, and you can view these details in the observability dashboard.
 
 ## Using the Agenta SDK
 
 You can find the specific call to invoke the deployed version of your prompt directly within the Agenta UI.
 
-<img
+<Image
   style={{ display: "block", margin: "10 auto" }}
-  src="/images/prompt_management/call-prompt.gif"
+  img={require("/images/prompt_management/call-prompt.gif")}
   alt="How to find the call to invoke the deployed version of your prompt"
   loading="lazy"
 />
