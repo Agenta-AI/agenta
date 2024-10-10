@@ -92,7 +92,7 @@ const config: Config = {
         {
           type: "doc",
           sidebarId: "docsSidebar",
-          docId: "getting_started/introduction",
+          docId: "getting-started/introduction",
           position: "left",
           label: "Docs",
         },
@@ -100,7 +100,7 @@ const config: Config = {
           type: "docSidebar",
           sidebarId: "guidesSidebar",
           position: "left",
-          label: "Guides",
+          label: "Tutorials",
         },
         {
           type: "docSidebar",
