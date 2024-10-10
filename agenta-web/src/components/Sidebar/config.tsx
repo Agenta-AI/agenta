@@ -104,32 +104,8 @@ export const useSidebarConfig = () => {
             title: "Observability",
             icon: <ChartLineUp size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            isCloudFeature: true && isOss,
+            link: `/apps/${appId || recentlyVisitedAppId}/observability`,
             cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
-            tag: "beta",
-            submenu: [
-                {
-                    key: "app-observability-dashboard-link",
-                    title: "Dashboard",
-                    tooltip: "Dashboard view of traces and generations",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-traces-link",
-                    title: "Traces",
-                    tooltip: "Traces and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/traces`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-generations-link",
-                    title: "Generations",
-                    tooltip: "Generations and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/generations`,
-                    icon: <Dot size={16} />,
-                },
-            ],
         },
         {
             key: "invite-teammate-link",
