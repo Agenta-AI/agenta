@@ -1,7 +1,7 @@
 from inspect import iscoroutinefunction
 from functools import wraps
 
-from agenta.sdk.tracing.logger import llm_logger as logging
+from agenta.sdk.utils.logging import log
 
 DEBUG = False
 SHIFT = 7
@@ -14,7 +14,7 @@ def debug(shift=1, req=False, res=False, chars=[">", "<"]):
         @wraps(f)
         async def async_log_wrapper(*args, **kwargs):
             if DEBUG:
-                logging.debug(
+                log.debug(
                     " ".join(
                         [
                             chars[0] * shift + " " * (SHIFT - shift),
@@ -26,7 +26,7 @@ def debug(shift=1, req=False, res=False, chars=[">", "<"]):
                 )
             result = await f(*args, **kwargs)
             if DEBUG:
-                logging.debug(
+                log.debug(
                     " ".join(
                         [
                             chars[1] * shift + " " * (SHIFT - shift),
@@ -40,7 +40,7 @@ def debug(shift=1, req=False, res=False, chars=[">", "<"]):
         @wraps(f)
         def log_wrapper(*args, **kwargs):
             if DEBUG:
-                logging.debug(
+                log.debug(
                     " ".join(
                         [
                             chars[0] * shift + " " * (SHIFT - shift),
@@ -52,7 +52,7 @@ def debug(shift=1, req=False, res=False, chars=[">", "<"]):
                 )
             result = f(*args, **kwargs)
             if DEBUG:
-                logging.debug(
+                log.debug(
                     " ".join(
                         [
                             chars[1] * shift + " " * (SHIFT - shift),
