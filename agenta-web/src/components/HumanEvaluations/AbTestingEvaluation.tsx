@@ -13,12 +13,15 @@ import {
     fetchEvaluationResults,
 } from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {Database, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
+import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
 import {Avatar, Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {getAppValues} from "@/contexts/app.context"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 
 const {Title} = Typography
 
@@ -384,6 +387,46 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
         ] as any),
     )
 
+    const onExport = () => {
+        const exportEvals = evaluationsList.filter((e) =>
+            selectedRowKeys.some((selected) => selected === e.key),
+        )
+
+        try {
+            if (!!exportEvals.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_human_ab_testing.csv`
+
+                const csvData = convertToCsv(
+                    exportEvals.map((item) => {
+                        return {
+                            "Variant 1": variantNameWithRev({
+                                variant_name: item.variantNames[0] ?? "",
+                                revision: item.revisions[0],
+                            }),
+                            "Variant 2": variantNameWithRev({
+                                variant_name: item.variantNames[1] ?? "",
+                                revision: item.revisions[1],
+                            }),
+                            "Test set": item.testset.name,
+                            Results: `${getVotesPercentage(item, 0) || 0}% | ${getVotesPercentage(item, 1) || 0}%`,
+                            "Both are good": `${item.votesData.positive_votes.percentage}%`,
+                            Flag: `${item.votesData.flag_votes.percentage}%`,
+                            "Created on": formatDate24(item.createdAt),
+                        }
+                    }),
+                    columns
+                        .filter((col) => typeof col.title === "string")
+                        .map((col) => col.title as string),
+                )
+                downloadCsv(csvData, filename)
+                setSelectedRowKeys([])
+            }
+        } catch (error) {
+            message.error("Failed to export results. Plese try again later")
+        }
+    }
+
     return (
         <div className={classes.container}>
             {viewType === "overview" ? (
@@ -429,6 +472,15 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                         >
                             Delete
                         </Button>
+                        <Button
+                            type="text"
+                            onClick={onExport}
+                            icon={<Export size={14} className="mt-0.5" />}
+                            className={classes.button}
+                            disabled={selectedRowKeys.length == 0}
+                        >
+                            Export as CSV
+                        </Button>
                     </Space>
                 </div>
             )}
@@ -440,6 +492,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                             ? {
                                   type: "checkbox",
                                   columnWidth: 48,
+                                  selectedRowKeys,
                                   ...rowSelection,
                               }
                             : undefined
