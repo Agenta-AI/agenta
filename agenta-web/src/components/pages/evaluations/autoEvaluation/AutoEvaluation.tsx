@@ -58,7 +58,7 @@ const AutoEvaluation = () => {
     const router = useRouter()
     const {token} = theme.useToken()
 
-    const [selectedRowKeys, setSelectedRowKeys] = useState<_Evaluation[]>([])
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
@@ -154,7 +154,7 @@ const AutoEvaluation = () => {
     }
 
     const handleDeleteMultipleEvaluations = async () => {
-        const evaluationsIds = selectedRowKeys.map((key) => key.id.toString())
+        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
         try {
             setIsEvalLoading(true)
             await deleteEvaluations(evaluationsIds)
@@ -186,9 +186,7 @@ const AutoEvaluation = () => {
     }
 
     const compareDisabled = useMemo(() => {
-        const evalList = evaluationList.filter((e) =>
-            selectedRowKeys.some((selected) => selected.id === e.id),
-        )
+        const evalList = evaluationList.filter((e) => selectedRowKeys.includes(e.id))
 
         return (
             evalList.length < 2 ||
@@ -474,13 +472,17 @@ const AutoEvaluation = () => {
     }))
 
     const onExport = () => {
+        const exportEvals = evaluationList.filter((e) =>
+            selectedRowKeys.some((selected) => selected === e.id),
+        )
+
         try {
-            if (!!selectedRowKeys.length) {
+            if (!!exportEvals.length) {
                 const {currentApp} = getAppValues()
                 const filename = `${currentApp?.app_name}_evaluation_scenarios.csv`
 
                 const csvData = convertToCsv(
-                    selectedRowKeys.map((item) => ({
+                    exportEvals.map((item) => ({
                         Variant: variantNameWithRev({
                             variant_name: item.variants[0].variantName ?? "",
                             revision: item.revisions[0],
@@ -510,7 +512,9 @@ const AutoEvaluation = () => {
                 downloadCsv(csvData, filename)
                 setSelectedRowKeys([])
             }
-        } catch {}
+        } catch (error) {
+            message.error("Failed to export results. Plese try again later")
+        }
     }
 
     return (
@@ -554,7 +558,7 @@ const AutoEvaluation = () => {
                         data-cy="evaluation-results-compare-button"
                         onClick={() =>
                             router.push(
-                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.map((selected) => selected.id).join(",")}`,
+                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,
                             )
                         }
                     >
@@ -563,7 +567,7 @@ const AutoEvaluation = () => {
                     <Button
                         type="text"
                         onClick={onExport}
-                        icon={<Export size={14} />}
+                        icon={<Export size={14} className="mt-0.5" />}
                         className={classes.button}
                         disabled={selectedRowKeys.length == 0}
                     >
@@ -587,9 +591,9 @@ const AutoEvaluation = () => {
                 rowSelection={{
                     type: "checkbox",
                     columnWidth: 48,
-                    selectedRowKeys: selectedRowKeys.map((item) => item.id),
-                    onChange: (_, selectedEvals) => {
-                        setSelectedRowKeys(selectedEvals)
+                    selectedRowKeys,
+                    onChange: (selectedRowKeys: React.Key[]) => {
+                        setSelectedRowKeys(selectedRowKeys)
                     },
                 }}
                 className="ph-no-capture"

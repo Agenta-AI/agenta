@@ -1,4 +1,4 @@
-import {HumanEvaluationListTableDataType} from "@/lib/Types"
+import {HumanEvaluationListTableDataType, SingleModelEvaluationListTableDataType} from "@/lib/Types"
 import {
     Evaluation,
     GenericObject,
@@ -16,6 +16,7 @@ import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 import {formatCurrency, formatLatency} from "./formatters"
 import {isDemo} from "./utils"
+import {EvaluationType} from "../enums"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -421,4 +422,28 @@ export const getEvaluatorTags = () => {
     }
 
     return evaluatorTags
+}
+
+export const calculateAvgScore = (evaluation: SingleModelEvaluationListTableDataType) => {
+    let score = 0
+    if (evaluation.scoresData) {
+        score =
+            ((evaluation.scoresData.correct?.length || evaluation.scoresData.true?.length || 0) /
+                evaluation.scoresData.nb_of_rows) *
+            100
+    } else if (evaluation.resultsData) {
+        const multiplier = {
+            [EvaluationType.auto_webhook_test]: 100,
+            [EvaluationType.single_model_test]: 1,
+        }
+        score = calculateResultsDataAvg(
+            evaluation.resultsData,
+            multiplier[evaluation.evaluationType as keyof typeof multiplier],
+        )
+        score = isNaN(score) ? 0 : score
+    } else if (evaluation.avgScore) {
+        score = evaluation.avgScore * 100
+    }
+
+    return score
 }
