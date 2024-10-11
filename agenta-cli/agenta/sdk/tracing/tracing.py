@@ -1,6 +1,6 @@
 from typing import Optional, Any, Dict
 
-from httpx import head as check
+from httpx import get as check
 
 from opentelemetry.trace import (
     get_current_span,
@@ -96,7 +96,7 @@ class Tracing(metaclass=Singleton):
         try:
             log.info(f"Connecting to the remote trace receiver at {self.otlp_url}...")
 
-            check(self.otlp_url, headers=self.headers, timeout=0.001)
+            check(self.otlp_url, headers=self.headers, timeout=1)
 
             log.info(f"Connection established.")
 
