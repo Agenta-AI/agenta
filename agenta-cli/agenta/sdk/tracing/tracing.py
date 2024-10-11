@@ -1,6 +1,6 @@
 from typing import Optional, Any, Dict
 
-from httpx import get as check
+from httpx import head as check
 
 from opentelemetry.trace import (
     get_current_span,
@@ -34,8 +34,7 @@ class Tracing(metaclass=Singleton):
         url: str,
     ) -> None:
         # ENDPOINT (OTLP)
-        # self.otlp_url = url
-        self.otlp_url = "http://127.0.0.1:8000/api/observability/v1/otlp/traces"
+        self.otlp_url = url
         # AUTHENTICATION (OTLP)
         self.project_id: Optional[str] = None
         # AUTHORIZATION (OTLP)
@@ -62,17 +61,20 @@ class Tracing(metaclass=Singleton):
         app_id: Optional[str] = None,
     ):
         # AUTHENTICATION (OTLP)
-        # self.project_id = project_id
-        self.project_id = "f7943e42-ec69-498e-bf58-8db034b9286e"
+        self.project_id = project_id  # "f7943e42-ec69-498e-bf58-8db034b9286e"
+        self.app_id = app_id
         # AUTHORIZATION (OTLP)
         self.api_key = api_key
         # HEADERS (OTLP)
-        self.headers = {"AG-PROJECT-ID": self.project_id}
+        self.headers = {}
+        if project_id:
+            self.headers.update(**{"AG-PROJECT-ID": project_id})
+        if app_id:
+            self.headers.update(**{"AG-APP-ID": app_id})
         if api_key:
-            # self.headers.update(**{"Authorization": f"Api-Key {self.api_key}"})
             self.headers.update(**{"Authorization": self.api_key})
         # REFERENCES
-        self.references = {"application.id": app_id}
+        self.references = {"application_id": app_id}
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
@@ -94,7 +96,7 @@ class Tracing(metaclass=Singleton):
         try:
             log.info(f"Connecting to the remote trace receiver at {self.otlp_url}...")
 
-            check(self.otlp_url, headers=self.headers)
+            check(self.otlp_url, headers=self.headers, timeout=0.001)
 
             log.info(f"Connection established.")
 
@@ -104,7 +106,8 @@ class Tracing(metaclass=Singleton):
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-        except:
+        except Exception as e:
+            print(e)
             log.warning(f"Connection failed.")
             log.warning(
                 f"Warning: Your traces will not be exported since {self.otlp_url} is unreachable."
@@ -159,7 +162,7 @@ class Tracing(metaclass=Singleton):
         if not otel_spans:
             return {}
 
-        inline_trace = parse_inline_trace(self.project_id, otel_spans)
+        inline_trace = parse_inline_trace(self.project_id or self.app_id, otel_spans)
 
         return inline_trace
 
