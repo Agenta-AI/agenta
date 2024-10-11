@@ -5,7 +5,6 @@ from agenta_backend.core.observability.dtos import SpanDTO, SpanCreateDTO
 
 
 class ObservabilityDAOInterface:
-
     def __init__(self):
         raise NotImplementedError
 

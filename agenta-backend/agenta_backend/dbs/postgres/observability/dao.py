@@ -38,7 +38,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
-
         async with engine.session() as session:
             # BASE (SUB-)QUERY
             query = select(InvocationSpanDBE)
