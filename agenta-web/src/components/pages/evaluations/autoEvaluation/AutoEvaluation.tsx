@@ -1,7 +1,8 @@
-import {_Evaluation, EvaluationStatus} from "@/lib/Types"
+import {_Evaluation, EvaluationStatus, GenericObject} from "@/lib/Types"
 import {
     ArrowsLeftRight,
     Database,
+    Export,
     Gauge,
     GearSix,
     Note,
@@ -9,14 +10,14 @@ import {
     Rocket,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, DropdownProps, message, Space, Table, Tag, Typography} from "antd"
+import {Button, Dropdown, DropdownProps, message, Space, Table, Tag, theme, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
 import {MoreOutlined} from "@ant-design/icons"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import {useQueryParam} from "@/hooks/useQuery"
-import {formatDay} from "@/lib/helpers/dateTimeHelper"
+import {formatDate24, formatDay} from "@/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/lib/helpers/evaluate"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import NewEvaluationModal from "@/components/pages/evaluations/NewEvaluation/NewEvaluationModal"
@@ -34,13 +35,15 @@ import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEval
 import {useRouter} from "next/router"
 import EditColumns, {generateEditItems} from "./Filters/EditColumns"
 import StatusRenderer from "../cellRenderers/StatusRenderer"
-import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
+import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cellRenderers"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
 import {uniqBy} from "lodash"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 import dayjs from "dayjs"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import {getAppValues} from "@/contexts/app.context"
 
 const useStyles = createUseStyles(() => ({
     button: {
@@ -53,8 +56,9 @@ const AutoEvaluation = () => {
     const classes = useStyles()
     const appId = useAppId()
     const router = useRouter()
+    const {token} = theme.useToken()
 
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedRowKeys, setSelectedRowKeys] = useState<_Evaluation[]>([])
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
@@ -150,7 +154,7 @@ const AutoEvaluation = () => {
     }
 
     const handleDeleteMultipleEvaluations = async () => {
-        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
+        const evaluationsIds = selectedRowKeys.map((key) => key.id.toString())
         try {
             setIsEvalLoading(true)
             await deleteEvaluations(evaluationsIds)
@@ -182,7 +186,10 @@ const AutoEvaluation = () => {
     }
 
     const compareDisabled = useMemo(() => {
-        const evalList = evaluationList.filter((e) => selectedRowKeys.includes(e.id))
+        const evalList = evaluationList.filter((e) =>
+            selectedRowKeys.some((selected) => selected.id === e.id),
+        )
+
         return (
             evalList.length < 2 ||
             evalList.some(
@@ -466,6 +473,46 @@ const AutoEvaluation = () => {
         }),
     }))
 
+    const onExport = () => {
+        try {
+            if (!!selectedRowKeys.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_evaluation_scenarios.csv`
+
+                const csvData = convertToCsv(
+                    selectedRowKeys.map((item) => ({
+                        Variant: variantNameWithRev({
+                            variant_name: item.variants[0].variantName ?? "",
+                            revision: item.revisions[0],
+                        }),
+                        Testset: item.testset.name,
+                        ...item.aggregated_results.reduce((acc, curr) => {
+                            if (!acc[curr.evaluator_config.name]) {
+                                acc[curr.evaluator_config.name] = getTypedValue(curr.result)
+                            }
+                            return acc
+                        }, {} as GenericObject),
+                        "Avg. Latency": getTypedValue(item.average_latency),
+                        "Total Cost": getTypedValue(item.average_cost),
+                        "Created on": formatDate24(item.created_at),
+                        Status: statusMapper(token)(item.status.value as EvaluationStatus).label,
+                    })),
+                    columns.flatMap((col: any) => {
+                        const titles = [col.title].filter(
+                            (title) => title !== "Results" && typeof title === "string",
+                        )
+                        const childTitles =
+                            col.children?.flatMap((item: any) => (item.key ? item.key : [])) || []
+
+                        return [...titles, ...childTitles]
+                    }),
+                )
+                downloadCsv(csvData, filename)
+                setSelectedRowKeys([])
+            }
+        } catch {}
+    }
+
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -507,11 +554,20 @@ const AutoEvaluation = () => {
                         data-cy="evaluation-results-compare-button"
                         onClick={() =>
                             router.push(
-                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,
+                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.map((selected) => selected.id).join(",")}`,
                             )
                         }
                     >
                         Compare
+                    </Button>
+                    <Button
+                        type="text"
+                        onClick={onExport}
+                        icon={<Export size={14} />}
+                        className={classes.button}
+                        disabled={selectedRowKeys.length == 0}
+                    >
+                        Export as CSV
                     </Button>
                     <EditColumns
                         items={generateEditItems(columns as ColumnsType, editColumns)}
@@ -531,8 +587,9 @@ const AutoEvaluation = () => {
                 rowSelection={{
                     type: "checkbox",
                     columnWidth: 48,
-                    onChange: (selectedRowKeys: React.Key[]) => {
-                        setSelectedRowKeys(selectedRowKeys)
+                    selectedRowKeys: selectedRowKeys.map((item) => item.id),
+                    onChange: (_, selectedEvals) => {
+                        setSelectedRowKeys(selectedEvals)
                     },
                 }}
                 className="ph-no-capture"
