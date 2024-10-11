@@ -33,6 +33,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from celery import Celery
 
 
+from agenta_backend.dbs.postgres.observability.dao import ObservabilityDAO
+from agenta_backend.core.observability.service import ObservabilityService
+from agenta_backend.apis.fastapi.observability.router import ObservabilityRouter
+
+
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -110,6 +115,10 @@ app.include_router(
 )
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
+
+observability = ObservabilityRouter(ObservabilityService(ObservabilityDAO()))
+
+app.include_router(router=observability.router, prefix="/observability/v1")
 
 if isCloudEE():
     import agenta_backend.cloud.main as cloud

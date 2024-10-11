@@ -7,13 +7,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from agenta_backend.models.db.postgres_engine import db_engine
+from agenta_backend.dbs.postgres.shared.config import POSTGRES_URI
 
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", db_engine.postgres_uri)  # type: ignore
+config.set_main_option("sqlalchemy.url", POSTGRES_URI)  # type: ignore
 
 
 # Interpret the config file for Python logging.
@@ -23,7 +23,10 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from agenta_backend.models.db_models import Base  # noqa: F403
+from agenta_backend.dbs.postgres.shared.base import Base
+
+import agenta_backend.dbs.postgres.observability.dbes
+
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
