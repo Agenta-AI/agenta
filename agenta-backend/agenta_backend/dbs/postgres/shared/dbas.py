@@ -2,6 +2,8 @@ from collections import OrderedDict
 
 from sqlalchemy import Column, UUID, TIMESTAMP, func
 
+from agenta_backend.dbs.postgres.shared.base import Base
+
 ## --- DISPLAY --- ##
 
 

@@ -1,8 +1,7 @@
 from sqlalchemy import PrimaryKeyConstraint, Index
 
+
 from agenta_backend.dbs.postgres.shared.base import Base
-
-
 from agenta_backend.dbs.postgres.observability.dbas import SpanDBA
 
 
