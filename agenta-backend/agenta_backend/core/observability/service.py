@@ -13,7 +13,6 @@ from agenta_backend.core.observability.utils import (
 
 
 class ObservabilityService:
-
     def __init__(
         self,
         observability_dao: ObservabilityDAOInterface,
@@ -27,7 +26,6 @@ class ObservabilityService:
         #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
-
         span_dtos = await self.observability_dao.query(
             project_id=project_id,
             query_dto=query_dto,
@@ -53,7 +51,6 @@ class ObservabilityService:
         *,
         span_dtos: List[SpanCreateDTO],
     ) -> SpanDTO:
-
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
 
         span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
@@ -72,7 +69,6 @@ class ObservabilityService:
         span_dto: Optional[SpanCreateDTO] = None,
         span_dtos: Optional[List[SpanCreateDTO]] = None,
     ) -> SpanDTO:
-
         if span_dto:
             return await self.observability_dao.create_one(
                 span_dto=span_dto,
@@ -91,7 +87,6 @@ class ObservabilityService:
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ) -> SpanDTO:
-
         if node_id:
             return await self.observability_dao.read_one(
                 project_id=project_id,
@@ -112,7 +107,6 @@ class ObservabilityService:
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ):
-
         if node_id:
             return await self.observability_dao.delete_one(
                 project_id=project_id,

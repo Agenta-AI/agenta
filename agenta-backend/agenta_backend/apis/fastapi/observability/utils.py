@@ -95,7 +95,6 @@ def _parse_filtering(
     exact_match: Optional[bool] = None,
     case_sensitive: Optional[bool] = None,
 ) -> Optional[FilteringDTO]:
-
     # Parse JSON filtering
     filtering_json_dto = None
     if filtering:
@@ -145,7 +144,6 @@ def _parse_grouping(
     #
     focus: Optional[str] = None,
 ) -> Optional[GroupingDTO]:
-
     # Parse JSON grouping
     grouping_json_dto = None
     if grouping:
@@ -184,7 +182,6 @@ def _parse_pagination(
     page: Optional[int] = None,
     size: Optional[int] = None,
 ) -> Optional[PaginationDTO]:
-
     # Parse JSON pagination
     pagination_json_dto = None
     if pagination:
@@ -316,7 +313,6 @@ def _unmarshal_attributes(
         level = unmarshalled
 
         for i, part in enumerate(keys[:-1]):
-
             if part.isdigit():
                 part = int(part)
 
@@ -503,7 +499,6 @@ def _parse_from_links(
 def _parse_from_attributes(
     otel_span_dto: OTelSpanDTO,
 ) -> Tuple[dict, dict, dict, dict, dict]:
-
     # DATA
     _data = _get_attributes(otel_span_dto.attributes, "data")
 

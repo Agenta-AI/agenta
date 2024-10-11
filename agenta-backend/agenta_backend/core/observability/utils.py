@@ -6,7 +6,6 @@ from agenta_backend.core.observability.dtos import SpanCreateDTO, SpanDTO
 def parse_span_dtos_to_span_idx(
     span_dtos: List[SpanCreateDTO],
 ) -> Dict[str, SpanCreateDTO]:
-
     span_idx = {span_dto.node.id: span_dto for span_dto in span_dtos}
 
     return span_idx
@@ -15,7 +14,6 @@ def parse_span_dtos_to_span_idx(
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, SpanCreateDTO],
 ) -> OrderedDict:
-
     span_id_tree = OrderedDict()
     index = {}
 
@@ -37,7 +35,6 @@ def cumulate_costs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, SpanCreateDTO],
 ) -> None:
-
     def _get_unit(span: SpanCreateDTO):
         if span.metrics is not None:
             return span.metrics.get("unit.costs.total", 0.0)
@@ -67,7 +64,6 @@ def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
-
     def _get_unit(span: SpanCreateDTO):
         _tokens = {
             "prompt": 0.0,
