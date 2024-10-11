@@ -1,10 +1,7 @@
 from typing import Optional, List
 
-from sqlalchemy import and_, or_, not_, Column
-
+from sqlalchemy import and_, or_, not_, distinct, Column
 from sqlalchemy.future import select
-from sqlalchemy import distinct
-
 
 from agenta_backend.dbs.postgres.shared.engine import engine
 from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
@@ -30,25 +27,6 @@ from agenta_backend.core.observability.dtos import (
 )
 
 
-## TODO
-# - [ ] Implement Observability Query
-#    - [x] Implement grouping node/tree/link/ref
-#    - [x] Implement pagination page/size
-#    - [x] Implement filtering
-#    - [ ] Implement sorting
-#    - [ ] Optimize filtering (and schema/queries in general)
-#    - [ ] Implement cross-table querying (later ?)
-## ----
-
-## TODO
-# - [ ] Implement Observability Mutation
-#    - [x] Implement create one/many
-#    - [x] Implement read one/many
-#    - [x] Implement delete one/many
-#    - [ ] Implement update one/many (immutable ?)
-## ----
-
-
 class ObservabilityDAO(ObservabilityDAOInterface):
     def __init__(self):
         pass
@@ -62,131 +40,84 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> List[SpanDTO]:
 
         async with engine.session() as session:
-
-            # opts = {
-            #    "dialect": dialect(),
-            #    "compile_kwargs": {"literal_binds": True},
-            # }
-
             # BASE (SUB-)QUERY
-            # print("------------------------------------------------------")
-            # print("BASE (SUB-)QUERY")
             query = select(InvocationSpanDBE)
             # ----------------
-            # print("...")
-            # print(query.statement.compile(**opts))
+
+            # WINDOWING
+            windowing_column: Optional[Column] = InvocationSpanDBE.created_at
+            # ---------
 
             # GROUPING
-            # print("------------------------------------------------------")
-            # print("GROUPING")
             grouping = query_dto.grouping
             grouping_column: Optional[Column] = None
             # --------
             if grouping and grouping.focus.value != "node":
-                # print("GROUPING FOCUS:", grouping.focus.value)
                 grouping_column = getattr(
                     InvocationSpanDBE, grouping.focus.value + "_id"
                 )
 
-                query = select(distinct(grouping_column))
+                query = select(
+                    distinct(grouping_column).label("grouping_key"),
+                    windowing_column,
+                )
             # --------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # SCOPING
-            # print("------------------------------------------------------")
-            # print("SCOPING")
-            # -------
             query = query.filter_by(project_id=project_id)
             # -------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # WINDOWING
-            # print("------------------------------------------------------")
-            # print("WINDOWING")
             windowing = query_dto.windowing
-            windowing_column: Optional[Column] = InvocationSpanDBE.created_at
             # ---------
             if windowing:
-                # print("WINDOWING EARLIEST:", windowing.earliest)
-                # print("WINDOWING LATEST:  ", windowing.latest)
                 if windowing.earliest:
                     query = query.filter(windowing_column >= windowing.earliest)
 
                 if windowing.latest:
                     query = query.filter(windowing_column <= windowing.latest)
             # ---------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # FILTERING
-            # print("------------------------------------------------------")
-            # print("FILTERING")
             filtering = query_dto.filtering
             # ---------
             if filtering:
-                # print("FILTERING OPERATOR:  ", filtering.operator)
-                # print("FILTERING CONDITIONS:", filtering.conditions)
                 operator = filtering.operator
                 conditions = filtering.conditions
 
                 query = query.filter(_combine(operator, _filters(conditions)))
             # ---------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # SORTING
-            # print("------------------------------------------------------")
-            # print("SORTING")
             if grouping and grouping_column:
                 query = query.order_by(grouping_column)
             query = query.order_by(windowing_column.desc())
-
             # -------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # PAGINATION
-            # print("------------------------------------------------------")
-            # print("PAGINATION")
             pagination = query_dto.pagination
             # ----------
             if pagination:
-                # print("PAGINATION PAGE:", pagination.page)
-                # print("PAGINATION SIZE:", pagination.size)
                 limit = pagination.size
                 offset = (pagination.page - 1) * pagination.size
 
                 query = query.limit(limit).offset(offset)
             # ----------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # GROUPING
-            # print("------------------------------------------------------")
-            # print("GROUPING")
             if grouping and grouping_column:
-                print("GROUPING FOCUS:", grouping.focus.value)
-                subquery = query  # .subquery()
+                subquery = query.subquery()
 
                 query = select(InvocationSpanDBE)
-                query = query.filter(grouping_column.in_(subquery))
+                query = query.filter(
+                    grouping_column.in_(select(subquery.c["grouping_key"]))
+                )
             # --------
-            # print("...")
-            # print(query.statement.compile(**opts))
 
             # QUERY EXECUTION
-            # print("------------------------------------------------------")
-            # rint("QUERY EXECUTION")
-            spans = (await session.execute(query)).all()
+            spans = (await session.execute(query)).scalars().all()
             # ---------------
 
-            # FORMATTING
-            # formatting = query_dto.formatting
-            # --------
-
-        # return []
         return [map_span_dbe_to_dto(span) for span in spans]
 
     async def create_one(
@@ -198,7 +129,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         async with engine.session() as session:
             session.add(span_dbe)
-            session.commit()
+            await session.commit()
 
     async def create_many(
         self,
@@ -211,7 +142,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             for span_dbe in span_dbes:
                 session.add(span_dbe)
 
-            session.commit()
+            await session.commit()
 
     async def read_one(
         self,
@@ -229,7 +160,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 node_id=node_id,
             )
 
-            span_dbe = (await session.execute(query)).one_or_none()
+            span_dbe = (await session.execute(query)).scalars().one_or_none()
 
         span_dto = None
         if span_dbe and to_dto:
@@ -254,7 +185,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
             query = query.filter(InvocationSpanDBE.node_id.in_(node_ids))
 
-            span_dbes = (await session.execute(query)).all()
+            span_dbes = (await session.execute(query)).scalars().all()
 
         span_dtos = []
         if span_dbes and to_dto:
@@ -279,7 +210,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         if span_dbe:
             async with engine.session() as session:
                 session.delete(span_dbe)
-                session.commit()
+                await session.commit()
 
     async def delete_many(
         self,
@@ -298,7 +229,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 for span in span_dbes:
                     session.delete(span)
 
-                session.commit()
+                await session.commit()
 
 
 def _combine(

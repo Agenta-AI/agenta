@@ -260,11 +260,12 @@ class ObservabilityRouter:
         """
 
         project_id = request.headers.get("AG-PROJECT-ID")
+        app_id = request.headers.get("AG-APP-ID")
 
         otel_span_dtos = parse_otlp_stream(await request.body())
 
         span_dtos = [
-            parse_from_otel_span_dto(project_id, otel_span_dto)
+            parse_from_otel_span_dto(project_id or app_id, otel_span_dto)
             for otel_span_dto in otel_span_dtos
         ]
 
