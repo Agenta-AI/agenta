@@ -12,7 +12,7 @@ interface RootContextDTO {
     id: string
 }
 
-interface AgentaTreeDTO {
+export interface AgentaTreeDTO {
     tree: TreeContextDTO
     nodes: Record<string, AgentaNodeDTO>
 }
@@ -21,9 +21,9 @@ interface TreeContextDTO {
     id: string
 }
 
-interface AgentaNodeDTO extends NodeDTO {}
+export interface AgentaNodeDTO extends NodeDTO {}
 
-interface NodeDTO {
+export interface NodeDTO {
     scope: ProjectScopeDTO
     lifecycle: LifecycleDTO
     root: RootContextDTO
