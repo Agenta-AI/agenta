@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional, Callable
 
 from fastapi import (
     APIRouter,
@@ -46,8 +46,11 @@ class ObservabilityRouter:
     def __init__(
         self,
         observability_service: ObservabilityService,
+        observability_legacy_receiver: Optional[Callable] = None,
     ):
         self.service = observability_service
+
+        self.legacy_receiver = observability_legacy_receiver
 
         self.router = APIRouter()
 
@@ -259,10 +262,18 @@ class ObservabilityRouter:
         Collect traces via OTLP.
         """
 
+        otlp_stream = await request.body()
+
+        ### LEGACY ###
+        res = None
+        if self.legacy_receiver:
+            res = self.legacy_receiver(otlp_stream)
+        ### LEGACY ###
+
         project_id = request.headers.get("AG-PROJECT-ID")
         app_id = request.headers.get("AG-APP-ID")
 
-        otel_span_dtos = parse_otlp_stream(await request.body())
+        otel_span_dtos = parse_otlp_stream(otlp_stream)
 
         span_dtos = [
             parse_from_otel_span_dto(project_id or app_id, otel_span_dto)
@@ -270,5 +281,10 @@ class ObservabilityRouter:
         ]
 
         background_tasks.add_task(self.service.ingest, span_dtos=span_dtos)
+
+        ### LEGACY ###
+        if res:
+            return res
+        ### LEGACY ###
 
         return CollectStatusResponse(version=self.VERSION, status="processing")

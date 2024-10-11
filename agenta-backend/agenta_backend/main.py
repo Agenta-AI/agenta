@@ -116,7 +116,15 @@ app.include_router(
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
-observability = ObservabilityRouter(ObservabilityService(ObservabilityDAO()))
+
+observability_legacy_receiver = None
+if isCloudEE():
+    observability_legacy_receiver = cloud.observability_legacy_receiver
+
+observability = ObservabilityRouter(
+    ObservabilityService(ObservabilityDAO()),
+    observability_legacy_receiver=observability_legacy_receiver,
+)
 
 app.include_router(router=observability.router, prefix="/observability/v1")
 
