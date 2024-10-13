@@ -1,18 +1,16 @@
+import {formatLatency} from "@/lib/helpers/formatters"
 import {JSSTheme} from "@/lib/Types"
-import {
-    Coins,
-    Database,
-    Download,
-    FileArrowDown,
-    ListChecks,
-    PlusCircle,
-    Sparkle,
-    Timer,
-    TreeStructure,
-} from "@phosphor-icons/react"
+import {AgentaNodeDTO} from "@/services/observability/types"
+import {Coins, PlusCircle, Timer, TreeStructure} from "@phosphor-icons/react"
 import {Avatar, Space, Tree, TreeDataNode, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
+
+interface TraceTreeProps {
+    activeTrace: Record<string, AgentaNodeDTO>
+    selectedKeys: string[]
+    onSelect: (keys: React.Key[]) => void
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     tree: {
@@ -54,243 +52,79 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const TraceTree = () => {
+const TreeContent = ({nodeValue}: {nodeValue: AgentaNodeDTO}) => {
+    const {node, time} = nodeValue
     const classes = useStyles()
 
-    const treeData: TreeDataNode[] = [
-        {
-            title: (
-                <div className="py-[14px] px-2 flex items-center gap-2">
-                    <Avatar
-                        shape="square"
-                        size={"large"}
-                        style={{backgroundColor: "#586673", width: 32}}
-                        icon={<TreeStructure size={16} />}
-                    />
-                    <div className="flex flex-col">
-                        <Typography.Text className={classes.treeTitle}>Root trace</Typography.Text>
-                        <Space className={classes.treeContent}>
-                            <div>
-                                <Timer />
-                                983ms
-                            </div>
-                            <div>
-                                <Coins />
-                                $0.002
-                            </div>
-                            <div>
-                                <PlusCircle />
-                                72
-                            </div>
-                        </Space>
+    return (
+        <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
+            <Avatar
+                shape="square"
+                size={"large"}
+                style={{backgroundColor: "#586673", width: 32}}
+                icon={<TreeStructure size={16} />}
+            />
+            <div className="flex flex-col">
+                <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
+                <Space className={classes.treeContent}>
+                    <div>
+                        <Timer />
+                        {formatLatency(time?.span)}
                     </div>
-                </div>
-            ),
-            key: "0-0",
-            children: [
-                {
-                    title: (
-                        <div className="py-[14px] px-2 flex items-center gap-2">
-                            <Avatar
-                                shape="square"
-                                size={"large"}
-                                style={{backgroundColor: "#D6DEE6", width: 32}}
-                                icon={<FileArrowDown size={16} />}
-                            />
-                            <div className="flex flex-col">
-                                <Typography.Text className={classes.treeTitle}>
-                                    Retrieval
-                                </Typography.Text>
-                                <Space className={classes.treeContent}>
-                                    <div>
-                                        <Timer />
-                                        983ms
-                                    </div>
-                                    <div>
-                                        <Coins />
-                                        $0.002
-                                    </div>
-                                    <div>
-                                        <PlusCircle />
-                                        72
-                                    </div>
-                                </Space>
-                            </div>
-                        </div>
-                    ),
-                    key: "0-0-1-0",
-                },
-                {
-                    title: (
-                        <div className="py-[14px] px-2 flex items-center gap-2">
-                            <Avatar
-                                shape="square"
-                                size={"large"}
-                                style={{backgroundColor: "#69B1FF", width: 32}}
-                                icon={<Database size={16} />}
-                            />
-                            <div className="flex flex-col">
-                                <Typography.Text className={classes.treeTitle}>
-                                    vector-store
-                                </Typography.Text>
-                                <Space className={classes.treeContent}>
-                                    <div>
-                                        <Timer />
-                                        983ms
-                                    </div>
-                                    <div>
-                                        <Coins />
-                                        $0.002
-                                    </div>
-                                    <div>
-                                        <PlusCircle />
-                                        72
-                                    </div>
-                                </Space>
-                            </div>
-                        </div>
-                    ),
-                    key: "0-0-1-1",
-                },
-                {
-                    title: (
-                        <div className="py-[14px] px-2 flex items-center gap-2">
-                            <Avatar
-                                shape="square"
-                                size={"large"}
-                                style={{backgroundColor: "#87E8DE", width: 32}}
-                                icon={<Sparkle size={16} />}
-                            />
-                            <div className="flex flex-col">
-                                <Typography.Text className={classes.treeTitle}>
-                                    prompt-embedding
-                                </Typography.Text>
-                                <Space className={classes.treeContent}>
-                                    <div>
-                                        <Timer />
-                                        983ms
-                                    </div>
-                                    <div>
-                                        <Coins />
-                                        $0.002
-                                    </div>
-                                    <div>
-                                        <PlusCircle />
-                                        72
-                                    </div>
-                                </Space>
-                            </div>
-                        </div>
-                    ),
-                    key: "0-0-1-2",
-                },
-                {
-                    title: (
-                        <div className="py-[14px] px-2 flex items-center gap-2">
-                            <Avatar
-                                shape="square"
-                                size={"large"}
-                                style={{backgroundColor: "#FFD591", width: 32}}
-                                icon={<ListChecks size={16} />}
-                            />
-                            <div className="flex flex-col">
-                                <Typography.Text className={classes.treeTitle}>
-                                    context-encoding
-                                </Typography.Text>
-                                <Space className={classes.treeContent}>
-                                    <div>
-                                        <Timer />
-                                        983ms
-                                    </div>
-                                    <div>
-                                        <Coins />
-                                        $0.002
-                                    </div>
-                                    <div>
-                                        <PlusCircle />
-                                        72
-                                    </div>
-                                </Space>
-                            </div>
-                        </div>
-                    ),
-                    key: "0-0-1-3",
-                },
-            ],
-        },
-        {
-            title: (
-                <div className="py-[14px] px-2 flex items-center gap-2">
-                    <Avatar
-                        shape="square"
-                        size={"large"}
-                        style={{backgroundColor: "#D3ADF7", width: 32}}
-                        icon={<Download size={16} />}
-                    />
-                    <div className="flex flex-col">
-                        <Typography.Text className={classes.treeTitle}>
-                            fetch-prompt-from-langfuse dendeinde deindeindeiw dwidnwndienw
-                        </Typography.Text>
-                        <Space className={classes.treeContent}>
-                            <div>
-                                <Timer />
-                                983ms
-                            </div>
-                            <div>
-                                <Coins />
-                                $0.002
-                            </div>
-                            <div>
-                                <PlusCircle />
-                                72
-                            </div>
-                        </Space>
+                    <div>
+                        <Coins />
+                        $0.002
                     </div>
-                </div>
-            ),
-            key: "0-1",
-        },
-        {
-            title: (
-                <div className="py-[14px] px-2 flex items-center gap-2">
-                    <Avatar
-                        shape="square"
-                        size={"large"}
-                        style={{backgroundColor: "#87E8DE", width: 32}}
-                        icon={<Sparkle size={16} />}
-                    />
-                    <div className="flex flex-col">
-                        <Typography.Text className={classes.treeTitle}>generation</Typography.Text>
-                        <Space className={classes.treeContent}>
-                            <div>
-                                <Timer />
-                                983ms
-                            </div>
-                            <div>
-                                <Coins />
-                                $0.002
-                            </div>
-                            <div>
-                                <PlusCircle />
-                                72
-                            </div>
-                        </Space>
+                    <div>
+                        <PlusCircle />
+                        72
                     </div>
-                </div>
-            ),
-            key: "0-2",
-        },
-    ]
+                </Space>
+            </div>
+        </div>
+    )
+}
+
+const buildTreeData = (nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]>): TreeDataNode[] => {
+    const createTreeNode = (node: AgentaNodeDTO): TreeDataNode => {
+        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
+
+        return {
+            key: node.node.id,
+            title: <TreeContent nodeValue={node} />,
+            children: hasChildren
+                ? buildTreeData(node.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>)
+                : undefined,
+        }
+    }
+
+    return Object.entries(nodes).flatMap(([_, value]) => {
+        if (Array.isArray(value)) {
+            return value.map((item, index) =>
+                createTreeNode({
+                    ...item,
+                    node: {...item.node, name: `${item.node.name}[${index}]`},
+                }),
+            )
+        } else {
+            return createTreeNode(value)
+        }
+    })
+}
+
+const TraceTree = ({activeTrace, selectedKeys, onSelect}: TraceTreeProps) => {
+    const classes = useStyles()
+    const treeData = buildTreeData(activeTrace)
 
     return (
         <Tree
             showLine={{showLeafIcon: false}}
             showIcon={false}
-            defaultExpandedKeys={["0-0-0"]}
             treeData={treeData}
             className={classes.tree}
             defaultExpandAll
-            defaultSelectedKeys={["0-2"]}
+            onSelect={onSelect}
+            selectedKeys={selectedKeys}
         />
     )
 }
