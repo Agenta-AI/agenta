@@ -4,8 +4,7 @@ import {IHeaderParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, Input, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
-import {fetchVariants} from "@/services/api"
-import {createNewTestset, fetchTestset, updateTestset} from "@/services/testsets/api"
+import {fetchTestset, updateTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
@@ -13,7 +12,6 @@ import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
-import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
@@ -21,7 +19,7 @@ import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
 
 type TestsetTableProps = {
-    mode: "create" | "edit"
+    mode: "edit"
 }
 export type ColumnDefsType = {field: string; [key: string]: any}
 
@@ -85,7 +83,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
     const [writeMode, setWriteMode] = useState(mode)
-    const [testsetId, setTestsetId] = useState(undefined)
     const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
@@ -119,19 +116,10 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         async function applyColData(colData: {field: string}[] = []) {
             const newColDefs = createNewColDefs(colData)
             setColumnDefs(newColDefs)
-            if (writeMode === "create") {
-                const initialRowData = Array(3).fill({})
-                const separateRowData = initialRowData.map(() => {
-                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
-                })
-
-                setRowData(separateRowData)
-            }
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
         if (writeMode === "edit" && testset_id) {
-            setIsDataChanged(true)
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
@@ -140,19 +128,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                         field: key,
                     })),
                 )
-            })
-        } else if (writeMode === "create" && appId) {
-            setIsDataChanged(true)
-            ;(async () => {
-                const backendVariants = await fetchVariants(appId)
-                const variant = backendVariants[0]
-                const inputParams = await getVariantInputParameters(appId, variant)
-                const colData = inputParams.map((param) => ({field: param.name}))
-                colData.push({field: "correct_answer"})
-
-                applyColData(colData)
-            })().catch(() => {
-                applyColData([])
             })
         }
     }, [writeMode, testset_id, appId])
@@ -233,24 +208,11 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 }
             }
 
-            if (writeMode === "create") {
-                if (!testsetName) {
-                    setIsModalOpen(true)
-                    setIsLoading(false)
-                } else {
-                    const response = await createNewTestset(appId, testsetName, rowData)
-                    afterSave(response)
-                    setTestsetId(response.data.id)
-                }
-            } else if (writeMode === "edit") {
+            if (writeMode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await updateTestset(
-                        (testsetId || testset_id) as string,
-                        testsetName,
-                        rowData,
-                    )
+                    const response = await updateTestset(testset_id as string, testsetName, rowData)
                     afterSave(response)
                 }
             }

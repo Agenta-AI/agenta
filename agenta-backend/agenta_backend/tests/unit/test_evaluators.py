@@ -222,13 +222,13 @@ async def test_auto_contains_all(output, substrings, case_sensitive, expected):
 @pytest.mark.parametrize(
     "output, expected",
     [
-        ('Some random text {"key": "value"} more text', None),
-        ("No JSON here!", None),
-        ("{Malformed JSON, nope!}", None),
+        ('Some random text {"key": "value"} more text', True),
+        ("No JSON here!", False),
+        ("{Malformed JSON, nope!}", False),
         ('{"valid": "json", "number": 123}', True),
         ({"data": {"message": "The capital of Azerbaijan is Baku."}}, True),
         ({"data": '{"message": "The capital of Azerbaijan is Baku."}'}, True),
-        ({"data": "The capital of Azerbaijan is Baku."}, None),
+        ({"data": "The capital of Azerbaijan is Baku."}, False),
     ],
 )
 @pytest.mark.asyncio
