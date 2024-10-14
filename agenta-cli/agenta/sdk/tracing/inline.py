@@ -1042,7 +1042,7 @@ def parse_inline_trace(
     ### services.observability.service.query() ###
     ### -------------------------------------- ###
     connect_children(span_id_tree, span_idx)
-    root_span_dtos = [span_dto for span_dto in span_idx.values()]
+    root_span_dtos = [span_idx[span_id] for span_id in span_id_tree.keys()]
     agenta_span_dtos = [
         parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos
     ]
@@ -1058,10 +1058,10 @@ def parse_inline_trace(
             _parse_to_legacy_span(span_dto) for span_dto in span_idx.values()
         ]
 
-        root_span = root_span_dtos[0]
+        root_span = agenta_span_dtos[0]
 
         trace_id = root_span.root.id.hex
-        latency = root_span.time.span
+        latency = root_span.time.span / 1_000_000
         cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
         tokens = {
             "prompt_tokens": root_span.metrics.get("acc", {})

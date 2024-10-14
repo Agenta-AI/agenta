@@ -394,6 +394,10 @@ class entrypoint:
             )
             data = self.patch_result(result)
         except Exception as e:
+            log.error(f"Agenta SDK - Routing Exception")
+
+            traceback.print_exc()
+
             self.handle_exception(e)
 
         with suppress():
