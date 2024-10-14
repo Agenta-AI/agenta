@@ -1,4 +1,4 @@
-import {fetchAllTraces} from "@/services/observability/api"
+import {fetchAllTraces} from "@/services/observability/core"
 import {AgentaRootsResponse} from "@/services/observability/types"
 import {useEffect, useState} from "react"
 
