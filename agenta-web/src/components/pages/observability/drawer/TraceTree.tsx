@@ -10,6 +10,7 @@ interface TraceTreeProps {
     activeTrace: Record<string, AgentaNodeDTO>
     selectedKeys: string[]
     onSelect: (keys: React.Key[]) => void
+    defaultSelectedTraceKey: string | undefined
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -85,15 +86,23 @@ const TreeContent = ({nodeValue}: {nodeValue: AgentaNodeDTO}) => {
     )
 }
 
-const buildTreeData = (nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]>): TreeDataNode[] => {
+const buildTreeData = (
+    nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
+    expandedKeys: string[],
+): TreeDataNode[] => {
     const createTreeNode = (node: AgentaNodeDTO): TreeDataNode => {
         const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
+        const key = node.node.id
+        expandedKeys.push(key)
 
         return {
-            key: node.node.id,
+            key: key,
             title: <TreeContent nodeValue={node} />,
             children: hasChildren
-                ? buildTreeData(node.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>)
+                ? buildTreeData(
+                      node.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
+                      expandedKeys,
+                  )
                 : undefined,
         }
     }
@@ -112,9 +121,15 @@ const buildTreeData = (nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]>): 
     })
 }
 
-const TraceTree = ({activeTrace, selectedKeys, onSelect}: TraceTreeProps) => {
+const TraceTree = ({
+    activeTrace,
+    selectedKeys,
+    onSelect,
+    defaultSelectedTraceKey,
+}: TraceTreeProps) => {
     const classes = useStyles()
-    const treeData = buildTreeData(activeTrace)
+    const expandedKeys: string[] = []
+    const treeData = buildTreeData(activeTrace, expandedKeys)
 
     return (
         <Tree
@@ -124,6 +139,8 @@ const TraceTree = ({activeTrace, selectedKeys, onSelect}: TraceTreeProps) => {
             className={classes.tree}
             defaultExpandAll
             onSelect={onSelect}
+            defaultExpandParent
+            expandedKeys={expandedKeys}
             selectedKeys={selectedKeys}
         />
     )
