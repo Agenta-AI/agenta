@@ -6,13 +6,18 @@ import {Button, Collapse, CollapseProps, Divider, Space, Tabs, TabsProps, Typogr
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
+import {AgentaNodeDTO} from "@/services/observability/types"
+import dayjs from "dayjs"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const ibm_plex_mono = IBM_Plex_Mono({
     subsets: ["latin"],
     weight: ["400", "500", "600"],
 })
 
-interface TraceContentProps {}
+interface TraceContentProps {
+    activeTrace: AgentaNodeDTO
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -32,6 +37,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: theme.fontSizeHeading5,
         fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightHeading5,
+    },
+    subTitle: {
+        fontSize: theme.fontSize,
+        lineHeight: theme.lineHeight,
+        fontWeight: theme.fontWeightMedium,
     },
     tabs: {
         height: "100%",
@@ -79,108 +89,129 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const TraceContent = ({}: TraceContentProps) => {
+const TraceContent = ({activeTrace}: TraceContentProps) => {
+    const {node, time, meta, data} = activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
-    const accordionItems: CollapseProps["items"] = [
-        {
-            key: "1",
-            label: "System",
-            children: (
-                <div className={ibm_plex_mono.className}>
-                    You are an expert Q&A system that is trusted around the world. Always answer the
-                    query using the provided context information, and not prior knowledge. Some
-                    rules to follow: 1. Never directly reference the given context in your answer.
-                    2. Avoid statements like 'Based on the context, ...' or 'The context information
-                    ...' or anything along those lines.
-                </div>
-            ),
-            extra: <CopyButton text="" icon={true} buttonText={null} />,
-        },
-        {
-            key: "2",
-            label: "User",
-            children: (
-                <div className={ibm_plex_mono.className}>
-                    You are an expert Q&A system that is trusted around the world. Always answer the
-                    query using the provided context information, and not prior knowledge. Some
-                    rules to follow: 1. Never directly reference the given context in your answer.
-                    2. Avoid statements like 'Based on the context, ...' or 'The context information
-                    ...' or anything along those lines.
-                </div>
-            ),
-            extra: <CopyButton text="" icon={true} buttonText={null} />,
-        },
-        {
-            key: "3",
-            label: "Assistant / Output",
-            children: (
-                <div className={ibm_plex_mono.className}>
-                    You are an expert Q&A system that is trusted around the world. Always answer the
-                    query using the provided context information, and not prior knowledge. Some
-                    rules to follow: 1. Never directly reference the given context in your answer.
-                    2. Avoid statements like 'Based on the context, ...' or 'The context information
-                    ...' or anything along those lines.
-                </div>
-            ),
-            extra: <CopyButton text="" icon={true} buttonText={null} />,
-        },
-        {
-            key: "4",
-            label: "Assistant / Output",
-            children: (
-                <div className={ibm_plex_mono.className}>
-                    You are an expert Q&A system that is trusted around the world. Always answer the
-                    query using the provided context information, and not prior knowledge. Some
-                    rules to follow: 1. Never directly reference the given context in your answer.
-                    2. Avoid statements like 'Based on the context, ...' or 'The context information
-                    ...' or anything along those lines.
-                </div>
-            ),
-            extra: <CopyButton text="" icon={true} buttonText={null} />,
-        },
-        {
-            key: "4",
-            label: "Assistant / Output",
-            children: (
-                <div className={ibm_plex_mono.className}>
-                    You are an expert Q&A system that is trusted around the world. Always answer the
-                    query using the provided context information, and not prior knowledge. Some
-                    rules to follow: 1. Never directly reference the given context in your answer.
-                    2. Avoid statements like 'Based on the context, ...' or 'The context information
-                    ...' or anything along those lines.
-                </div>
-            ),
-            extra: <CopyButton text="" icon={true} buttonText={null} />,
-        },
-    ]
+    const generateAccordionItems = (
+        obj: Record<string, any> | string,
+        parentKey = "",
+    ): CollapseProps["items"] => {
+        if (typeof obj !== "object") {
+            const key = parentKey || "value"
+
+            return [
+                {
+                    key,
+                    label: key,
+                    children: <div className={ibm_plex_mono.className}>{getStringOrJson(obj)}</div>,
+                    extra: <CopyButton text={obj} icon={true} buttonText={null} stopPropagation />,
+                },
+            ]
+        }
+
+        return Object.entries(obj)
+            .flatMap(([key, value]) => {
+                const currentPath = parentKey ? `${parentKey}.${key}` : key
+
+                if (Array.isArray(value)) {
+                    return value.map((item, index) => ({
+                        key: `${currentPath}[${index}]`,
+                        label: `${currentPath}[${index}]`,
+                        children: (
+                            <div className={ibm_plex_mono.className}>
+                                {typeof item === "object"
+                                    ? getStringOrJson(item)
+                                    : getStringOrJson(item)}
+                            </div>
+                        ),
+                        extra: (
+                            <CopyButton
+                                text={
+                                    typeof item === "object"
+                                        ? getStringOrJson(item)
+                                        : getStringOrJson(item)
+                                }
+                                icon={true}
+                                buttonText={null}
+                                stopPropagation
+                            />
+                        ),
+                    }))
+                }
+
+                if (typeof value === "object" && value !== null) {
+                    return generateAccordionItems(value, currentPath) || []
+                }
+
+                return {
+                    key: currentPath,
+                    label: currentPath,
+                    children: <div className={ibm_plex_mono.className}>{value}</div>,
+                    extra: (
+                        <CopyButton text={value} icon={true} buttonText={null} stopPropagation />
+                    ),
+                }
+            })
+            .filter(Boolean)
+    }
 
     const items: TabsProps["items"] = [
         {
             key: "overview",
             label: "Overview",
             children: (
-                <Space direction="vertical" size={24}>
-                    <Space direction="vertical">
-                        <Typography.Text>Summary</Typography.Text>
-                        <Space style={{flexWrap: "wrap"}}>
-                            <ResultTag value1="Model" value2={"gpt-3.5-turbo"} />
-                            <ResultTag value1="Temperature" value2={1.24} />
-                            <ResultTag value1="Max tokens" value2={1} />
-                            <ResultTag value1="Top p" value2={-1} />
-                            <ResultTag value1="Frequency penalty" value2={0} />
-                            <ResultTag value1="Presence penalty" value2={0} />
-                            <ResultTag value1="Force json" value2={"off"} />
+                <Space direction="vertical" size={24} className="w-full">
+                    {meta && meta.request && (
+                        <Space direction="vertical">
+                            <Typography.Text className={classes.subTitle}>Summary</Typography.Text>
+                            <Space style={{flexWrap: "wrap"}}>
+                                {Object.entries(meta.request).map(([key, value], index) => (
+                                    <ResultTag
+                                        key={index}
+                                        value1={key}
+                                        value2={getStringOrJson(value)}
+                                    />
+                                ))}
+                            </Space>
                         </Space>
-                    </Space>
+                    )}
 
-                    <Collapse
-                        defaultActiveKey={["1"]}
-                        items={accordionItems}
-                        className={classes.collapseContainer}
-                        bordered={false}
-                    />
+                    {data && data.inputs && (
+                        <Space direction="vertical" className="w-full">
+                            <Typography.Text className={classes.subTitle}>Inputs</Typography.Text>
+                            <Collapse
+                                items={generateAccordionItems(data.inputs)}
+                                className={classes.collapseContainer}
+                                bordered={false}
+                            />
+                        </Space>
+                    )}
+
+                    {data && data.internals && (
+                        <Space direction="vertical" className="w-full">
+                            <Typography.Text className={classes.subTitle}>
+                                Internals
+                            </Typography.Text>
+                            <Collapse
+                                items={generateAccordionItems(data.internals)}
+                                className={classes.collapseContainer}
+                                bordered={false}
+                            />
+                        </Space>
+                    )}
+
+                    {data && data.outputs && (
+                        <Space direction="vertical" className="w-full">
+                            <Typography.Text className={classes.subTitle}>Outputs</Typography.Text>
+                            <Collapse
+                                items={generateAccordionItems(data.outputs)}
+                                className={classes.collapseContainer}
+                                bordered={false}
+                            />
+                        </Space>
+                    )}
                 </Space>
             ),
         },
@@ -196,7 +227,7 @@ const TraceContent = ({}: TraceContentProps) => {
             <div className="flex-1 flex flex-col">
                 <div>
                     <div className="p-4 flex items-center justify-between">
-                        <Typography.Text className={classes.title}>generation</Typography.Text>
+                        <Typography.Text className={classes.title}>{node.name}</Typography.Text>
 
                         <Space>
                             <Button className="flex items-center">
@@ -217,15 +248,16 @@ const TraceContent = ({}: TraceContentProps) => {
                         bordered
                         value1={
                             <>
-                                <Sparkle size={14} /> LLM
+                                <Sparkle size={14} /> {node.type}
                             </>
                         }
                     />
                     <ResultTag
                         value1={
                             <>
-                                08/29/2024, 10:35:01 AM <ArrowRight size={14} /> 08/29/2024,
-                                10:35:03 AM
+                                {dayjs(time.start).format("DD/MM/YYYY, hh:mm:ss A")}
+                                <ArrowRight size={14} />{" "}
+                                {dayjs(time.end).format("DD/MM/YYYY, hh:mm:ss A")}
                             </>
                         }
                     />
@@ -261,17 +293,14 @@ const TraceContent = ({}: TraceContentProps) => {
                     />
                 </div>
             </div>
-            <Divider type="vertical" className="h-full m-0" />
+            {/* <Divider type="vertical" className="h-full m-0" />
             <div className="w-[320px] p-4 flex flex-col gap-4">
                 <Typography.Text className={classes.title}>Evaluation</Typography.Text>
 
                 <Space direction="vertical">
                     <ResultTag value1="Evaluator Name" value2={"70"} />
-                    <ResultTag value1="Evaluator Name" value2={"70"} />
-                    <ResultTag value1="Evaluator Name" value2={"70"} />
-                    <ResultTag value1="Evaluator Name" value2={"70"} />
                 </Space>
-            </div>
+            </div> */}
         </div>
     )
 }
