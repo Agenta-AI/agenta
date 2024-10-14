@@ -1,5 +1,7 @@
 import agenta as ag
 
+from opentelemetry.trace import SpanKind
+
 from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
@@ -42,10 +44,10 @@ def litellm_handler():
                 else "embedding"
             )
 
-            kind = "CLIENT"
+            kind = SpanKind.CLIENT
 
             self.span = CustomSpan(
-                ag.tracer.start_span(name=f"litellm_{kind.lower()}", kind=kind)
+                ag.tracer.start_span(name=f"litellm_{kind.name.lower()}", kind=kind)
             )
 
             self.span.set_attributes(
