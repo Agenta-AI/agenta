@@ -1,4 +1,5 @@
 import inspect
+import traceback
 from functools import wraps
 from itertools import chain
 from typing import Callable, Optional, Any, Dict, List
@@ -139,6 +140,8 @@ class instrument:
                     try:
                         result = await func(*args, **kwargs)
                     except Exception as e:
+                        traceback.print_exc()
+
                         span.record_exception(e)
 
                         span.set_status("ERROR")
@@ -148,6 +151,7 @@ class instrument:
                     with suppress():
                         cost = None
                         usage = {}
+
                         if isinstance(result, dict):
                             cost = result.get("cost", None)
                             usage = result.get("usage", {})
