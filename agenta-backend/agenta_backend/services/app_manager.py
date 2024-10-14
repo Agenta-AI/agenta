@@ -185,7 +185,7 @@ async def update_variant_image(
     )
 
     # Start variant
-    await start_variant(app_variant_db, project_id)
+    await start_variant(app_variant_db, project_id, user_uid=user_uid)
 
 
 async def update_last_modified_by(
@@ -313,9 +313,11 @@ async def terminate_and_remove_app_variant(
                     logger.error(f"Failed to stop and delete service {deployment} {e}")
 
             # If image deletable is True, remove docker image and image db
-            if image.deletable:
+            if image is not None and image.deletable:
                 try:
-                    if isCloudEE():
+                    if isCloudDev() or isOss():
+                        await deployment_manager.remove_image(image)
+                    elif isCloudEE():
                         await deployment_manager.remove_repository(image.tags)  # type: ignore
                     else:
                         await deployment_manager.remove_image(image)
