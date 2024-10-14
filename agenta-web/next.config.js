@@ -1,11 +1,3 @@
-const withMDX = require("@next/mdx")({
-    extension: /\.mdx?$/,
-    options: {
-        remarkPlugins: [],
-        rehypePlugins: [],
-    },
-})
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
@@ -25,7 +17,7 @@ const nextConfig = {
     ],
     swcMinify: true,
     images: {
-        remotePatterns: [{hostname: "fps.cdnpk.net"}],
+        remotePatterns: [{ hostname: "fps.cdnpk.net" }],
     },
 
     async redirects() {
@@ -38,7 +30,7 @@ const nextConfig = {
         ]
     },
 
-    webpack: (config, {webpack, isServer}) => {
+    webpack: (config, { webpack, isServer }) => {
         const envs = {}
 
         Object.keys(process.env).forEach((env) => {
@@ -59,4 +51,4 @@ const nextConfig = {
     },
 }
 
-module.exports = withMDX(nextConfig)
+nextConfig
