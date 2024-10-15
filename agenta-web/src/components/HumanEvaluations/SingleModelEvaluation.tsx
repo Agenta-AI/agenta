@@ -1,7 +1,9 @@
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
+import {getAppValues} from "@/contexts/app.context"
 import {EvaluationType} from "@/lib/enums"
-import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
+import {calculateAvgScore} from "@/lib/helpers/evaluate"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {
     fromEvaluationResponseToEvaluation,
@@ -14,12 +16,13 @@ import {
     fetchEvaluationResults,
 } from "@/services/human-evaluations/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {Database, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
+import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 
 const {Title} = Typography
 
@@ -191,28 +194,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                let score = 0
-                if (record.scoresData) {
-                    score =
-                        ((record.scoresData.correct?.length ||
-                            record.scoresData.true?.length ||
-                            0) /
-                            record.scoresData.nb_of_rows) *
-                        100
-                } else if (record.resultsData) {
-                    const multiplier = {
-                        [EvaluationType.auto_webhook_test]: 100,
-                        [EvaluationType.single_model_test]: 1,
-                    }
-                    score = calculateResultsDataAvg(
-                        record.resultsData,
-                        multiplier[record.evaluationType as keyof typeof multiplier],
-                    )
-                    score = isNaN(score) ? 0 : score
-                } else if (record.avgScore) {
-                    score = record.avgScore * 100
-                }
-
+                const score = calculateAvgScore(record)
                 return (
                     <span>
                         <Statistic
@@ -304,6 +286,40 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
         },
     ]
 
+    const onExport = () => {
+        const exportEvals = evaluationsList.filter((e) =>
+            selectedRowKeys.some((selected) => selected === e.key),
+        )
+
+        try {
+            if (!!exportEvals.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_human_annotation.csv`
+
+                const csvData = convertToCsv(
+                    exportEvals.map((item) => {
+                        return {
+                            Variant: variantNameWithRev({
+                                variant_name: item.variants[0].variantName ?? "",
+                                revision: item.revisions[0],
+                            }),
+                            "Test set": item.testset.name,
+                            "Average score": `${calculateAvgScore(item) || 0}%`,
+                            "Created on": formatDate24(item.createdAt),
+                        }
+                    }),
+                    columns
+                        .filter((col) => typeof col.title === "string")
+                        .map((col) => col.title as string),
+                )
+                downloadCsv(csvData, filename)
+                setSelectedRowKeys([])
+            }
+        } catch (error) {
+            message.error("Failed to export results. Plese try again later")
+        }
+    }
+
     return (
         <div className={classes.container}>
             {viewType === "overview" ? (
@@ -345,6 +361,15 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                         >
                             Delete
                         </Button>
+                        <Button
+                            type="text"
+                            onClick={onExport}
+                            icon={<Export size={14} className="mt-0.5" />}
+                            className={classes.button}
+                            disabled={selectedRowKeys.length == 0}
+                        >
+                            Export as CSV
+                        </Button>
                     </Space>
                 </div>
             )}
@@ -356,6 +381,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                             ? {
                                   type: "checkbox",
                                   columnWidth: 48,
+                                  selectedRowKeys,
                                   ...rowSelection,
                               }
                             : undefined
