@@ -1,5 +1,4 @@
-# Use a lighter base image for faster builds
-FROM node:22-slim
+FROM node:20.18-slim
 
 WORKDIR /app
 
