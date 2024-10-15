@@ -273,7 +273,7 @@ const config: Config = {
         quality: 85,
         max: 1600, // max resized image's size.
         min: 600, // min resized image's size. if original is lower, use that size.
-        steps: 2, // the max number of images generated between min and max (inclusive)
+        steps: 3, // the max number of images generated between min and max (inclusive)
         disableInDev: false,
       },
     ],
