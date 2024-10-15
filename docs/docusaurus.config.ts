@@ -17,8 +17,9 @@ const config: Config = {
   baseUrl: "/",
   organizationName: "Agenta-AI",
   projectName: "agenta",
-  onBrokenLinks: "ignore",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
