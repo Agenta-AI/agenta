@@ -70,7 +70,7 @@ const TreeContent = ({nodeValue}: {nodeValue: AgentaNodeDTO}) => {
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
-                        {formatLatency(time?.span)}
+                        {formatLatency(time?.span / 1000000)}
                     </div>
                     <div>
                         <Coins />
