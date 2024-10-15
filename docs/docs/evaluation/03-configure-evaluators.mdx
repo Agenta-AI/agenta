@@ -3,6 +3,8 @@ title: "Configure Evaluators"
 description: "Set up evaluators for your use case"
 ---
 
+import Image from "@theme/IdealImage";
+
 In this guide will show you how to configure evaluators for your LLM application.
 
 ### What are evaluators?
@@ -18,7 +20,11 @@ Evaluators typically take as input:
 
 Evaluators return either a float or a boolean value.
 
-<img style={{ width: "70%" }} src="/images/evaluation/evaluators.png" />
+<Image
+  img={require("/images/evaluation/evaluators-inout.png")}
+  alt="Figure showing the inputs and outputs of an evaluator."
+  loading="lazy"
+/>
 
 ### Configuring evaluators
 
@@ -70,8 +76,11 @@ Evaluators need to know which parts of the data contain the output and the refer
 
 For more sophisticated evaluators, such as `RAG evaluators` (_available only in cloud and enterprise versions_), you need to define more complex mappings (see figure below).
 
-![Figure showing how RAGAS faithfulness evaluator maps to an example LLM
-  generation.](/images/evaluation/evaluator_config_mapping.png)
+<Image
+  img={require("/images/evaluation/evaluator-mapping.png")}
+  alt="Figure showing how RAGAS faithfulness evaluator is configured in agenta."
+  loading="lazy"
+/>
 
 Configuring the evaluator is done by mapping the evaluator inputs to the generation data:
 

@@ -7,13 +7,13 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #758391;
-  --ifm-color-primary-dark: #586673;
-  --ifm-color-primary-darker: #394857;
-  --ifm-color-primary-darkest: #1c2c3d;
-  --ifm-color-primary-light: #97a4b0;
-  --ifm-color-primary-lighter: #bdc7d1;
-  --ifm-color-primary-lightest: #d6dee6;
+  --ifm-color-primary: hsl(210, 11%, 46%);
+  --ifm-color-primary-dark: hsl(209, 13%, 40%);
+  --ifm-color-primary-darker: hsl(210, 21%, 28%);
+  --ifm-color-primary-darkest: hsl(211, 37%, 17%);
+  --ifm-color-primary-light: hsl(209, 14%, 55%);
+  --ifm-color-primary-lighter: hsl(210, 18%, 78%);
+  --ifm-color-primary-lightest: hsl(210, 24%, 87%);
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.274);
   --ifm-font-weight-normal: 400;
   --ifm-navbar-height: 3.9rem;
@@ -94,7 +94,7 @@ article a:hover {
 @media (min-width: 1350px) and (max-width: 1850px) {
   .main-wrapper,
   .navbar__inner {
-    width: 85%;
+    width: 95%;
     margin: auto;
   }
 }
@@ -340,7 +340,7 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   }
 }
 .table-of-contents__link {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 20px;
   font-weight: 400;
   color: var(--ifm-color-primary-light);
