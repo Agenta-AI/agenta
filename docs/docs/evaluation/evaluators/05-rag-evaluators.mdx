@@ -124,9 +124,9 @@ On the evlauators page, click on `RAG Faithfulness` for example.
 RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from
 other evaluators in Agenta in that they often require internal variables. For
 instance,
-[Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html)
+[Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/)
 and [Context
-Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html)
+Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/)
 both require `question`, `answer`, and `contexts`.
 
 From the trace we saw before, we could say that `answer` maps to the second rag summarizer output report, denoted by `rag.summarizer[1].outputs.report`. Similarly, the `contexts` map to the rag retriever output movies, denoted by `rag.retriever.outputs.movies`.
