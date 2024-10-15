@@ -3,6 +3,8 @@ title: "How does Agenta work?"
 description: "An overview of the architecture and main concepts of Agenta"
 ---
 
+import Image from "@theme/IdealImage";
+
 ## What problem does Agenta solve?
 
 To build a robust LLM application, you need to:
@@ -30,7 +32,7 @@ Agenta separates the application logic from the configuration. The application l
 
 ## Agenta architecture
 
-<img src="/images/apps_and_configurations_light.png" />
+<Image img={require("/images/apps_and_configurations_light.png")}/>
 Agenta decouples the configuration (prompts, model) from the application logic. The
 configuration is managed by the backend. The configuration then can be modified both
 from the UI (in the playground) or from the CLI
