@@ -409,7 +409,8 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                 revision: item.revisions[1],
                             }),
                             "Test set": item.testset.name,
-                            Results: `${getVotesPercentage(item, 0) || 0}% | ${getVotesPercentage(item, 1) || 0}%`,
+                            "Result 1": `${getVotesPercentage(item, 0) || 0}%`,
+                            "Result 2": `${getVotesPercentage(item, 1) || 0}%`,
                             "Both are good": `${item.votesData.positive_votes.percentage}%`,
                             Flag: `${item.votesData.flag_votes.percentage}%`,
                             "Created on": formatDate24(item.createdAt),
@@ -417,7 +418,11 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                     }),
                     columns
                         .filter((col) => typeof col.title === "string")
-                        .map((col) => col.title as string),
+                        .flatMap((col) =>
+                            col.title === "Results"
+                                ? ["Result 1", "Result 2"]
+                                : (col.title as string),
+                        ),
                 )
                 downloadCsv(csvData, filename)
                 setSelectedRowKeys([])
