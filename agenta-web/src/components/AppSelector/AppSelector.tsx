@@ -318,7 +318,7 @@ const AppSelector: React.FC = () => {
                     </div>
                 )}
 
-                {isLoading && !hasAvailableApps ? (
+                {isLoading || (!apps && !error) ? (
                     <div>
                         <ResultComponent status={"info"} title="Loading..." spinner={true} />
                     </div>
