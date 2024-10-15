@@ -656,8 +656,7 @@ class entrypoint:
 
         SHOW_DETAILS = True
         SHOW_DATA = False
-        SHOW_SPANS = True
-        SHOW_SPAN_ATTRIBUTES = False
+        SHOW_TRACE = False
 
         log.info("\n========= Result =========\n")
 
@@ -665,14 +664,14 @@ class entrypoint:
         if SHOW_DETAILS:
             log.info(f"latency:  {result.trace.get('latency')}")
             log.info(f"cost:     {result.trace.get('cost')}")
-            log.info(f"tokens:   {list(result.trace.get('tokens', {}).values())}")
+            log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
 
         if SHOW_DATA:
             log.info(" ")
             log.info(f"data:")
             log.info(json.dumps(result.data, indent=2))
 
-        if SHOW_SPANS:
+        if SHOW_TRACE:
             log.info(" ")
             log.info(f"trace:")
             log.info(f"----------------")
