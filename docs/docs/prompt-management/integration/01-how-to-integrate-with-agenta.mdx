@@ -13,7 +13,7 @@ In addition to prompt management, agenta provides observability features.
 If you're using Agenta [as a proxy](#2-as-a-middleware--model-proxy), all your calls are traced automatically without any additional setup. However, if you're using Agenta [as prompt management system](#1-as-a-prompt-management-system) (i.e. only fetching the prompts), you need to integrate observability manually into your code base. You can learn how to do this [here](/observability/quickstart).
 :::
 
-### [1. As a prompt management system](/prompt-management/integration/02-fetch-prompts):
+### [1. As a prompt management system](/prompt-management/integration/fetch-prompts):
 
 In this approach, prompts are managed and stored in the Agenta backend. You use the Agenta SDK to fetch the latest deployed version of your prompt and use it in your application.
 
@@ -33,7 +33,7 @@ In this approach, prompts are managed and stored in the Agenta backend. You use 
   alt="A sequence diagram showing how to integrate with Agenta as a prompt management system"
 />
 
-### **[2. As a middleware / model proxy](/prompt-management/integration/03-proxy-calls)**:
+### **[2. As a middleware / model proxy](/prompt-management/integration/proxy-calls)**:
 
 In this setup, Agenta provides you with an endpoint that forwards requests to the LLM on your behalf.
 

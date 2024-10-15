@@ -249,7 +249,7 @@ const config: Config = {
             specPath: "docs/reference/openapi.json",
             outputDir: "docs/reference/api",
             downloadUrl:
-              "https://raw.githubusercontent.com/PaloAltoNetworks/docusaurus-template-openapi-docs/main/examples/agenta.yaml",
+              "https://raw.githubusercontent.com/Agenta-AI/agenta/refs/heads/main/docs/docs/reference/openapi.json",
             sidebarOptions: {
               groupPathsBy: "tag",
               categoryLinkSource: "tag",
