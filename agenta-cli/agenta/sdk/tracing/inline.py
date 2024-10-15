@@ -1029,11 +1029,10 @@ def parse_inline_trace(
     ### services.observability.service.ingest/query() ###
     #####################################################
 
-    _calculate_cost(span_idx)
-
     ###############################################
     ### services.observability.service.ingest() ###
     ### --------------------------------------- ###
+    calculate_cost(span_idx)
     cumulate_costs(span_id_tree, span_idx)
     cumulate_tokens(span_id_tree, span_idx)
     ### --------------------------------------- ###
@@ -1280,7 +1279,7 @@ PAYING_TYPES = [
 ]
 
 
-def _calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
+def calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
     for span in span_idx.values():
         if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
 
