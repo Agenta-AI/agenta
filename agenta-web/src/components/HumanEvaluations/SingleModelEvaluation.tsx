@@ -297,7 +297,6 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                             onClick={(e) => e.stopPropagation()}
                             type="text"
                             icon={<MoreOutlined />}
-                            size="small"
                         />
                     </Dropdown>
                 )
@@ -313,18 +312,13 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                         <Title>Human Annotation</Title>
 
                         <Button
-                            size="small"
                             href={`/apps/${appId}/evaluations?selectedEvaluation=single_model_evaluation`}
                         >
                             View all
                         </Button>
                     </Space>
 
-                    <Button
-                        icon={<PlusOutlined />}
-                        size="small"
-                        onClick={() => setIsEvalModalOpen(true)}
-                    >
+                    <Button icon={<PlusOutlined />} onClick={() => setIsEvalModalOpen(true)}>
                         Create new
                     </Button>
                 </div>

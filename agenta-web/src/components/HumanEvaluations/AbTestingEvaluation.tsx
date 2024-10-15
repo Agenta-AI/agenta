@@ -375,7 +375,6 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                 onClick={(e) => e.stopPropagation()}
                                 type="text"
                                 icon={<MoreOutlined />}
-                                size="small"
                             />
                         </Dropdown>
                     )
@@ -391,18 +390,13 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                     <Space>
                         <Title>Human A/B Testing</Title>
                         <Button
-                            size="small"
                             href={`/apps/${appId}/evaluations?selectedEvaluation=ab_testing_evaluation`}
                         >
                             View all
                         </Button>
                     </Space>
 
-                    <Button
-                        icon={<PlusOutlined />}
-                        size="small"
-                        onClick={() => setIsEvalModalOpen(true)}
-                    >
+                    <Button icon={<PlusOutlined />} onClick={() => setIsEvalModalOpen(true)}>
                         Create new
                     </Button>
                 </div>
