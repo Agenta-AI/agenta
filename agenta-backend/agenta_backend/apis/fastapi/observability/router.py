@@ -119,34 +119,6 @@ class ObservabilityRouter:
         Query traces, with optional grouping, filtering, (sorting,) and pagination.
         """
 
-        ### TODO -------------------------------------- #
-        # - [x] Allows for scoping by:
-        #   - [x] 'project_id'
-        # - [x] Allows for grouping by:
-        #   - [x] 'scenario' i.e. root
-        #   - [x] 'trace' i.e. tree
-        #   - [x] 'span' i.e. node
-        # - [x] Allows for windowing by:
-        #   - [x] 'earliest' and 'latest'
-        # - [x] Allows for filtering by:
-        #   - [x] nested conditions
-        #   - [x] single conditions
-        # - [x] Allows for pagination by:
-        #   - [x] 'page' and 'size'
-        # - [x] Allows for formatting by:
-        #   - [x] 'custom'
-        #   - [x] 'opentelemetry'
-        # All using:
-        # - [x] query params
-        # - [x] sane defaults
-        # - [x] error handling
-        # - [x] clean DTO types
-        # - [x] clean DBA types
-        # - [x] semconv mapping
-        ### ------------------------------------------- #
-
-        ##### ADD FETCH ONE (BY PID / NID) WITH FORMAT
-
         if (
             format == "opentelemetry"
             and query_dto.grouping
