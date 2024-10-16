@@ -3,9 +3,11 @@ title: "Quick Start"
 description: "Create and deploy your first LLM app in one minute"
 ---
 
+import Image from "@theme/IdealImage";
+
 :::note
 This tutorial helps users create LLM apps using templates within the UI. For more complex applications involving code
-in Agenta, please refer to Using code in Agenta [Using code in agenta](/prompt_management/setting_up/custom_applications){" "}
+in Agenta, please refer to Using code in Agenta [Using code in agenta](/prompt-management/creating-a-custom-template){" "}
 :::
 
 Want a video tutorial instead? We have a 4-minute video for you. [Watch it here](https://youtu.be/plPVrHXQ-DU).
@@ -47,7 +49,7 @@ Your OpenAI API keys are saved locally on your browser and are sent to the Agent
 1. Click on the "Create New App" button.
 2. Select "Create from Template" and choose the "Single Prompt Template"; then name the application "get_capital."
 
-<img src="/images/getting-started-ui-screenshots/01_create_new_app.png" />
+<Image img={require("/images/getting-started-ui-screenshots/01_create_new_app.png")}/>
 
 :::info
 {" "}
@@ -64,7 +66,7 @@ The provided application template already includes a prompt that states the capi
 - Click the "Run" button.
 - The result should read, "The capital of France is Paris." If you only want to return "Paris," we'll adjust this with prompt engineering in the next step.
 
-<img src="/images/getting-started-ui-screenshots/03_playground.png" />
+<Image img={require("/images/getting-started-ui-screenshots/03_playground.png")}/>
 
 ## Step 3: Deploy the application
 
@@ -72,10 +74,10 @@ To deploy the application as an API. You need to click on the button "Publish" i
 
 You can now find the API endpoint in the "Endpoints" menu. Copy and paste the code from the "Endpoints" menu to use it in your software.
 
-<img src="/images/getting-started-ui-screenshots/06_deployment.png" />
+<Image img={require("/images/getting-started-ui-screenshots/06_deployment.png")}/>
 
 :::info
 Congratulations! You've created your first LLM application. Feel free to modify it, explore its parameters, and discover
-Agenta's features. Your next steps could include [building an application using your own code](/prompt_management/custom_applications),
+Agenta's features. Your next steps could include [building an application using your own code](/prompt-management/creating-a-custom-template),
 or following one of our UI-based tutorials.
 :::

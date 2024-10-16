@@ -145,7 +145,6 @@ const DeploymentOverview = ({
                                         type="text"
                                         onClick={(e) => e.stopPropagation()}
                                         icon={<MoreOutlined />}
-                                        size="small"
                                         className="absolute right-2"
                                     />
                                 </Dropdown>

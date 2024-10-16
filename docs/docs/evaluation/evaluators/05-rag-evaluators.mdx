@@ -3,6 +3,8 @@ title: "RAG Evaluators"
 description: "Evaluating RAG Applications"
 ---
 
+import Image from "@theme/IdealImage";
+
 On this page, you will learn how to configure and use RAG evaluators for your custom-built application. RAG evaluators are unique because they need intermediate outputs and internal variables (such as context) to run.
 
 By the end of this tutorial, you will know how to write a RAG application that saves the required internal variables and how to configure the evaluator in Agenta to use these in evaluation.
@@ -98,14 +100,9 @@ Upon instrumenting and serving the RAG Application with Agenta, you should see t
 
 Upon clicking on `view trace`, you should be able to see the `inputs` and `outputs` for each instrumented stage in the RAG workflow.
 
-<img
-  className="dark:hidden"
-  src="/images/basic_guides/rag_initial_trace_light.png"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/basic_guides/rag_initial_trace_dark.png"
-/>
+<Image img={require("/images/basic_guides/rag_initial_trace_light.png")} className="dark:hidden" />
+
+<Image img={require("/images/basic_guides/rag_initial_trace_dark.png")} className="hidden dark:block" />
 
 Now that we have a RAG Application, let's create a RAG evaluator.
 
@@ -113,20 +110,16 @@ Now that we have a RAG Application, let's create a RAG evaluator.
 
 On the evlauators page, click on `RAG Faithfulness` for example.
 
-<img
-  className="dark:hidden"
-  src="/images/basic_guides/rag_initial_faithfulness_light.png"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/basic_guides/rag_initial_faithfulness_dark.png"
-/>
+<Image img={require("/images/basic_guides/rag_initial_faithfulness_light.png")} className="dark:hidden" />
+
+<Image img={require("/images/basic_guides/rag_initial_faithfulness_dark.png")} className="hidden dark:block" />
+
 RAG evaluators, based on [RAGAS](https://docs.ragas.io/) are different from
 other evaluators in Agenta in that they often require internal variables. For
 instance,
-[Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/faithfulness.html)
+[Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/)
 and [Context
-Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/context_precision.html)
+Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/)
 both require `question`, `answer`, and `contexts`.
 
 From the trace we saw before, we could say that `answer` maps to the second rag summarizer output report, denoted by `rag.summarizer[1].outputs.report`. Similarly, the `contexts` map to the rag retriever output movies, denoted by `rag.retriever.outputs.movies`.
@@ -161,14 +154,9 @@ The utility `ag.tracing.store_internals(...)`, as shown in the snippet above.
 
 Upon serving the RAG Application again, the trace should now contain the formatted prompt
 
-<img
-  className="dark:hidden"
-  src="/images/basic_guides/rag_final_trace_light.png"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/basic_guides/rag_final_trace_dark.png"
-/>
+<Image img={require("/images/basic_guides/rag_final_trace_light.png")} className="dark:hidden" />
+
+<Image img={require("/images/basic_guides/rag_final_trace_dark.png")} className="hidden dark:block" />
 
 We are ready to resume the configuration of our RAG Evaluator.
 
@@ -176,14 +164,9 @@ We are ready to resume the configuration of our RAG Evaluator.
 
 Back to the evaluators page, we can now map the `question` to the rag retriever internal prompt, denoted by `rag.retriever.internals.prompt`, as shown below.
 
-<img
-  className="dark:hidden"
-  src="/images/basic_guides/rag_final_faithfulness_light.png"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/basic_guides/rag_final_faithfulness_dark.png"
-/>
+<Image img={require("/images/basic_guides/rag_final_faithfulness_light.png")} className="dark:hidden" />
+
+<Image img={require("/images/basic_guides/rag_final_faithfulness_dark.png")} className="hidden dark:block" />
 
 Once the RAG Evaluator is set up, you are ready to go.
 
@@ -191,11 +174,6 @@ Once the RAG Evaluator is set up, you are ready to go.
 
 You can now run evaluations on RAG Applications based on RAG Evaluators.
 
-<img
-  className="dark:hidden"
-  src="/images/basic_guides/rag_evaluation_light.png"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/basic_guides/rag_evaluation_dark.png"
-/>
+<Image img={require("/images/basic_guides/rag_evaluation_light.png")} className="dark:hidden" />
+
+<Image img={require("/images/basic_guides/rag_evaluation_dark.png")} className="hidden dark:block" />

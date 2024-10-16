@@ -43,6 +43,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
+    appId: string
 }
 type LanguageCodeBlockProps = {
     selectedLang: string
@@ -67,13 +68,11 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
     )
 }
 
-const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
+const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
     const classes = useStyles()
     const router = useRouter()
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
-
-    const appId = router.query.app_id as string
 
     const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
     const jsonURI = `${getAgentaApiUrl()}/api/testsets/${appId}`
