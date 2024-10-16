@@ -6,6 +6,7 @@ from agenta_backend.core.observability.dtos import SpanDTO, SpanCreateDTO
 from agenta_backend.core.observability.utils import (
     parse_span_dtos_to_span_idx,
     parse_span_idx_to_span_id_tree,
+    calculate_costs,
     cumulate_costs,
     cumulate_tokens,
     connect_children,
@@ -54,6 +55,8 @@ class ObservabilityService:
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
 
         span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
+
+        calculate_costs(span_idx)
 
         cumulate_costs(span_id_tree, span_idx)
 

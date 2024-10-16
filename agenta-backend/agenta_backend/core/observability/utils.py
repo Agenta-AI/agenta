@@ -1,5 +1,7 @@
 from typing import List, Dict, OrderedDict
 
+from litellm import cost_calculator
+
 from agenta_backend.core.observability.dtos import SpanCreateDTO, SpanDTO
 
 
@@ -186,3 +188,38 @@ def _connect_tree_dfs(
 
         if len(parent_span.nodes) == 0:
             parent_span.nodes = None
+
+
+PAYING_TYPES = [
+    "embedding",
+    "query",
+    "completion",
+    "chat",
+    "rerank",
+]
+
+
+def calculate_costs(span_idx: Dict[str, SpanCreateDTO]):
+    for span in span_idx.values():
+        if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
+            try:
+                costs = cost_calculator.cost_per_token(
+                    model=span.meta.get("response.model"),
+                    prompt_tokens=span.metrics.get("unit.tokens.prompt", 0.0),
+                    completion_tokens=span.metrics.get("unit.tokens.completion", 0.0),
+                    call_type=span.node.type.name.lower(),
+                    response_time_ms=span.time.span // 1_000,
+                )
+
+                if not costs:
+                    continue
+
+                prompt_cost, completion_cost = costs
+                total_cost = prompt_cost + completion_cost
+
+                span.metrics["unit.costs.prompt"] = prompt_cost
+                span.metrics["unit.costs.completion"] = completion_cost
+                span.metrics["unit.costs.total"] = total_cost
+
+            except:
+                pass
