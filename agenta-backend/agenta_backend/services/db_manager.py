@@ -12,8 +12,8 @@ from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.services.json_importer_helper import get_json
 
-from sqlalchemy import func, or_
 from sqlalchemy.future import select
+from sqlalchemy import func, or_, asc
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, aliased, load_only
@@ -1255,7 +1255,10 @@ async def fetch_environment_revisions_for_environment(
             query = query.options(
                 joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username)  # type: ignore
             )
-        result = await session.execute(query)
+
+        result = await session.execute(
+            query.order_by(asc(AppEnvironmentRevisionDB.revision))
+        )
         environment_revisions = result.scalars().all()
         return environment_revisions
 
