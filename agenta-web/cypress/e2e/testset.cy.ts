@@ -7,18 +7,14 @@ const countries = [
 ]
 
 describe("Testsets crud and UI functionality", () => {
-    let app_id
     before(() => {
         cy.createVariant()
-        cy.get("@app_id").then((appId) => {
-            app_id = appId
-        })
     })
 
     context("Testing creation process of testset", () => {
         beforeEach(() => {
             // navigate to the new testset page
-            cy.visit(`/apps/${app_id}/testsets`)
+            cy.visit(`/apps/testsets`)
         })
 
         it("Should successfully creates the testset and navigates to the list", () => {
@@ -56,7 +52,7 @@ describe("Testsets crud and UI functionality", () => {
     context("When uploading testset", () => {
         const testset_name = randString(8)
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/testsets`)
+            cy.visit(`/apps/testsets`)
         })
 
         it("Should successfully upload a testset", () => {

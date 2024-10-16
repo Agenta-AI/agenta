@@ -960,9 +960,9 @@ def parse_to_agenta_span_dto(
     if span_dto.data:
         span_dto.data = _unmarshal_attributes(span_dto.data)
 
-        if "outputs" in span_dto.data:
-            if "__default__" in span_dto.data["outputs"]:
-                span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
+        # if "outputs" in span_dto.data:
+        #     if "__default__" in span_dto.data["outputs"]:
+        #         span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
 
     # METRICS
     if span_dto.metrics:
@@ -1206,14 +1206,15 @@ class CreateSpan(BaseModel):
 def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
     attributes = None
     if span.otel:
-        attributes = span.otel.attributes
+        attributes = span.otel.attributes or {}
 
-        for event in span.otel.events:
-            if event.name == "exception":
-                attributes.update(**event.attributes)
+        if span.otel.events:
+            for event in span.otel.events:
+                if event.name == "exception":
+                    attributes.update(**event.attributes)
 
     legacy_span = CreateSpan(
-        id=span.node.id.hex,
+        id=span.node.id.hex[:24],
         spankind=span.node.type,
         name=span.node.name,
         #
@@ -1222,7 +1223,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         start_time=span.time.start,
         end_time=span.time.end,
         #
-        parent_span_id=span.parent.id.hex if span.parent else None,
+        parent_span_id=span.parent.id.hex[:24] if span.parent else None,
         #
         inputs=span.data.get("inputs") if span.data else {},
         internals=span.data.get("internals") if span.data else {},
@@ -1253,7 +1254,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         ),
         #
         app_id=(
-            span.refs.get("application", {}).get("id", "missing-app-id")
+            span.refs.get("application_id", "missing-app-id")
             if span.refs
             else "missing-app-id"
         ),
@@ -1282,7 +1283,6 @@ PAYING_TYPES = [
 def calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
     for span in span_idx.values():
         if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
-
             try:
                 costs = cost_calculator.cost_per_token(
                     model=span.meta.get("response.model"),

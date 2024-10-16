@@ -370,7 +370,7 @@ const AutomaticEvalOverview = () => {
                                     icon: <Database size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/${appId}/testsets/${record.testset.id}`)
+                                        router.push(`/apps/testsets/${record.testset.id}`)
                                     },
                                 },
                                 {type: "divider"},
@@ -392,7 +392,6 @@ const AutomaticEvalOverview = () => {
                             onClick={(e) => e.stopPropagation()}
                             type="text"
                             icon={<MoreOutlined />}
-                            size="small"
                         />
                     </Dropdown>
                 )
@@ -405,15 +404,12 @@ const AutomaticEvalOverview = () => {
             <div className="flex items-center justify-between">
                 <Space>
                     <Title>Automatic Evaluations</Title>
-                    <Button size="small" href={`/apps/${appId}/evaluations`}>
-                        View all
-                    </Button>
+                    <Button href={`/apps/${appId}/evaluations`}>View all</Button>
                 </Space>
 
                 <Space>
                     <Button
                         disabled={compareDisabled}
-                        size="small"
                         type="link"
                         icon={<SwapOutlined />}
                         onClick={() =>
@@ -424,11 +420,7 @@ const AutomaticEvalOverview = () => {
                     >
                         Compare evaluations
                     </Button>
-                    <Button
-                        icon={<PlusOutlined />}
-                        size="small"
-                        onClick={() => setNewEvalModalOpen(true)}
-                    >
+                    <Button icon={<PlusOutlined />} onClick={() => setNewEvalModalOpen(true)}>
                         Create new
                     </Button>
                 </Space>

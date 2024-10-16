@@ -6,9 +6,11 @@ id: introduction
 sidebar_position: 0
 ---
 
-<img
+import Image from "@theme/IdealImage";
+
+<Image
   style={{ display: "block", margin: "0 auto" }}
-  src="/images/agenta-cover.png"
+  img={require("/images/agenta-cover.png")}
   alt="Screenshots of Agenta LLMOPS platform"
   loading="lazy"
 />
@@ -18,12 +20,12 @@ management and evaluation**.
 
 ### With Agenta, you can:
 
-1. Rapidly [**experiment** and **compare** prompts](/prompt_management/prompt_engineering) on [any LLM workflow](/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
-2. Rapidly [**create test sets**](/evaluation/test_sets) and **golden datasets** for evaluation
+1. Rapidly [**experiment** and **compare** prompts](/prompt-management/overview) on [any LLM workflow](/prompt-management/creating-a-custom-template) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
+2. Rapidly [**create test sets**](/evaluation/create-test-sets) and **golden datasets** for evaluation
 3. **Evaluate** your application with pre-existing or **custom evaluators**
 4. **Annotate** and **A/B test** your applications with **human feedback**
 5. [**Collaborate with product teams**](/misc/team_management) for prompt engineering and evaluation
-6. [**Deploy your application**](/prompt_management/deployment) in one-click in the UI, through CLI, or through github workflows.
+6. [**Deploy your application**](/concepts/concepts#environments) in one-click in the UI, through CLI, or through github workflows.
 
 Agenta focuses on increasing the speed of the development cycle of LLM applications by increasing the speed of experimentation.
 
@@ -33,7 +35,7 @@ Agenta focuses on increasing the speed of the development cycle of LLM applicati
 
 Agenta enables prompt engineering and evaluation on any LLM app architecture, such as **Chain of Prompts**, **RAG**, or **LLM agents**. It is compatible with any framework like **Langchain** or **LlamaIndex**, and works with any model provider, such as **OpenAI**, **Cohere**, or **local models**.
 
-[Jump here](/prompt_management/setting_up/custom_applications) to see how to use your own custom application with Agenta and [here](/guides/how_does_agenta_work) to understand more how Agenta works.
+[Jump here](/prompt-management/creating-a-custom-template) to see how to use your own custom application with Agenta and [here](/concepts/architecture) to understand more how Agenta works.
 
 ### Enable collaboration between developers and product teams
 
