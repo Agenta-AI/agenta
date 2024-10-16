@@ -1257,7 +1257,7 @@ async def fetch_environment_revisions_for_environment(
             )
 
         result = await session.execute(
-            query.order_by(asc(AppEnvironmentRevisionDB.revision))
+            query.order_by(asc(AppEnvironmentRevisionDB.created_at))
         )
         environment_revisions = result.scalars().all()
         return environment_revisions
