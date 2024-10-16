@@ -242,7 +242,7 @@ class ObservabilityRouter:
             res = self.legacy_receiver(otlp_stream)
         ### LEGACY ###
 
-        project_id = request.headers.get("AG-PROJECT-ID")
+        project_id = request.headers.get("AG-PROJECT-ID") or request.state.project_id
         app_id = request.headers.get("AG-APP-ID")
 
         otel_span_dtos = parse_otlp_stream(otlp_stream)
@@ -252,7 +252,8 @@ class ObservabilityRouter:
             for otel_span_dto in otel_span_dtos
         ]
 
-        background_tasks.add_task(self.service.ingest, span_dtos=span_dtos)
+        # background_tasks.add_task(self.service.ingest, span_dtos=span_dtos)
+        await self.service.ingest(span_dtos=span_dtos)
 
         ### LEGACY ###
         if res:

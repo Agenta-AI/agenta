@@ -451,15 +451,6 @@ def _parse_from_semconv(
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
 ) -> dict:
-    # TESTING
-    otel_span_dto.links = [
-        OTelLinkDTO(
-            context=otel_span_dto.context,
-            attributes={"ag.type.link": "testcase"},
-        )
-    ]
-    # -------
-
     # LINKS
     links = None
     otel_links = None
@@ -805,8 +796,9 @@ def parse_to_agenta_span_dto(
     if span_dto.refs:
         span_dto.refs = _unmarshal_attributes(span_dto.refs)
 
-    for link in span_dto.links:
-        link.tree_id = None
+    if span_dto.links:
+        for link in span_dto.links:
+            link.tree_id = None
 
     if span_dto.nodes:
         for v in span_dto.nodes.values():

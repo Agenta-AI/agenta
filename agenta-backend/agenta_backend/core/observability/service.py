@@ -51,7 +51,7 @@ class ObservabilityService:
         self,
         *,
         span_dtos: List[SpanCreateDTO],
-    ) -> SpanDTO:
+    ) -> None:
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
 
         span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
@@ -62,9 +62,7 @@ class ObservabilityService:
 
         cumulate_tokens(span_id_tree, span_idx)
 
-        span_ids = await self.observability_dao.create_many(span_dtos=span_idx.values())
-
-        return span_ids
+        await self.observability_dao.create_many(span_dtos=span_idx.values())
 
     async def create(
         self,
