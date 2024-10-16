@@ -9,6 +9,7 @@ from httpx import ConnectError, TimeoutException
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloud, isOss
+from agenta_backend.resources.templates.templates import get_oss_templates
 
 from datetime import datetime, timezone
 
@@ -36,7 +37,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     templates = await retrieve_templates_from_dockerhub_cached(cache)
 
     templates_ids_not_to_remove = []
-    templates_info = await retrieve_templates_info_from_s3(cache)
+    templates_info = get_oss_templates()
     for temp in templates:
         if temp["name"] in list(templates_info.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
