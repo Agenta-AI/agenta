@@ -5,6 +5,7 @@ title: "Overview"
 ```mdx-code-block
 import DocCard from '@theme/DocCard';
 import clsx from 'clsx';
+import Image from "@theme/IdealImage";
 
 ```
 
@@ -12,9 +13,9 @@ import clsx from 'clsx';
 
 Building LLM-powered applications is an iterative process. In each iteration, you aim to improve the application's performance by refining prompts, adjusting configurations, and evaluating outputs.
 
-<img
+<Image
   style={{ display: "block", margin: "10 auto" }}
-  src="/images/prompt_management/illustration-llmops.png"
+  img={require("/images/prompt_management/illustration-llmops.png")}
   alt="Illustration of the LLMOPs process"
   loading="lazy"
 />
@@ -81,7 +82,7 @@ Agenta enables you to version the entire **configuration** of the LLM app as a u
   <DocCard
     item={{
       type: "link",
-      href: "/prompt-management/prompt-engineering-in-the-playground",
+      href: "/prompt-management/using-the-playground",
       label: "Using the playground",
       description: "Perform prompt engineering in the playground",
     }}
@@ -97,7 +98,7 @@ Agenta enables you to version the entire **configuration** of the LLM app as a u
   <DocCard
     item={{
       type: "link",
-      href: "/prompt-management/how-to-publish-a-prompt",
+      href: "/prompt-management/quick-start#2-publish-a-variant",
       label: "Publishing a prompt",
       description: "How to publish a prompt to an endpoint from the web UI.",
     }}
@@ -108,7 +109,7 @@ Agenta enables you to version the entire **configuration** of the LLM app as a u
   <DocCard
     item={{
       type: "link",
-      href: "/prompt-management/how-to-use-a-prompt",
+      href: "/prompt-management/quick-start#3-integrate-with-your-code",
       label: "How to use a prompt",
       description: "How to use a published a prompt in your code",
     }}
