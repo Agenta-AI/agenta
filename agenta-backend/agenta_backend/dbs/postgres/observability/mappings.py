@@ -61,14 +61,18 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
         tags=span.tags,
         refs=span.refs,
         # ----------
-        links=[
-            LinkDTO(
-                type=link.split(":")[0],
-                tree_id=link.split(":")[1] + UUID(id).hex[:16],
-                id=id,
-            )
-            for id, link in span.links.items()
-        ],
+        links=(
+            [
+                LinkDTO(
+                    type=link.split(":")[0],
+                    tree_id=link.split(":")[1] + UUID(id).hex[:16],
+                    id=id,
+                )
+                for id, link in span.links.items()
+            ]
+            if span.links
+            else None
+        ),
         otel=OTelExtraDTO(**span.otel),
     )
 
@@ -106,10 +110,14 @@ def map_span_create_dto_to_dbe(
         tags=span_create_dto.tags,
         refs=span_create_dto.refs,
         # LINKS
-        links={
-            str(link.id): f"{link.type}:{link.tree_id.hex[:16]}"
-            for link in span_create_dto.links
-        },
+        links=(
+            {
+                str(link.id): f"{link.type}:{link.tree_id.hex[:16]}"
+                for link in span_create_dto.links
+            }
+            if span_create_dto.links
+            else None
+        ),
         # OTEL
         otel=span_create_dto.otel.model_dump(exclude_none=True),
     )
@@ -152,10 +160,14 @@ def map_span_dto_to_dbe(
         tags=span_dto.tags,
         refs=span_dto.refs,
         # LINKS
-        links={
-            str(link.id): f"{link.type}:{link.tree_id.hex[:16]}"
-            for link in span_dto.links
-        },
+        links=(
+            {
+                str(link.id): f"{link.type}:{link.tree_id.hex[:16]}"
+                for link in span_dto.links
+            }
+            if span_dto.links
+            else None
+        ),
         # OTEL
         otel=span_dto.otel.model_dump(exclude_none=True),
     )
