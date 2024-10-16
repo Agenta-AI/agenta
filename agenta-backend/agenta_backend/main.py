@@ -119,6 +119,8 @@ app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
 observability_legacy_receiver = None
 if isCloudEE():
+    import agenta_backend.cloud.main as cloud
+
     observability_legacy_receiver = cloud.observability_legacy_receiver
 
 observability = ObservabilityRouter(
