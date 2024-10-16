@@ -37,20 +37,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             fontSize: theme.fontSize,
         },
     },
-    titleLink: {
-        display: "flex",
-        alignItems: "center",
-        gap: theme.paddingXS,
-        border: `1px solid ${theme.colorBorder}`,
-        padding: "1px 7px",
-        height: 24,
-        borderRadius: theme.borderRadius,
-        color: theme.colorText,
-        "&:hover": {
-            borderColor: theme.colorInfoBorderHover,
-            transition: "all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1)",
-        },
-    },
 }))
 
 const VariantsOverview = ({
@@ -260,7 +246,6 @@ const VariantsOverview = ({
                             onClick={(e) => e.stopPropagation()}
                             type="text"
                             icon={<MoreOutlined />}
-                            size="small"
                         />
                     </Dropdown>
                 )
@@ -276,7 +261,6 @@ const VariantsOverview = ({
 
                     <Space>
                         <Button
-                            size="small"
                             type="link"
                             disabled={selectedVariantsToCompare.isCompareDisabled}
                             icon={<SwapOutlined />}
@@ -284,10 +268,13 @@ const VariantsOverview = ({
                         >
                             Compare variants
                         </Button>
-                        <Link href={`/apps/${appId}/playground`} className={classes.titleLink}>
-                            <Rocket size={14} />
+
+                        <Button
+                            icon={<Rocket size={14} className="mt-[3px]" />}
+                            href={`/apps/${appId}/playground`}
+                        >
                             Playground
-                        </Link>
+                        </Button>
                     </Space>
                 </div>
 
