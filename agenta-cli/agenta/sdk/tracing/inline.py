@@ -1282,7 +1282,6 @@ PAYING_TYPES = [
 def calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
     for span in span_idx.values():
         if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
-
             try:
                 costs = cost_calculator.cost_per_token(
                     model=span.meta.get("response.model"),
