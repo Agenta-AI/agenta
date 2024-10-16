@@ -18,6 +18,13 @@ from agenta_backend.services.helpers import convert_to_utc_datetime
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
+if isCloud():
+    from agenta_backend.commons.resources.templates.templates import get_templates
+elif isOss():
+    from agenta_backend.resources.templates.templates import (
+        get_oss_templates as get_templates,
+    )
+
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
 docker_hub_url = os.getenv("DOCKER_HUB_URL")
@@ -37,7 +44,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     templates = await retrieve_templates_from_dockerhub_cached(cache)
 
     templates_ids_not_to_remove = []
-    templates_info = get_oss_templates()
+    templates_info = get_templates()
     for temp in templates:
         if temp["name"] in list(templates_info.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
