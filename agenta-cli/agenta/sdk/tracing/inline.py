@@ -999,7 +999,7 @@ def parse_to_agenta_span_dto(
 ########################################
 
 
-from copy import deepcopy
+from litellm import cost_calculator
 from opentelemetry.sdk.trace import ReadableSpan
 
 
@@ -1032,6 +1032,7 @@ def parse_inline_trace(
     ###############################################
     ### services.observability.service.ingest() ###
     ### --------------------------------------- ###
+    calculate_cost(span_idx)
     cumulate_costs(span_id_tree, span_idx)
     cumulate_tokens(span_id_tree, span_idx)
     ### --------------------------------------- ###
@@ -1042,7 +1043,7 @@ def parse_inline_trace(
     ### services.observability.service.query() ###
     ### -------------------------------------- ###
     connect_children(span_id_tree, span_idx)
-    root_span_dtos = [span_dto for span_dto in span_idx.values()]
+    root_span_dtos = [span_idx[span_id] for span_id in span_id_tree.keys()]
     agenta_span_dtos = [
         parse_to_agenta_span_dto(span_dto) for span_dto in root_span_dtos
     ]
@@ -1058,10 +1059,10 @@ def parse_inline_trace(
             _parse_to_legacy_span(span_dto) for span_dto in span_idx.values()
         ]
 
-        root_span = root_span_dtos[0]
+        root_span = agenta_span_dtos[0]
 
         trace_id = root_span.root.id.hex
-        latency = root_span.time.span
+        latency = root_span.time.span / 1_000_000
         cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
         tokens = {
             "prompt_tokens": root_span.metrics.get("acc", {})
@@ -1083,7 +1084,7 @@ def parse_inline_trace(
             "trace_id": trace_id,
             "latency": latency,
             "cost": cost,
-            "tokens": tokens,
+            "usage": tokens,
             "spans": spans,
         }
 
@@ -1267,3 +1268,39 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
     )
 
     return legacy_span
+
+
+PAYING_TYPES = [
+    "embedding",
+    "query",
+    "completion",
+    "chat",
+    "rerank",
+]
+
+
+def calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
+    for span in span_idx.values():
+        if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
+
+            try:
+                costs = cost_calculator.cost_per_token(
+                    model=span.meta.get("response.model"),
+                    prompt_tokens=span.metrics.get("unit.tokens.prompt", 0.0),
+                    completion_tokens=span.metrics.get("unit.tokens.completion", 0.0),
+                    call_type=span.node.type.name.lower(),
+                    response_time_ms=span.time.span // 1_000,
+                )
+
+                if not costs:
+                    continue
+
+                prompt_cost, completion_cost = costs
+                total_cost = prompt_cost + completion_cost
+
+                span.metrics["unit.costs.prompt"] = prompt_cost
+                span.metrics["unit.costs.completion"] = completion_cost
+                span.metrics["unit.costs.total"] = total_cost
+
+            except:
+                pass

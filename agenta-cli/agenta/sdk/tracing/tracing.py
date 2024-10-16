@@ -107,7 +107,7 @@ class Tracing(metaclass=Singleton):
 
             self.tracer_provider.add_span_processor(_otlp)
         except Exception as e:
-            print(e)
+            log.error(e)
             log.warning(f"Connection failed.")
             log.warning(
                 f"Warning: Your traces will not be exported since {self.otlp_url} is unreachable."

@@ -14,5 +14,6 @@ class suppress(AbstractContextManager):
         if exc_type is None:
             return
         else:
+            print("Agenta SDK - Tracing Exception")
             log.error(f"{exc_type.__name__}: {exc_value}\n{format_exc()}")
             return
