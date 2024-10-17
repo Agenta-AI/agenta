@@ -128,7 +128,9 @@ observability = ObservabilityRouter(
     observability_legacy_receiver=observability_legacy_receiver,
 )
 
-app.include_router(router=observability.router, prefix="/observability/v1")
+app.include_router(
+    router=observability.router, prefix="/observability/v1", tags=["Observability [v1]"]
+)
 
 if isCloudEE():
     import agenta_backend.cloud.main as cloud
