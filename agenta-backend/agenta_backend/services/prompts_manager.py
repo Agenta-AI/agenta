@@ -11,6 +11,7 @@ from agenta_backend.services.db_manager import (
     fetch_app_environment_revision,
     fetch_app_environment_revision_by_environment,
     fetch_app_environment_revision_by_app_variant_revision_id,
+    fetch_app_environment_by_name_and_appid,
 )
 
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isCloudEE, isOss
@@ -131,6 +132,76 @@ async def fetch_prompt_by_env_ref(
             environment_id=env_ref.id,
             revision=env_ref.version,
         )
+
+    if not app_environment_revision:
+        return None
+
+    app_variant_revision = await fetch_app_variant_revision_by_id(
+        # project_id=project_id,
+        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id,
+    )
+
+    if not app_variant_revision:
+        return None
+
+    variant_base = await fetch_base_by_id(
+        project_id=project_id,
+        base_id=app_variant_revision.base_id,
+    )
+
+    if not variant_base:
+        return None
+
+    deployment = await get_deployment_by_id(
+        project_id=project_id,
+        deployment_id=variant_base.deployment_id,
+    )
+
+    if not deployment:
+        return None
+
+    app_environment = None
+    if not app_environment_revision:
+        app_environment = await fetch_app_environment_by_id(
+            # project_id=project_id,
+            environment_id=app_environment_revision.environment_id,
+        )
+
+    prompt = PromptDTO(
+        id=app_variant_revision.variant_id,
+        ref=ReferenceDTO(
+            id=app_variant_revision.variant_id,
+            version=app_variant_revision.revision,
+            commit_id=app_variant_revision.id,
+        ),
+        url=deployment.uri,
+        params=app_variant_revision.config_parameters,
+        app_id=variant_base.app_id,
+        env_ref=(
+            ReferenceDTO(
+                id=app_environment_revision.environment_id,
+                version=app_environment_revision.revision,
+                commit_id=app_environment_revision.id,
+            )
+            if app_environment_revision
+            else None
+        ),
+        env_name=app_environment.name if app_environment else None,
+    )
+
+    return prompt
+
+
+async def fetch_prompt_by_app_id_and_env_name(
+    project_id: str,
+    app_id: str,
+    env_name: str,
+) -> Optional[PromptDTO]:
+    app_environment_revision = await fetch_app_environment_by_name_and_appid(
+        # project_id=project_id,
+        app_id=app_id,
+        env_name=env_name,
+    )
 
     if not app_environment_revision:
         return None

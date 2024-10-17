@@ -555,14 +555,16 @@ class EnvironmentResponseModel(EnvironmentDTO):
 )
 async def fetch_prompt(
     request: Request,
+    app_id: Optional[str] = None,
     prompt_ref: Optional[ReferenceRequestModel] = None,
     env_ref: Optional[ReferenceRequestModel] = None,
+    env_name: Optional[str] = None,
 ):
     try:
-        if not prompt_ref and not env_ref:
+        if not app_id and not prompt_ref and not env_ref and not env_name:
             raise HTTPException(
                 status_code=400,
-                detail="Either prompt_ref or env_ref must be provided.",
+                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
             )
 
         prompt = None
