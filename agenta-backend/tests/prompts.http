@@ -143,3 +143,22 @@ Content-Type: application/json
     "env_ref": null,
     "env_name": null
 }
+
+###
+
+# @name deploy_prompt_by_env_ref_1
+POST {{base_url}}/deploy
+Content-Type: application/json
+
+{ 
+    "prompt_ref": {
+        "id": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
+        "version": 1,
+        "commit_id": "01929c2a-7cbc-7684-9c86-c502ce1a42f5"
+    },
+    "env_ref": {
+        "commit_id": "01929c13-6af2-7b10-a51d-d99fccc1732b",
+        "id": null,
+        "version": null
+    }
+}
