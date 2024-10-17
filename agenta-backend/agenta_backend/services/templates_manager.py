@@ -9,15 +9,12 @@ from httpx import ConnectError, TimeoutException
 from agenta_backend.utils import redis_utils
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloud, isOss
-from agenta_backend.resources.templates.templates import get_oss_templates
 
 from datetime import datetime, timezone
 
 from agenta_backend.services.helpers import convert_to_utc_datetime
 
-from agenta_backend.resources.templates.templates import (
-    get_oss_templates as get_templates,
-)
+from agenta_backend.resources.templates.templates import templates
 
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
@@ -39,14 +36,14 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     Returns:
         None
     """
-    templates = await retrieve_templates_from_dockerhub_cached(cache)
+    docker_templates = await retrieve_templates_from_dockerhub_cached(cache)
 
     templates_ids_not_to_remove = []
-    templates_info = get_templates()
-    for temp in templates:
-        if temp["name"] in list(templates_info.keys()):
+
+    for temp in docker_templates:
+        if temp["name"] in list(templates.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
-            temp_info = templates_info[temp["name"]]
+            temp_info = templates[temp["name"]]
             last_pushed = convert_to_utc_datetime(temp.get("last_pushed"))
 
             template_id = await db_manager.add_template(
