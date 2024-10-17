@@ -15,15 +15,13 @@ from datetime import datetime, timezone
 
 from agenta_backend.services.helpers import convert_to_utc_datetime
 
+from agenta_backend.resources.templates.templates import (
+    get_oss_templates as get_templates,
+)
+
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
-if isCloud():
-    from agenta_backend.commons.resources.templates.templates import get_templates
-elif isOss():
-    from agenta_backend.resources.templates.templates import (
-        get_oss_templates as get_templates,
-    )
 
 templates_base_url = os.getenv("TEMPLATES_BASE_URL")
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
