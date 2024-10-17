@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, Union, List, Dict
 
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
@@ -11,6 +11,7 @@ from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import (
     app_manager,
     db_manager,
+    prompts_manager,
 )
 
 if isCloudEE():
@@ -520,3 +521,204 @@ async def get_variant_revision(
         logger.exception(f"An error occurred: {str(e)}")
         status_code = e.status_code if hasattr(e, "status_code") else 500
         raise HTTPException(status_code=status_code, detail=str(e))
+
+
+### --- PROMPTS --- ###
+
+from agenta_backend.services.prompts_manager import ReferenceDTO, PromptDTO
+
+
+class ReferenceRequestModel(ReferenceDTO):
+    pass
+
+
+class PromptRequestModel(PromptDTO):
+    pass
+
+
+class PromptResponseModel(PromptDTO):
+    pass
+
+
+@router.get(
+    "/as/prompts/fetch",
+    operation_id="fetch_prompt",
+    response_model=PromptResponseModel,
+)
+async def fetch_prompt(
+    request: Request,
+    app_id: Optional[str] = None,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
+    env_name: Optional[str] = None,
+):
+    try:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
+            raise HTTPException(
+                status_code=400,
+                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+            )
+
+        prompt = None
+
+        if prompt_ref:
+            prompt = await prompts_manager.fetch_prompt_by_prompt_ref(
+                project_id=request.state.project_id,
+                prompt_ref=prompt_ref,
+            )
+        elif env_ref:
+            prompt = await prompts_manager.fetch_prompt_by_env_ref(
+                project_id=request.state.project_id,
+                env_ref=env_ref,
+            )
+        elif app_id and env_name:
+            prompt = await prompts_manager.fetch_prompt_by_app_id_and_env_name(
+                project_id=request.state.project_id,
+                app_id=app_id,
+                env_name=env_name,
+            )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as/prompts/fork/",
+    operation_id="fork_prompt",
+    response_model=PromptResponseModel,
+)
+async def fork_prompt(
+    request: Request,
+    app_id: Optional[str] = None,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
+    env_name: Optional[str] = None,
+):
+    try:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
+            raise HTTPException(
+                status_code=400,
+                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+            )
+
+        prompt = None
+
+        if prompt_ref:
+            prompt = await prompts_manager.fork_prompt_by_prompt_ref(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                prompt_ref=prompt_ref,
+            )
+        elif env_ref:
+            prompt = await prompts_manager.fork_prompt_by_env_ref(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                env_ref=env_ref,
+            )
+        elif app_id and env_name:
+            prompt = await prompts_manager.fork_prompt_by_app_id_and_env_name(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                app_id=app_id,
+                env_name=env_name,
+            )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as/prompts/commit/",
+    operation_id="commit_prompt",
+    response_model=PromptResponseModel,
+)
+async def commit_prompt(
+    request: Request,
+    prompt: PromptRequestModel,
+):
+    try:
+
+        prompt = await prompts_manager.commit_prompt(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            prompt=prompt,
+        )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as/prompts/deploy/",
+    operation_id="deploy_prompt",
+    response_model=PromptResponseModel,
+)
+async def deploy_prompt(
+    request: Request,
+    app_id: Optional[str] = None,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
+    env_name: Optional[str] = None,
+):
+    try:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
+            raise HTTPException(
+                status_code=400,
+                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+            )
+
+        environment = None
+
+        if env_ref:
+            environment = await prompts_manager.deploy_prompt_by_env_ref(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                prompt_ref=prompt_ref,
+                env_ref=env_ref,
+            )
+        elif app_id and env_name:
+            environment = await prompts_manager.deploy_prompt_by_app_id_and_env_name(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                app_id=app_id,
+                env_name=env_name,
+            )
+
+        if not environment:
+            raise HTTPException(
+                status_code=404,
+                detail="Environment not found.",
+            )
+
+        return environment
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
