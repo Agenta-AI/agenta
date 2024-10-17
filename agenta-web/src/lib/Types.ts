@@ -662,3 +662,9 @@ export interface HumanEvaluationListTableDataType {
     variant_revision_ids: string[]
     variantNames: string[]
 }
+
+export type Filter = {
+    condition: string
+    column: string
+    keyword: string
+}
