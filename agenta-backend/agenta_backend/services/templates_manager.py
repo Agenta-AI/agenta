@@ -124,28 +124,3 @@ async def retrieve_templates_from_dockerhub(
 
         response_data = response.json()
         return response_data
-
-
-@backoff.on_exception(
-    backoff.expo, (ConnectError, TimeoutException, CancelledError), max_tries=5
-)
-async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
-    """
-    Business logic to retrieve templates information from S3.
-
-    Args:
-        url (str): The URL endpoint for retrieving templates info.
-
-    Returns:
-        response_data (Dict[str, Dict[str, Any]]): A dictionary \
-            containing dictionaries of templates information.
-    """
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=90)
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data
-
-        response_data = response.json()
-        return response_data
