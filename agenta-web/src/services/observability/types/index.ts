@@ -30,28 +30,28 @@ export interface AgentaNodeDTO extends NodeDTO {}
 
 export interface NodeDTO {
     scope: ProjectScopeDTO
-    lifecycle: LifecycleDTO
+    lifecycle: NodeLifecycleDTO
     root: RootContextDTO
     tree: TreeContextDTO
     node: NodeContextDTO
     parent?: ParentContextDTO | null
-    time: TimeDTO
-    status: StatusDTO
-    data?: Data | null
-    metrics?: Metrics | null
-    meta?: Metadata | null
-    tags?: Tags | null
-    refs?: Refs | null
-    links?: LinkDTO[] | null
+    time: NodeTimeDTO
+    status: NodeStatusDTO
+    data?: NodeData | null
+    metrics?: NodeMetrics | null
+    meta?: NodeMetadata | null
+    tags?: NodeTags | null
+    refs?: NodeRefs | null
+    links?: NodeLinkDTO[] | null
     nodes?: Record<string, NodeDTO | NodeDTO[]> | null
 }
 
-type Data = Record<string, any>
-type Metrics = Record<string, any>
-type Metadata = Record<string, any>
-type Tags = Record<string, string>
-type Refs = Record<string, string>
-type LinkDTO = {
+type NodeData = Record<string, any>
+type NodeMetrics = Record<string, any>
+type NodeMetadata = Record<string, any>
+type NodeTags = Record<string, string>
+type NodeRefs = Record<string, string>
+type NodeLinkDTO = {
     type: string
     id: string
     tree_id?: string | null
@@ -61,7 +61,7 @@ interface ProjectScopeDTO {
     project_id: string
 }
 
-interface LifecycleDTO {
+interface NodeLifecycleDTO {
     created_at: string
     updated_at?: string | null
     updated_by_id?: string | null
@@ -86,7 +86,7 @@ enum NodeType {
     RERANK = "rerank",
 }
 
-enum StatusCode {
+export enum NodeStatusCode {
     UNSET = "UNSET",
     OK = "OK",
     ERROR = "ERROR",
@@ -96,14 +96,14 @@ interface ParentContextDTO {
     id: string
 }
 
-interface TimeDTO {
+interface NodeTimeDTO {
     start: string
     end: string
     span: number
 }
 
-interface StatusDTO {
-    code: StatusCode
+export interface NodeStatusDTO {
+    code: NodeStatusCode
     message?: string | null
     stacktrace?: string | null
 }
