@@ -1,3 +1,8 @@
+export interface _AgentaRootsResponse extends Omit<AgentaNodeDTO, "nodes"> {
+    children: _AgentaRootsResponse[]
+    key: string
+}
+
 export interface AgentaRootsResponse {
     version: string
     roots: AgentaRootsDTO[]
