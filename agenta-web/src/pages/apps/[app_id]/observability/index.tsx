@@ -1,14 +1,16 @@
 import GenericDrawer from "@/components/GenericDrawer"
+import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {findTraceNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
 import {observabilityTransformer} from "@/services/observability/core"
-import {AgentaNodeDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse, AgentaNodeDTO} from "@/services/observability/types"
 import {Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
@@ -55,11 +57,7 @@ const ObservabilityDashboard = ({}: Props) => {
     //     [activeTrace],
     // )
 
-    const columns: ColumnsType<
-        Omit<AgentaNodeDTO, "nodes"> & {
-            key: string
-        }
-    > = [
+    const columns: ColumnsType<_AgentaRootsResponse> = [
         {
             title: "ID",
             dataIndex: ["key"],
@@ -104,6 +102,7 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
+            render: (_, record) => StatusRenderer(record.status),
         },
         {
             title: "Latency",
@@ -112,6 +111,7 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
+            render: (_, record) => <div>{formatLatency(record.time.span / 1000000)}</div>,
         },
         {
             title: "Usage",
@@ -120,6 +120,9 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
+            render: (_, record) => (
+                <div>{formatTokenUsage(record.metrics?.acc?.tokens?.total)}</div>
+            ),
         },
         {
             title: "Total cost",
@@ -128,6 +131,7 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
+            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
     ]
 
