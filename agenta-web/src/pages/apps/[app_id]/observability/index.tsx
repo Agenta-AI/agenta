@@ -2,13 +2,16 @@ import GenericDrawer from "@/components/GenericDrawer"
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {findTraceNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
-import {AgentaNodeDTO, AgentaRootsDTO} from "@/services/observability/types"
+import {observabilityTransformer} from "@/services/observability/core"
+import {AgentaNodeDTO} from "@/services/observability/types"
 import {Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
+import dayjs from "dayjs"
 import React, {useCallback, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -51,15 +54,79 @@ const ObservabilityDashboard = ({}: Props) => {
         [activeTrace],
     )
 
-    const columns: ColumnsType<AgentaRootsDTO> = [
+    const columns: ColumnsType<
+        Omit<AgentaNodeDTO, "nodes"> & {
+            key: string
+        }
+    > = [
         {
-            title: "Trace Id",
-            dataIndex: "key",
+            title: "ID",
+            dataIndex: ["key"],
             key: "key",
-            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            fixed: "left",
             render: (_, record) => {
-                return <div>{record.root.id}</div>
+                return <ResultTag value1={`# ${record.key.split("-")[0]}`} />
             },
+        },
+        {
+            title: "Timestamp",
+            key: "timestamp",
+            dataIndex: ["time", "start"],
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            render: (_, record) => {
+                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
+            },
+        },
+        {
+            title: "Inputs",
+            key: "inputs",
+            onHeaderCell: () => ({
+                style: {minWidth: 350},
+            }),
+        },
+        {
+            title: "Outputs",
+            key: "outputs",
+            onHeaderCell: () => ({
+                style: {minWidth: 350},
+            }),
+        },
+        {
+            title: "Status",
+            key: "status",
+            dataIndex: ["status", "code"],
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+        },
+        {
+            title: "Latency",
+            key: "latency",
+            dataIndex: ["time", "span"],
+            onHeaderCell: () => ({
+                style: {minWidth: 80},
+            }),
+        },
+        {
+            title: "Usage",
+            key: "usage",
+            dataIndex: ["metrics", "acc", "tokens", "total"],
+            onHeaderCell: () => ({
+                style: {minWidth: 80},
+            }),
+        },
+        {
+            title: "Total cost",
+            key: "total_cost",
+            dataIndex: ["metrics", "acc", "costs", "total"],
+            onHeaderCell: () => ({
+                style: {minWidth: 80},
+            }),
         },
     ]
 
@@ -67,11 +134,10 @@ const ObservabilityDashboard = ({}: Props) => {
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
-            <div>Observability Table</div>
             {traces && (
                 <Table
                     columns={columns}
-                    dataSource={traces}
+                    dataSource={traces.flatMap((item) => observabilityTransformer(item.trees[0]))}
                     bordered
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({
@@ -79,6 +145,8 @@ const ObservabilityDashboard = ({}: Props) => {
                             setSelectedTraceId(record.root.id)
                         },
                     })}
+                    pagination={false}
+                    scroll={{x: "max-content"}}
                 />
             )}
 
