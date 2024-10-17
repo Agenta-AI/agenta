@@ -5,13 +5,13 @@
 
 ###
 
-# @name fetch_prompts_by_prompt_ref_1
+# @name fetch_prompt_by_prompt_ref_1
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
     "prompt_ref": {
-        "commit_id": "01929b78-7b25-7a53-8fae-0d24ab41027f",
+        "commit_id": "01929c24-65bb-7c48-9c5e-343c989047cb",
         "id": null,
         "version": null
     }
@@ -19,27 +19,27 @@ Content-Type: application/json
 
 ###
 
-# @name fetch_prompts_by_prompt_ref_2
+# @name fetch_prompt_by_prompt_ref_2
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
     "prompt_ref": {
-        "id": "01929b78-6abf-7873-a32b-659fc2efcadd",
-        "version": 3,
+        "id": "01929c22-367d-7d9b-85a6-e6572f8ac63d",
+        "version": 2,
         "commit_id": null
     }
 }
 
 ###
 
-# @name fetch_prompts_by_env_ref_1
+# @name fetch_prompt_by_env_ref_1
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
     "env_ref": {
-        "commit_id": "01929b61-af91-73c3-a19b-3db06230b37a",
+        "commit_id": "01929c13-6af2-7b10-a51d-d99fccc1732b",
         "id": null,
         "version": null
     }
@@ -47,13 +47,13 @@ Content-Type: application/json
 
 ###
 
-# @name fetch_prompts_by_env_ref_2
+# @name fetch_prompt_by_env_ref_2
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
     "env_ref": {
-        "id": "01929b61-a7c0-77e5-89fd-58044eeb0744",
+        "id": "01929c13-638d-731f-b35a-954f252dcde8",
         "version": 1,
         "commit_id": null
     }
@@ -61,14 +61,56 @@ Content-Type: application/json
 
 ###
 
-# @name fork_prompts_by_prompt_ref_1
+# @name fork_prompt_by_prompt_ref_1
 POST {{base_url}}/fork
 Content-Type: application/json
 
 {
     "prompt_ref": {
-        "commit_id": "01929b78-7b25-7a53-8fae-0d24ab41027f",
+        "commit_id": "01929c14-53d3-7f7f-9a42-66560c57399a",
         "id": null,
         "version": null
+    }
+}
+
+###
+
+# @name fork_prompt_by_prompt_ref_2
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "prompt_ref": {
+        "id": "01929c22-367d-7d9b-85a6-e6572f8ac63d",
+        "version": 1,
+        "commit_id": null
+    }
+}
+
+###
+
+# @name fork_prompt_by_env_ref_1
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "env_ref": {
+        "commit_id": "01929c13-6af2-7b10-a51d-d99fccc1732b",
+        "id": null,
+        "version": null
+    }
+}
+
+###
+
+# @name fork_prompt_by_env_ref_2
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "env_ref": {
+        "id": "01929c13-638d-731f-b35a-954f252dcde8",
+        "version": 1,
+        "commit_id": null
     }
 }
