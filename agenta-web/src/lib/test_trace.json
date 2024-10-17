@@ -2795,7 +2795,7 @@
                                 "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                             },
                             "node": {
-                                "id": "3283749b-be79-15d6-3839-39eb32070bbc",
+                                "id": "376l749b-be79-15d6-3839-39eb32070bbc",
                                 "type": "workflow",
                                 "name": "rag"
                             },
@@ -2867,7 +2867,7 @@
                                         "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                     },
                                     "node": {
-                                        "id": "3283749b-be79-15d6-ef78-9bdcad4f3199",
+                                        "id": "376l749b-be79-15d6-ef78-9bdcad4f3199",
                                         "type": "task",
                                         "name": "retriever"
                                     },
@@ -2950,7 +2950,7 @@
                                                 "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                             },
                                             "node": {
-                                                "id": "3283749b-be79-15d6-94b9-72820ad2ef90",
+                                                "id": "376l749b-be79-15d6-94b9-72820ad2ef90",
                                                 "type": "embedding",
                                                 "name": "openai.embeddings"
                                             },
@@ -3029,7 +3029,7 @@
                                                 "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                             },
                                             "node": {
-                                                "id": "3283749b-be79-15d6-a84a-c487893ed246",
+                                                "id": "376l749b-be79-15d6-a84a-c487893ed246",
                                                 "type": "query",
                                                 "name": "search"
                                             },
@@ -3674,7 +3674,7 @@
                                         "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                     },
                                     "node": {
-                                        "id": "3283749b-be79-15d6-048d-1fa32d25288b",
+                                        "id": "376l749b-be79-15d6-048d-1fa32d25288b",
                                         "type": "task",
                                         "name": "reporter"
                                     },
@@ -3747,7 +3747,7 @@
                                                 "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                             },
                                             "node": {
-                                                "id": "3283749b-be79-15d6-7647-7397bc185832",
+                                                "id": "376l749b-be79-15d6-7647-7397bc185832",
                                                 "type": "chat",
                                                 "name": "openai.chat"
                                             },
@@ -3845,7 +3845,7 @@
                                             "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                         },
                                         "node": {
-                                            "id": "3283749b-be79-15d6-2cb7-0d88553280b1",
+                                            "id": "376l749b-be79-15d6-2cb7-0d88553280b1",
                                             "type": "task",
                                             "name": "summarizer"
                                         },
@@ -3907,7 +3907,7 @@
                                                     "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                                 },
                                                 "node": {
-                                                    "id": "3283749b-be79-15d6-e5d2-54ae9f3b0529",
+                                                    "id": "376l749b-be79-15d6-e5d2-54ae9f3b0529",
                                                     "type": "chat",
                                                     "name": "openai.chat"
                                                 },
@@ -4004,7 +4004,7 @@
                                             "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                         },
                                         "node": {
-                                            "id": "3283749b-be79-15d6-4cdb-4f10ec83e5c4",
+                                            "id": "376l749b-be79-15d6-4cdb-4f10ec83e5c4",
                                             "type": "task",
                                             "name": "summarizer"
                                         },
@@ -4066,7 +4066,7 @@
                                                     "id": "a5b2f3dc-2de8-d069-3283-749bbe7915d6"
                                                 },
                                                 "node": {
-                                                    "id": "3283749b-be79-15d6-2420-816ed54fd495",
+                                                    "id": "376l749b-be79-15d6-2420-816ed54fd495",
                                                     "type": "chat",
                                                     "name": "openai.chat"
                                                 },
@@ -4180,7 +4180,7 @@
                                 "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                             },
                             "node": {
-                                "id": "43c39569-3e04-49aa-2d60-d51d0c7dfede",
+                                "id": "43c39569-3e04-49aa-2d60-d51d0c7dfasd",
                                 "type": "workflow",
                                 "name": "rag"
                             },
@@ -4252,7 +4252,7 @@
                                         "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                     },
                                     "node": {
-                                        "id": "43c39569-3e04-49aa-44cc-6ddc96192c8c",
+                                        "id": "43c39569-3e04-49aa-44cc-6ddc96192lop",
                                         "type": "task",
                                         "name": "retriever"
                                     },
@@ -4335,7 +4335,7 @@
                                                 "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                             },
                                             "node": {
-                                                "id": "43c39569-3e04-49aa-1652-1b7965d27817",
+                                                "id": "43c39569-3e04-49aa-1652-1b7965d27098",
                                                 "type": "embedding",
                                                 "name": "openai.embeddings"
                                             },
@@ -4414,7 +4414,7 @@
                                                 "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                             },
                                             "node": {
-                                                "id": "43c39569-3e04-49aa-254c-eff4fcfe2c18",
+                                                "id": "43c39569-3e04-49aa-254c-eff4fcfe2kjh",
                                                 "type": "query",
                                                 "name": "search"
                                             },
@@ -5059,7 +5059,7 @@
                                         "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                     },
                                     "node": {
-                                        "id": "43c39569-3e04-49aa-f638-ccc37deb35c6",
+                                        "id": "43c39569-3e04-49aa-f638-ccc3lkub35c6",
                                         "type": "task",
                                         "name": "reporter"
                                     },
@@ -5132,7 +5132,7 @@
                                                 "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                             },
                                             "node": {
-                                                "id": "43c39569-3e04-49aa-2ebe-b45375e00a9c",
+                                                "id": "43c39569-3e04-49aa-2ebe-b4537598fa9c",
                                                 "type": "chat",
                                                 "name": "openai.chat"
                                             },
@@ -5230,7 +5230,7 @@
                                             "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                         },
                                         "node": {
-                                            "id": "43c39569-3e04-49aa-e2a6-0ea40ffabc06",
+                                            "id": "43c39569-76f4-49aa-e2a6-0ea40ffabc06",
                                             "type": "task",
                                             "name": "summarizer"
                                         },
@@ -5292,7 +5292,7 @@
                                                     "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                                 },
                                                 "node": {
-                                                    "id": "43c39569-3e04-49aa-54f6-bd98032e1a49",
+                                                    "id": "43c39569-76f4-49aa-54f6-bd98032e1a49",
                                                     "type": "chat",
                                                     "name": "openai.chat"
                                                 },
@@ -5389,7 +5389,7 @@
                                             "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                         },
                                         "node": {
-                                            "id": "43c39569-3e04-49aa-e106-ba0319c6e51f",
+                                            "id": "43c39569-76f4-49aa-e106-ba0319c6e51f",
                                             "type": "task",
                                             "name": "summarizer"
                                         },
@@ -5451,7 +5451,7 @@
                                                     "id": "e8835c10-43f1-e9ac-43c3-95693e0449aa"
                                                 },
                                                 "node": {
-                                                    "id": "43c39569-3e04-49aa-5699-abba488eec45",
+                                                    "id": "43c39569-76f4-49aa-5699-abba488eec45",
                                                     "type": "chat",
                                                     "name": "openai.chat"
                                                 },
