@@ -359,3 +359,97 @@ export const filterVariantParameters = ({
 export const formatVariantIdWithHash = (variantId: string) => {
     return `# ${variantId.split("-")[0]}`
 }
+
+export const getTimeRangeUnit = (time: string) => {
+    let unit: dayjs.UnitType
+    let duration: number
+
+    switch (time) {
+        case "30 mins":
+            unit = "minute"
+            duration = 30
+            break
+        case "1 hour":
+            unit = "hour"
+            duration = 1
+            break
+        case "6 hour":
+            unit = "hour"
+            duration = 6
+            break
+        case "24 hour":
+            unit = "hour"
+            duration = 24
+            break
+        case "3 days":
+            unit = "day"
+            duration = 3
+            break
+        case "7 days":
+            unit = "day"
+            duration = 7
+            break
+        case "14 days":
+            unit = "day"
+            duration = 14
+            break
+        case "1 month":
+            unit = "month"
+            duration = 1
+            break
+        case "3 month":
+            unit = "month"
+            duration = 3
+            break
+        default:
+            unit = "year"
+            duration = Infinity
+    }
+
+    return {duration, unit}
+}
+
+export const getNestedProperties = (obj: any, path: string) => {
+    return path.split(".").reduce((acc, key) => acc && acc[key], obj)
+}
+
+export const matcheFilterCriteria = ({
+    data,
+    condition,
+    keyword,
+}: {
+    data: any
+    condition: string
+    keyword: string | number
+}) => {
+    if (data === undefined) return false
+    const value = String(data).toLowerCase()
+    const key = String(keyword).toLowerCase()
+
+    switch (condition) {
+        case "contains":
+            return value.includes(key)
+        case "does not contain":
+            return !value.includes(key)
+        case "starts with":
+            return value.startsWith(key)
+        case "ends with":
+            return value.endsWith(key)
+        case "exists":
+            return data !== undefined
+        case "does not exist":
+            return data === undefined
+        case "=":
+            return typeof data == "number" ? Number(data) == Number(key) : value == key
+        case ">":
+            return Number(data) > Number(key)
+        case "<":
+            return Number(data) < Number(key)
+        case ">=":
+            return Number(data) >= Number(key)
+        case "<=":
+            return Number(data) <= Number(key)
+        default:
+            return false
+    }
+}
