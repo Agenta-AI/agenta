@@ -302,8 +302,6 @@ async def fork_prompt_by_prompt_ref(
     if not app:
         return None
 
-    logger.error("-----------------")
-    logger.error(user_id)
     user = await get_user(
         # project_id=project_id,
         user_uid=user_id,
@@ -320,7 +318,7 @@ async def fork_prompt_by_prompt_ref(
     if not image:
         return None
 
-    new_app_variant = await create_new_app_variant(
+    app_variant = await create_new_app_variant(
         project_id=project_id,
         app=app,
         user=user,
@@ -334,24 +332,27 @@ async def fork_prompt_by_prompt_ref(
         base_name=app_variant.base_name,
     )
 
+    if not app_variant:
+        return None
+
     await update_variant_parameters(
         project_id=project_id,
         user_uid=user_id,
-        app_variant_id=new_app_variant.id.hex,
+        app_variant_id=app_variant.id.hex,
         parameters=app_variant_revision.config_parameters,
     )
 
     app_variant_revision = await fetch_app_variant_revision_by_variant(
         project_id=project_id,
-        app_variant_id=new_app_variant.id.hex,
-        revision=new_app_variant.revision,
+        app_variant_id=app_variant.id.hex,
+        revision=app_variant.revision + 1,
     )
 
     if not app_variant_revision:
         return None
 
     prompt = PromptDTO(
-        id=new_app_variant.id,
+        id=app_variant_revision.id,
         ref=ReferenceDTO(
             id=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
@@ -359,7 +360,7 @@ async def fork_prompt_by_prompt_ref(
         ),
         url=deployment.uri,
         params=app_variant_revision.config_parameters,
-        app_id=new_app_variant.app_id,
+        app_id=app_variant.app_id,
         env_ref=None,
         env_name=None,
     )
@@ -376,12 +377,12 @@ async def fork_prompt_by_env_ref(
     if env_ref.commit_id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id,
+            revision_id=env_ref.commit_id.hex,
         )
     elif env_ref.id and env_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
-            # project_id=project_id,
-            environment_id=env_ref.id,
+            project_id=project_id,
+            app_environment_id=env_ref.id.hex,
             revision=env_ref.version,
         )
 
@@ -390,7 +391,7 @@ async def fork_prompt_by_env_ref(
 
     app_variant_revision = await fetch_app_variant_revision_by_id(
         # project_id=project_id,
-        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id,
+        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id.hex,
     )
 
     if not app_variant_revision:
@@ -398,7 +399,7 @@ async def fork_prompt_by_env_ref(
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=app_variant_revision.variant_id,
+        app_variant_id=app_variant_revision.variant_id.hex,
     )
 
     if not app_variant:
@@ -406,7 +407,7 @@ async def fork_prompt_by_env_ref(
 
     variant_base = await fetch_base_by_id(
         # project_id=project_id,
-        base_id=app_variant_revision.base_id,
+        base_id=app_variant_revision.base_id.hex,
     )
 
     if not variant_base:
@@ -414,7 +415,7 @@ async def fork_prompt_by_env_ref(
 
     deployment = await get_deployment_by_id(
         # project_id=project_id,
-        deployment_id=variant_base.deployment_id,
+        deployment_id=variant_base.deployment_id.hex,
     )
 
     if not deployment:
@@ -422,7 +423,7 @@ async def fork_prompt_by_env_ref(
 
     app = await fetch_app_by_id(
         # project_id=project_id,
-        app_id=variant_base.app_id,
+        app_id=variant_base.app_id.hex,
     )
 
     if not app:
@@ -438,13 +439,13 @@ async def fork_prompt_by_env_ref(
 
     image = await get_image_by_id(
         # project_id=project_id,
-        image_id=variant_base.image_id,
+        image_id=variant_base.image_id.hex,
     )
 
     if not image:
         return None
 
-    new_app_variant = await create_new_app_variant(
+    app_variant = await create_new_app_variant(
         project_id=project_id,
         app=app,
         user=user,
@@ -458,16 +459,35 @@ async def fork_prompt_by_env_ref(
         base_name=app_variant.base_name,
     )
 
+    if not app_variant:
+        return None
+
+    await update_variant_parameters(
+        project_id=project_id,
+        user_uid=user_id,
+        app_variant_id=app_variant.id.hex,
+        parameters=app_variant_revision.config_parameters,
+    )
+
+    app_variant_revision = await fetch_app_variant_revision_by_variant(
+        project_id=project_id,
+        app_variant_id=app_variant.id.hex,
+        revision=app_variant.revision + 1,
+    )
+
+    if not app_variant_revision:
+        return None
+
     prompt = PromptDTO(
-        id=new_app_variant.variant_id,
+        id=app_variant_revision.id,
         ref=ReferenceDTO(
-            id=new_app_variant.variant_id,
-            version=new_app_variant.revision,
-            commit_id=new_app_variant.id,
+            id=app_variant_revision.variant_id,
+            version=app_variant_revision.revision,
+            commit_id=app_variant_revision.id,
         ),
         url=deployment.uri,
-        params=new_app_variant.config_parameters,
-        app_id=variant_base.app_id,
+        params=app_variant_revision.config_parameters,
+        app_id=app_variant.app_id,
         env_ref=None,
         env_name=None,
     )
@@ -561,8 +581,8 @@ async def deploy_prompt_by_env_ref(
         )
     elif env_ref.id and env_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
-            # project_id=project_id,
-            environment_id=env_ref.id,
+            project_id=project_id,
+            app_environment_id=env_ref.id.hex,
             revision=env_ref.version,
         )
 
@@ -594,7 +614,7 @@ async def deploy_prompt_by_env_ref(
 
     app_environment_revision = await fetch_app_environment_revision_by_environment(
         project_id=project_id,
-        environment_id=app_environment_revision.environment_id,
+        app_environment_id=app_environment_revision.environment_id,
         revision=app_variant.revision,
     )
 
