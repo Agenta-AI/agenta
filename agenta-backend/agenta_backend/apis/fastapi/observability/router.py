@@ -228,7 +228,7 @@ class ObservabilityRouter:
     async def otlp_collect_traces(
         self,
         request: Request,
-        background_tasks: BackgroundTasks,
+        # background_tasks: BackgroundTasks,
     ):
         """
         Collect traces via OTLP.
@@ -236,14 +236,16 @@ class ObservabilityRouter:
 
         otlp_stream = await request.body()
 
-        ### LEGACY ###
-        res = None
-        if self.legacy_receiver:
-            res = self.legacy_receiver(otlp_stream)
-        ### LEGACY ###
-
         project_id = request.headers.get("AG-PROJECT-ID") or request.state.project_id
         app_id = request.headers.get("AG-APP-ID")
+
+        ### LEGACY ###
+        if self.legacy_receiver:
+            await self.legacy_receiver(
+                project_id=project_id,
+                otlp_stream=otlp_stream,
+            )
+        ### LEGACY ###
 
         otel_span_dtos = parse_otlp_stream(otlp_stream)
 
@@ -254,10 +256,5 @@ class ObservabilityRouter:
 
         # background_tasks.add_task(self.service.ingest, span_dtos=span_dtos)
         await self.service.ingest(span_dtos=span_dtos)
-
-        ### LEGACY ###
-        if res:
-            return res
-        ### LEGACY ###
 
         return CollectStatusResponse(version=self.VERSION, status="processing")
