@@ -569,11 +569,13 @@ async def fetch_prompt(
 
         if prompt_ref:
             prompt = await prompts_manager.fetch_prompt_by_prompt_ref(
-                prompt_ref,
+                project_id=request.state.project_id,
+                prompt_ref=prompt_ref,
             )
         elif env_ref:
             prompt = await prompts_manager.fetch_prompt_by_env_ref(
-                env_ref,
+                project_id=request.state.project_id,
+                env_ref=env_ref,
             )
 
         if not prompt:
@@ -613,21 +615,25 @@ async def fork_prompt(
 
         if app_id and config_params:
             prompt = await prompts_manager.fork_prompt_by_app_id(
+                project_id=request.state.project_id,
                 app_id=app_id,
                 config_params=config_params,
             )
         elif prompt_ref:
             prompt = await prompts_manager.fork_prompt_by_prompt_ref(
+                project_id=request.state.project_id,
                 prompt_ref=prompt_ref,
                 config_params=config_params,
             )
         elif prompt:
             prompt = await prompts_manager.fork_prompt_by_prompt(
+                project_id=request.state.project_id,
                 prompt=prompt,
                 config_params=config_params,
             )
         elif env_ref:
             prompt = await prompts_manager.fork_prompt_by_env_ref(
+                project_id=request.state.project_id,
                 env_ref=env_ref,
                 config_params=config_params,
             )
@@ -668,16 +674,19 @@ async def commit_prompt(
 
         if prompt_ref:
             prompt = await prompts_manager.commit_prompt_by_prompt_ref(
+                project_id=request.state.project_id,
                 prompt_ref=prompt_ref,
                 config_params=config_params,
             )
         elif prompt:
             prompt = await prompts_manager.commit_prompt_by_prompt(
+                project_id=request.state.project_id,
                 prompt=prompt,
                 config_params=config_params,
             )
         elif env_ref:
             prompt = await prompts_manager.commit_prompt_by_env_ref(
+                project_id=request.state.project_id,
                 env_ref=env_ref,
                 config_params=config_params,
             )
@@ -717,14 +726,17 @@ async def deploy_prompt(
 
         if prompt_ref:
             environment = await prompts_manager.deploy_prompt_by_prompt_ref(
+                project_id=request.state.project_id,
                 prompt_ref=prompt_ref,
             )
         elif prompt:
             environment = await prompts_manager.deploy_prompt_by_prompt(
+                project_id=request.state.project_id,
                 prompt=prompt,
             )
         elif env_ref:
             environment = await prompts_manager.deploy_prompt_by_env_ref(
+                project_id=request.state.project_id,
                 env_ref=env_ref,
             )
 
