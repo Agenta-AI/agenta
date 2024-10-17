@@ -577,7 +577,7 @@ async def deploy_prompt_by_env_ref(
     if env_ref.commit_id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id,
+            revision_id=env_ref.commit_id.hex,
         )
     elif env_ref.id and env_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
@@ -591,22 +591,26 @@ async def deploy_prompt_by_env_ref(
 
     app_environment = await fetch_app_environment_by_id(
         # project_id=project_id,
-        environment_id=app_environment_revision.environment_id,
+        environment_id=app_environment_revision.environment_id.hex,
     )
 
     if not app_environment:
         return None
 
+    logger.warning(f"deploying to {app_environment.name}")
+    logger.warning(f"deploying {prompt_ref.id.hex}")
+    logger.warning({"user_uid": user_id})
+
     await deploy_to_environment(
         # project_id=project_id,
         environment_name=app_environment.name,
-        variant_id=prompt_ref.id,
-        user_org_data={"user_uid": user_id},
+        variant_id=prompt_ref.id.hex,
+        **{"user_uid": user_id},
     )
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=prompt_ref.id,
+        app_variant_id=prompt_ref.id.hex,
     )
 
     if not app_variant:
@@ -614,7 +618,7 @@ async def deploy_prompt_by_env_ref(
 
     app_environment_revision = await fetch_app_environment_revision_by_environment(
         project_id=project_id,
-        app_environment_id=app_environment_revision.environment_id,
+        app_environment_id=app_environment_revision.environment_id.hex,
         revision=app_variant.revision,
     )
 
@@ -623,7 +627,7 @@ async def deploy_prompt_by_env_ref(
 
     variant_base = await fetch_base_by_id(
         # project_id=project_id,
-        base_id=app_variant.base_id,
+        base_id=app_variant.base_id.hex,
     )
 
     if not variant_base:
@@ -631,7 +635,7 @@ async def deploy_prompt_by_env_ref(
 
     deployment = await get_deployment_by_id(
         # project_id=project_id,
-        deployment_id=variant_base.deployment_id,
+        deployment_id=variant_base.deployment_id.hex,
     )
 
     if not deployment:
