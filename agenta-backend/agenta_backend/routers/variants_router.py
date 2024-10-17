@@ -652,7 +652,7 @@ async def fork_prompt(
 )
 async def commit_prompt(
     request: Request,
-    prompt: Optional[PromptRequestModel] = None,
+    prompt: PromptRequestModel,
 ):
     try:
 

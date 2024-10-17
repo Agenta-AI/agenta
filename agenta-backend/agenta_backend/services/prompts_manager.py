@@ -514,7 +514,7 @@ async def commit_prompt(
     if prompt.ref.commit_id:
         app_variant_revision = await fetch_app_variant_revision_by_id(
             # project_id=project_id,
-            variant_revision_id=prompt.ref.commit_id,
+            variant_revision_id=prompt.ref.commit_id.hex,
         )
 
         if not app_variant_revision:
@@ -523,7 +523,7 @@ async def commit_prompt(
         await update_variant_parameters(
             project_id=project_id,
             user_uid=user_id,
-            app_variant_id=app_variant_revision.variant_id,
+            app_variant_id=app_variant_revision.variant_id.hex,
             parameters=prompt.params,
         )
 
@@ -531,13 +531,13 @@ async def commit_prompt(
         await update_variant_parameters(
             project_id=project_id,
             user_uid=user_id,
-            app_variant_id=prompt.ref.id,
+            app_variant_id=prompt.ref.id.hex,
             parameters=prompt.params,
         )
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=prompt.id,
+        app_variant_id=prompt.ref.id.hex,
     )
 
     if not app_variant:
@@ -545,7 +545,7 @@ async def commit_prompt(
 
     app_variant_revision = await fetch_app_variant_revision_by_variant(
         project_id=project_id,
-        app_variant_id=prompt.id,
+        app_variant_id=prompt.ref.id.hex,
         revision=app_variant.revision,
     )
 

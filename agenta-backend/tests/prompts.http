@@ -114,3 +114,32 @@ Content-Type: application/json
         "commit_id": null
     }
 }
+
+###
+
+# @name commit_prompt
+POST {{base_url}}/commit
+Content-Type: application/json
+
+{ 
+    "ref": {
+        "id": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
+        "version": 1,
+        "commit_id": "01929c2a-7cbc-7684-9c86-c502ce1a42f5"
+    },
+    "url": "http://localhost/01929c11-6d6a-78c8-985c-f84ea136dac2/test/app",
+    "params": {
+        "model": "gpt-3.5-turbo",
+        "top_p": 1.0,
+        "force_json": 0,
+        "max_tokens": -1,
+        "prompt_user": "What is the capital of {country}?",
+        "temperature": 1.0,
+        "prompt_system": "You are an expert in geography.",
+        "presence_penalty": 0.0,
+        "frequence_penalty": 0.0
+    },
+    "app_id": "01929c13-636b-79cd-b087-a652649bba75",
+    "env_ref": null,
+    "env_name": null
+}
