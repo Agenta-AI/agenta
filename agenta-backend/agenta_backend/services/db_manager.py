@@ -276,6 +276,38 @@ async def fetch_app_variant_revision_by_variant(
         return app_variant_revision
 
 
+async def fetch_app_environment_revision_by_environment(
+    app_environment_id: str, project_id: str, revision: int
+) -> AppEnvironmentRevisionDB:
+    """Fetches app environment revision by environment id and revision
+
+    Args:
+        app_environment_id: str
+        revision: str
+
+    Returns:
+        AppEnvironmentRevisionDB
+    """
+
+    assert app_environment_id is not None, "app_environment_id cannot be None"
+    assert revision is not None, "revision cannot be None"
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppEnvironmentRevisionDB).filter_by(
+                environment_id=uuid.UUID(app_environment_id),
+                project_id=uuid.UUID(project_id),
+                revision=revision,
+            )
+        )
+        app_environment_revision = result.scalars().first()
+        if app_environment_revision is None:
+            raise Exception(
+                f"app environment revision  for app_environment {app_environment_id} and revision {revision} not found"
+            )
+        return app_environment_revision
+
+
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.

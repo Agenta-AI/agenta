@@ -8,6 +8,8 @@ from agenta_backend.services.db_manager import (
     fetch_base_by_id,
     get_deployment_by_id,
     fetch_app_environment_by_id,
+    fetch_app_environment_revision,
+    fetch_app_environment_revision_by_environment,
     fetch_app_environment_revision_by_app_variant_revision_id,
 )
 
@@ -44,7 +46,6 @@ async def fetch_prompt_by_prompt_ref(
     project_id: str,
     prompt_ref: ReferenceDTO,
 ) -> Optional[PromptDTO]:
-
     app_variant_revision = None
     if prompt_ref.commit_id:
         app_variant_revision = await fetch_app_variant_revision_by_id(
@@ -118,7 +119,74 @@ async def fetch_prompt_by_env_ref(
     project_id: str,
     env_ref: ReferenceDTO,
 ) -> Optional[PromptDTO]:
-    prompt = PromptDTO()
+    app_environment_revision = None
+    if env_ref.commit_id:
+        app_environment_revision = await fetch_app_environment_revision(
+            # project_id=project_id,
+            revision_id=env_ref.commit_id,
+        )
+    elif env_ref.id and env_ref.version:
+        app_environment_revision = await fetch_app_environment_revision_by_environment(
+            # project_id=project_id,
+            environment_id=env_ref.id,
+            revision=env_ref.version,
+        )
+
+    if not app_environment_revision:
+        return None
+
+    app_variant_revision = await fetch_app_variant_revision_by_id(
+        # project_id=project_id,
+        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id,
+    )
+
+    if not app_variant_revision:
+        return None
+
+    variant_base = await fetch_base_by_id(
+        project_id=project_id,
+        base_id=app_variant_revision.base_id,
+    )
+
+    if not variant_base:
+        return None
+
+    deployment = await get_deployment_by_id(
+        project_id=project_id,
+        deployment_id=variant_base.deployment_id,
+    )
+
+    if not deployment:
+        return None
+
+    app_environment = None
+    if not app_environment_revision:
+        app_environment = await fetch_app_environment_by_id(
+            # project_id=project_id,
+            environment_id=app_environment_revision.environment_id,
+        )
+
+    prompt = PromptDTO(
+        id=app_variant_revision.variant_id,
+        ref=ReferenceDTO(
+            id=app_variant_revision.variant_id,
+            version=app_variant_revision.revision,
+            commit_id=app_variant_revision.id,
+        ),
+        url=deployment.uri,
+        params=app_variant_revision.config_parameters,
+        app_id=variant_base.app_id,
+        env_ref=(
+            ReferenceDTO(
+                id=app_environment_revision.environment_id,
+                version=app_environment_revision.revision,
+                commit_id=app_environment_revision.id,
+            )
+            if app_environment_revision
+            else None
+        ),
+        env_name=app_environment.name if app_environment else None,
+    )
 
     return prompt
 
