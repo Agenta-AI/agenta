@@ -1,0 +1,61 @@
+
+
+@host = http://localhost
+@base_url = {{host}}/api/variants/as/prompts
+
+###
+
+# @name fetch_prompts_by_prompt_ref_1
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "prompt_ref": {
+        "commit_id": "01929b78-7b25-7a53-8fae-0d24ab41027f",
+        "id": null,
+        "version": null
+    }
+}
+
+###
+
+# @name fetch_prompts_by_prompt_ref_2
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "prompt_ref": {
+        "id": "01929b78-6abf-7873-a32b-659fc2efcadd",
+        "version": 3,
+        "commit_id": null
+    }
+}
+
+###
+
+# @name fetch_prompts_by_env_ref_1
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "env_ref": {
+        "commit_id": "01929b61-af91-73c3-a19b-3db06230b37a",
+        "id": null,
+        "version": null
+    }
+}
+
+###
+
+# @name fetch_prompts_by_env_ref_2
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "env_ref": {
+        "id": "01929b61-a7c0-77e5-89fd-58044eeb0744",
+        "version": 1,
+        "commit_id": null
+    }
+}
+

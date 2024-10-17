@@ -1,6 +1,8 @@
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 import logging
+from uuid import UUID
+from traceback import format_exc
 
 from agenta_backend.services.db_manager import (
     get_user_with_id,
@@ -28,19 +30,18 @@ logger.setLevel(logging.DEBUG)
 
 
 class ReferenceDTO(BaseModel):
-    id: Optional[str]
-    version: Optional[str]
-    commit_id: Optional[str]
+    id: Optional[UUID]
+    version: Optional[int]
+    commit_id: Optional[UUID]
 
 
 class PromptDTO(BaseModel):
-    id: str
     ref: ReferenceDTO
     # ---
     url: str
     params: Dict[str, Any]
     # ---
-    app_id: str
+    app_id: UUID
     # ---
     env_ref: Optional[ReferenceDTO]
     env_name: Optional[str]
@@ -53,52 +54,88 @@ async def fetch_prompt_by_prompt_ref(
     project_id: str,
     prompt_ref: ReferenceDTO,
 ) -> Optional[PromptDTO]:
+    logger.warning(f"fetch_prompt_by_prompt_ref: {prompt_ref}")
+
+    logger.warning("app_variant_revision")
     app_variant_revision = None
     if prompt_ref.commit_id:
-        app_variant_revision = await fetch_app_variant_revision_by_id(
-            # project_id=project_id,
-            variant_revision_id=prompt_ref.commit_id,
-        )
+        try:
+            app_variant_revision = await fetch_app_variant_revision_by_id(
+                # project_id=project_id,
+                variant_revision_id=prompt_ref.commit_id.hex,
+            )
+        except:
+            logger.error(format_exc())
+
     elif prompt_ref.id and prompt_ref.version:
-        app_variant_revision = await fetch_app_variant_revision_by_variant(
-            project_id=project_id,
-            app_variant_id=prompt_ref.id,
-            revision=prompt_ref.version,
-        )
+        try:
+            app_variant_revision = await fetch_app_variant_revision_by_variant(
+                project_id=project_id,
+                app_variant_id=prompt_ref.id.hex,
+                revision=prompt_ref.version,
+            )
+        except:
+            logger.error(format_exc())
 
     if not app_variant_revision:
         return None
+    logger.warning(app_variant_revision.id)
+    logger.warning(app_variant_revision.base_id)
 
-    variant_base = await fetch_base_by_id(
-        project_id=project_id,
-        base_id=app_variant_revision.base_id,
-    )
+    logger.warning("variant_base")
+    variant_base = None
+    try:
+        variant_base = await fetch_base_by_id(
+            # project_id=project_id,
+            base_id=app_variant_revision.base_id.hex,
+        )
+    except:
+        logger.error(format_exc())
 
     if not variant_base:
         return None
+    logger.warning(variant_base.deployment_id)
 
-    deployment = await get_deployment_by_id(
-        project_id=project_id,
-        deployment_id=variant_base.deployment_id,
-    )
+    logger.warning("deployment")
+    deployment = None
+    try:
+        deployment = await get_deployment_by_id(
+            # project_id=project_id,
+            deployment_id=variant_base.deployment_id.hex,
+        )
+    except:
+        logger.error(format_exc())
 
     if not deployment:
         return None
+    logger.warning(deployment.uri)
 
-    app_environment_revision = await fetch_app_environment_revision_by_app_variant_revision_id(
-        # project_id=project_id,
-        app_variant_revision_id=app_variant_revision.id,
-    )
-
-    app_environment = None
-    if not app_environment_revision:
-        app_environment = await fetch_app_environment_by_id(
+    logger.warning("app_environment_revision")
+    app_environment_revision = None
+    try:
+        app_environment_revision = await fetch_app_environment_revision_by_app_variant_revision_id(
             # project_id=project_id,
-            environment_id=app_environment_revision.environment_id,
+            app_variant_revision_id=app_variant_revision.id.hex,
         )
+    except:
+        logger.error(format_exc())
 
+    logger.warning("app_environment")
+    app_environment = None
+    if app_environment_revision:
+        logger.warning(app_environment_revision.environment_id)
+
+        try:
+            app_environment = await fetch_app_environment_by_id(
+                # project_id=project_id,
+                environment_id=app_environment_revision.environment_id.hex,
+            )
+
+        except:
+            logger.error(format_exc())
+
+    logger.warning("prompt")
     prompt = PromptDTO(
-        id=app_variant_revision.variant_id,
         ref=ReferenceDTO(
             id=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
@@ -119,6 +156,7 @@ async def fetch_prompt_by_prompt_ref(
         env_name=app_environment.name if app_environment else None,
     )
 
+    print(prompt)
     return prompt
 
 
@@ -130,12 +168,12 @@ async def fetch_prompt_by_env_ref(
     if env_ref.commit_id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id,
+            revision_id=env_ref.commit_id.hex,
         )
     elif env_ref.id and env_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
-            # project_id=project_id,
-            environment_id=env_ref.id,
+            project_id=project_id,
+            app_environment_id=env_ref.id.hex,
             revision=env_ref.version,
         )
 
@@ -144,23 +182,23 @@ async def fetch_prompt_by_env_ref(
 
     app_variant_revision = await fetch_app_variant_revision_by_id(
         # project_id=project_id,
-        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id,
+        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id.hex,
     )
 
     if not app_variant_revision:
         return None
 
     variant_base = await fetch_base_by_id(
-        project_id=project_id,
-        base_id=app_variant_revision.base_id,
+        # project_id=project_id,
+        base_id=app_variant_revision.base_id.hex,
     )
 
     if not variant_base:
         return None
 
     deployment = await get_deployment_by_id(
-        project_id=project_id,
-        deployment_id=variant_base.deployment_id,
+        # project_id=project_id,
+        deployment_id=variant_base.deployment_id.hex,
     )
 
     if not deployment:
@@ -170,7 +208,7 @@ async def fetch_prompt_by_env_ref(
     if not app_environment_revision:
         app_environment = await fetch_app_environment_by_id(
             # project_id=project_id,
-            environment_id=app_environment_revision.environment_id,
+            environment_id=app_environment_revision.environment_id.hex,
         )
 
     prompt = PromptDTO(
@@ -239,7 +277,7 @@ async def fork_prompt_by_prompt_ref(
         return None
 
     variant_base = await fetch_base_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         base_id=app_variant_revision.base_id,
     )
 
@@ -247,7 +285,7 @@ async def fork_prompt_by_prompt_ref(
         return None
 
     deployment = await get_deployment_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         deployment_id=variant_base.deployment_id,
     )
 
@@ -347,7 +385,7 @@ async def fork_prompt_by_env_ref(
         return None
 
     variant_base = await fetch_base_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         base_id=app_variant_revision.base_id,
     )
 
@@ -355,7 +393,7 @@ async def fork_prompt_by_env_ref(
         return None
 
     deployment = await get_deployment_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         deployment_id=variant_base.deployment_id,
     )
 
@@ -544,7 +582,7 @@ async def deploy_prompt_by_env_ref(
         return None
 
     variant_base = await fetch_base_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         base_id=app_variant.base_id,
     )
 
@@ -552,7 +590,7 @@ async def deploy_prompt_by_env_ref(
         return None
 
     deployment = await get_deployment_by_id(
-        project_id=project_id,
+        # project_id=project_id,
         deployment_id=variant_base.deployment_id,
     )
 
