@@ -664,38 +664,15 @@ async def fork_prompt(
 )
 async def commit_prompt(
     request: Request,
-    config_params: Optional[Dict[str, Any]] = None,
-    prompt_ref: Optional[ReferenceRequestModel] = None,
     prompt: Optional[PromptRequestModel] = None,
-    env_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if not prompt_ref and not prompt and not env_ref:
-            raise HTTPException(
-                status_code=400,
-                detail="Either prompt_ref, prompt, or env_ref must be provided.",
-            )
 
-        prompt = None
-
-        if prompt_ref:
-            prompt = await prompts_manager.commit_prompt_by_prompt_ref(
-                project_id=request.state.project_id,
-                prompt_ref=prompt_ref,
-                config_params=config_params,
-            )
-        elif prompt:
-            prompt = await prompts_manager.commit_prompt_by_prompt(
-                project_id=request.state.project_id,
-                prompt=prompt,
-                config_params=config_params,
-            )
-        elif env_ref:
-            prompt = await prompts_manager.commit_prompt_by_env_ref(
-                project_id=request.state.project_id,
-                env_ref=env_ref,
-                config_params=config_params,
-            )
+        prompt = await prompts_manager.commit_prompt(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            prompt=prompt,
+        )
 
         if not prompt:
             raise HTTPException(

@@ -16,6 +16,7 @@ from agenta_backend.services.db_manager import (
     fetch_app_environment_revision_by_environment,
     fetch_app_environment_revision_by_app_variant_revision_id,
     create_new_app_variant,
+    update_variant_parameters,
 )
 
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isCloudEE, isOss
@@ -429,32 +430,60 @@ async def fork_prompt_by_app_id_and_env_name(
 # - COMMIT
 
 
-async def commit_prompt_by_prompt_ref(
+async def commit_prompt(
     project_id: str,
-    prompt_ref: ReferenceDTO,
-    config_params: Optional[Dict[str, Any]] = None,
-) -> Optional[PromptDTO]:
-    prompt = PromptDTO()
-
-    return prompt
-
-
-async def commit_prompt_by_prompt(
-    project_id: str,
+    user_id: str,
     prompt: PromptDTO,
-    config_params: Optional[Dict[str, Any]] = None,
 ) -> Optional[PromptDTO]:
-    prompt = PromptDTO()
+    if prompt.ref.commit_id:
+        app_variant_revision = await fetch_app_variant_revision_by_id(
+            # project_id=project_id,
+            variant_revision_id=prompt.ref.commit_id,
+        )
 
-    return prompt
+        if not app_variant_revision:
+            return None
 
+        await update_variant_parameters(
+            project_id=project_id,
+            user_uid=user_id,
+            app_variant_id=app_variant_revision.variant_id,
+            parameters=prompt.params,
+        )
 
-async def commit_prompt_by_env_ref(
-    project_id: str,
-    env_ref: ReferenceDTO,
-    config_params: Optional[Dict[str, Any]] = None,
-) -> Optional[PromptDTO]:
-    prompt = PromptDTO()
+    elif prompt.ref.id:
+        await update_variant_parameters(
+            project_id=project_id,
+            user_uid=user_id,
+            app_variant_id=prompt.ref.id,
+            parameters=prompt.params,
+        )
+
+    app_variant = await fetch_app_variant_by_id(
+        # project_id=project_id,
+        app_variant_id=prompt.id,
+    )
+
+    if not app_variant:
+        return None
+
+    app_variant_revision = await fetch_app_variant_revision_by_variant(
+        project_id=project_id,
+        app_variant_id=prompt.id,
+        revision=app_variant.revision,
+    )
+
+    if not app_variant_revision:
+        return None
+
+    prompt = await fetch_prompt_by_prompt_ref(
+        project_id=project_id,
+        prompt_ref=ReferenceDTO(
+            id=app_variant_revision.variant_id,
+            version=app_variant_revision.revision,
+            commit_id=app_variant_revision.id,
+        ),
+    )
 
     return prompt
 
