@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, Union, List, Dict
 
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
@@ -11,6 +11,13 @@ from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import (
     app_manager,
     db_manager,
+    prompts_manager,
+)
+
+from agenta_backend.services.prompts_manager import (
+    ReferenceDTO,
+    PromptDTO,
+    EnvironmentDTO,
 )
 
 if isCloudEE():
@@ -520,3 +527,231 @@ async def get_variant_revision(
         logger.exception(f"An error occurred: {str(e)}")
         status_code = e.status_code if hasattr(e, "status_code") else 500
         raise HTTPException(status_code=status_code, detail=str(e))
+
+
+### --- PROMPTS --- ###
+
+
+class ReferenceRequestModel(ReferenceDTO):
+    pass
+
+
+class PromptRequestModel(PromptDTO):
+    pass
+
+
+class PromptResponseModel(PromptDTO):
+    pass
+
+
+class EnvironmentResponseModel(EnvironmentDTO):
+    pass
+
+
+@router.get(
+    "/as_prompt/",
+    operation_id="fetch_prompt",
+    response_model=PromptResponseModel,
+)
+async def fetch_prompt(
+    request: Request,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    environment: Optional[EnvironmentResponseModel] = None,
+):
+    try:
+        if not prompt_ref and not environment_ref and not environment:
+            raise HTTPException(
+                status_code=400,
+                detail="Either prompt_ref or environment_ref must be provided.",
+            )
+
+        prompt = None
+
+        if prompt_ref:
+            prompt = await prompts_manager.fetch_prompt_by_prompt_ref(
+                prompt_ref,
+            )
+        elif environment_ref:
+            prompt = await prompts_manager.fetch_prompt_by_environment_ref(
+                environment_ref,
+            )
+        elif environment:
+            prompt = await prompts_manager.fetch_prompt_by_environment(
+                environment,
+            )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as_prompt/fork/",
+    operation_id="fork_prompt",
+    response_model=PromptResponseModel,
+)
+async def fork_prompt(
+    request: Request,
+    config_params: Optional[Dict[str, Any]] = None,
+    app_id: Optional[str] = None,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    prompt: Optional[PromptRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    environment: Optional[EnvironmentResponseModel] = None,
+):
+    try:
+        if (
+            not app_id
+            and not prompt_ref
+            and not prompt
+            and not environment_ref
+            and not environment
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Either app_id, prompt_ref, prompt, environment_ref, or environment must be provided.",
+            )
+
+        prompt = None
+
+        if app_id:
+            prompt = await prompts_manager.fork_prompt_by_app_id(
+                app_id=app_id,
+                config_params=config_params,
+            )
+        elif prompt_ref:
+            prompt = await prompts_manager.fork_prompt_by_prompt_ref(
+                prompt_ref=prompt_ref,
+                config_params=config_params,
+            )
+        elif prompt:
+            prompt = await prompts_manager.fork_prompt_by_prompt(
+                prompt=prompt,
+                config_params=config_params,
+            )
+        elif environment_ref:
+            prompt = await prompts_manager.fork_prompt_by_environment_ref(
+                environment_ref=environment_ref,
+                config_params=config_params,
+            )
+        elif environment:
+            prompt = await prompts_manager.fork_prompt_by_environment(
+                environment=environment,
+                config_params=config_params,
+            )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as_prompt/commit/",
+    operation_id="commit_prompt",
+    response_model=PromptResponseModel,
+)
+async def commit_prompt(
+    request: Request,
+    config_params: Optional[Dict[str, Any]] = None,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    prompt: Optional[PromptRequestModel] = None,
+):
+    try:
+        if not prompt_ref and not prompt:
+            raise HTTPException(
+                status_code=400,
+                detail="Either prompt_ref or prompt must be provided.",
+            )
+
+        prompt = None
+
+        if prompt_ref:
+            prompt = await prompts_manager.commit_prompt_by_prompt_ref(
+                prompt_ref=prompt_ref,
+                config_params=config_params,
+            )
+        elif prompt:
+            prompt = await prompts_manager.commit_prompt_by_prompt(
+                prompt=prompt,
+                config_params=config_params,
+            )
+
+        if not prompt:
+            raise HTTPException(
+                status_code=404,
+                detail="Prompt not found.",
+            )
+
+        return prompt
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/as_prompt/deploy/",
+    operation_id="deploy_prompt",
+    response_model=EnvironmentResponseModel,
+)
+async def deploy_prompt(
+    request: Request,
+    prompt_ref: Optional[ReferenceRequestModel] = None,
+    prompt: Optional[PromptRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    environment: Optional[EnvironmentResponseModel] = None,
+):
+    try:
+        if not prompt_ref and not prompt and not environment_ref and not environment:
+            raise HTTPException(
+                status_code=400,
+                detail="Either prompt_ref, prompt, environment_ref, or environment must be provided.",
+            )
+
+        environment = None
+
+        if prompt_ref:
+            environment = await prompts_manager.deploy_prompt_by_prompt_ref(
+                prompt_ref=prompt_ref,
+            )
+        elif prompt:
+            environment = await prompts_manager.deploy_prompt_by_prompt(
+                prompt=prompt,
+            )
+        elif environment_ref:
+            environment = await prompts_manager.deploy_prompt_by_environment_ref(
+                environment_ref=environment_ref,
+            )
+        elif environment:
+            environment = await prompts_manager.deploy_prompt_by_environment(
+                environment=environment,
+            )
+
+        if not environment:
+            raise HTTPException(
+                status_code=404,
+                detail="Environment not found.",
+            )
+
+        return environment
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
