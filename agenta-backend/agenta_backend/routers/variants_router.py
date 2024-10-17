@@ -609,37 +609,23 @@ async def fork_prompt(
     config_params: Optional[Dict[str, Any]] = None,
     app_id: Optional[str] = None,
     prompt_ref: Optional[ReferenceRequestModel] = None,
-    prompt: Optional[PromptRequestModel] = None,
     env_ref: Optional[ReferenceRequestModel] = None,
+    env_name: Optional[str] = None,
 ):
     try:
-        if not app_id and not prompt_ref and not prompt and not env_ref:
+        if not app_id and not prompt_ref and not env_ref:
             raise HTTPException(
                 status_code=400,
-                detail="Either app_id, prompt_ref, prompt, or env_ref must be provided.",
+                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
             )
 
         prompt = None
 
-        if app_id and config_params:
-            prompt = await prompts_manager.fork_prompt_by_app_id(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                app_id=app_id,
-                config_params=config_params,
-            )
-        elif prompt_ref:
+        if prompt_ref:
             prompt = await prompts_manager.fork_prompt_by_prompt_ref(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 prompt_ref=prompt_ref,
-                config_params=config_params,
-            )
-        elif prompt:
-            prompt = await prompts_manager.fork_prompt_by_prompt(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                prompt=prompt,
                 config_params=config_params,
             )
         elif env_ref:
@@ -647,6 +633,14 @@ async def fork_prompt(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 env_ref=env_ref,
+                config_params=config_params,
+            )
+        elif app_id and env_name:
+            prompt = await prompts_manager.fork_prompt_by_app_id_and_env_name(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                app_id=app_id,
+                env_name=env_name,
                 config_params=config_params,
             )
 
