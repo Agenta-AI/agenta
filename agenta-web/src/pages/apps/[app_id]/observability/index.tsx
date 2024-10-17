@@ -3,15 +3,18 @@ import StatusRenderer from "@/components/pages/observability/components/StatusRe
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import Filters from "@/components/pages/observability/TableHeader/Filters"
+import Sort from "@/components/pages/observability/TableHeader/Sort"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {findTraceNodeById} from "@/lib/helpers/observability_helpers"
+import {getNestedProperties, getTimeRangeUnit, matcheFilterCriteria} from "@/lib/helpers/utils"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {JSSTheme} from "@/lib/Types"
+import {Filter, JSSTheme} from "@/lib/Types"
 import {observabilityTransformer} from "@/services/observability/core"
 import {_AgentaRootsResponse, AgentaNodeDTO} from "@/services/observability/types"
-import {Table, Typography} from "antd"
+import {Input, Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useCallback, useMemo, useState} from "react"
@@ -30,7 +33,20 @@ interface Props {}
 const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filterTrace, setFilterTrace] = useState<Filter>({} as Filter)
+    const [sortTrace, setSortTrace] = useState("14 days")
     const {traces} = useTraces()
+
+    const filterColumns = [
+        {column: "inputs", mapping: "data.inputs.topic"},
+        {column: "outputs", mapping: "data.outputs"},
+        {column: "status", mapping: "status.code"},
+        {column: "costs", mapping: "metrics.acc.costs.total"},
+        {column: "tokens", mapping: "metrics.acc.tokens.total"},
+        {column: "node name", mapping: "node.name"},
+        {column: "node type", mapping: "node.type"},
+    ]
 
     // const activeTrace = useMemo(
     //     () => traces?.find((item) => item.root.id === selectedTraceId) ?? null,
@@ -55,6 +71,44 @@ const ObservabilityDashboard = ({}: Props) => {
     //     },
     //     [activeTrace],
     // )
+
+    const filteredTrace = useMemo(() => {
+        let filtered = traces
+
+        if (filterTrace.keyword) {
+            const {column, condition, keyword} = filterTrace
+
+            filtered = filtered?.filter((trace) => {
+                const propertyValue = getNestedProperties(trace, column)
+                return matcheFilterCriteria({data: propertyValue, condition, keyword})
+            })
+        }
+
+        if (sortTrace) {
+            const now = dayjs()
+            const {duration, unit} = getTimeRangeUnit(sortTrace)
+
+            if (duration == Infinity) {
+                return filtered
+            }
+
+            filtered = filtered?.filter((item) => {
+                const itemDate = dayjs(item.lifecycle.created_at)
+
+                return itemDate.isAfter(now.subtract(duration, unit))
+            })
+        }
+
+        if (searchTerm) {
+            filtered = filtered?.filter((item) =>
+                item.data?.outputs.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+
+        return filtered
+    }, [searchTerm, traces, sortTrace, filterTrace])
+
+    console.log(filteredTrace)
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
         {
@@ -137,11 +191,21 @@ const ObservabilityDashboard = ({}: Props) => {
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
-
+            <Space>
+                <Input.Search
+                    placeholder="Search"
+                    className="w-[400px]"
+                    allowClear
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Sort setSort={setSortTrace} sort={sortTrace} />
+                <Filters setFilterValue={setFilterTrace} columns={filterColumns} />
+            </Space>
             {traces?.length ? (
                 <Table
                     columns={columns}
-                    dataSource={traces}
+                    dataSource={filteredTrace}
                     bordered
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({
