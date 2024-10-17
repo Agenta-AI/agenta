@@ -556,14 +556,13 @@ class EnvironmentResponseModel(EnvironmentDTO):
 async def fetch_prompt(
     request: Request,
     prompt_ref: Optional[ReferenceRequestModel] = None,
-    environment_ref: Optional[ReferenceRequestModel] = None,
-    environment: Optional[EnvironmentResponseModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if not prompt_ref and not environment_ref and not environment:
+        if not prompt_ref and not env_ref:
             raise HTTPException(
                 status_code=400,
-                detail="Either prompt_ref or environment_ref must be provided.",
+                detail="Either prompt_ref or env_ref must be provided.",
             )
 
         prompt = None
@@ -572,13 +571,9 @@ async def fetch_prompt(
             prompt = await prompts_manager.fetch_prompt_by_prompt_ref(
                 prompt_ref,
             )
-        elif environment_ref:
-            prompt = await prompts_manager.fetch_prompt_by_environment_ref(
-                environment_ref,
-            )
-        elif environment:
-            prompt = await prompts_manager.fetch_prompt_by_environment(
-                environment,
+        elif env_ref:
+            prompt = await prompts_manager.fetch_prompt_by_env_ref(
+                env_ref,
             )
 
         if not prompt:
@@ -605,25 +600,18 @@ async def fork_prompt(
     app_id: Optional[str] = None,
     prompt_ref: Optional[ReferenceRequestModel] = None,
     prompt: Optional[PromptRequestModel] = None,
-    environment_ref: Optional[ReferenceRequestModel] = None,
-    environment: Optional[EnvironmentResponseModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if (
-            not app_id
-            and not prompt_ref
-            and not prompt
-            and not environment_ref
-            and not environment
-        ):
+        if not app_id and not prompt_ref and not prompt and not env_ref:
             raise HTTPException(
                 status_code=400,
-                detail="Either app_id, prompt_ref, prompt, environment_ref, or environment must be provided.",
+                detail="Either app_id, prompt_ref, prompt, or env_ref must be provided.",
             )
 
         prompt = None
 
-        if app_id:
+        if app_id and config_params:
             prompt = await prompts_manager.fork_prompt_by_app_id(
                 app_id=app_id,
                 config_params=config_params,
@@ -638,14 +626,9 @@ async def fork_prompt(
                 prompt=prompt,
                 config_params=config_params,
             )
-        elif environment_ref:
-            prompt = await prompts_manager.fork_prompt_by_environment_ref(
-                environment_ref=environment_ref,
-                config_params=config_params,
-            )
-        elif environment:
-            prompt = await prompts_manager.fork_prompt_by_environment(
-                environment=environment,
+        elif env_ref:
+            prompt = await prompts_manager.fork_prompt_by_env_ref(
+                env_ref=env_ref,
                 config_params=config_params,
             )
 
@@ -672,12 +655,13 @@ async def commit_prompt(
     config_params: Optional[Dict[str, Any]] = None,
     prompt_ref: Optional[ReferenceRequestModel] = None,
     prompt: Optional[PromptRequestModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if not prompt_ref and not prompt:
+        if not prompt_ref and not prompt and not env_ref:
             raise HTTPException(
                 status_code=400,
-                detail="Either prompt_ref or prompt must be provided.",
+                detail="Either prompt_ref, prompt, or env_ref must be provided.",
             )
 
         prompt = None
@@ -690,6 +674,11 @@ async def commit_prompt(
         elif prompt:
             prompt = await prompts_manager.commit_prompt_by_prompt(
                 prompt=prompt,
+                config_params=config_params,
+            )
+        elif env_ref:
+            prompt = await prompts_manager.commit_prompt_by_env_ref(
+                env_ref=env_ref,
                 config_params=config_params,
             )
 
@@ -715,14 +704,13 @@ async def deploy_prompt(
     request: Request,
     prompt_ref: Optional[ReferenceRequestModel] = None,
     prompt: Optional[PromptRequestModel] = None,
-    environment_ref: Optional[ReferenceRequestModel] = None,
-    environment: Optional[EnvironmentResponseModel] = None,
+    env_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if not prompt_ref and not prompt and not environment_ref and not environment:
+        if not prompt_ref and not prompt and not env_ref:
             raise HTTPException(
                 status_code=400,
-                detail="Either prompt_ref, prompt, environment_ref, or environment must be provided.",
+                detail="Either prompt_ref, prompt, or env_ref must be provided.",
             )
 
         environment = None
@@ -735,13 +723,9 @@ async def deploy_prompt(
             environment = await prompts_manager.deploy_prompt_by_prompt(
                 prompt=prompt,
             )
-        elif environment_ref:
-            environment = await prompts_manager.deploy_prompt_by_environment_ref(
-                environment_ref=environment_ref,
-            )
-        elif environment:
-            environment = await prompts_manager.deploy_prompt_by_environment(
-                environment=environment,
+        elif env_ref:
+            environment = await prompts_manager.deploy_prompt_by_env_ref(
+                env_ref=env_ref,
             )
 
         if not environment:
