@@ -14,12 +14,6 @@ from agenta_backend.services import (
     prompts_manager,
 )
 
-from agenta_backend.services.prompts_manager import (
-    ReferenceDTO,
-    PromptDTO,
-    EnvironmentDTO,
-)
-
 if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
@@ -531,6 +525,8 @@ async def get_variant_revision(
 
 ### --- PROMPTS --- ###
 
+from agenta_backend.services.prompts_manager import ReferenceDTO, PromptDTO
+
 
 class ReferenceRequestModel(ReferenceDTO):
     pass
@@ -544,12 +540,8 @@ class PromptResponseModel(PromptDTO):
     pass
 
 
-class EnvironmentResponseModel(EnvironmentDTO):
-    pass
-
-
 @router.get(
-    "/as_prompt/",
+    "/as/prompts/fetch",
     operation_id="fetch_prompt",
     response_model=PromptResponseModel,
 )
@@ -561,7 +553,7 @@ async def fetch_prompt(
     env_name: Optional[str] = None,
 ):
     try:
-        if not app_id and not prompt_ref and not env_ref and not env_name:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
             raise HTTPException(
                 status_code=400,
                 detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
@@ -600,7 +592,7 @@ async def fetch_prompt(
 
 
 @router.post(
-    "/as_prompt/fork/",
+    "/as/prompts/fork/",
     operation_id="fork_prompt",
     response_model=PromptResponseModel,
 )
@@ -612,7 +604,7 @@ async def fork_prompt(
     env_name: Optional[str] = None,
 ):
     try:
-        if not app_id and not prompt_ref and not env_ref:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
             raise HTTPException(
                 status_code=400,
                 detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
@@ -654,7 +646,7 @@ async def fork_prompt(
 
 
 @router.post(
-    "/as_prompt/commit/",
+    "/as/prompts/commit/",
     operation_id="commit_prompt",
     response_model=PromptResponseModel,
 )
@@ -684,9 +676,9 @@ async def commit_prompt(
 
 
 @router.post(
-    "/as_prompt/deploy/",
+    "/as/prompts/deploy/",
     operation_id="deploy_prompt",
-    response_model=EnvironmentResponseModel,
+    response_model=PromptResponseModel,
 )
 async def deploy_prompt(
     request: Request,
@@ -696,7 +688,7 @@ async def deploy_prompt(
     env_name: Optional[str] = None,
 ):
     try:
-        if not app_id and not prompt_ref and not env_ref:
+        if not (app_id and env_name) and not prompt_ref and not env_ref:
             raise HTTPException(
                 status_code=400,
                 detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
