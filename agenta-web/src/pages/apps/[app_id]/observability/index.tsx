@@ -31,7 +31,6 @@ const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const {traces} = useTraces()
-    console.log(traces)
 
     // const activeTrace = useMemo(
     //     () => traces?.find((item) => item.root.id === selectedTraceId) ?? null,
