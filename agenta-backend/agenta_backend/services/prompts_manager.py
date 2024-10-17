@@ -19,18 +19,16 @@ class ReferenceDTO(BaseModel):
 class PromptDTO(BaseModel):
     id: str
     ref: ReferenceDTO
-    app_id: str
     # ---
     url: str
     params: Dict[str, Any]
-
-
-class EnvironmentDTO(BaseModel):
-    id: str
-    ref: ReferenceDTO
+    # ---
     app_id: str
     # ---
-    prompt: PromptDTO
+    env_ref: Optional[ReferenceDTO]
+
+
+# - FETCH
 
 
 async def fetch_prompt_by_prompt_ref(
@@ -41,26 +39,21 @@ async def fetch_prompt_by_prompt_ref(
     return prompt
 
 
-async def fetch_prompt_by_environment_ref(
-    environment_ref: ReferenceDTO,
+async def fetch_prompt_by_env_ref(
+    env_ref: ReferenceDTO,
 ) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
 
 
-async def fetch_prompt_by_environment(
-    environment: EnvironmentDTO,
-) -> Optional[PromptDTO]:
-    prompt = PromptDTO()
-
-    return prompt
+# - FORK
 
 
 async def fork_prompt_by_app_id(
     app_id: str,
-    config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+    config_params: Dict[str, Any] = None,
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
@@ -69,7 +62,7 @@ async def fork_prompt_by_app_id(
 async def fork_prompt_by_prompt_ref(
     prompt_ref: ReferenceDTO,
     config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
@@ -78,34 +71,28 @@ async def fork_prompt_by_prompt_ref(
 async def fork_prompt_by_prompt(
     prompt: PromptDTO,
     config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
 
 
-async def fork_prompt_by_environment_ref(
-    environment_ref: ReferenceDTO,
+async def fork_prompt_by_env_ref(
+    env_ref: ReferenceDTO,
     config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
 
 
-async def fork_prompt_by_environment(
-    environment: EnvironmentDTO,
-    config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
-    prompt = PromptDTO()
-
-    return prompt
+# - COMMIT
 
 
 async def commit_prompt_by_prompt_ref(
     prompt_ref: ReferenceDTO,
     config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
@@ -114,39 +101,43 @@ async def commit_prompt_by_prompt_ref(
 async def commit_prompt_by_prompt(
     prompt: PromptDTO,
     config_params: Optional[Dict[str, Any]] = None,
-) -> PromptDTO:
+) -> Optional[PromptDTO]:
     prompt = PromptDTO()
 
     return prompt
 
 
+async def commit_prompt_by_env_ref(
+    env_ref: ReferenceDTO,
+    config_params: Optional[Dict[str, Any]] = None,
+) -> Optional[PromptDTO]:
+    prompt = PromptDTO()
+
+    return prompt
+
+
+# - DEPLOY
+
+
 async def deploy_prompt_by_prompt_ref(
     prompt_ref: ReferenceDTO,
-) -> EnvironmentDTO:
-    environment = EnvironmentDTO()
+) -> Optional[PromptDTO]:
+    prompt = PromptDTO()
 
-    return environment
+    return prompt
 
 
 async def deploy_prompt_by_prompt(
     prompt: PromptDTO,
-) -> EnvironmentDTO:
-    environment = EnvironmentDTO()
+) -> Optional[PromptDTO]:
+    prompt = PromptDTO()
 
-    return environment
-
-
-async def deploy_prompt_by_environment_ref(
-    environment_ref: ReferenceDTO,
-) -> EnvironmentDTO:
-    environment = EnvironmentDTO()
-
-    return environment
+    return prompt
 
 
-async def deploy_prompt_by_environment(
-    environment: EnvironmentDTO,
-) -> EnvironmentDTO:
-    environment = EnvironmentDTO()
+async def deploy_prompt_by_env_ref(
+    env_ref: ReferenceDTO,
+) -> Optional[PromptDTO]:
+    prompt = PromptDTO()
 
-    return environment
+    return prompt
