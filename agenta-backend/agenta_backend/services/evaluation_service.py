@@ -5,14 +5,9 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from sqlalchemy.orm import Session
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db.postgres_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,

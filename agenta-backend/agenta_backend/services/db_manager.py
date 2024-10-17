@@ -7,16 +7,18 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
-from agenta_backend.models import converters
-from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db.postgres_engine import db_engine
-from agenta_backend.services.json_importer_helper import get_json
-
 from sqlalchemy import func, or_
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, aliased, load_only
+
+from agenta_backend.models import converters
+from agenta_backend.utils.common import isCloudEE
+from agenta_backend.services.json_importer_helper import get_json
+
+from agenta_backend.dbs.postgres.shared.engine import engine
+
 
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
@@ -105,7 +107,7 @@ async def add_testset_to_app_variant(
         project_id (str): The ID of the project
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         try:
             json_path = os.path.join(
                 PARENT_DIRECTORY,
@@ -143,7 +145,7 @@ async def get_image_by_id(image_id: str) -> ImageDB:
         ImageDB: instance of image object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(ImageDB).filter_by(id=uuid.UUID(image_id))
         )
@@ -160,7 +162,7 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
 
     assert app_id is not None, "app_id cannot be None"
     app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
@@ -179,7 +181,7 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
     """
 
     assert app_variant_id is not None, "app_variant_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(AppVariantDB).options(
             joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
             joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
@@ -210,7 +212,7 @@ async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
     """
 
     assert base_id is not None, "base_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(base_id=uuid.UUID(base_id))
         )
@@ -234,7 +236,7 @@ async def fetch_app_variant_by_base_id_and_config_name(
 
     assert base_id is not None, "base_id cannot be None"
     assert config_name is not None, "config_name cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 base_id=uuid.UUID(base_id), config_name=config_name
@@ -260,7 +262,7 @@ async def fetch_app_variant_revision_by_variant(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     assert revision is not None, "revision cannot be None"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(
                 variant_id=uuid.UUID(app_variant_id),
@@ -289,7 +291,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
 
     assert base_id is not None, "no base_id provided"
     base_uuid = await get_object_uuid(object_id=base_id, table_name="bases")
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(VariantBaseDB)
             .options(
@@ -314,7 +316,7 @@ async def fetch_app_variant_by_name_and_appid(
         AppVariantDB: the instance of the app variant
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 variant_name=variant_name, app_id=uuid.UUID(app_id)
@@ -341,7 +343,7 @@ async def create_new_variant_base(
     """
 
     logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
@@ -404,7 +406,7 @@ async def create_new_app_variant(
         config.parameters == {}
     ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         variant = AppVariantDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
@@ -482,7 +484,7 @@ async def create_image(
     elif image_type == "zip" and template_uri is None:
         raise Exception("template_uri must be provided for type zip")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         image = ImageDB(
             deletable=deletable,
             project_id=uuid.UUID(project_id),
@@ -530,7 +532,7 @@ async def create_deployment(
         DeploymentDB: The created deployment.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         try:
             deployment = DeploymentDB(
                 app_id=uuid.UUID(app_id),
@@ -577,7 +579,7 @@ async def create_app_and_envs(
     if app is not None:
         raise ValueError("App with the same name already exists")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         app = AppDB(app_name=app_name, project_id=uuid.UUID(project_id))
 
         session.add(app)
@@ -596,7 +598,7 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
         values_to_update (dict): The values to update in the app
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
         app = result.scalars().first()
         if not app:
@@ -619,7 +621,7 @@ async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
         DeploymentDB: instance of deployment object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
@@ -637,7 +639,7 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         DeploymentDB: instance of deployment object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
@@ -659,7 +661,7 @@ async def list_app_variants_for_app_id(app_id: str, project_id: str):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
@@ -681,7 +683,7 @@ async def list_bases_for_app_id(app_id: str, base_name: Optional[str] = None):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(VariantBaseDB).filter_by(app_id=uuid.UUID(app_id))
         if base_name:
             query = query.filter_by(base_name=base_name)
@@ -703,7 +705,7 @@ async def list_variants_for_base(base: VariantBaseDB):
     """
 
     assert base is not None, "base cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .filter_by(base_id=base.id)
@@ -723,7 +725,7 @@ async def get_user(user_uid: str) -> UserDB:
         UserDB: instance of user
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         # NOTE: Backward Compatibility
         # ---------------------------
         # Previously, the user_id field in the api_keys collection in MongoDB used the
@@ -767,7 +769,7 @@ async def get_user_with_id(user_id: str):
         Exception: If an error occurs while getting the user from the database.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
         user = result.scalars().first()
         if user is None:
@@ -797,7 +799,7 @@ async def get_user_with_email(email: str):
     if "@" not in email:
         raise Exception("Please provide a valid email address")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(email=email))
         user = result.scalars().first()
         return user
@@ -811,7 +813,7 @@ async def get_users_by_ids(user_ids: List):
         user_ids (List): A list of user IDs to retrieve.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         user_uids = [uuid.UUID(user_id) for user_id in user_ids]
         result = await session.execute(select(UserDB).where(UserDB.id.in_(user_uids)))
         users = result.scalars().all()
@@ -831,7 +833,7 @@ async def get_orga_image_instance_by_docker_id(
         ImageDB: instance of image object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(ImageDB).filter_by(
             docker_id=docker_id, project_id=uuid.UUID(project_id)
         )
@@ -854,7 +856,7 @@ async def get_orga_image_instance_by_uri(template_uri: str) -> ImageDB:
     if not parsed_url.scheme and not parsed_url.netloc:
         raise ValueError(f"Invalid URL: {template_uri}")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(ImageDB).filter_by(template_uri=template_uri)
         result = await session.execute(query)
         image = result.scalars().first()
@@ -871,7 +873,7 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
         AppDB: instance of app object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
         app = result.scalars().first()
         return app
@@ -916,7 +918,7 @@ async def add_variant_from_base_and_config(
         raise ValueError("App variant with the same name already exists")
 
     user_db = await get_user(user_uid)
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         db_app_variant = AppVariantDB(
             app_id=previous_app_variant_db.app_id,
             variant_name=new_variant_name,
@@ -991,7 +993,7 @@ async def list_apps(
                     detail="You do not have access to perform this action. Please contact your organization admin.",
                 )
 
-            async with db_engine.get_session() as session:
+            async with engine.session() as session:
                 result = await session.execute(
                     select(AppDB).filter_by(project_id=project.id)
                 )
@@ -999,7 +1001,7 @@ async def list_apps(
                 return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
-        async with db_engine.get_session() as session:
+        async with engine.session() as session:
             result = await session.execute(
                 select(AppDB).filter_by(project_id=uuid.UUID(project_id))
             )
@@ -1020,7 +1022,7 @@ async def list_app_variants(app_id: str):
     """
 
     app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .options(
@@ -1047,7 +1049,7 @@ async def check_is_last_variant_for_image(
         true if it's the last variant, false otherwise
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(AppVariantDB).filter_by(
             base_id=uuid.UUID(variant_base_id), project_id=uuid.UUID(project_id)
         )
@@ -1068,7 +1070,7 @@ async def remove_deployment(deployment_id: str):
     logger.debug("Removing deployment")
     assert deployment_id is not None, "deployment_id is missing"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
@@ -1090,7 +1092,7 @@ async def list_deployments(app_id: str):
         a list/sequence of all the deployments that were retrieved
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
@@ -1115,7 +1117,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
         app_variant_db, project_id
     )
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         # Delete all the revisions associated with the variant
         for app_variant_revision in app_variant_revisions:
             await session.delete(app_variant_revision)
@@ -1156,7 +1158,7 @@ async def deploy_to_environment(
     assert "user_uid" in user_org_data, "User uid is required"
     user = await get_user(user_uid=user_org_data["user_uid"])
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         # Find the environment for the given app name and user
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(
@@ -1201,7 +1203,7 @@ async def fetch_app_environment_by_name_and_appid(
         AppEnvironmentDB: app environment object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(AppEnvironmentDB).filter_by(
             app_id=uuid.UUID(app_id), name=environment_name
         )
@@ -1226,7 +1228,7 @@ async def fetch_app_variant_revision_by_id(
         AppVariantRevisionsDB: app variant revision object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(id=uuid.UUID(variant_revision_id))
         )
@@ -1247,7 +1249,7 @@ async def fetch_environment_revisions_for_environment(
         List[AppEnvironmentRevisionDB]: A list of AppEnvironmentRevisionDB objects.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(AppEnvironmentRevisionDB).filter_by(
             environment_id=environment.id
         )
@@ -1267,7 +1269,7 @@ async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevi
         revision_id (str): The ID of the revision
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(id=uuid.UUID(revision_id))
         )
@@ -1285,7 +1287,7 @@ async def update_app_environment(
         values_to_update (dict): the values to update with
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         for key, value in values_to_update.items():
             if hasattr(app_environment, key):
                 setattr(app_environment, key, value)
@@ -1304,7 +1306,7 @@ async def update_app_environment_deployed_variant_revision(
         deployed_variant_revision (str): the ID of the deployed variant revision
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(
                 id=uuid.UUID(deployed_variant_revision)
@@ -1343,7 +1345,7 @@ async def list_environments(app_id: str, **kwargs: dict):
         logging.error(f"App with id {app_id} not found")
         raise ValueError("App not found")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentDB)
             .options(
@@ -1470,7 +1472,7 @@ async def list_app_variant_revisions_by_variant(
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(AppVariantRevisionsDB).filter_by(
             variant_id=app_variant.id, project_id=uuid.UUID(project_id)
         )
@@ -1496,7 +1498,7 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(AppVariantRevisionsDB).filter_by(
             variant_id=uuid.UUID(app_variant), revision=revision_number
         )
@@ -1535,7 +1537,7 @@ async def remove_image(image: ImageDB, project_id: str):
     if image is None:
         raise ValueError("Image is None")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(ImageDB).filter_by(id=image.id, project_id=uuid.UUID(project_id))
         )
@@ -1560,7 +1562,7 @@ async def remove_environment(environment_db: AppEnvironmentDB):
     """
 
     assert environment_db is not None, "environment_db is missing"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         await session.delete(environment_db)
         await session.commit()
 
@@ -1573,7 +1575,7 @@ async def remove_testsets(testset_ids: List[str]):
         testset_ids (List[str]):  The testset identifiers
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
         result = await session.execute(query)
         testsets = result.scalars().all()
@@ -1595,7 +1597,7 @@ async def remove_app_testsets(app_id: str):
     # Find testsets owned by the app
     deleted_count: int = 0
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(TestSetDB).filter_by(app_id=uuid.UUID(app_id))
         )
@@ -1629,7 +1631,7 @@ async def remove_base_from_db(base_id: str):
     """
 
     assert base_id is None, "base_id is required"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
@@ -1657,7 +1659,7 @@ async def remove_app_by_id(app_id: str, project_id: str):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(
                 id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
@@ -1688,7 +1690,7 @@ async def update_variant_parameters(
     """
 
     user = await get_user(user_uid)
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 id=uuid.UUID(app_variant_id), project_id=uuid.UUID(project_id)
@@ -1739,7 +1741,7 @@ async def get_app_variant_instance_by_id(
         AppVariantDB: instance of app variant object
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .options(
@@ -1768,7 +1770,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     except ValueError as e:
         raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().first()
         return testset
@@ -1787,7 +1789,7 @@ async def create_testset(app: AppDB, project_id: str, testset_data: Dict[str, An
         returns the newly created TestsetDB
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         session.add(testset_db)
@@ -1805,7 +1807,7 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         values_to_update (dict):  The values to update
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
         )
@@ -1830,7 +1832,7 @@ async def fetch_testsets_by_project_id(project_id: str):
         List[TestSetDB]: The fetched testsets.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
         )
@@ -1849,7 +1851,7 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     """
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(EvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         if isCloudEE():
             query = base_query.options(
@@ -1883,7 +1885,7 @@ async def list_human_evaluations(app_id: str, project_id: str):
         app_id (str):  The application identifier
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = (
             select(HumanEvaluationDB)
             .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
@@ -1920,7 +1922,7 @@ async def create_human_evaluation(
         variants_ids (List[str]): The IDs of the variants for the evaluation
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         human_evaluation = HumanEvaluationDB(
             app_id=app.id,
             project_id=app.project_id,
@@ -1952,7 +1954,7 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         The human evaluation variants.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(HumanEvaluationVariantDB).filter_by(
             human_evaluation_id=uuid.UUID(human_evaluation_id)
         )
@@ -2004,7 +2006,7 @@ async def create_human_evaluation_variants(
     if set(variants_dict.keys()) != set(variants_revisions_dict.keys()):
         raise ValueError("Mismatch between variants and their revisions")
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         for variant_id in variants_ids:
             variant = variants_dict[variant_id]
             variant_revision = variants_revisions_dict[variant_id]
@@ -2032,7 +2034,7 @@ async def fetch_human_evaluation_by_id(
     """
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         if isCloudEE():
             query = base_query.options(
@@ -2058,7 +2060,7 @@ async def update_human_evaluation(evaluation_id: str, values_to_update: dict):
         NoResultFound: if human evaluation is not found
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         )
@@ -2082,7 +2084,7 @@ async def delete_human_evaluation(evaluation_id: str):
     """
 
     assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         )
@@ -2109,7 +2111,7 @@ async def create_human_evaluation_scenario(
         evaluation_extend (Dict[str, any]): An extended required payload for the evaluation scenario. Contains score, vote, and correct_answer.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         evaluation_scenario = HumanEvaluationScenarioDB(
             **evaluation_extend,
             project_id=uuid.UUID(project_id),
@@ -2135,7 +2137,7 @@ async def update_human_evaluation_scenario(
         NoResultFound: if human evaluation scenario is not found
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationScenarioDB).filter_by(
                 id=uuid.UUID(evaluation_scenario_id)
@@ -2166,7 +2168,7 @@ async def fetch_human_evaluation_scenarios(evaluation_id: str):
         The evaluation scenarios.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationScenarioDB).filter_by(
                 evaluation_id=uuid.UUID(evaluation_id)
@@ -2188,7 +2190,7 @@ async def fetch_evaluation_scenarios(evaluation_id: str, project_id: str):
         The evaluation scenarios.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluationScenarioDB)
             .filter_by(
@@ -2213,7 +2215,7 @@ async def fetch_evaluation_scenario_by_id(
     """
 
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluationScenarioDB).filter_by(id=uuid.UUID(evaluation_scenario_id))
         )
@@ -2234,7 +2236,7 @@ async def fetch_human_evaluation_scenario_by_id(
     """
 
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationScenarioDB).filter_by(
                 id=uuid.UUID(evaluation_scenario_id)
@@ -2255,7 +2257,7 @@ async def fetch_human_evaluation_scenario_by_evaluation_id(
     """
 
     evaluation = await fetch_human_evaluation_by_id(evaluation_id)
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(HumanEvaluationScenarioDB).filter_by(
                 evaluation_id=evaluation.id  # type: ignore
@@ -2279,7 +2281,7 @@ async def find_previous_variant_from_base_id(
     """
 
     assert base_id is not None, "base_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .filter_by(base_id=uuid.UUID(base_id), project_id=uuid.UUID(project_id))
@@ -2302,7 +2304,7 @@ async def add_template(**kwargs: dict) -> str:
         template_id (str): The Id of the created template.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         conditions = [
             TemplateDB.tag_id == kwargs["tag_id"],
             TemplateDB.name == kwargs["name"],
@@ -2335,7 +2337,7 @@ async def add_zip_template(key, value):
         template_id (Str): The Id of the created template.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(TemplateDB).where(TemplateDB.name == key)
         result = await session.execute(query)
         existing_template = result.scalars().first()
@@ -2384,7 +2386,7 @@ async def get_template(template_id: str) -> TemplateDB:
     """
 
     assert template_id is not None, "template_id cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(TemplateDB).filter_by(id=uuid.UUID(template_id))
         )
@@ -2399,7 +2401,7 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
         tag_ids -- list of template IDs you want to keep
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         # Fetch all templates with tag_id in tag_ids
         templates = await session.execute(select(TemplateDB))
         templates = templates.scalars().all()
@@ -2425,7 +2427,7 @@ async def get_templates():
         The docker templates to create an LLM app from the UI.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(TemplateDB))
         templates = result.scalars().all()
         return converters.templates_db_to_pydantic(templates)  # type: ignore
@@ -2441,7 +2443,7 @@ async def update_base(
         base (VariantBaseDB): The base object to update.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
@@ -2463,7 +2465,7 @@ async def remove_base(base_db: VariantBaseDB):
         base (VariantBaseDB): The base object to update.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         await session.delete(base_db)
         await session.commit()
 
@@ -2478,7 +2480,7 @@ async def update_app_variant(
         app_variant_id (str): The app variant oIDbject to update.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
         )
@@ -2529,7 +2531,7 @@ async def fetch_app_by_name_and_parameters(
             app_name=app_name, project_id=uuid.UUID(project_id)
         )
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
         return app_db
@@ -2548,7 +2550,7 @@ async def create_new_evaluation(
         EvaluationScenarioDB: The created evaluation scenario.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         evaluation = EvaluationDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
@@ -2581,7 +2583,7 @@ async def list_evaluations(app_id: str, project_id: str):
         project_id (str): The ID of the project
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(EvaluationDB).filter_by(
             app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
         )
@@ -2629,7 +2631,7 @@ async def fetch_evaluations_by_resource(
 
     ids = list(map(uuid.UUID, resource_ids))
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         if resource_type == "variant":
             result_evaluations = await session.execute(
                 select(EvaluationDB)
@@ -2700,7 +2702,7 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
         evaluations_ids (list[str]): The IDs of the evaluation
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
         result = await session.execute(query)
         evaluations = result.scalars().all()
@@ -2726,7 +2728,7 @@ async def create_new_evaluation_scenario(
         EvaluationScenarioDB: The created evaluation scenario.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         evaluation_scenario = EvaluationScenarioDB(
             project_id=uuid.UUID(project_id),
             evaluation_id=uuid.UUID(evaluation_id),
@@ -2765,7 +2767,7 @@ async def create_new_evaluation_scenario(
 async def update_evaluation_with_aggregated_results(
     evaluation_id: str, aggregated_results: List[AggregatedResult]
 ):
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         for result in aggregated_results:
             aggregated_result = EvaluationAggregatedResultDB(
                 evaluation_id=uuid.UUID(evaluation_id),
@@ -2788,7 +2790,7 @@ async def fetch_eval_aggregated_results(evaluation_id: str):
         The evaluation aggregated results by evaluation identifier.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         base_query = select(EvaluationAggregatedResultDB).filter_by(
             evaluation_id=uuid.UUID(evaluation_id)
         )
@@ -2831,7 +2833,7 @@ async def fetch_evaluators_configs(project_id: str):
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(project_id=uuid.UUID(project_id))
         )
@@ -2849,7 +2851,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         EvaluatorConfigDB: the evaluator configuration object.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -2870,7 +2872,7 @@ async def check_if_evaluators_exist_in_list_of_evaluators_configs(
         bool: True if all evaluators exist, False otherwise.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         evaluator_config_uuids = [
             uuid.UUID(evaluator_config_id)
             for evaluator_config_id in evaluators_configs_ids
@@ -2903,7 +2905,7 @@ async def fetch_evaluator_config_by_appId(
         EvaluatorConfigDB: the evaluator configuration object.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(
                 app_id=uuid.UUID(app_id), evaluator_key=evaluator_name
@@ -2922,7 +2924,7 @@ async def create_evaluator_config(
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
             name=f"{name} ({app_name})",
@@ -2951,7 +2953,7 @@ async def update_evaluator_config(
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -2976,7 +2978,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     """Delete an evaluator configuration from the database."""
 
     assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -3007,7 +3009,7 @@ async def update_evaluation(
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(EvaluationDB).filter_by(
                 id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
@@ -3027,7 +3029,7 @@ async def update_evaluation(
 async def check_if_evaluation_contains_failed_evaluation_scenarios(
     evaluation_id: str,
 ) -> bool:
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         EvaluationResultAlias = aliased(EvaluationScenarioResultDB)
         query = (
             select(func.count(EvaluationScenarioDB.id))
@@ -3094,7 +3096,7 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
         The corresponding object uuid as string.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(IDsMappingDB).filter_by(table_name=table_name, objectid=object_id)
         )
@@ -3110,7 +3112,7 @@ async def fetch_default_project() -> ProjectDB:
         ProjectDB: The default project instance.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(ProjectDB).filter_by(is_default=True))
         default_project = result.scalars().first()
         return default_project
