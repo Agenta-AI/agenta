@@ -1,9 +1,9 @@
 import {fetchAllTraces} from "@/services/observability/core"
-import {AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import {useEffect, useState} from "react"
 
 export const useTraces = () => {
-    const [traces, setTraces] = useState<AgentaRootsResponse | null>(null)
+    const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
     const [isLoadingTraces, setIsLoadingTraces] = useState(true)
 
     const fetchTraces = async () => {
@@ -23,7 +23,7 @@ export const useTraces = () => {
     }, [])
 
     return {
-        traces: traces?.roots,
+        traces: traces,
         isLoadingTraces,
     }
 }

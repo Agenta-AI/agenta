@@ -29,30 +29,31 @@ const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const {traces} = useTraces()
+    console.log(traces)
 
-    const activeTrace = useMemo(
-        () => traces?.find((item) => item.root.id === selectedTraceId) ?? null,
-        [selectedTraceId, traces],
-    )
+    // const activeTrace = useMemo(
+    //     () => traces?.find((item) => item.root.id === selectedTraceId) ?? null,
+    //     [selectedTraceId, traces],
+    // )
 
-    const defaultSelectedTraceKey = useMemo(() => {
-        if (!activeTrace || !activeTrace.trees.length) return undefined
-        const firstNodeKey = Object.keys(activeTrace.trees[0].nodes)[0]
-        return activeTrace.trees[0].nodes[firstNodeKey].node.id
-    }, [activeTrace])
+    // const defaultSelectedTraceKey = useMemo(() => {
+    //     if (!activeTrace || !activeTrace.trees.length) return undefined
+    //     const firstNodeKey = Object.keys(activeTrace.trees[0].nodes)[0]
+    //     return activeTrace.trees[0].nodes[firstNodeKey].node.id
+    // }, [activeTrace])
 
-    const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-    const [selectedItem, setSelectedItem] = useState<AgentaNodeDTO | null>(null)
+    // const [selectedKeys, setSelectedKeys] = useState<string[]>([])
+    // const [selectedItem, setSelectedItem] = useState<AgentaNodeDTO | null>(null)
 
-    const onSelect = useCallback(
-        (keys: React.Key[]) => {
-            const selectedId = keys[0] as string
-            setSelectedKeys([selectedId])
-            const foundItem = findTraceNodeById(activeTrace?.trees[0].nodes, selectedId)
-            setSelectedItem(foundItem)
-        },
-        [activeTrace],
-    )
+    // const onSelect = useCallback(
+    //     (keys: React.Key[]) => {
+    //         const selectedId = keys[0] as string
+    //         setSelectedKeys([selectedId])
+    //         const foundItem = findTraceNodeById(activeTrace?.trees[0].nodes, selectedId)
+    //         setSelectedItem(foundItem)
+    //     },
+    //     [activeTrace],
+    // )
 
     const columns: ColumnsType<
         Omit<AgentaNodeDTO, "nodes"> & {
@@ -134,23 +135,23 @@ const ObservabilityDashboard = ({}: Props) => {
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
-            {traces && (
+            {traces?.length ? (
                 <Table
                     columns={columns}
-                    dataSource={traces.flatMap((item) => observabilityTransformer(item.trees[0]))}
+                    dataSource={traces}
                     bordered
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({
                         onClick: () => {
-                            setSelectedTraceId(record.root.id)
+                            setSelectedTraceId(record.key)
                         },
                     })}
                     pagination={false}
                     scroll={{x: "max-content"}}
                 />
-            )}
+            ) : null}
 
-            {activeTrace && traces?.length && (
+            {/* {activeTrace && traces?.length && (
                 <GenericDrawer
                     open={!!selectedTraceId}
                     onClose={() => setSelectedTraceId("")}
@@ -173,7 +174,7 @@ const ObservabilityDashboard = ({}: Props) => {
                         />
                     }
                 />
-            )}
+            )} */}
         </div>
     )
 }
