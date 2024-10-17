@@ -6,6 +6,7 @@ from traceback import format_exc
 
 from agenta_backend.services.db_manager import (
     get_user_with_id,
+    get_user,  # very wrong that I need to use this
     fetch_app_by_id,
     fetch_app_variant_by_id,
     fetch_app_variant_revision_by_id,
@@ -21,6 +22,7 @@ from agenta_backend.services.db_manager import (
     update_variant_parameters,
     deploy_to_environment,
 )
+from agenta_backend.models.shared_models import ConfigDB
 
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isCloudEE, isOss
 
@@ -256,12 +258,12 @@ async def fork_prompt_by_prompt_ref(
     if prompt_ref.commit_id:
         app_variant_revision = await fetch_app_variant_revision_by_id(
             # project_id=project_id,
-            variant_revision_id=prompt_ref.commit_id,
+            variant_revision_id=prompt_ref.commit_id.hex,
         )
     elif prompt_ref.id and prompt_ref.version:
         app_variant_revision = await fetch_app_variant_revision_by_variant(
             project_id=project_id,
-            app_variant_id=prompt_ref.id,
+            app_variant_id=prompt_ref.id.hex,
             revision=prompt_ref.version,
         )
 
@@ -270,7 +272,7 @@ async def fork_prompt_by_prompt_ref(
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=app_variant_revision.variant_id,
+        app_variant_id=app_variant_revision.variant_id.hex,
     )
 
     if not app_variant:
@@ -278,7 +280,7 @@ async def fork_prompt_by_prompt_ref(
 
     variant_base = await fetch_base_by_id(
         # project_id=project_id,
-        base_id=app_variant_revision.base_id,
+        base_id=app_variant_revision.base_id.hex,
     )
 
     if not variant_base:
@@ -286,7 +288,7 @@ async def fork_prompt_by_prompt_ref(
 
     deployment = await get_deployment_by_id(
         # project_id=project_id,
-        deployment_id=variant_base.deployment_id,
+        deployment_id=variant_base.deployment_id.hex,
     )
 
     if not deployment:
@@ -294,15 +296,17 @@ async def fork_prompt_by_prompt_ref(
 
     app = await fetch_app_by_id(
         # project_id=project_id,
-        app_id=variant_base.app_id,
+        app_id=variant_base.app_id.hex,
     )
 
     if not app:
         return None
 
-    user = await get_user_with_id(
+    logger.error("-----------------")
+    logger.error(user_id)
+    user = await get_user(
         # project_id=project_id,
-        user_id=user_id,
+        user_uid=user_id,
     )
 
     if not user:
@@ -310,7 +314,7 @@ async def fork_prompt_by_prompt_ref(
 
     image = await get_image_by_id(
         # project_id=project_id,
-        image_id=variant_base.image_id,
+        image_id=variant_base.image_id.hex,
     )
 
     if not image:
@@ -323,23 +327,39 @@ async def fork_prompt_by_prompt_ref(
         variant_name=app_variant.variant_name,
         image=image,
         base=variant_base,
-        config={
-            "config_name": app_variant_revision.config_name,
-            "parameters": app_variant_revision.config_parameters,
-        },
-        base_name=app_variant_revision.base_name,
+        config=ConfigDB(
+            config_name=app_variant_revision.config_name,
+            parameters={},  # app_variant_revision.config_parameters,
+        ),
+        base_name=app_variant.base_name,
     )
 
+    await update_variant_parameters(
+        project_id=project_id,
+        user_uid=user_id,
+        app_variant_id=new_app_variant.id.hex,
+        parameters=app_variant_revision.config_parameters,
+    )
+
+    app_variant_revision = await fetch_app_variant_revision_by_variant(
+        project_id=project_id,
+        app_variant_id=new_app_variant.id.hex,
+        revision=new_app_variant.revision,
+    )
+
+    if not app_variant_revision:
+        return None
+
     prompt = PromptDTO(
-        id=new_app_variant.variant_id,
+        id=new_app_variant.id,
         ref=ReferenceDTO(
-            id=new_app_variant.variant_id,
-            version=new_app_variant.revision,
-            commit_id=new_app_variant.id,
+            id=app_variant_revision.variant_id,
+            version=app_variant_revision.revision,
+            commit_id=app_variant_revision.id,
         ),
         url=deployment.uri,
-        params=new_app_variant.config_parameters,
-        app_id=variant_base.app_id,
+        params=app_variant_revision.config_parameters,
+        app_id=new_app_variant.app_id,
         env_ref=None,
         env_name=None,
     )
@@ -408,9 +428,9 @@ async def fork_prompt_by_env_ref(
     if not app:
         return None
 
-    user = await get_user_with_id(
+    user = await get_user(
         # project_id=project_id,
-        user_id=user_id,
+        user_uid=user_id,
     )
 
     if not user:
@@ -431,11 +451,11 @@ async def fork_prompt_by_env_ref(
         variant_name=app_variant.variant_name,
         image=image,
         base=variant_base,
-        config={
-            "config_name": app_variant_revision.config_name,
-            "parameters": app_variant_revision.config_parameters,
-        },
-        base_name=app_variant_revision.base_name,
+        config=ConfigDB(
+            config_name=app_variant_revision.config_name,
+            parameters={},  # app_variant_revision.config_parameters,
+        ),
+        base_name=app_variant.base_name,
     )
 
     prompt = PromptDTO(

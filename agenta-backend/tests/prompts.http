@@ -59,3 +59,16 @@ Content-Type: application/json
     }
 }
 
+###
+
+# @name fork_prompts_by_prompt_ref_1
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "prompt_ref": {
+        "commit_id": "01929b78-7b25-7a53-8fae-0d24ab41027f",
+        "id": null,
+        "version": null
+    }
+}
