@@ -16,6 +16,8 @@ RUN \
 # Copy the rest of the application code
 COPY . .
 
+RUN npx next telemetry disable
+
 # Expose the necessary port
 EXPOSE 3000
 
