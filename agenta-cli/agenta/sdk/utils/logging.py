@@ -1,12 +1,11 @@
 import logging
 
 
-class LLMLogger:
-    def __init__(self, name="LLMLogger", level=logging.DEBUG):
+class Logger:
+    def __init__(self, name="agenta.logger", level=logging.DEBUG):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
 
-        # Add a stream logger to view the logs in the console
         console_handler = logging.StreamHandler()
         self.logger.addHandler(console_handler)
 
@@ -15,5 +14,4 @@ class LLMLogger:
         return self.logger
 
 
-# Initialize llm logger
-llm_logger = LLMLogger().log
+log = Logger().log
