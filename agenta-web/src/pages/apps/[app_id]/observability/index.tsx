@@ -6,15 +6,14 @@ import TraceTree from "@/components/pages/observability/drawer/TraceTree"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {findTraceNodeById} from "@/lib/helpers/observability_helpers"
+import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
-import {observabilityTransformer} from "@/services/observability/core"
-import {_AgentaRootsResponse, AgentaNodeDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import {Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
-import React, {useCallback, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -32,29 +31,29 @@ const ObservabilityDashboard = ({}: Props) => {
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const {traces} = useTraces()
 
-    // const activeTrace = useMemo(
-    //     () => traces?.find((item) => item.root.id === selectedTraceId) ?? null,
-    //     [selectedTraceId, traces],
-    // )
+    const activeTraceIndex = useMemo(
+        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
+        [selectedTraceId, traces],
+    )
 
-    // const defaultSelectedTraceKey = useMemo(() => {
-    //     if (!activeTrace || !activeTrace.trees.length) return undefined
-    //     const firstNodeKey = Object.keys(activeTrace.trees[0].nodes)[0]
-    //     return activeTrace.trees[0].nodes[firstNodeKey].node.id
-    // }, [activeTrace])
+    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
 
-    // const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-    // const [selectedItem, setSelectedItem] = useState<AgentaNodeDTO | null>(null)
+    const [selected, setSelected] = useState(activeTrace?.key)
 
-    // const onSelect = useCallback(
-    //     (keys: React.Key[]) => {
-    //         const selectedId = keys[0] as string
-    //         setSelectedKeys([selectedId])
-    //         const foundItem = findTraceNodeById(activeTrace?.trees[0].nodes, selectedId)
-    //         setSelectedItem(foundItem)
-    //     },
-    //     [activeTrace],
-    // )
+    const [selectedItem, setSelectedItem] = useState<_AgentaRootsResponse | null>(
+        getNodeById(traces, selected),
+    )
+
+    useEffect(() => {
+        setSelected(activeTrace?.key)
+    }, [activeTrace])
+
+    const handleTreeNodeClick = (nodeId: string) => {
+        const selectedNode = activeTrace ? getNodeById(activeTrace, nodeId) : null
+        if (selectedNode) {
+            setSelectedItem(selectedNode)
+        }
+    }
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
         {
@@ -146,7 +145,7 @@ const ObservabilityDashboard = ({}: Props) => {
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({
                         onClick: () => {
-                            setSelectedTraceId(record.key)
+                            setSelectedTraceId(record.root.id)
                         },
                     })}
                     pagination={false}
@@ -154,7 +153,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 />
             ) : null}
 
-            {/* {activeTrace && traces?.length && (
+            {activeTrace && !!traces?.length && (
                 <GenericDrawer
                     open={!!selectedTraceId}
                     onClose={() => setSelectedTraceId("")}
@@ -162,22 +161,24 @@ const ObservabilityDashboard = ({}: Props) => {
                     headerExtra={
                         <TraceHeader
                             activeTrace={activeTrace}
-                            selectedTraceId={selectedTraceId}
                             traces={traces}
                             setSelectedTraceId={setSelectedTraceId}
+                            activeTraceIndex={activeTraceIndex}
                         />
                     }
                     mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
                     sideContent={
                         <TraceTree
-                            activeTrace={activeTrace.trees[0].nodes}
-                            selectedKeys={selectedKeys}
-                            onSelect={onSelect}
-                            defaultSelectedTraceKey={defaultSelectedTraceKey}
+                            activeTrace={activeTrace}
+                            selected={selected}
+                            setSelected={(nodeId) => {
+                                setSelected(nodeId)
+                                handleTreeNodeClick(nodeId.toString())
+                            }}
                         />
                     }
                 />
-            )} */}
+            )}
         </div>
     )
 }

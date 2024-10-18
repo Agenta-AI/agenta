@@ -6,7 +6,7 @@ import {Button, Collapse, CollapseProps, Divider, Space, Tabs, TabsProps, Typogr
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
-import {AgentaNodeDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import dayjs from "dayjs"
 import {getStringOrJson} from "@/lib/helpers/utils"
 
@@ -16,7 +16,7 @@ const ibm_plex_mono = IBM_Plex_Mono({
 })
 
 interface TraceContentProps {
-    activeTrace: AgentaNodeDTO
+    activeTrace: _AgentaRootsResponse
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -94,69 +94,6 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
-    const generateAccordionItems = (
-        obj: Record<string, any> | string,
-        parentKey = "",
-    ): CollapseProps["items"] => {
-        if (typeof obj !== "object") {
-            const key = parentKey || "value"
-
-            return [
-                {
-                    key,
-                    label: key,
-                    children: <div className={ibm_plex_mono.className}>{getStringOrJson(obj)}</div>,
-                    extra: <CopyButton text={obj} icon={true} buttonText={null} stopPropagation />,
-                },
-            ]
-        }
-
-        return Object.entries(obj)
-            .flatMap(([key, value]) => {
-                const currentPath = parentKey ? `${parentKey}.${key}` : key
-
-                if (Array.isArray(value)) {
-                    return value.map((item, index) => ({
-                        key: `${currentPath}[${index}]`,
-                        label: `${currentPath}[${index}]`,
-                        children: (
-                            <div className={ibm_plex_mono.className}>
-                                {typeof item === "object"
-                                    ? getStringOrJson(item)
-                                    : getStringOrJson(item)}
-                            </div>
-                        ),
-                        extra: (
-                            <CopyButton
-                                text={
-                                    typeof item === "object"
-                                        ? getStringOrJson(item)
-                                        : getStringOrJson(item)
-                                }
-                                icon={true}
-                                buttonText={null}
-                                stopPropagation
-                            />
-                        ),
-                    }))
-                }
-
-                if (typeof value === "object" && value !== null) {
-                    return generateAccordionItems(value, currentPath) || []
-                }
-
-                return {
-                    key: currentPath,
-                    label: currentPath,
-                    children: <div className={ibm_plex_mono.className}>{value}</div>,
-                    extra: (
-                        <CopyButton text={value} icon={true} buttonText={null} stopPropagation />
-                    ),
-                }
-            })
-            .filter(Boolean)
-    }
-
     const items: TabsProps["items"] = [
         {
             key: "overview",
@@ -182,7 +119,25 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         <Space direction="vertical" className="w-full">
                             <Typography.Text className={classes.subTitle}>Inputs</Typography.Text>
                             <Collapse
-                                items={generateAccordionItems(data.inputs)}
+                                items={[
+                                    {
+                                        key: "inputs",
+                                        label: "inputs",
+                                        children: (
+                                            <div className={ibm_plex_mono.className}>
+                                                {getStringOrJson(data.inputs)}
+                                            </div>
+                                        ),
+                                        extra: (
+                                            <CopyButton
+                                                text={getStringOrJson(data.inputs)}
+                                                icon={true}
+                                                buttonText={null}
+                                                stopPropagation
+                                            />
+                                        ),
+                                    },
+                                ]}
                                 className={classes.collapseContainer}
                                 bordered={false}
                             />
@@ -195,7 +150,25 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                 Internals
                             </Typography.Text>
                             <Collapse
-                                items={generateAccordionItems(data.internals)}
+                                items={[
+                                    {
+                                        key: "internals",
+                                        label: "internals",
+                                        children: (
+                                            <div className={ibm_plex_mono.className}>
+                                                {getStringOrJson(data.internals)}
+                                            </div>
+                                        ),
+                                        extra: (
+                                            <CopyButton
+                                                text={getStringOrJson(data.internals)}
+                                                icon={true}
+                                                buttonText={null}
+                                                stopPropagation
+                                            />
+                                        ),
+                                    },
+                                ]}
                                 className={classes.collapseContainer}
                                 bordered={false}
                             />
@@ -206,7 +179,25 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         <Space direction="vertical" className="w-full">
                             <Typography.Text className={classes.subTitle}>Outputs</Typography.Text>
                             <Collapse
-                                items={generateAccordionItems(data.outputs)}
+                                items={[
+                                    {
+                                        key: "outputs",
+                                        label: "outputs",
+                                        children: (
+                                            <div className={ibm_plex_mono.className}>
+                                                {getStringOrJson(data.outputs)}
+                                            </div>
+                                        ),
+                                        extra: (
+                                            <CopyButton
+                                                text={getStringOrJson(data.outputs)}
+                                                icon={true}
+                                                buttonText={null}
+                                                stopPropagation
+                                            />
+                                        ),
+                                    },
+                                ]}
                                 className={classes.collapseContainer}
                                 bordered={false}
                             />
