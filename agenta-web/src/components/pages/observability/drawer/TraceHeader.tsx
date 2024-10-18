@@ -1,5 +1,5 @@
 import {JSSTheme} from "@/lib/Types"
-import {AgentaRootsDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse, AgentaRootsDTO} from "@/services/observability/types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
@@ -7,10 +7,10 @@ import React, {useMemo, useCallback} from "react"
 import {createUseStyles} from "react-jss"
 
 interface TraceHeaderProps {
-    activeTrace: AgentaRootsDTO
-    selectedTraceId: string
-    traces: AgentaRootsDTO[]
+    activeTrace: _AgentaRootsResponse
+    traces: _AgentaRootsResponse[]
     setSelectedTraceId: (val: string) => void
+    activeTraceIndex: number
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -23,16 +23,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const TraceHeader = ({
     activeTrace,
-    selectedTraceId,
     traces,
     setSelectedTraceId,
+    activeTraceIndex,
 }: TraceHeaderProps) => {
     const classes = useStyles()
-
-    const activeTraceIndex = useMemo(
-        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
-        [selectedTraceId, traces],
-    )
 
     const handleNextTrace = useCallback(() => {
         if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
