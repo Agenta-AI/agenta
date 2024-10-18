@@ -12,23 +12,32 @@ import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "../types"
 export const observabilityTransformer = (
     item: AgentaTreeDTO | AgentaNodeDTO,
 ): _AgentaRootsResponse[] => {
+    const buildData = (node: AgentaNodeDTO) => {
+        const key = node.node.id
+        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
+
+        return {
+            ...node,
+            key,
+            ...(hasChildren ? {children: observabilityTransformer(node)} : undefined),
+        }
+    }
+
     if (item.nodes) {
         return Object.entries(item.nodes)
             .flatMap(([_, value]) => {
-                if (value && Array.isArray(value)) {
-                    return value.flatMap((item) => observabilityTransformer(item))
-                }
-
-                if (value && !Array.isArray(value)) {
-                    const {nodes, ...node} = value
-                    return {
-                        ...node,
-                        key: node.node.id,
-                        ...(value.nodes ? {children: observabilityTransformer(value)} : null),
-                    }
+                if (Array.isArray(value)) {
+                    return value.map((item, index) =>
+                        buildData({
+                            ...item,
+                            node: {...item.node, name: `${item.node.name}[${index}]`},
+                        }),
+                    )
+                } else {
+                    return buildData(value)
                 }
             })
-            .filter((item): item is _AgentaRootsResponse => item !== null && item !== undefined)
+            .filter((node): node is _AgentaRootsResponse => node !== null && node !== undefined)
     }
 
     return []
