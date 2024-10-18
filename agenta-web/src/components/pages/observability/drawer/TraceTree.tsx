@@ -1,0 +1,129 @@
+import {formatLatency} from "@/lib/helpers/formatters"
+import {JSSTheme} from "@/lib/Types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
+import {Coins, PlusCircle, Timer, TreeStructure} from "@phosphor-icons/react"
+import {Avatar, Space, Tree, Typography} from "antd"
+import React from "react"
+import {createUseStyles} from "react-jss"
+
+interface TraceTreeProps {
+    activeTrace: _AgentaRootsResponse
+    selected: string
+    setSelected: React.Dispatch<React.SetStateAction<string>>
+}
+
+interface NodeTreeChildren {
+    title: React.ReactElement
+    key: string
+    children?: NodeTreeChildren[]
+}
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    tree: {
+        overflowY: "auto",
+        height: "100%",
+        "& .ant-tree-node-content-wrapper": {
+            width: 240,
+        },
+        "& .ant-tree-node-selected": {
+            border: `1px solid ${theme.colorBorder}`,
+        },
+        "& .ant-tree-switcher-leaf-line": {
+            "&:after": {
+                height: "36px !important",
+                width: 13,
+            },
+        },
+        "& .ant-tree-treenode-leaf-last .ant-tree-switcher-leaf-line:before": {
+            height: "36px !important",
+        },
+    },
+    treeTitle: {
+        fontSize: theme.fontSizeLG,
+        lineHeight: theme.lineHeightLG,
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        height: "100%",
+        width: "calc(210px - 40px)",
+    },
+    treeContent: {
+        color: theme.colorTextSecondary,
+        "& div": {
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: theme.fontSize,
+        },
+    },
+}))
+
+const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
+    const {node, time} = value
+    const classes = useStyles()
+
+    return (
+        <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
+            <Avatar
+                shape="square"
+                size={"large"}
+                style={{backgroundColor: "#586673", width: 32}}
+                icon={<TreeStructure size={16} />}
+            />
+            <div className="flex flex-col">
+                <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
+                <Space className={classes.treeContent}>
+                    <div>
+                        <Timer />
+                        {formatLatency(time?.span / 1000000)}
+                    </div>
+                    <div>
+                        <Coins />
+                        $0.002
+                    </div>
+                    <div>
+                        <PlusCircle />
+                        72
+                    </div>
+                </Space>
+            </div>
+        </div>
+    )
+}
+
+const buildTreeData = (spans: _AgentaRootsResponse[]): NodeTreeChildren[] => {
+    return spans.map((span) => ({
+        title: <TreeContent value={span} />,
+        key: span.node.id,
+        children: span.children ? buildTreeData(span.children) : undefined,
+    }))
+}
+
+const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
+    const classes = useStyles()
+
+    return (
+        <Tree
+            showLine
+            selectedKeys={[selected]}
+            showIcon={false}
+            onSelect={(keys) => {
+                setSelected(keys[0]?.toString() || activeTrace.node.id)
+            }}
+            treeData={[
+                {
+                    title: <TreeContent value={activeTrace} />,
+                    key: activeTrace.node.id,
+                    children: activeTrace.children
+                        ? buildTreeData(activeTrace.children)
+                        : undefined,
+                },
+            ]}
+            className={classes.tree}
+            defaultExpandAll
+            defaultExpandParent
+        />
+    )
+}
+
+export default TraceTree
