@@ -1,6 +1,6 @@
 import {v4 as uuidv4} from "uuid"
 import {EvaluationType} from "../enums"
-import {GenericObject} from "../Types"
+import {FilterConditions, GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
@@ -360,53 +360,20 @@ export const formatVariantIdWithHash = (variantId: string) => {
     return `# ${variantId.split("-")[0]}`
 }
 
-export const getTimeRangeUnit = (time: string) => {
-    let unit: dayjs.UnitType
-    let duration: number
-
-    switch (time) {
-        case "30 mins":
-            unit = "minute"
-            duration = 30
-            break
-        case "1 hour":
-            unit = "hour"
-            duration = 1
-            break
-        case "6 hour":
-            unit = "hour"
-            duration = 6
-            break
-        case "24 hour":
-            unit = "hour"
-            duration = 24
-            break
-        case "3 days":
-            unit = "day"
-            duration = 3
-            break
-        case "7 days":
-            unit = "day"
-            duration = 7
-            break
-        case "14 days":
-            unit = "day"
-            duration = 14
-            break
-        case "1 month":
-            unit = "month"
-            duration = 1
-            break
-        case "3 month":
-            unit = "month"
-            duration = 3
-            break
-        default:
-            unit = "year"
-            duration = Infinity
+export const getTimeRangeUnit = (time: string): {duration: number; unit: dayjs.ManipulateType} => {
+    const timeRanges: {[key: string]: {duration: number; unit: dayjs.ManipulateType}} = {
+        "30 mins": {duration: 30, unit: "minute"},
+        "1 hour": {duration: 1, unit: "hour"},
+        "6 hour": {duration: 6, unit: "hour"},
+        "24 hour": {duration: 24, unit: "hour"},
+        "3 days": {duration: 3, unit: "day"},
+        "7 days": {duration: 7, unit: "day"},
+        "14 days": {duration: 14, unit: "day"},
+        "1 month": {duration: 1, unit: "month"},
+        "3 month": {duration: 3, unit: "month"},
     }
 
-    return {duration, unit}
+    return timeRanges[time] || {duration: Infinity, unit: "year"}
 }
 
 export const getNestedProperties = (obj: any, path: string) => {
@@ -419,7 +386,7 @@ export const matcheFilterCriteria = ({
     keyword,
 }: {
     data: any
-    condition: string
+    condition: FilterConditions
     keyword: string | number
 }) => {
     if (data === undefined) return false

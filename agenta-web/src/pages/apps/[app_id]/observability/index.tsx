@@ -3,8 +3,8 @@ import StatusRenderer from "@/components/pages/observability/components/StatusRe
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
-import Filters from "@/components/pages/observability/TableHeader/Filters"
-import Sort from "@/components/pages/observability/TableHeader/Sort"
+import Filters from "@/components/Filters/Filters"
+import Sort from "@/components/Filters/Sort"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
@@ -88,13 +88,12 @@ const ObservabilityDashboard = ({}: Props) => {
             const now = dayjs()
             const {duration, unit} = getTimeRangeUnit(sortTrace)
 
-            if (duration == Infinity) {
+            if (duration === Infinity) {
                 return filtered
             }
 
             filtered = filtered?.filter((item) => {
                 const itemDate = dayjs(item.lifecycle.created_at)
-
                 return itemDate.isAfter(now.subtract(duration, unit))
             })
         }
