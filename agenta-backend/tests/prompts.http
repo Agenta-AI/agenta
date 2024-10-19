@@ -1,33 +1,128 @@
 
 
 @host = http://localhost
-@base_url = {{host}}/api/variants/as/prompts
+@base_url = {{host}}/api/variants/configs
 
 ###
 
-# @name fetch_prompt_by_prompt_ref_1
+# @name fetch_config_by_variant_ref_1
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
-    "prompt_ref": {
-        "commit_id": "01929c24-65bb-7c48-9c5e-343c989047cb",
-        "id": null,
-        "version": null
+    "variant_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a460-3292-7fd1-80ce-fb1a9c3e2456"
     }
 }
 
 ###
 
-# @name fetch_prompt_by_prompt_ref_2
+# @name fetch_config_by_variant_ref_1_with_environment
 GET {{base_url}}/fetch
 Content-Type: application/json
 
 {
-    "prompt_ref": {
-        "id": "01929c22-367d-7d9b-85a6-e6572f8ac63d",
-        "version": 2,
-        "commit_id": null
+    "variant_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-5ba1-757e-a983-787a66a4e78d"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_2
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_2_with_environment
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "default",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_3
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_3_with_environment
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "default",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_4
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
     }
 }
 
