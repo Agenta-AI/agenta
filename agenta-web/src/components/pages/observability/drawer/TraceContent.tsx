@@ -2,7 +2,7 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {JSSTheme} from "@/lib/Types"
 import {ArrowRight, Database, PlusCircle, Rocket, Sparkle, Timer} from "@phosphor-icons/react"
-import {Button, Collapse, CollapseProps, Divider, Space, Tabs, TabsProps, Typography} from "antd"
+import {Button, Collapse, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
@@ -62,11 +62,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     collapseContainer: {
         backgroundColor: "unset",
         "& .ant-collapse-item": {
-            marginBottom: 24,
             background: theme.colorFillAlter,
             borderRadius: `${theme.borderRadiusLG}px !important`,
             border: `1px solid ${theme.colorBorder}`,
-            borderBottom: "in",
         },
         "& .ant-collapse-item:last-child": {
             borderBottom: `1px solid ${theme.colorBorder}`,
@@ -115,92 +113,180 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     )}
 
-                    {data && data.inputs && (
+                    {data && data?.inputs ? (
                         <Space direction="vertical" className="w-full">
-                            <Typography.Text className={classes.subTitle}>Inputs</Typography.Text>
-                            <Collapse
-                                items={[
-                                    {
-                                        key: "inputs",
-                                        label: "inputs",
-                                        children: (
-                                            <div className={ibm_plex_mono.className}>
-                                                {getStringOrJson(data.inputs)}
-                                            </div>
-                                        ),
-                                        extra: (
-                                            <CopyButton
-                                                text={getStringOrJson(data.inputs)}
-                                                icon={true}
-                                                buttonText={null}
-                                                stopPropagation
-                                            />
-                                        ),
-                                    },
-                                ]}
-                                className={classes.collapseContainer}
-                                bordered={false}
-                            />
+                            {node.type !== "chat" ? (
+                                <Collapse
+                                    items={[
+                                        {
+                                            key: "inputs",
+                                            label: "inputs",
+                                            children: (
+                                                <div className={ibm_plex_mono.className}>
+                                                    {getStringOrJson(data.inputs)}
+                                                </div>
+                                            ),
+                                            extra: (
+                                                <CopyButton
+                                                    text={getStringOrJson(data.inputs)}
+                                                    icon={true}
+                                                    buttonText={null}
+                                                    stopPropagation
+                                                />
+                                            ),
+                                        },
+                                    ]}
+                                    className={classes.collapseContainer}
+                                    bordered={false}
+                                />
+                            ) : (
+                                Object.values(data.inputs).map((item) =>
+                                    Array.isArray(item)
+                                        ? item.map((param, index) =>
+                                              param.role !== "tool" ? (
+                                                  <Collapse
+                                                      key={index}
+                                                      items={[
+                                                          {
+                                                              key: param.role,
+                                                              label: param.role,
+                                                              children: (
+                                                                  <div
+                                                                      className={
+                                                                          ibm_plex_mono.className
+                                                                      }
+                                                                  >
+                                                                      {getStringOrJson(
+                                                                          param.content,
+                                                                      )}
+                                                                  </div>
+                                                              ),
+                                                              extra: (
+                                                                  <CopyButton
+                                                                      text={getStringOrJson(
+                                                                          param.content,
+                                                                      )}
+                                                                      icon={true}
+                                                                      buttonText={null}
+                                                                      stopPropagation
+                                                                  />
+                                                              ),
+                                                          },
+                                                      ]}
+                                                      className={classes.collapseContainer}
+                                                      bordered={false}
+                                                  />
+                                              ) : (
+                                                  "TO_DO"
+                                              ),
+                                          )
+                                        : null,
+                                )
+                            )}
                         </Space>
-                    )}
+                    ) : null}
 
-                    {data && data.internals && (
+                    {data && data?.outputs ? (
                         <Space direction="vertical" className="w-full">
-                            <Typography.Text className={classes.subTitle}>
-                                Internals
-                            </Typography.Text>
-                            <Collapse
-                                items={[
-                                    {
-                                        key: "internals",
-                                        label: "internals",
-                                        children: (
-                                            <div className={ibm_plex_mono.className}>
-                                                {getStringOrJson(data.internals)}
-                                            </div>
-                                        ),
-                                        extra: (
-                                            <CopyButton
-                                                text={getStringOrJson(data.internals)}
-                                                icon={true}
-                                                buttonText={null}
-                                                stopPropagation
-                                            />
-                                        ),
-                                    },
-                                ]}
-                                className={classes.collapseContainer}
-                                bordered={false}
-                            />
+                            {node.type !== "chat" ? (
+                                <Collapse
+                                    items={[
+                                        {
+                                            key: "outputs",
+                                            label: "outputs",
+                                            children: (
+                                                <div className={ibm_plex_mono.className}>
+                                                    {getStringOrJson(data.outputs)}
+                                                </div>
+                                            ),
+                                            extra: (
+                                                <CopyButton
+                                                    text={getStringOrJson(data.outputs)}
+                                                    icon={true}
+                                                    buttonText={null}
+                                                    stopPropagation
+                                                />
+                                            ),
+                                        },
+                                    ]}
+                                    className={classes.collapseContainer}
+                                    bordered={false}
+                                />
+                            ) : (
+                                Object.values(data.outputs).map((item) =>
+                                    Array.isArray(item)
+                                        ? item.map((param, index) =>
+                                              !!param.content &&
+                                              !Array.isArray(param.tool_calls) ? (
+                                                  <Collapse
+                                                      key={index}
+                                                      items={[
+                                                          {
+                                                              key: "assistant",
+                                                              label: "assistant",
+                                                              children: (
+                                                                  <div
+                                                                      className={
+                                                                          ibm_plex_mono.className
+                                                                      }
+                                                                  >
+                                                                      {getStringOrJson(
+                                                                          param.content,
+                                                                      )}
+                                                                  </div>
+                                                              ),
+                                                              extra: (
+                                                                  <CopyButton
+                                                                      text={getStringOrJson(
+                                                                          param.content,
+                                                                      )}
+                                                                      icon={true}
+                                                                      buttonText={null}
+                                                                      stopPropagation
+                                                                  />
+                                                              ),
+                                                          },
+                                                      ]}
+                                                      className={classes.collapseContainer}
+                                                      bordered={false}
+                                                  />
+                                              ) : (
+                                                  "TO_DO"
+                                              ),
+                                          )
+                                        : null,
+                                )
+                            )}
                         </Space>
-                    )}
+                    ) : null}
 
-                    {data && data.outputs && (
+                    {data && data?.internals && (
                         <Space direction="vertical" className="w-full">
-                            <Typography.Text className={classes.subTitle}>Outputs</Typography.Text>
-                            <Collapse
-                                items={[
-                                    {
-                                        key: "outputs",
-                                        label: "outputs",
-                                        children: (
-                                            <div className={ibm_plex_mono.className}>
-                                                {getStringOrJson(data.outputs)}
-                                            </div>
-                                        ),
-                                        extra: (
-                                            <CopyButton
-                                                text={getStringOrJson(data.outputs)}
-                                                icon={true}
-                                                buttonText={null}
-                                                stopPropagation
-                                            />
-                                        ),
-                                    },
-                                ]}
-                                className={classes.collapseContainer}
-                                bordered={false}
-                            />
+                            {node.type !== "chat" && (
+                                <Collapse
+                                    items={[
+                                        {
+                                            key: "internals",
+                                            label: "internals",
+                                            children: (
+                                                <div className={ibm_plex_mono.className}>
+                                                    {getStringOrJson(data.internals)}
+                                                </div>
+                                            ),
+                                            extra: (
+                                                <CopyButton
+                                                    text={getStringOrJson(data.internals)}
+                                                    icon={true}
+                                                    buttonText={null}
+                                                    stopPropagation
+                                                />
+                                            ),
+                                        },
+                                    ]}
+                                    className={classes.collapseContainer}
+                                    bordered={false}
+                                />
+                            )}
                         </Space>
                     )}
                 </Space>
