@@ -18,7 +18,7 @@ type AvatarTreeContentProps = {
     value: _AgentaRootsResponse
 } & React.ComponentProps<typeof Avatar>
 
-const nodeTypeStyles = {
+export const nodeTypeStyles = {
     [NodeType.AGENT]: {
         bgColor: "#F6F6FD",
         color: "#7D7DDB",

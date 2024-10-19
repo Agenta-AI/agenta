@@ -1,4 +1,5 @@
 import GenericDrawer from "@/components/GenericDrawer"
+import {nodeTypeStyles} from "@/components/pages/observability/components/AvatarTreeContent"
 import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
@@ -10,7 +11,7 @@ import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Table, Typography} from "antd"
+import {Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
@@ -65,7 +66,18 @@ const ObservabilityDashboard = ({}: Props) => {
             }),
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.key.split("-")[0]}`} />
+                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
+
+                return !record.parent ? (
+                    <ResultTag value1={`# ${record.key.split("-")[0]}`} />
+                ) : (
+                    <Space align="center" size={4}>
+                        <div className="grid place-items-center">
+                            <Icon size={16} />
+                        </div>
+                        <Typography>{record.node.name}</Typography>
+                    </Space>
+                )
             },
         },
         {
