@@ -1,7 +1,7 @@
 import CopyButton from "@/components/CopyButton/CopyButton"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {JSSTheme} from "@/lib/Types"
-import {ArrowRight, Database, PlusCircle, Rocket, Sparkle, Timer} from "@phosphor-icons/react"
+import {ArrowRight, Database, PlusCircle, Rocket, Timer} from "@phosphor-icons/react"
 import {Button, Collapse, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -9,6 +9,9 @@ import {IBM_Plex_Mono} from "next/font/google"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import dayjs from "dayjs"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import {statusMapper} from "../components/AvatarTreeContent"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
+import StatusRenderer from "../components/StatusRenderer"
 
 const ibm_plex_mono = IBM_Plex_Mono({
     subsets: ["latin"],
@@ -88,9 +91,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {node, time, meta, data} = activeTrace
+    const {node, time, meta, data, status, metrics, parent} = activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
+    const {icon, bgColor, color} = statusMapper(node.type, status)
 
     const items: TabsProps["items"] = [
         {
@@ -307,10 +311,12 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         <Typography.Text className={classes.title}>{node.name}</Typography.Text>
 
                         <Space>
-                            <Button className="flex items-center">
-                                <Rocket size={14} />
-                                Open in playground
-                            </Button>
+                            {!parent && (
+                                <Button className="flex items-center">
+                                    <Rocket size={14} />
+                                    Open in playground
+                                </Button>
+                            )}
                             <Button className="flex items-center">
                                 <Database size={14} />
                                 Add to testset
@@ -321,11 +327,38 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                 </div>
                 <div className="p-4 flex flex-wrap gap-2">
                     <ResultTag
-                        color="cyan"
+                        style={{
+                            backgroundColor: status.code === "ERROR" ? "#FBE7E7" : bgColor,
+                            border: `1px solid ${status.code === "ERROR" ? "#D61010" : color}`,
+                            color: status.code === "ERROR" ? "#D61010" : color,
+                        }}
                         bordered
                         value1={
                             <>
-                                <Sparkle size={14} /> {node.type}
+                                {icon} {node.type}
+                            </>
+                        }
+                    />
+                    <StatusRenderer {...status} />
+                    <ResultTag
+                        value1={
+                            <>
+                                <Timer size={14} /> {formatLatency(time.span / 1000000)}
+                            </>
+                        }
+                    />
+                    <ResultTag
+                        value1={
+                            <>
+                                <PlusCircle size={14} />
+                                {formatTokenUsage(metrics?.acc?.tokens?.total)} /{" "}
+                                {formatCurrency(metrics?.acc?.costs?.total)}
+                            </>
+                        }
+                        popoverContent={
+                            <>
+                                <div>Prompt tokens</div>
+                                <div>Completion tokens</div>
                             </>
                         }
                     />
@@ -335,27 +368,6 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                 {dayjs(time.start).format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
                                 {dayjs(time.end).format("DD/MM/YYYY, hh:mm:ss A")}
-                            </>
-                        }
-                    />
-                    <ResultTag
-                        value1={
-                            <>
-                                <Timer size={14} /> 0.02
-                            </>
-                        }
-                    />
-                    <ResultTag
-                        value1={
-                            <>
-                                <PlusCircle size={14} />
-                                79 / $0.005
-                            </>
-                        }
-                        popoverContent={
-                            <>
-                                <Typography.Text>Prompt tokens</Typography.Text>
-                                <Typography.Text>Completion tokens</Typography.Text>
                             </>
                         }
                     />
