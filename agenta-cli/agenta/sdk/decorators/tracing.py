@@ -137,16 +137,7 @@ class instrument:
                             max_depth=self.max_depth,
                         )
 
-                    try:
-                        result = await func(*args, **kwargs)
-                    except Exception as e:
-                        traceback.print_exc()
-
-                        span.record_exception(e)
-
-                        span.set_status("ERROR")
-
-                        raise e
+                    result = await func(*args, **kwargs)
 
                     with suppress():
                         cost = None
@@ -240,14 +231,7 @@ class instrument:
                             max_depth=self.max_depth,
                         )
 
-                    try:
-                        result = func(*args, **kwargs)
-                    except Exception as e:
-                        span.record_exception(e)
-
-                        span.set_status("ERROR")
-
-                        raise e
+                    result = func(*args, **kwargs)
 
                     with suppress():
                         cost = None
