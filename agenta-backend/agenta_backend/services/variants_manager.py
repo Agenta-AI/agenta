@@ -19,8 +19,8 @@ from agenta_backend.services.db_manager import (
     get_deployment_by_id,
     fetch_app_environment_by_id,
     fetch_app_environment_revision,
+    fetch_app_environment_by_name_and_appid,
     fetch_app_environment_revision_by_environment,
-    fetch_app_environment_revision_by_app_variant_revision_id,
     create_new_app_variant,
     update_variant_parameters,
     deploy_to_environment,
@@ -50,6 +50,7 @@ class ConfigDTO(BaseModel):
     application_ref: Optional[ReferenceDTO]
     service_ref: Optional[ReferenceDTO]
     variant_ref: Optional[ReferenceDTO]
+    environment_ref: Optional[ReferenceDTO]
 
 
 # - CREATE
@@ -80,20 +81,14 @@ async def fetch_config_by_variant_ref(
 
     with suppress():
         # by variant_id
-        logger.error("1.")
-
         if variant_ref.id:
-            logger.error("1.1.a.")
             app_variant_revision = await fetch_app_variant_revision_by_id(
                 # project_id=project_id,
                 variant_revision_id=variant_ref.id.hex,
             )
-            logger.error("1.1.b.")
 
         # by application_id, variant_slug, and ...
         elif (application_ref.id or application_ref.slug) and variant_ref.slug:
-            logger.error("1.2.b.")
-
             if not application_ref.id:
                 app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
@@ -105,10 +100,6 @@ async def fetch_config_by_variant_ref(
             if not application_ref.id:
                 return None
 
-            logger.error("1.2.c.")
-
-            print("------", application_ref.id, variant_ref.slug)
-
             # ASSUMPTION : single or first base, not default base.
             # TODO: handle default base and then {variant_name} as {base_name}.{variant_ref.slug},
             #       and then use fetch_app_variant_by_name_and_appid() instead.
@@ -118,12 +109,8 @@ async def fetch_config_by_variant_ref(
                 config_name=variant_ref.slug,
             )
 
-            logger.error("1.2.d.")
-
             if not app_variant:
                 return None
-
-            logger.error("1.2.e.")
 
             # ... variant_version or latest variant version
             variant_ref.version = variant_ref.version or app_variant.revision
@@ -135,17 +122,11 @@ async def fetch_config_by_variant_ref(
                 revision=variant_ref.version,
             )
 
-            logger.error("1.2.f.")
-
-        logger.error("2.")
-
         if not app_variant:
             app_variant = await fetch_app_variant_by_id(
                 # project_id=project_id,
                 app_variant_id=app_variant_revision.variant_id.hex,
             )
-
-        logger.error("3.")
 
     if not (app_variant_revision and app_variant):
         return None
@@ -215,6 +196,7 @@ async def fetch_config_by_variant_ref(
             version=app_variant_revision.revision,
             id=app_variant_revision.id,
         ),
+        environment_ref=None,
     )
 
     return config
@@ -226,73 +208,87 @@ async def fetch_config_by_environment_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
+    # --> FETCHING: app_environment_revision / app_environment
+    logger.warning("Fetching: app_environment_revision / app_environment")
+
     app_environment_revision = None
-    if environment_ref.id:
-        app_environment_revision = await fetch_app_environment_revision(
-            # project_id=project_id,
-            revision_id=environment_ref.id.hex,
-        )
-    elif environment_ref.slug and environment_ref.version:
-        app_environment_revision = await fetch_app_environment_revision_by_environment(
-            project_id=project_id,
-            app_environment_id=environment_ref.slug.hex,
-            revision=environment_ref.version,
-        )
-
-    if not app_environment_revision:
-        return None
-
-    app_variant_revision = await fetch_app_variant_revision_by_id(
-        # project_id=project_id,
-        variant_revision_id=app_environment_revision.deployed_app_variant_revision_id.hex,
-    )
-
-    if not app_variant_revision:
-        return None
-
-    variant_base = await fetch_base_by_id(
-        # project_id=project_id,
-        base_id=app_variant_revision.base_id.hex,
-    )
-
-    if not variant_base:
-        return None
-
-    deployment = await get_deployment_by_id(
-        # project_id=project_id,
-        deployment_id=variant_base.deployment_id.hex,
-    )
-
-    if not deployment:
-        return None
-
     app_environment = None
-    if not app_environment_revision:
-        app_environment = await fetch_app_environment_by_id(
-            # project_id=project_id,
-            environment_id=app_environment_revision.environment_id.hex,
-        )
 
-    config = ConfigDTO(
-        slug=app_variant_revision.variant_id,
-        variant_ref=ReferenceDTO(
-            slug=app_variant_revision.variant_id,
-            version=app_variant_revision.revision,
-            id=app_variant_revision.id,
-        ),
-        service_url=deployment.uri,
-        params=app_variant_revision.config_parameters,
-        application_id=variant_base.app_id,
-        environment_ref=(
-            ReferenceDTO(
-                slug=app_environment_revision.environment_id,
-                version=app_environment_revision.revision,
-                id=app_environment_revision.id,
+    with suppress():
+        # by environment_id
+        if environment_ref.id:
+            app_environment_revision = await fetch_app_environment_revision(
+                # project_id=project_id,
+                revision_id=environment_ref.id.hex,
             )
-            if app_environment_revision
-            else None
-        ),
-        env_name=app_environment.name if app_environment else None,
+
+        # by application_id, environment_slug, and ...
+        elif (application_ref.id or application_ref.slug) and environment_ref.slug:
+            if not application_ref.id:
+                app = await fetch_app_by_name_and_parameters(
+                    project_id=project_id,
+                    app_name=application_ref.slug,
+                )
+
+                application_ref.id = app.id
+
+            if not application_ref.id:
+                return None
+
+            # ASSUMPTION : single or first base, not default base.
+            # TODO: handle default base and then {environment_name} as {base_name}.{environment_ref.slug},
+            #       and then use fetch_app_environment_by_name_and_appid() instead.
+            app_environment = await fetch_app_environment_by_name_and_appid(
+                # project_id=project_id,
+                app_id=application_ref.id.hex,
+                environment_name=environment_ref.slug,
+            )
+
+            if not app_environment:
+                return None
+
+            # ... environment_version or latest environment version
+            environment_ref.version = (
+                environment_ref.version or app_environment.revision
+            )
+
+            app_environment_revision = await fetch_app_environment_revision_by_environment(
+                project_id=project_id,
+                # application_id=application_ref.id.hex,
+                app_environment_id=app_environment.id.hex,
+                revision=environment_ref.version,
+            )
+
+        if not app_environment:
+            app_environment = await fetch_app_environment_by_id(
+                # project_id=project_id,
+                environment_id=app_environment_revision.environment_id.hex,
+            )
+
+    if not (app_environment_revision and app_environment):
+        return None
+    # <-- FETCHING: app_environment_revision / app_environment
+
+    variant_ref = ReferenceDTO(
+        slug=None,
+        version=None,
+        id=app_environment_revision.deployed_app_variant_revision_id,
+    )
+
+    config = await fetch_config_by_variant_ref(
+        project_id=project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=user_id,
+    )
+
+    if not config:
+        return None
+
+    config.environment_ref = ReferenceDTO(
+        slug=app_environment.name,
+        version=app_environment_revision.revision,
+        id=app_environment_revision.id,
     )
 
     return config
