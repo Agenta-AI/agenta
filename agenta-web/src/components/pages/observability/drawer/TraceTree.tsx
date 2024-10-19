@@ -1,10 +1,11 @@
-import {formatLatency} from "@/lib/helpers/formatters"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Coins, PlusCircle, Timer, TreeStructure} from "@phosphor-icons/react"
-import {Avatar, Space, Tree, Typography} from "antd"
+import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
+import {Space, Tree, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
+import AvatarTreeContent from "../components/AvatarTreeContent"
 
 interface TraceTreeProps {
     activeTrace: _AgentaRootsResponse
@@ -59,32 +60,31 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
-    const {node, time} = value
+    const {node, time, metrics} = value
     const classes = useStyles()
 
     return (
         <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
-            <Avatar
-                shape="square"
-                size={"large"}
-                style={{backgroundColor: "#586673", width: 32}}
-                icon={<TreeStructure size={16} />}
-            />
+            <AvatarTreeContent value={value} />
             <div className="flex flex-col">
                 <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
-                        {formatLatency(time?.span / 1000000)}
+                        {formatLatency(time.span / 1000000)}
                     </div>
+
                     <div>
                         <Coins />
-                        $0.002
+                        {formatCurrency(metrics?.acc?.costs?.total)}
                     </div>
-                    <div>
-                        <PlusCircle />
-                        72
-                    </div>
+
+                    {!!metrics?.acc?.tokens?.total && (
+                        <div>
+                            <PlusCircle />
+                            {formatTokenUsage(metrics?.acc?.tokens?.total)}
+                        </div>
+                    )}
                 </Space>
             </div>
         </div>
