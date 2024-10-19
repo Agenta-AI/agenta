@@ -1,15 +1,18 @@
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
-import logging
 from uuid import UUID
 from traceback import format_exc
 
+from agenta_backend.utils.exceptions import suppress
+from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.services.db_manager import (
-    get_user_with_id,
-    get_user,  # very wrong that I need to use this
+    get_user,  # It is very wrong that I have to use this,
+    get_user_with_id,  # instead of this.
     fetch_app_by_id,
+    fetch_app_by_name_and_parameters,
     fetch_app_variant_by_id,
     fetch_app_variant_revision_by_id,
+    fetch_app_variant_by_config_name_and_appid,
     fetch_app_variant_revision_by_variant,
     fetch_base_by_id,
     get_image_by_id,
@@ -22,161 +25,218 @@ from agenta_backend.services.db_manager import (
     update_variant_parameters,
     deploy_to_environment,
 )
-from agenta_backend.models.shared_models import ConfigDB
 
-from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isCloudEE, isOss
+from logging import getLogger, INFO
 
+logger = getLogger(__name__)
+logger.setLevel(INFO)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+### POSTGRES ASSUMPTIONS
+# UNIQUE: (project_id, {entity}_id)
+# UNIQUE: (project_id, application_id, {entity}_slug, {entity}_version)
 
 
 class ReferenceDTO(BaseModel):
-    id: Optional[UUID]
+    slug: Optional[str]  # shared across versions
     version: Optional[int]
-    commit_id: Optional[UUID]
-
-
-class PromptDTO(BaseModel):
-    ref: ReferenceDTO
     # ---
-    url: str
+    id: Optional[UUID]  # unique per version
+
+
+class ConfigDTO(BaseModel):
     params: Dict[str, Any]
+    url: str
     # ---
-    app_id: UUID
-    # ---
-    env_ref: Optional[ReferenceDTO]
-    env_name: Optional[str]
+    application_ref: Optional[ReferenceDTO]
+    service_ref: Optional[ReferenceDTO]
+    variant_ref: Optional[ReferenceDTO]
+
+
+# - CREATE
+
+
+async def add_config(
+    project_id: str,
+    user_id: str,
+    application_ref: ReferenceDTO,
+):
+    raise NotImplementedError()
 
 
 # - FETCH
 
 
-async def fetch_prompt_by_prompt_ref(
+async def fetch_config_by_variant_ref(
     project_id: str,
-    prompt_ref: ReferenceDTO,
-) -> Optional[PromptDTO]:
-    logger.warning(f"fetch_prompt_by_prompt_ref: {prompt_ref}")
+    variant_ref: ReferenceDTO,
+    application_ref: Optional[ReferenceDTO] = None,
+    user_id: Optional[str] = None,
+) -> Optional[ConfigDTO]:
+    # --> FETCHING: app_variant_revision / app_variant
+    logger.warning("Fetching: app_variant_revision / app_variant")
 
-    logger.warning("app_variant_revision")
     app_variant_revision = None
-    if prompt_ref.commit_id:
-        try:
+    app_variant = None
+
+    with suppress():
+        # by variant_id
+        logger.error("1.")
+
+        if variant_ref.id:
+            logger.error("1.1.a.")
             app_variant_revision = await fetch_app_variant_revision_by_id(
                 # project_id=project_id,
-                variant_revision_id=prompt_ref.commit_id.hex,
+                variant_revision_id=variant_ref.id.hex,
             )
-        except:
-            logger.error(format_exc())
+            logger.error("1.1.b.")
 
-    elif prompt_ref.id and prompt_ref.version:
-        try:
+        # by application_id, variant_slug, and ...
+        elif (application_ref.id or application_ref.slug) and variant_ref.slug:
+            logger.error("1.2.b.")
+
+            if not application_ref.id:
+                app = await fetch_app_by_name_and_parameters(
+                    project_id=project_id,
+                    app_name=application_ref.slug,
+                )
+
+                application_ref.id = app.id
+
+            if not application_ref.id:
+                return None
+
+            logger.error("1.2.c.")
+
+            print("------", application_ref.id, variant_ref.slug)
+
+            # ASSUMPTION : single or first base, not default base.
+            # TODO: handle default base and then {variant_name} as {base_name}.{variant_ref.slug},
+            #       and then use fetch_app_variant_by_name_and_appid() instead.
+            app_variant = await fetch_app_variant_by_config_name_and_appid(
+                # project_id=project_id,
+                app_id=application_ref.id.hex,
+                config_name=variant_ref.slug,
+            )
+
+            logger.error("1.2.d.")
+
+            if not app_variant:
+                return None
+
+            logger.error("1.2.e.")
+
+            # ... variant_version or latest variant version
+            variant_ref.version = variant_ref.version or app_variant.revision
+
             app_variant_revision = await fetch_app_variant_revision_by_variant(
                 project_id=project_id,
-                app_variant_id=prompt_ref.id.hex,
-                revision=prompt_ref.version,
+                # application_id=application_ref.id.hex,
+                app_variant_id=app_variant.id.hex,
+                revision=variant_ref.version,
             )
-        except:
-            logger.error(format_exc())
 
-    if not app_variant_revision:
+            logger.error("1.2.f.")
+
+        logger.error("2.")
+
+        if not app_variant:
+            app_variant = await fetch_app_variant_by_id(
+                # project_id=project_id,
+                app_variant_id=app_variant_revision.variant_id.hex,
+            )
+
+        logger.error("3.")
+
+    if not (app_variant_revision and app_variant):
         return None
-    logger.warning(app_variant_revision.id)
-    logger.warning(app_variant_revision.base_id)
+    # <-- FETCHING: app_variant_revision / app_variant
 
-    logger.warning("variant_base")
+    # --> FETCHING: variant_base
+    logger.warning("Fetching: variant_base")
+
     variant_base = None
-    try:
+
+    with suppress():
         variant_base = await fetch_base_by_id(
             # project_id=project_id,
             base_id=app_variant_revision.base_id.hex,
         )
-    except:
-        logger.error(format_exc())
 
     if not variant_base:
         return None
-    logger.warning(variant_base.deployment_id)
+    # <-- FETCHING: variant_base
 
-    logger.warning("deployment")
+    # --> FETCHING: deployment
+    logger.warning("Fetching: deployment")
+
     deployment = None
-    try:
+
+    with suppress():
         deployment = await get_deployment_by_id(
             # project_id=project_id,
             deployment_id=variant_base.deployment_id.hex,
         )
-    except:
-        logger.error(format_exc())
 
     if not deployment:
         return None
-    logger.warning(deployment.uri)
+    # <-- FETCHING: deployment
 
-    logger.warning("app_environment_revision")
-    app_environment_revision = None
-    try:
-        app_environment_revision = await fetch_app_environment_revision_by_app_variant_revision_id(
+    # --> FETCHING: app
+    logger.warning("Fetching: app")
+
+    app = None
+
+    with suppress():
+        app = await fetch_app_by_id(
             # project_id=project_id,
-            app_variant_revision_id=app_variant_revision.id.hex,
+            app_id=variant_base.app_id.hex,
         )
-    except:
-        logger.error(format_exc())
 
-    logger.warning("app_environment")
-    app_environment = None
-    if app_environment_revision:
-        logger.warning(app_environment_revision.environment_id)
+    if not app:
+        return None
+    # <-- FETCHING: app
 
-        try:
-            app_environment = await fetch_app_environment_by_id(
-                # project_id=project_id,
-                environment_id=app_environment_revision.environment_id.hex,
-            )
-
-        except:
-            logger.error(format_exc())
-
-    logger.warning("prompt")
-    prompt = PromptDTO(
-        ref=ReferenceDTO(
-            id=app_variant_revision.variant_id,
-            version=app_variant_revision.revision,
-            commit_id=app_variant_revision.id,
-        ),
-        url=deployment.uri,
+    config = ConfigDTO(
         params=app_variant_revision.config_parameters,
-        app_id=variant_base.app_id,
-        env_ref=(
-            ReferenceDTO(
-                id=app_environment_revision.environment_id,
-                version=app_environment_revision.revision,
-                commit_id=app_environment_revision.id,
-            )
-            if app_environment_revision
-            else None
+        url=deployment.uri,
+        # ---
+        application_ref=ReferenceDTO(
+            slug=app.app_name,
+            version=None,
+            id=app.id,
         ),
-        env_name=app_environment.name if app_environment else None,
+        service_ref=ReferenceDTO(
+            slug=deployment.id.hex,
+            version=None,
+            id=UUID(deployment.container_name[-(32 + 4) :]),
+        ),
+        variant_ref=ReferenceDTO(
+            slug=app_variant.variant_name.split(".")[1],
+            version=app_variant_revision.revision,
+            id=app_variant_revision.id,
+        ),
     )
 
-    print(prompt)
-    return prompt
+    return config
 
 
-async def fetch_prompt_by_env_ref(
+async def fetch_config_by_environment_ref(
     project_id: str,
-    env_ref: ReferenceDTO,
-) -> Optional[PromptDTO]:
+    environment_ref: ReferenceDTO,
+    application_ref: Optional[ReferenceDTO] = None,
+    user_id: Optional[str] = None,
+) -> Optional[ConfigDTO]:
     app_environment_revision = None
-    if env_ref.commit_id:
+    if environment_ref.id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id.hex,
+            revision_id=environment_ref.id.hex,
         )
-    elif env_ref.id and env_ref.version:
+    elif environment_ref.slug and environment_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
             project_id=project_id,
-            app_environment_id=env_ref.id.hex,
-            revision=env_ref.version,
+            app_environment_id=environment_ref.slug.hex,
+            revision=environment_ref.version,
         )
 
     if not app_environment_revision:
@@ -213,21 +273,21 @@ async def fetch_prompt_by_env_ref(
             environment_id=app_environment_revision.environment_id.hex,
         )
 
-    prompt = PromptDTO(
-        id=app_variant_revision.variant_id,
-        ref=ReferenceDTO(
-            id=app_variant_revision.variant_id,
+    config = ConfigDTO(
+        slug=app_variant_revision.variant_id,
+        variant_ref=ReferenceDTO(
+            slug=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
-            commit_id=app_variant_revision.id,
+            id=app_variant_revision.id,
         ),
-        url=deployment.uri,
+        service_url=deployment.uri,
         params=app_variant_revision.config_parameters,
-        app_id=variant_base.app_id,
-        env_ref=(
+        application_id=variant_base.app_id,
+        environment_ref=(
             ReferenceDTO(
-                id=app_environment_revision.environment_id,
+                slug=app_environment_revision.environment_id,
                 version=app_environment_revision.revision,
-                commit_id=app_environment_revision.id,
+                id=app_environment_revision.id,
             )
             if app_environment_revision
             else None
@@ -235,36 +295,28 @@ async def fetch_prompt_by_env_ref(
         env_name=app_environment.name if app_environment else None,
     )
 
-    return prompt
-
-
-async def fetch_prompt_by_app_id_and_env_name(
-    project_id: str,
-    app_id: str,
-    env_name: str,
-) -> Optional[PromptDTO]:
-    raise NotImplementedError()
+    return config
 
 
 # - FORK
 
 
-async def fork_prompt_by_prompt_ref(
+async def fork_config_by_variant_ref(
     project_id: str,
     user_id: str,
-    prompt_ref: ReferenceDTO,
-) -> Optional[PromptDTO]:
+    variant_ref: ReferenceDTO,
+) -> Optional[ConfigDTO]:
     app_variant_revision = None
-    if prompt_ref.commit_id:
+    if variant_ref.id:
         app_variant_revision = await fetch_app_variant_revision_by_id(
             # project_id=project_id,
-            variant_revision_id=prompt_ref.commit_id.hex,
+            variant_revision_id=variant_ref.id.hex,
         )
-    elif prompt_ref.id and prompt_ref.version:
+    elif variant_ref.slug and variant_ref.version:
         app_variant_revision = await fetch_app_variant_revision_by_variant(
             project_id=project_id,
-            app_variant_id=prompt_ref.id.hex,
-            revision=prompt_ref.version,
+            app_variant_id=variant_ref.slug.hex,
+            revision=variant_ref.version,
         )
 
     if not app_variant_revision:
@@ -327,7 +379,7 @@ async def fork_prompt_by_prompt_ref(
         base=variant_base,
         config=ConfigDB(
             config_name=app_variant_revision.config_name,
-            parameters={},  # app_variant_revision.config_parameters,
+            params={},  # app_variant_revision.config_parameters,
         ),
         base_name=app_variant.base_name,
     )
@@ -339,7 +391,7 @@ async def fork_prompt_by_prompt_ref(
         project_id=project_id,
         user_uid=user_id,
         app_variant_id=app_variant.id.hex,
-        parameters=app_variant_revision.config_parameters,
+        params=app_variant_revision.config_parameters,
     )
 
     app_variant_revision = await fetch_app_variant_revision_by_variant(
@@ -351,39 +403,39 @@ async def fork_prompt_by_prompt_ref(
     if not app_variant_revision:
         return None
 
-    prompt = PromptDTO(
-        id=app_variant_revision.id,
-        ref=ReferenceDTO(
-            id=app_variant_revision.variant_id,
+    config = ConfigDTO(
+        slug=app_variant_revision.id,
+        variant_ref=ReferenceDTO(
+            slug=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
-            commit_id=app_variant_revision.id,
+            id=app_variant_revision.id,
         ),
-        url=deployment.uri,
+        service_url=deployment.uri,
         params=app_variant_revision.config_parameters,
-        app_id=app_variant.app_id,
-        env_ref=None,
+        application_id=app_variant.app_id,
+        environment_ref=None,
         env_name=None,
     )
 
-    return prompt
+    return config
 
 
-async def fork_prompt_by_env_ref(
+async def fork_config_by_environment_ref(
     project_id: str,
     user_id: str,
-    env_ref: ReferenceDTO,
-) -> Optional[PromptDTO]:
+    environment_ref: ReferenceDTO,
+) -> Optional[ConfigDTO]:
     app_environment_revision = None
-    if env_ref.commit_id:
+    if environment_ref.id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id.hex,
+            revision_id=environment_ref.id.hex,
         )
-    elif env_ref.id and env_ref.version:
+    elif environment_ref.slug and environment_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
             project_id=project_id,
-            app_environment_id=env_ref.id.hex,
-            revision=env_ref.version,
+            app_environment_id=environment_ref.slug.hex,
+            revision=environment_ref.version,
         )
 
     if not app_environment_revision:
@@ -454,7 +506,7 @@ async def fork_prompt_by_env_ref(
         base=variant_base,
         config=ConfigDB(
             config_name=app_variant_revision.config_name,
-            parameters={},  # app_variant_revision.config_parameters,
+            params={},  # app_variant_revision.config_parameters,
         ),
         base_name=app_variant.base_name,
     )
@@ -466,7 +518,7 @@ async def fork_prompt_by_env_ref(
         project_id=project_id,
         user_uid=user_id,
         app_variant_id=app_variant.id.hex,
-        parameters=app_variant_revision.config_parameters,
+        params=app_variant_revision.config_parameters,
     )
 
     app_variant_revision = await fetch_app_variant_revision_by_variant(
@@ -478,43 +530,35 @@ async def fork_prompt_by_env_ref(
     if not app_variant_revision:
         return None
 
-    prompt = PromptDTO(
-        id=app_variant_revision.id,
-        ref=ReferenceDTO(
-            id=app_variant_revision.variant_id,
+    config = ConfigDTO(
+        slug=app_variant_revision.id,
+        variant_ref=ReferenceDTO(
+            slug=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
-            commit_id=app_variant_revision.id,
+            id=app_variant_revision.id,
         ),
-        url=deployment.uri,
+        service_url=deployment.uri,
         params=app_variant_revision.config_parameters,
-        app_id=app_variant.app_id,
-        env_ref=None,
+        application_id=app_variant.app_id,
+        environment_ref=None,
         env_name=None,
     )
 
-    return prompt
-
-
-async def fork_prompt_by_app_id_and_env_name(
-    project_id: str,
-    user_id: str,
-    app_id: str,
-) -> Optional[PromptDTO]:
-    raise NotImplementedError()
+    return config
 
 
 # - COMMIT
 
 
-async def commit_prompt(
+async def commit_config(
     project_id: str,
     user_id: str,
-    prompt: PromptDTO,
-) -> Optional[PromptDTO]:
-    if prompt.ref.commit_id:
+    config: ConfigDTO,
+) -> Optional[ConfigDTO]:
+    if config.ref.id:
         app_variant_revision = await fetch_app_variant_revision_by_id(
             # project_id=project_id,
-            variant_revision_id=prompt.ref.commit_id.hex,
+            variant_revision_id=config.ref.id.hex,
         )
 
         if not app_variant_revision:
@@ -524,20 +568,20 @@ async def commit_prompt(
             project_id=project_id,
             user_uid=user_id,
             app_variant_id=app_variant_revision.variant_id.hex,
-            parameters=prompt.params,
+            params=config.params,
         )
 
-    elif prompt.ref.id:
+    elif config.ref.slug:
         await update_variant_parameters(
             project_id=project_id,
             user_uid=user_id,
-            app_variant_id=prompt.ref.id.hex,
-            parameters=prompt.params,
+            app_variant_id=config.ref.slug.hex,
+            params=config.params,
         )
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=prompt.ref.id.hex,
+        app_variant_id=config.ref.slug.hex,
     )
 
     if not app_variant:
@@ -545,45 +589,45 @@ async def commit_prompt(
 
     app_variant_revision = await fetch_app_variant_revision_by_variant(
         project_id=project_id,
-        app_variant_id=prompt.ref.id.hex,
+        app_variant_id=config.ref.slug.hex,
         revision=app_variant.revision,
     )
 
     if not app_variant_revision:
         return None
 
-    prompt = await fetch_prompt_by_prompt_ref(
+    config = await fetch_config_by_variant_ref(
         project_id=project_id,
-        prompt_ref=ReferenceDTO(
-            id=app_variant_revision.variant_id,
+        variant_ref=ReferenceDTO(
+            slug=app_variant_revision.variant_id,
             version=app_variant_revision.revision,
-            commit_id=app_variant_revision.id,
+            id=app_variant_revision.id,
         ),
     )
 
-    return prompt
+    return config
 
 
 # - DEPLOY
 
 
-async def deploy_prompt_by_env_ref(
+async def deploy_config(
     project_id: str,
     user_id: str,
-    prompt_ref: ReferenceDTO,
-    env_ref: ReferenceDTO,
-) -> Optional[PromptDTO]:
+    variant_ref: ReferenceDTO,
+    environment_ref: ReferenceDTO,
+) -> Optional[ConfigDTO]:
     app_environment_revision = None
-    if env_ref.commit_id:
+    if environment_ref.id:
         app_environment_revision = await fetch_app_environment_revision(
             # project_id=project_id,
-            revision_id=env_ref.commit_id.hex,
+            revision_id=environment_ref.id.hex,
         )
-    elif env_ref.id and env_ref.version:
+    elif environment_ref.slug and environment_ref.version:
         app_environment_revision = await fetch_app_environment_revision_by_environment(
             project_id=project_id,
-            app_environment_id=env_ref.id.hex,
-            revision=env_ref.version,
+            app_environment_id=environment_ref.slug.hex,
+            revision=environment_ref.version,
         )
 
     if not app_environment_revision:
@@ -597,20 +641,16 @@ async def deploy_prompt_by_env_ref(
     if not app_environment:
         return None
 
-    logger.warning(f"deploying to {app_environment.name}")
-    logger.warning(f"deploying {prompt_ref.id.hex}")
-    logger.warning({"user_uid": user_id})
-
     await deploy_to_environment(
         # project_id=project_id,
         environment_name=app_environment.name,
-        variant_id=prompt_ref.id.hex,
+        variant_id=variant_ref.slug.hex,
         **{"user_uid": user_id},
     )
 
     app_variant = await fetch_app_variant_by_id(
         # project_id=project_id,
-        app_variant_id=prompt_ref.id.hex,
+        app_variant_id=variant_ref.slug.hex,
     )
 
     if not app_variant:
@@ -641,26 +681,18 @@ async def deploy_prompt_by_env_ref(
     if not deployment:
         return None
 
-    prompt = PromptDTO(
-        id=prompt_ref.id,
-        ref=ReferenceDTO(
-            id=prompt_ref.id,
+    config = ConfigDTO(
+        slug=variant_ref.slug,
+        variant_ref=ReferenceDTO(
+            slug=variant_ref.slug,
             version=app_variant.revision,
-            commit_id=app_variant.id,
+            id=app_variant.id,
         ),
-        url=deployment.uri,
+        service_url=deployment.uri,
         params=app_variant.config_parameters,
-        app_id=app_variant.app_id,
-        env_ref=env_ref,
+        application_id=app_variant.app_id,
+        environment_ref=environment_ref,
         env_name=app_environment.name,
     )
 
-    return prompt
-
-
-async def deploy_prompt_by_app_id_and_env_name(
-    project_id: str,
-    app_id: str,
-    env_name: str,
-) -> Optional[PromptDTO]:
-    raise NotImplementedError()
+    return config

@@ -356,6 +356,29 @@ async def fetch_app_variant_by_name_and_appid(
         return app_variant
 
 
+async def fetch_app_variant_by_config_name_and_appid(
+    config_name: str, app_id: str
+) -> AppVariantDB:
+    """Fetch an app variant by it's name and app id.
+
+    Args:
+        variant_name (str): The name of the variant
+        app_id (str): The ID of the variant app
+
+    Returns:
+        AppVariantDB: the instance of the app variant
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB).filter_by(
+                config_name=config_name, app_id=uuid.UUID(app_id)
+            )
+        )
+        app_variant = result.scalars().first()
+        return app_variant
+
+
 async def create_new_variant_base(
     app: AppDB,
     project_id: str,

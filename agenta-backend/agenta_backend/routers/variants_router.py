@@ -8,11 +8,7 @@ from fastapi import HTTPException, Request, Body
 from agenta_backend.models import converters
 
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import (
-    app_manager,
-    db_manager,
-    prompts_manager,
-)
+from agenta_backend.services import app_manager, db_manager
 
 if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
@@ -523,68 +519,75 @@ async def get_variant_revision(
         raise HTTPException(status_code=status_code, detail=str(e))
 
 
-### --- PROMPTS --- ###
+### --- CONFIGS --- ###
 
-from agenta_backend.services.prompts_manager import ReferenceDTO, PromptDTO
+from agenta_backend.services.variants_manager import (
+    ReferenceDTO,
+    ConfigDTO,
+)
+
+from agenta_backend.services.variants_manager import (
+    add_config,
+    fetch_config_by_variant_ref,
+    fetch_config_by_environment_ref,
+    fork_config_by_variant_ref,
+    fork_config_by_environment_ref,
+    commit_config,
+    deploy_config,
+)
 
 
 class ReferenceRequestModel(ReferenceDTO):
     pass
 
 
-class PromptRequestModel(PromptDTO):
+class ConfigRequestModel(ConfigDTO):
     pass
 
 
-class PromptResponseModel(PromptDTO):
+class ConfigResponseModel(ConfigDTO):
     pass
+
+
+# @router.post()
 
 
 @router.get(
-    "/as/prompts/fetch",
-    operation_id="fetch_prompt",
-    response_model=PromptResponseModel,
+    "/configs/fetch",
+    operation_id="fetch_variant_config",
+    response_model=ConfigResponseModel,
 )
-async def fetch_prompt(
+async def fetch_config(
     request: Request,
-    app_id: Optional[str] = None,
-    prompt_ref: Optional[ReferenceRequestModel] = None,
-    env_ref: Optional[ReferenceRequestModel] = None,
-    env_name: Optional[str] = None,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
 ):
     try:
-        if not (app_id and env_name) and not prompt_ref and not env_ref:
-            raise HTTPException(
-                status_code=400,
-                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+        config = None
+
+        if variant_ref:
+            config = await fetch_config_by_variant_ref(
+                project_id=request.state.project_id,
+                variant_ref=variant_ref,
+                application_ref=application_ref,
+                user_id=request.state.user_id,
+            )
+        elif environment_ref:
+            config = await fetch_config_by_environment_ref(
+                project_id=request.state.project_id,
+                environment_ref=environment_ref,
+                application_ref=application_ref,
+                user_id=request.state.user_id,
             )
 
-        prompt = None
-
-        if prompt_ref:
-            prompt = await prompts_manager.fetch_prompt_by_prompt_ref(
-                project_id=request.state.project_id,
-                prompt_ref=prompt_ref,
-            )
-        elif env_ref:
-            prompt = await prompts_manager.fetch_prompt_by_env_ref(
-                project_id=request.state.project_id,
-                env_ref=env_ref,
-            )
-        elif app_id and env_name:
-            prompt = await prompts_manager.fetch_prompt_by_app_id_and_env_name(
-                project_id=request.state.project_id,
-                app_id=app_id,
-                env_name=env_name,
-            )
-
-        if not prompt:
+        if not config:
             raise HTTPException(
                 status_code=404,
-                detail="Prompt not found.",
+                detail="Config not found.",
             )
 
-        return prompt
+        return config
 
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
@@ -592,53 +595,57 @@ async def fetch_prompt(
 
 
 @router.post(
-    "/as/prompts/fork/",
-    operation_id="fork_prompt",
-    response_model=PromptResponseModel,
+    "/as/configs/fork/",
+    operation_id="fork_config",
+    response_model=ConfigResponseModel,
 )
-async def fork_prompt(
+async def fork_config(
     request: Request,
-    app_id: Optional[str] = None,
-    prompt_ref: Optional[ReferenceRequestModel] = None,
-    env_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
     env_name: Optional[str] = None,
 ):
     try:
-        if not (app_id and env_name) and not prompt_ref and not env_ref:
+        if (
+            not (application_ref and env_name)
+            and not variant_ref
+            and not environment_ref
+        ):
             raise HTTPException(
                 status_code=400,
-                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+                detail="Either application_ref and env_name, or variant_ref, or environment_ref must be provided.",
             )
 
-        prompt = None
+        config = None
 
-        if prompt_ref:
-            prompt = await prompts_manager.fork_prompt_by_prompt_ref(
+        if variant_ref:
+            config = await fork_config_by_variant_ref(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
-                prompt_ref=prompt_ref,
+                variant_ref=variant_ref,
             )
-        elif env_ref:
-            prompt = await prompts_manager.fork_prompt_by_env_ref(
+        elif environment_ref:
+            config = await fork_config_by_environment_ref(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
-                env_ref=env_ref,
+                environment_ref=environment_ref,
             )
-        elif app_id and env_name:
-            prompt = await prompts_manager.fork_prompt_by_app_id_and_env_name(
+        elif application_ref and env_name:
+            config = await fork_config_by_application_ref_and_simple_env_name(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
-                app_id=app_id,
+                application_ref=application_ref,
                 env_name=env_name,
             )
 
-        if not prompt:
+        if not config:
             raise HTTPException(
                 status_code=404,
-                detail="Prompt not found.",
+                detail="Config not found.",
             )
 
-        return prompt
+        return config
 
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
@@ -646,29 +653,29 @@ async def fork_prompt(
 
 
 @router.post(
-    "/as/prompts/commit/",
-    operation_id="commit_prompt",
-    response_model=PromptResponseModel,
+    "/as/configs/commit/",
+    operation_id="commit_config",
+    response_model=ConfigResponseModel,
 )
-async def commit_prompt(
+async def commit_config(
     request: Request,
-    prompt: PromptRequestModel,
+    config: ConfigRequestModel,
 ):
     try:
 
-        prompt = await prompts_manager.commit_prompt(
+        config = await commit_config(
             project_id=request.state.project_id,
             user_id=request.state.user_id,
-            prompt=prompt,
+            config=config,
         )
 
-        if not prompt:
+        if not config:
             raise HTTPException(
                 status_code=404,
-                detail="Prompt not found.",
+                detail="Config not found.",
             )
 
-        return prompt
+        return config
 
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
@@ -676,41 +683,37 @@ async def commit_prompt(
 
 
 @router.post(
-    "/as/prompts/deploy/",
-    operation_id="deploy_prompt",
-    response_model=PromptResponseModel,
+    "/as/configs/deploy/",
+    operation_id="deploy_config",
+    response_model=ConfigResponseModel,
 )
-async def deploy_prompt(
+async def deploy_config(
     request: Request,
-    app_id: Optional[str] = None,
-    prompt_ref: Optional[ReferenceRequestModel] = None,
-    env_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
     env_name: Optional[str] = None,
 ):
     try:
-        if not (app_id and env_name) and not prompt_ref and not env_ref:
+        if (
+            not (application_ref and env_name)
+            and not variant_ref
+            and not environment_ref
+        ):
             raise HTTPException(
                 status_code=400,
-                detail="Either app_id and env_name, or prompt_ref, or env_ref must be provided.",
+                detail="Either application_ref and env_name, or variant_ref, or environment_ref must be provided.",
             )
 
         environment = None
 
-        if env_ref:
-            environment = await prompts_manager.deploy_prompt_by_env_ref(
+        if environment_ref:
+            environment = await deploy_config(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
-                prompt_ref=prompt_ref,
-                env_ref=env_ref,
+                variant_ref=variant_ref,
+                environment_ref=environment_ref,
             )
-        elif app_id and env_name:
-            environment = await prompts_manager.deploy_prompt_by_app_id_and_env_name(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                app_id=app_id,
-                env_name=env_name,
-            )
-
         if not environment:
             raise HTTPException(
                 status_code=404,
