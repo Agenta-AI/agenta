@@ -139,7 +139,7 @@ class OTelContextDTO(DisplayBase):
 
 class OTelEventDTO(DisplayBase):
     name: str
-    timestamp: datetime
+    timestamp: str
 
     attributes: Optional[Attributes] = None
 
