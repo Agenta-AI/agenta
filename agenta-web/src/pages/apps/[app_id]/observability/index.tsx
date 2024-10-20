@@ -41,20 +41,14 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const [selected, setSelected] = useState(activeTrace?.key)
 
-    const [selectedItem, setSelectedItem] = useState<_AgentaRootsResponse | null>(
-        getNodeById(traces, selected),
+    const selectedItem = useMemo(
+        () => (traces?.length ? getNodeById(traces, selected) : null),
+        [selected, traces],
     )
 
     useEffect(() => {
         setSelected(activeTrace?.key)
     }, [activeTrace])
-
-    const handleTreeNodeClick = (nodeId: string) => {
-        const selectedNode = activeTrace ? getNodeById(activeTrace, nodeId) : null
-        if (selectedNode) {
-            setSelectedItem(selectedNode)
-        }
-    }
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
         {
@@ -183,10 +177,7 @@ const ObservabilityDashboard = ({}: Props) => {
                         <TraceTree
                             activeTrace={activeTrace}
                             selected={selected}
-                            setSelected={(nodeId) => {
-                                setSelected(nodeId)
-                                handleTreeNodeClick(nodeId.toString())
-                            }}
+                            setSelected={setSelected}
                         />
                     }
                 />

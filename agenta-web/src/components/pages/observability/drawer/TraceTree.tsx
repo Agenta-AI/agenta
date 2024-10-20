@@ -3,7 +3,7 @@ import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {Space, Tree, Typography} from "antd"
-import React from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AvatarTreeContent from "../components/AvatarTreeContent"
 
@@ -108,14 +108,33 @@ const buildTreeData = (spans: _AgentaRootsResponse[]): NodeTreeChildren[] => {
 
 const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
     const classes = useStyles()
+    const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+
+    useEffect(() => {
+        const initialExpandedKeys = getAllKeys(activeTrace)
+        setExpandedKeys(initialExpandedKeys)
+    }, [activeTrace])
+
+    const getAllKeys = (node: _AgentaRootsResponse): string[] => {
+        const childrenKeys = node.children ? node.children.flatMap(getAllKeys) : []
+        return [node.node.id, ...childrenKeys]
+    }
+
+    const onExpand = (expanded: React.Key[]) => {
+        setExpandedKeys(expanded)
+    }
 
     return (
         <Tree
             showLine
             selectedKeys={[selected]}
-            showIcon={false}
+            expandedKeys={expandedKeys}
+            onExpand={onExpand}
+            showIcon={true}
             onSelect={(keys) => {
-                setSelected(keys[0]?.toString() || activeTrace.node.id)
+                if (keys.length > 0) {
+                    setSelected(keys[0].toString() || activeTrace.node.id)
+                }
             }}
             treeData={[
                 {
