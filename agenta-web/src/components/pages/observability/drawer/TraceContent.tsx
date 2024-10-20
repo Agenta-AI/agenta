@@ -136,6 +136,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                                       key={index}
                                                       label={"assistant"}
                                                       value={param.content}
+                                                      bgColor="#E6FFFB"
                                                   />
                                               ) : (
                                                   <AccordionTreePanel

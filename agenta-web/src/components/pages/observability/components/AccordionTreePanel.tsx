@@ -11,10 +11,11 @@ type AccordionTreePanelProps = {
     value: Record<string, any>
     label: string
     enableFormatSwitcher?: boolean
+    bgColor?: string
 } & React.ComponentProps<typeof Collapse>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: {
+    collapseContainer: ({bgColor}: {bgColor?: string}) => ({
         backgroundColor: "unset",
         "& .ant-collapse-item": {
             background: theme.colorFillAlter,
@@ -31,7 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             borderTop: `1px solid ${theme.colorBorder} !important`,
             padding: theme.padding,
             lineHeight: theme.lineHeight,
-            backgroundColor: `${theme.colorBgContainer} !important`,
+            backgroundColor: `${bgColor || theme.colorBgContainer} !important`,
             borderBottomLeftRadius: theme.borderRadius,
             borderBottomRightRadius: theme.borderRadius,
             fontSize: theme.fontSize,
@@ -39,7 +40,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 padding: "0px !important",
             },
         },
-    },
+    }),
 }))
 
 const ibm_plex_mono = IBM_Plex_Mono({
@@ -51,9 +52,10 @@ const AccordionTreePanel = ({
     value,
     label,
     enableFormatSwitcher = false,
+    bgColor,
     ...props
 }: AccordionTreePanelProps) => {
-    const classes = useStyles()
+    const classes = useStyles({bgColor})
     const [segmentedValue, setSegmentedValue] = useState("JSON")
 
     const yamlOutput = useMemo(() => {
