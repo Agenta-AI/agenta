@@ -23,11 +23,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     tree: {
         overflowY: "auto",
         height: "100%",
+        padding: "1px 0",
         "& .ant-tree-node-content-wrapper": {
             width: 240,
         },
         "& .ant-tree-node-selected": {
-            border: `1px solid ${theme.colorBorder}`,
+            outline: `1px solid ${theme.colorBorder}`,
         },
         "& .ant-tree-switcher-leaf-line": {
             "&:after": {
