@@ -362,7 +362,7 @@ async def fetch_app_variant_by_config_name_and_appid(
     """Fetch an app variant by it's name and app id.
 
     Args:
-        variant_name (str): The name of the variant
+        config_name (str): The name of the variant
         app_id (str): The ID of the variant app
 
     Returns:
