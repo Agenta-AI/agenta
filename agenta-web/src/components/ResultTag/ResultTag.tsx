@@ -1,5 +1,5 @@
 import {JSSTheme} from "@/lib/Types"
-import {Popover, Space, Tag} from "antd"
+import {Popover, Tag} from "antd"
 import React, {memo} from "react"
 import {createUseStyles} from "react-jss"
 
