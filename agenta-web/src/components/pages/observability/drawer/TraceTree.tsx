@@ -38,6 +38,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-tree-treenode-leaf-last .ant-tree-switcher-leaf-line:before": {
             height: "36px !important",
         },
+        "& .ant-tree-switcher-line-icon": {
+            height: "100%",
+        },
+        "& .ant-tree-switcher:before": {
+            top: "34%",
+        },
     },
     treeTitle: {
         fontSize: theme.fontSizeLG,
