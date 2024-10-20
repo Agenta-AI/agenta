@@ -56,6 +56,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             overflowY: "auto",
         },
     },
+    tokenContainer: {
+        "& > div:nth-of-type(1)": {
+            lineHeight: theme.lineHeight,
+            fontWeight: theme.fontWeightMedium,
+        },
+        "& > div:nth-of-type(2)": {
+            lineHeight: theme.lineHeight,
+            fontWeight: 400,
+        },
+    },
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
@@ -227,10 +237,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             </>
                         }
                         popoverContent={
-                            <>
-                                <div>Prompt tokens</div>
-                                <div>Completion tokens</div>
-                            </>
+                            <Space direction="vertical">
+                                <Space className={classes.tokenContainer}>
+                                    <div>{formatTokenUsage(metrics?.acc?.tokens?.prompt)}</div>
+                                    <div>Prompt tokens</div>
+                                </Space>
+                                <Space className={classes.tokenContainer}>
+                                    <div>{formatTokenUsage(metrics?.acc?.tokens?.completion)}</div>
+                                    <div>Completion tokens</div>
+                                </Space>
+                            </Space>
                         }
                     />
                     <ResultTag
