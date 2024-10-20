@@ -3,7 +3,7 @@ import uuid
 import logging
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -1182,7 +1182,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
 
 async def deploy_to_environment(
     environment_name: str, variant_id: str, **user_org_data
-):
+) -> Tuple[Optional[str], Optional[int]]:
     """
     Deploys an app variant to a specified environment.
 
@@ -1241,6 +1241,8 @@ async def deploy_to_environment(
         )
 
         await session.commit()
+
+    return environment_db.name, environment_db.revision
 
 
 async def fetch_app_environment_by_name_and_appid(

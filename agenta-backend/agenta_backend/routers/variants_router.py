@@ -529,7 +529,7 @@ from agenta_backend.services.variants_manager import (
 )
 
 from agenta_backend.services.variants_manager import (
-    create_config,
+    add_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
@@ -551,7 +551,43 @@ class ConfigResponseModel(ConfigDTO):
     pass
 
 
-# @router.post()
+@router.post(
+    "/configs/add",
+    operation_id="configs_add",
+    response_model=ConfigResponseModel,
+)
+@handle_exceptions()
+async def configs_add(
+    request: Request,
+    variant_ref: ReferenceRequestModel,
+    application_ref: ReferenceRequestModel,
+):
+    config = await fetch_config_by_variant_ref(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+    if config:
+        raise HTTPException(
+            status_code=400,
+            detail="Config already exists.",
+        )
+
+    config = await add_config(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
 
 
 @router.get(
@@ -661,24 +697,22 @@ async def configs_commit(
 )
 async def configs_deploy(
     request: Request,
-    variant_ref: Optional[ReferenceRequestModel] = None,
-    environment_ref: Optional[ReferenceRequestModel] = None,
+    variant_ref: ReferenceRequestModel,
+    environment_ref: ReferenceRequestModel,
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
-    environment = None
+    config = await deploy_config(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        environment_ref=environment_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
 
-    if environment_ref:
-        environment = await deploy_config(
-            project_id=request.state.project_id,
-            user_id=request.state.user_id,
-            variant_ref=variant_ref,
-            environment_ref=environment_ref,
-        )
-
-    if not environment:
+    if not config:
         raise HTTPException(
             status_code=404,
-            detail="Environment not found.",
+            detail="Config not found.",
         )
 
-    return environment
+    return config

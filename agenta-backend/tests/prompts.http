@@ -260,13 +260,37 @@ Content-Type: application/json
 
 { 
     "variant_ref": {
-        "slug": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
-        "version": 1,
-        "id": "01929c2a-7cbc-7684-9c86-c502ce1a42f5"
+        "slug": "default",
+        "version": 3,
+        "id": "0192a45d-5ba1-757e-a983-787a66a4e78d"
     },
     "environment_ref": {
-        "id": "01929c13-6af2-7b10-a51d-d99fccc1732b",
+        "slug": "production",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
         "slug": null,
-        "version": null
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name add_config
+POST {{base_url}}/add
+Content-Type: application/json
+
+{ 
+    "variant_ref": {
+        "slug": "my-var",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
     }
 }
