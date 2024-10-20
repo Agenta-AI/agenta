@@ -521,6 +521,8 @@ async def get_variant_revision(
 
 ### --- CONFIGS --- ###
 
+from agenta_backend.utils.exceptions import handle_exceptions
+
 from agenta_backend.services.variants_manager import (
     ReferenceDTO,
     ConfigDTO,
@@ -557,99 +559,75 @@ class ConfigResponseModel(ConfigDTO):
     operation_id="fetch_variant_config",
     response_model=ConfigResponseModel,
 )
+@handle_exceptions()
 async def fetch_config(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
     environment_ref: Optional[ReferenceRequestModel] = None,
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
-    try:
-        config = None
+    config = None
 
-        if variant_ref:
-            config = await fetch_config_by_variant_ref(
-                project_id=request.state.project_id,
-                variant_ref=variant_ref,
-                application_ref=application_ref,
-                user_id=request.state.user_id,
-            )
-        elif environment_ref:
-            config = await fetch_config_by_environment_ref(
-                project_id=request.state.project_id,
-                environment_ref=environment_ref,
-                application_ref=application_ref,
-                user_id=request.state.user_id,
-            )
+    if variant_ref:
+        config = await fetch_config_by_variant_ref(
+            project_id=request.state.project_id,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+    elif environment_ref:
+        config = await fetch_config_by_environment_ref(
+            project_id=request.state.project_id,
+            environment_ref=environment_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
 
-        if not config:
-            raise HTTPException(
-                status_code=404,
-                detail="Config not found.",
-            )
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
 
-        return config
-
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return config
 
 
 @router.post(
-    "/as/configs/fork/",
-    operation_id="fork_config",
+    "/configs/fork",
+    operation_id="fork_variantconfig",
     response_model=ConfigResponseModel,
 )
+@handle_exceptions()
 async def fork_config(
     request: Request,
-    application_ref: Optional[ReferenceRequestModel] = None,
     variant_ref: Optional[ReferenceRequestModel] = None,
     environment_ref: Optional[ReferenceRequestModel] = None,
-    env_name: Optional[str] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
 ):
-    try:
-        if (
-            not (application_ref and env_name)
-            and not variant_ref
-            and not environment_ref
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Either application_ref and env_name, or variant_ref, or environment_ref must be provided.",
-            )
+    config = None
 
-        config = None
+    if variant_ref:
+        config = await fork_config_by_variant_ref(
+            project_id=request.state.project_id,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+    elif environment_ref:
+        config = await fork_config_by_environment_ref(
+            project_id=request.state.project_id,
+            environment_ref=environment_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
 
-        if variant_ref:
-            config = await fork_config_by_variant_ref(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                variant_ref=variant_ref,
-            )
-        elif environment_ref:
-            config = await fork_config_by_environment_ref(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                environment_ref=environment_ref,
-            )
-        elif application_ref and env_name:
-            config = await fork_config_by_application_ref_and_simple_env_name(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                application_ref=application_ref,
-                env_name=env_name,
-            )
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
 
-        if not config:
-            raise HTTPException(
-                status_code=404,
-                detail="Config not found.",
-            )
-
-        return config
-
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return config
 
 
 @router.post(
