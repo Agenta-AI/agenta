@@ -281,8 +281,6 @@
         "paddingContentVerticalSM": 8,
         "controlPaddingHorizontal": 12,
         "controlPaddingHorizontalSM": 8,
-        "fontFamily": "'Inter', 'Inter'",
-        "fontFamilyCode": "'Inter', 'Inter'",
         "fontSize": 12,
         "fontSizeLG": 14,
         "fontSizeSM": 10,
@@ -378,8 +376,7 @@
             "hoverBg": "#ffffff",
             "inputFontSize": 12,
             "inputFontSizeLG": 14,
-            "inputFontSizeSM": 10,
-            "fontFamily": "'Inter', 'Inter'"
+            "inputFontSizeSM": 10
         },
         "Transfer": {
             "listWidthLG": 250,
@@ -411,8 +408,7 @@
             "colorBgContainerDisabled": "rgba(5, 23, 41, 0.04)",
             "colorBgContainer": "#ffffff",
             "itemHeight": 28,
-            "headerHeight": 34,
-            "fontFamily": "'Inter', 'Inter'"
+            "headerHeight": 34
         },
         "Segmented": {
             "segmentedBgColorSelected": "#ffffff",
@@ -447,8 +443,7 @@
             "itemColor": "#586673",
             "itemActiveBg": "rgba(5, 23, 41, 0.15)",
             "trackPadding": 2,
-            "trackBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "trackBg": "#ffffff"
         },
         "Switch": {
             "trackPadding": 2,
@@ -473,8 +468,7 @@
             "colorPrimaryHover": "#394857",
             "colorPrimaryBorder": "#d6dee6",
             "colorPrimary": "#1c2c3d",
-            "handleBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "handleBg": "#ffffff"
         },
         "TimePicker": {
             "timeColumnWidth": 56,
@@ -563,8 +557,7 @@
             "withoutTimeCellHeight": 66,
             "inputFontSize": 12,
             "inputFontSizeLG": 14,
-            "inputFontSizeSM": 10,
-            "fontFamily": "'Inter', 'Inter'"
+            "inputFontSizeSM": 10
         },
         "Timeline": {
             "itemPaddingBottom": 20,
@@ -587,8 +580,7 @@
             "colorError": "#d61010",
             "colorBgContainer": "#ffffff",
             "tailColor": "rgba(5, 23, 41, 0.06)",
-            "dotBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "dotBg": "#ffffff"
         },
         "Tabs": {
             "horizontalItemGutter": 24,
@@ -635,8 +627,7 @@
             "cardBg": "rgba(5, 23, 41, 0.02)",
             "titleFontSize": 12,
             "titleFontSizeLG": 14,
-            "titleFontSizeSM": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "titleFontSizeSM": 12
         },
         "Table": {
             "stickyScrollBarBorderRadius": 100,
@@ -699,8 +690,7 @@
             "headerSortHoverBg": "#f0f0f0",
             "cellFontSize": 12,
             "cellFontSizeMD": 12,
-            "cellFontSizeSM": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "cellFontSizeSM": 12
         },
         "Steps": {
             "dotSize": 8,
@@ -750,8 +740,7 @@
             "iconSize": 28,
             "finishIconBorderColor": "#1677ff",
             "customIconFontSize": 24,
-            "iconFontSize": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "iconFontSize": 12
         },
         "Spin": {
             "dotSizeSM": 14,
@@ -766,8 +755,7 @@
             "colorText": "#1c2c3d",
             "colorPrimary": "#1c2c3d",
             "colorBgContainer": "#ffffff",
-            "dotSizeLG": 28,
-            "fontFamily": "'Inter', 'Inter'"
+            "dotSizeLG": 28
         },
         "Slider": {
             "railSize": 4,
@@ -804,8 +792,7 @@
             "handleActiveColor": "#1c2c3d",
             "dotBorderColor": "#eaeff5",
             "dotActiveBorderColor": "#d6dee6",
-            "handleColorDisabled": "#bfbfbf",
-            "fontFamily": "'Inter', 'Inter'"
+            "handleColorDisabled": "#bfbfbf"
         },
         "Rate": {
             "rateStarSize": 20,
@@ -815,8 +802,7 @@
             "fontSize": 12,
             "controlHeightLG": 34,
             "colorText": "#1c2c3d",
-            "colorFillContent": "rgba(5, 23, 41, 0.06)",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorFillContent": "rgba(5, 23, 41, 0.06)"
         },
         "Radio": {
             "radioSize": 16,
@@ -860,8 +846,7 @@
             "buttonCheckedColorDisabled": "#bdc7d1",
             "buttonCheckedBgDisabled": "rgba(5, 23, 41, 0.15)",
             "buttonCheckedBg": "#ffffff",
-            "buttonBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "buttonBg": "#ffffff"
         },
         "Popover": {
             "titleMinWidth": 177,
@@ -879,8 +864,7 @@
             "colorTextHeading": "#1c2c3d",
             "colorText": "#1c2c3d",
             "colorSplit": "rgba(5, 23, 41, 0.06)",
-            "colorBgElevated": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorBgElevated": "#ffffff"
         },
         "Notification": {
             "width": 384,
@@ -907,8 +891,7 @@
             "colorError": "#d61010",
             "colorBgElevated": "#ffffff",
             "lineHeightLG": 1.5714285714285714,
-            "lineWidthFocus": 4,
-            "fontFamily": "'Inter', 'Inter'"
+            "lineWidthFocus": 4
         },
         "Tooltip": {
             "paddingSM": 12,
@@ -921,8 +904,7 @@
             "borderRadius": 8,
             "colorTextLightSolid": "#ffffff",
             "colorText": "#1c2c3d",
-            "colorBgSpotlight": "rgba(5, 23, 41, 0.9)",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorBgSpotlight": "rgba(5, 23, 41, 0.9)"
         },
         "Menu": {
             "subMenuItemBg": "rgba(0, 0, 0, 0)",
@@ -986,8 +968,7 @@
             "itemMarginInline": 4,
             "iconMarginInlineEnd": 10,
             "groupTitleFontSize": 12,
-            "groupTitleLineHeight": 1.6666666666666667,
-            "fontFamily": "'Inter', 'Inter'"
+            "groupTitleLineHeight": 1.6666666666666667
         },
         "InputNumber": {
             "paddingInlineSM": 7,
@@ -1039,8 +1020,7 @@
             "hoverBg": "#ffffff",
             "inputFontSize": 12,
             "inputFontSizeLG": 14,
-            "inputFontSizeSM": 10,
-            "fontFamily": "'Inter', 'Inter'"
+            "inputFontSizeSM": 10
         },
         "Image": {
             "previewOperationSize": 18,
@@ -1086,8 +1066,7 @@
             "headerFontSize": 14,
             "headerFontSizeSM": 12,
             "fontHeight": 22,
-            "fontSizeLG": 14,
-            "fontFamily": "'Inter', 'Inter'"
+            "fontSizeLG": 14
         },
         "Carousel": {
             "dotWidth": 16,
@@ -1099,8 +1078,7 @@
             "controlHeightSM": 24,
             "controlHeightLG": 34,
             "colorText": "#1c2c3d",
-            "colorBgContainer": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorBgContainer": "#ffffff"
         },
         "Cascader": {
             "dropdownHeight": 180,
@@ -1136,8 +1114,7 @@
             "colorBgContainer": "#ffffff",
             "optionSelectedBg": "#f5f7fa",
             "menuPadding": 4,
-            "optionSelectedFontWeight": 600,
-            "fontFamily": "'Inter', 'Inter'"
+            "optionSelectedFontWeight": 600
         },
         "Calendar": {
             "yearControlWidth": 80,
@@ -1179,8 +1156,7 @@
             "itemActiveBg": "#f5f7fa",
             "fullPanelBg": "#ffffff",
             "fullBg": "#ffffff",
-            "fontHeightSM": 20,
-            "fontFamily": "'Inter', 'Inter'"
+            "fontHeightSM": 20
         },
         "Button": {
             "paddingInlineSM": 7,
@@ -1272,8 +1248,7 @@
             "textFontSize": 10,
             "textFontSizeSM": 10,
             "fontHeight": 22,
-            "lineHeight": 1.6666666666666667,
-            "fontFamily": "'Inter', 'Inter'"
+            "lineHeight": 1.6666666666666667
         },
         "Form": {
             "screenXSMax": 575,
@@ -1309,8 +1284,7 @@
             "labelColonMarginInlineEnd": 8,
             "labelColonMarginInlineStart": 2,
             "labelHeight": 28,
-            "labelFontSize": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "labelFontSize": 12
         },
         "Avatar": {
             "marginXXS": 4,
@@ -1333,8 +1307,7 @@
             "containerSize": 28,
             "textFontSize": 18,
             "textFontSizeLG": 20,
-            "textFontSizeSM": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "textFontSizeSM": 12
         },
         "Tour": {
             "sizePopupArrow": 16,
@@ -1360,7 +1333,6 @@
             "closeBtnSize": 22,
             "primaryNextBtnHoverBg": "#f0f0f0",
             "primaryPrevBtnBg": "rgba(255, 255, 255, 0.15)",
-            "fontFamily": "'Inter', 'Inter'",
             "lineWidthFocus": 4
         },
         "QRCode": {
@@ -1373,8 +1345,7 @@
             "borderRadiusLG": 10,
             "colorWhite": "#ffffff",
             "colorText": "#1c2c3d",
-            "colorSplit": "rgba(5, 23, 41, 0.06)",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorSplit": "rgba(5, 23, 41, 0.06)"
         },
         "Upload": {
             "paddingXS": 8,
@@ -1407,8 +1378,7 @@
             "colorBgMask": "rgba(5, 23, 41, 0.45)",
             "fontHeight": 22,
             "fontHeightSM": 20,
-            "lineWidthFocus": 4,
-            "fontFamily": "'Inter', 'Inter'"
+            "lineWidthFocus": 4
         },
         "Typography": {
             "paddingSM": 12,
@@ -1440,7 +1410,7 @@
             "colorErrorHover": "#de4040",
             "colorErrorActive": "#ab0d0d",
             "colorError": "#d61010",
-            "fontFamilyCode": "'Inter', 'Inter'"
+            "fontFamilyCode": "'inherit', 'inherit'"
         },
         "TreeSelect": {
             "paddingXS": 8,
@@ -1470,8 +1440,7 @@
             "colorBgContainer": "#ffffff",
             "titleHeight": 24,
             "nodeSelectedBg": "#f5f7fa",
-            "nodeHoverBg": "rgba(5, 23, 41, 0.04)",
-            "fontFamily": "'Inter', 'Inter'"
+            "nodeHoverBg": "rgba(5, 23, 41, 0.04)"
         },
         "Tree": {
             "paddingSM": 12,
@@ -1505,8 +1474,7 @@
             "nodeSelectedBg": "#f5f7fa",
             "nodeHoverBg": "rgba(5, 23, 41, 0.04)",
             "directoryNodeSelectedColor": "#ffffff",
-            "directoryNodeSelectedBg": "#1c2c3d",
-            "fontFamily": "'Inter', 'Inter'"
+            "directoryNodeSelectedBg": "#1c2c3d"
         },
         "Tag": {
             "paddingXXS": 4,
@@ -1538,8 +1506,7 @@
             "colorErrorBorder": "#ef9f9f",
             "colorErrorBg": "#fbe7e7",
             "defaultColor": "#1c2c3d",
-            "defaultBg": "rgba(5, 23, 41, 0.02)",
-            "fontFamily": "'Inter', 'Inter'"
+            "defaultBg": "rgba(5, 23, 41, 0.02)"
         },
         "Statistic": {
             "padding": 16,
@@ -1551,8 +1518,7 @@
             "colorTextDescription": "#758391",
             "colorText": "#1c2c3d",
             "contentFontSize": 20,
-            "titleFontSize": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "titleFontSize": 12
         },
         "Skeleton": {
             "padding": 16,
@@ -1626,8 +1592,7 @@
             "multipleItemBg": "rgba(5, 23, 41, 0.06)",
             "clearBg": "#ffffff",
             "optionFontSize": 12,
-            "optionSelectedFontWeight": 600,
-            "fontFamily": "'Inter', 'Inter'"
+            "optionSelectedFontWeight": 600
         },
         "Result": {
             "paddingXS": 8,
@@ -1664,8 +1629,7 @@
             "colorBgContainer": "#ffffff",
             "remainingColor": "rgba(5, 23, 41, 0.06)",
             "defaultColor": "#1c2c3d",
-            "circleTextColor": "#1c2c3d",
-            "fontFamily": "'Inter', 'Inter'"
+            "circleTextColor": "#1c2c3d"
         },
         "Popconfirm": {
             "marginXXS": 4,
@@ -1725,8 +1689,7 @@
             "itemBg": "#ffffff",
             "itemActiveColorDisabled": "#bdc7d1",
             "itemActiveBgDisabled": "rgba(5, 23, 41, 0.15)",
-            "itemActiveBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "itemActiveBg": "#ffffff"
         },
         "Modal": {
             "screenSMMax": 767,
@@ -1763,8 +1726,7 @@
             "contentBg": "#ffffff",
             "titleFontSize": 16,
             "titleLineHeight": 1.25,
-            "fontHeight": 22,
-            "fontFamily": "'Inter', 'Inter'"
+            "fontHeight": 22
         },
         "Message": {
             "paddingXS": 8,
@@ -1780,8 +1742,7 @@
             "colorSuccess": "#389e0d",
             "colorInfo": "#1c2c3d",
             "colorError": "#d61010",
-            "contentBg": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "contentBg": "#ffffff"
         },
         "List": {
             "screenSM": 576,
@@ -1818,8 +1779,7 @@
             "headerBg": "rgba(0, 0, 0, 0)",
             "footerBg": "rgba(0, 0, 0, 0)",
             "avatarMarginRight": 16,
-            "descriptionFontSize": 12,
-            "fontFamily": "'Inter', 'Inter'"
+            "descriptionFontSize": 12
         },
         "FloatButton": {
             "paddingXXS": 4,
@@ -1842,8 +1802,7 @@
             "colorPrimaryHover": "#394857",
             "colorPrimary": "#1c2c3d",
             "colorFillContent": "rgba(5, 23, 41, 0.06)",
-            "colorBgElevated": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorBgElevated": "#ffffff"
         },
         "Empty": {
             "colorTextDisabled": "#bdc7d1",
@@ -1879,8 +1838,7 @@
             "colorPrimary": "#1c2c3d",
             "colorError": "#d61010",
             "colorBgElevated": "#ffffff",
-            "paddingBlock": 5,
-            "fontFamily": "'Inter', 'Inter'"
+            "paddingBlock": 5
         },
         "Drawer": {
             "paddingXS": 8,
@@ -1909,8 +1867,7 @@
             "colorTextHeading": "#1c2c3d",
             "colorText": "#1c2c3d",
             "colorSplit": "rgba(5, 23, 41, 0.06)",
-            "lineHeight": 1.6666666666666667,
-            "fontFamily": "'Inter', 'Inter'"
+            "lineHeight": 1.6666666666666667
         },
         "Descriptions": {
             "paddingXS": 8,
@@ -1935,8 +1892,7 @@
             "colorFillAlter": "rgba(5, 23, 41, 0.02)",
             "titleColor": "#1c2c3d",
             "labelBg": "rgba(5, 23, 41, 0.02)",
-            "contentColor": "#1c2c3d",
-            "fontFamily": "'Inter', 'Inter'"
+            "contentColor": "#1c2c3d"
         },
         "DatePicker": {
             "sizePopupArrow": 16,
@@ -2036,8 +1992,7 @@
             "inputFontSizeLG": 14,
             "inputFontSizeSM": 10,
             "fontHeight": 22,
-            "fontHeightLG": 24,
-            "fontFamily": "'Inter', 'Inter'"
+            "fontHeightLG": 24
         },
         "Collapse": {
             "paddingXXS": 4,
@@ -2062,8 +2017,7 @@
             "contentBg": "#ffffff",
             "fontHeight": 22,
             "fontHeightLG": 24,
-            "lineHeightLG": 1.5714285714285714,
-            "fontFamily": "'Inter', 'Inter'"
+            "lineHeightLG": 1.5714285714285714
         },
         "Checkbox": {
             "paddingXS": 8,
@@ -2084,8 +2038,7 @@
             "colorPrimary": "#1c2c3d",
             "colorBorder": "#bdc7d1",
             "colorBgContainerDisabled": "rgba(5, 23, 41, 0.04)",
-            "colorBgContainer": "#ffffff",
-            "fontFamily": "'Inter', 'Inter'"
+            "colorBgContainer": "#ffffff"
         },
         "Breadcrumb": {
             "paddingXXS": 4,
@@ -2105,8 +2058,7 @@
             "itemColor": "#758391",
             "separatorMargin": 8,
             "iconFontSize": 12,
-            "fontHeight": 22,
-            "fontFamily": "'Inter', 'Inter'"
+            "fontHeight": 22
         },
         "Anchor": {
             "paddingXXS": 4,
@@ -2118,8 +2070,7 @@
             "colorSplit": "rgba(5, 23, 41, 0.06)",
             "colorPrimary": "#1c2c3d",
             "linkPaddingInlineStart": 16,
-            "linkPaddingBlock": 4,
-            "fontFamily": "'Inter', 'Inter'"
+            "linkPaddingBlock": 4
         },
         "Alert": {
             "paddingMD": 20,
@@ -2150,8 +2101,7 @@
             "colorErrorBorder": "#ef9f9f",
             "colorErrorBg": "#fbe7e7",
             "colorError": "#d61010",
-            "withDescriptionIconSize": 20,
-            "fontFamily": "'Inter', 'Inter'"
+            "withDescriptionIconSize": 20
         },
         "Space": {
             "paddingXS": 8,
@@ -2202,7 +2152,6 @@
             "optionActiveBg": "rgba(0, 0, 0, 0.04)",
             "optionHeight": 32,
             "optionFontSize": 12,
-            "fontFamily": "'Inter', 'Inter'",
             "fontSize": 12,
             "fontSizeIcon": 12,
             "fontSizeLG": 14,
@@ -2229,7 +2178,6 @@
             "fontSizeXL": 18
         },
         "Mentions": {
-            "fontFamily": "'Inter', 'Inter'",
             "fontSize": 12,
             "lineHeight": 1.6666666666666667
         }
