@@ -61,6 +61,7 @@
         "eslint-config-next": "^14.2.4",
         "jotai": "^2.5.0",
         "js-beautify": "^1.14.8",
+        "js-yaml": "^4.1.0",
         "lodash": "^4.17.21",
         "next": "^14.2.4",
         "nextjs-cors": "^2.2.0",
@@ -91,6 +92,7 @@
     "devDependencies": {
         "@swc/cli": "^0.3.12",
         "@swc/core": "^1.4.15",
+        "@types/js-yaml": "^4.0.9",
         "@types/node": "^20.8.10",
         "cypress": "^13.15.0",
         "node-mocks-http": "^1.12.2",
