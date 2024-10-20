@@ -102,6 +102,8 @@ const ObservabilityDashboard = ({}: Props) => {
                 return itemDate.isAfter(now.subtract(duration, unit))
             })
         }
+
+        return filtered
     }, [traces, sortTrace, filterTrace])
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
