@@ -1,35 +1,35 @@
-import {AgentaNodeDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 
-export const findTraceNodeById = (
-    nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]> | undefined,
+export const getNodeById = (
+    nodes: _AgentaRootsResponse[] | _AgentaRootsResponse,
     id: string,
-): AgentaNodeDTO | null => {
-    for (const key in nodes) {
-        const node = nodes[key]
+): _AgentaRootsResponse | null => {
+    if (nodes && !Array.isArray(nodes) && nodes.key === id) {
+        return nodes
+    }
 
-        if (Array.isArray(node)) {
-            for (const childNode of node) {
-                if (childNode.node.id === id) {
-                    return childNode
+    if (nodes) {
+        for (const value of Object.values(nodes)) {
+            if (Array.isArray(value)) {
+                for (const node of value) {
+                    if (node.key === id) {
+                        return node
+                    }
+
+                    if (node.children) {
+                        const foundNode = getNodeById(node.children, id)
+                        if (foundNode) return foundNode
+                    }
+                }
+            } else {
+                if (value.key === id) {
+                    return value
                 }
 
-                const found = findTraceNodeById(
-                    childNode.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
-                    id,
-                )
-                if (found) return found
-            }
-        } else {
-            if (node.node.id === id) {
-                return node
-            }
-
-            if (node.nodes) {
-                const found = findTraceNodeById(
-                    node.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
-                    id,
-                )
-                if (found) return found
+                if (value.children) {
+                    const foundNode = getNodeById(value.children, id)
+                    if (foundNode) return foundNode
+                }
             }
         }
     }

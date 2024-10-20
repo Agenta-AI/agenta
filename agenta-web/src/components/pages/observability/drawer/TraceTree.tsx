@@ -1,16 +1,21 @@
 import {formatLatency} from "@/lib/helpers/formatters"
 import {JSSTheme} from "@/lib/Types"
-import {AgentaNodeDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import {Coins, PlusCircle, Timer, TreeStructure} from "@phosphor-icons/react"
-import {Avatar, Space, Tree, TreeDataNode, Typography} from "antd"
+import {Avatar, Space, Tree, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
 interface TraceTreeProps {
-    activeTrace: Record<string, AgentaNodeDTO>
-    selectedKeys: string[]
-    onSelect: (keys: React.Key[]) => void
-    defaultSelectedTraceKey: string | undefined
+    activeTrace: _AgentaRootsResponse
+    selected: string
+    setSelected: React.Dispatch<React.SetStateAction<string>>
+}
+
+interface NodeTreeChildren {
+    title: React.ReactElement
+    key: string
+    children?: NodeTreeChildren[]
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -53,8 +58,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const TreeContent = ({nodeValue}: {nodeValue: AgentaNodeDTO}) => {
-    const {node, time} = nodeValue
+const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
+    const {node, time} = value
     const classes = useStyles()
 
     return (
@@ -86,62 +91,37 @@ const TreeContent = ({nodeValue}: {nodeValue: AgentaNodeDTO}) => {
     )
 }
 
-const buildTreeData = (
-    nodes: Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
-    expandedKeys: string[],
-): TreeDataNode[] => {
-    const createTreeNode = (node: AgentaNodeDTO): TreeDataNode => {
-        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
-        const key = node.node.id
-        expandedKeys.push(key)
-
-        return {
-            key: key,
-            title: <TreeContent nodeValue={node} />,
-            children: hasChildren
-                ? buildTreeData(
-                      node.nodes as Record<string, AgentaNodeDTO | AgentaNodeDTO[]>,
-                      expandedKeys,
-                  )
-                : undefined,
-        }
-    }
-
-    return Object.entries(nodes).flatMap(([_, value]) => {
-        if (Array.isArray(value)) {
-            return value.map((item, index) =>
-                createTreeNode({
-                    ...item,
-                    node: {...item.node, name: `${item.node.name}[${index}]`},
-                }),
-            )
-        } else {
-            return createTreeNode(value)
-        }
-    })
+const buildTreeData = (spans: _AgentaRootsResponse[]): NodeTreeChildren[] => {
+    return spans.map((span) => ({
+        title: <TreeContent value={span} />,
+        key: span.node.id,
+        children: span.children ? buildTreeData(span.children) : undefined,
+    }))
 }
 
-const TraceTree = ({
-    activeTrace,
-    selectedKeys,
-    onSelect,
-    defaultSelectedTraceKey,
-}: TraceTreeProps) => {
+const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
     const classes = useStyles()
-    const expandedKeys: string[] = []
-    const treeData = buildTreeData(activeTrace, expandedKeys)
 
     return (
         <Tree
-            showLine={{showLeafIcon: false}}
+            showLine
+            selectedKeys={[selected]}
             showIcon={false}
-            treeData={treeData}
+            onSelect={(keys) => {
+                setSelected(keys[0]?.toString() || activeTrace.node.id)
+            }}
+            treeData={[
+                {
+                    title: <TreeContent value={activeTrace} />,
+                    key: activeTrace.node.id,
+                    children: activeTrace.children
+                        ? buildTreeData(activeTrace.children)
+                        : undefined,
+                },
+            ]}
             className={classes.tree}
             defaultExpandAll
-            onSelect={onSelect}
             defaultExpandParent
-            expandedKeys={expandedKeys}
-            selectedKeys={selectedKeys}
         />
     )
 }

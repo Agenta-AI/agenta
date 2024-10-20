@@ -1,6 +1,6 @@
 import React, {useState} from "react"
 import {Filter, JSSTheme} from "@/lib/Types"
-import {ArrowCounterClockwise, CaretDown, Funnel, X} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -18,7 +18,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     filterContainer: {
         padding: 8,
-        gap: 8,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "start",
         borderRadius: theme.borderRadius,
         backgroundColor: "#f5f7fa",
         marginTop: 8,
@@ -26,13 +28,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Props = {
-    setFilterValue: React.Dispatch<React.SetStateAction<Filter>>
+    filterValue: Filter[]
+    setFilterValue: React.Dispatch<React.SetStateAction<Filter[]>>
     columns: {column: string; mapping: string}[]
 }
 
-const Filters: React.FC<Props> = ({setFilterValue, columns}) => {
+const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
     const classes = useStyles()
-    const [filter, setFilter] = useState<Filter>({} as Filter)
+    const emptyFilter = [{condition: "", column: "", keyword: ""}] as Filter[]
+
+    const [filter, setFilter] = useState<Filter[]>(() =>
+        filterValue.length > 0 ? filterValue : emptyFilter,
+    )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     const conditions = [
@@ -49,9 +56,41 @@ const Filters: React.FC<Props> = ({setFilterValue, columns}) => {
         "<=",
     ]
 
+    const onFilterChange = ({
+        columnName,
+        value,
+        idx,
+    }: {
+        columnName: keyof Filter
+        value: any
+        idx: number
+    }) => {
+        const newFilters = [...filter]
+        newFilters[idx][columnName as keyof Filter] = value
+        setFilter(newFilters)
+    }
+
+    const onDeleteFilter = (index: number) => {
+        if (index === 0) return
+        setFilter(filter.filter((_, idx) => idx !== index))
+    }
+
+    const addNestedFilter = () => {
+        setFilter([...filter, {column: "", condition: "", keyword: ""}])
+    }
+
     const clearFilter = () => {
-        setFilter({} as Filter)
-        setFilterValue({} as Filter)
+        setFilter(emptyFilter)
+        setFilterValue(emptyFilter)
+    }
+
+    const applyFilter = () => {
+        const sanitizedFilters = filter.filter(
+            ({column, condition, keyword}) => column && condition && keyword,
+        )
+
+        setFilterValue(sanitizedFilters)
+        setIsFilterOpen(false)
     }
 
     return (
@@ -78,61 +117,85 @@ const Filters: React.FC<Props> = ({setFilterValue, columns}) => {
                     </div>
 
                     <div className={classes.filterContainer}>
-                        <Space className="pl-3">
-                            <Typography.Text>Where</Typography.Text>
+                        {filter.map((item, idx) => (
+                            <Space>
+                                <p className={`!w-[70px] text-end`}>{idx == 0 ? "Where" : "And"}</p>
 
-                            <Select
-                                placeholder="Column"
-                                style={{width: 88}}
-                                popupMatchSelectWidth={120}
-                                suffixIcon={<CaretDown size={14} />}
-                                onChange={(value) => setFilter({...filter, column: value})}
-                                value={filter.column}
-                                options={columns.map((item) => {
-                                    return {
-                                        value: item.mapping,
-                                        label: item.column.toUpperCase(),
+                                <Select
+                                    labelRender={(label) => (!label.value ? "Column" : label.label)}
+                                    style={{width: 88}}
+                                    popupMatchSelectWidth={120}
+                                    suffixIcon={<CaretDown size={14} />}
+                                    onChange={(value) =>
+                                        onFilterChange({columnName: "column", value, idx})
                                     }
-                                })}
-                            />
-                            {filter.column && (
-                                <>
-                                    <Select
-                                        placeholder="Condition"
-                                        style={{width: 95}}
-                                        suffixIcon={<CaretDown size={14} />}
-                                        onChange={(value) =>
-                                            setFilter({...filter, condition: value})
+                                    value={item.column}
+                                    options={columns.map((col) => {
+                                        return {
+                                            value: col.mapping,
+                                            label: col.column,
                                         }
-                                        popupMatchSelectWidth={250}
-                                        value={filter.condition}
-                                        options={conditions.map((item) => {
-                                            return {value: item, label: item.toUpperCase()}
-                                        })}
-                                    />
+                                    })}
+                                />
+                                {item.column && (
+                                    <>
+                                        <Select
+                                            labelRender={(label) =>
+                                                !label.value ? "Condition" : label.value
+                                            }
+                                            style={{width: 95}}
+                                            suffixIcon={<CaretDown size={14} />}
+                                            onChange={(value) =>
+                                                onFilterChange({
+                                                    columnName: "condition",
+                                                    value,
+                                                    idx,
+                                                })
+                                            }
+                                            popupMatchSelectWidth={250}
+                                            value={item.condition}
+                                            options={conditions.map((con) => {
+                                                return {value: con, label: con}
+                                            })}
+                                        />
 
-                                    <Input
-                                        placeholder="Keyword"
-                                        className="w-[300px]"
-                                        value={filter.keyword}
-                                        onChange={(e) =>
-                                            setFilter({...filter, keyword: e.target.value})
-                                        }
+                                        <Input
+                                            placeholder="Keyword"
+                                            className="w-[275px]"
+                                            value={item.keyword}
+                                            onChange={(e) =>
+                                                onFilterChange({
+                                                    columnName: "keyword",
+                                                    value: e.target.value,
+                                                    idx,
+                                                })
+                                            }
+                                        />
+                                    </>
+                                )}
+                                {idx > 0 && (
+                                    <Button
+                                        type="link"
+                                        icon={<Trash size={14} />}
+                                        onClick={() => onDeleteFilter(idx)}
                                     />
-                                </>
-                            )}
-                        </Space>
+                                )}
+                            </Space>
+                        ))}
+
+                        <Button
+                            type="link"
+                            size="small"
+                            icon={<Plus size={14} />}
+                            onClick={addNestedFilter}
+                            className="mt-2"
+                        >
+                            Add nested filters
+                        </Button>
                     </div>
 
                     <div className="flex items-center justify-end mt-2">
-                        <Button
-                            type="primary"
-                            disabled={!filter.keyword}
-                            onClick={() => {
-                                setIsFilterOpen(false)
-                                setFilterValue(filter)
-                            }}
-                        >
+                        <Button type="primary" disabled={!filter[0]?.keyword} onClick={applyFilter}>
                             Apply
                         </Button>
                     </div>
@@ -144,7 +207,7 @@ const Filters: React.FC<Props> = ({setFilterValue, columns}) => {
                 onClick={() => setIsFilterOpen(true)}
                 className="flex items-center gap-2"
             >
-                Filters {filter.condition && <X size={14} />}
+                Filters {filter[0]?.keyword && <X size={14} />}
             </Button>
         </Popover>
     )

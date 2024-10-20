@@ -681,3 +681,4 @@ export type FilterConditions =
     | "<"
     | ">="
     | "<="
+    | ""
