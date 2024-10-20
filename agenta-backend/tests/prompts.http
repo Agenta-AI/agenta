@@ -167,9 +167,9 @@ Content-Type: application/json
 
 {
     "variant_ref": {
-        "sulg": null,
+        "slug": null,
         "version": null,
-        "id": "01929c14-53d3-7f7f-9a42-66560c57399a"
+        "id": "0192a8fd-139e-7b06-9901-aba21003f4e6"
     }
 }
 
@@ -181,9 +181,14 @@ Content-Type: application/json
 
 {
     "variant_ref": {
-        "sulg": "test",
+        "slug": "test",
         "version": 1,
         "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
     }
 }
 
@@ -195,7 +200,7 @@ Content-Type: application/json
 
 {
     "environment_ref": {
-        "sulg": null,
+        "slug": null,
         "version": null,
         "id": "01929c13-6af2-7b10-a51d-d99fccc1732b"
     }
@@ -209,7 +214,7 @@ Content-Type: application/json
 
 {
     "environment_ref": {
-        "sulg": "production",
+        "slug": "production",
         "version": 1,
         "id": null
     }
@@ -223,7 +228,7 @@ Content-Type: application/json
 
 { 
     "ref": {
-        "sulg": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
+        "slug": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
         "version": 1,
         "id": "01929c2a-7cbc-7684-9c86-c502ce1a42f5"
     },
@@ -252,13 +257,13 @@ Content-Type: application/json
 
 { 
     "variant_ref": {
-        "sulg": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
+        "slug": "01929c2a-7ca4-774a-a8a9-f60c20dcbc81",
         "version": 1,
         "id": "01929c2a-7cbc-7684-9c86-c502ce1a42f5"
     },
     "environment_ref": {
         "id": "01929c13-6af2-7b10-a51d-d99fccc1732b",
-        "sulg": null,
+        "slug": null,
         "version": null
     }
 }
