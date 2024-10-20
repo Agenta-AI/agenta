@@ -2821,9 +2821,9 @@
                                         "total": 0.0
                                     },
                                     "tokens": {
-                                        "prompt": 939.0,
-                                        "completion": 407.0,
-                                        "total": 1346.0
+                                        "prompt": 940.0,
+                                        "completion": 408.0,
+                                        "total": 1348.0
                                     }
                                 }
                             },
@@ -4206,9 +4206,9 @@
                                         "total": 0.0
                                     },
                                     "tokens": {
-                                        "prompt": 885.0,
-                                        "completion": 355.0,
-                                        "total": 1240.0
+                                        "prompt": 886.0,
+                                        "completion": 356.0,
+                                        "total": 1242.0
                                     }
                                 }
                             },
