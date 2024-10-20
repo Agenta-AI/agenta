@@ -2,9 +2,11 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
 import React from "react"
 
-type DeleteTraceModalProps = {} & React.ComponentProps<typeof Modal>
+type DeleteTraceModalProps = {
+    setSelectedTraceId: (val: string) => void
+} & React.ComponentProps<typeof Modal>
 
-const DeleteTraceModal = ({...props}: DeleteTraceModalProps) => {
+const DeleteTraceModal = ({setSelectedTraceId, ...props}: DeleteTraceModalProps) => {
     return (
         <Modal
             centered

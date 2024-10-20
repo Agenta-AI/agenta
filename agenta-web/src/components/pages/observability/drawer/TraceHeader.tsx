@@ -3,7 +3,7 @@ import {_AgentaRootsResponse} from "@/services/observability/types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import React, {useCallback} from "react"
+import React, {useCallback, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeleteTraceModal from "../components/DeleteTraceModal"
 
@@ -29,6 +29,7 @@ const TraceHeader = ({
     activeTraceIndex,
 }: TraceHeaderProps) => {
     const classes = useStyles()
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
     const handleNextTrace = useCallback(() => {
         if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
@@ -65,10 +66,15 @@ const TraceHeader = ({
                     <Tag className="font-normal"># {activeTrace.root.id}</Tag>
                 </Space>
 
-                <Button icon={<DeleteOutlined />} />
+                <Button icon={<DeleteOutlined />} onClick={() => setIsDeleteModalOpen(true)} />
             </div>
 
-            <DeleteTraceModal />
+            <DeleteTraceModal
+                open={isDeleteModalOpen}
+                onCancel={() => setIsDeleteModalOpen(false)}
+                onOk={() => setSelectedTraceId("")}
+                setSelectedTraceId={setSelectedTraceId}
+            />
         </>
     )
 }
