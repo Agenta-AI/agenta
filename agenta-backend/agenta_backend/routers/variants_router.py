@@ -529,7 +529,7 @@ from agenta_backend.services.variants_manager import (
 )
 
 from agenta_backend.services.variants_manager import (
-    add_config,
+    create_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
@@ -556,11 +556,11 @@ class ConfigResponseModel(ConfigDTO):
 
 @router.get(
     "/configs/fetch",
-    operation_id="fetch_variant_config",
+    operation_id="configs_fetch",
     response_model=ConfigResponseModel,
 )
 @handle_exceptions()
-async def fetch_config(
+async def configs_fetch(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
     environment_ref: Optional[ReferenceRequestModel] = None,
@@ -594,11 +594,11 @@ async def fetch_config(
 
 @router.post(
     "/configs/fork",
-    operation_id="fork_variantconfig",
+    operation_id="configs_fork",
     response_model=ConfigResponseModel,
 )
 @handle_exceptions()
-async def fork_config(
+async def configs_fork(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
     environment_ref: Optional[ReferenceRequestModel] = None,
@@ -631,75 +631,54 @@ async def fork_config(
 
 
 @router.post(
-    "/as/configs/commit/",
-    operation_id="commit_config",
+    "/configs/commit",
+    operation_id="configs_commit",
     response_model=ConfigResponseModel,
 )
-async def commit_config(
+async def configs_commit(
     request: Request,
     config: ConfigRequestModel,
 ):
-    try:
+    config = await commit_config(
+        project_id=request.state.project_id,
+        config=config,
+        user_id=request.state.user_id,
+    )
 
-        config = await commit_config(
-            project_id=request.state.project_id,
-            user_id=request.state.user_id,
-            config=config,
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
         )
 
-        if not config:
-            raise HTTPException(
-                status_code=404,
-                detail="Config not found.",
-            )
-
-        return config
-
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return config
 
 
 @router.post(
-    "/as/configs/deploy/",
-    operation_id="deploy_config",
+    "/configs/deploy",
+    operation_id="configs_deploy",
     response_model=ConfigResponseModel,
 )
-async def deploy_config(
+async def configs_deploy(
     request: Request,
-    application_ref: Optional[ReferenceRequestModel] = None,
     variant_ref: Optional[ReferenceRequestModel] = None,
     environment_ref: Optional[ReferenceRequestModel] = None,
-    env_name: Optional[str] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
 ):
-    try:
-        if (
-            not (application_ref and env_name)
-            and not variant_ref
-            and not environment_ref
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Either application_ref and env_name, or variant_ref, or environment_ref must be provided.",
-            )
+    environment = None
 
-        environment = None
+    if environment_ref:
+        environment = await deploy_config(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            variant_ref=variant_ref,
+            environment_ref=environment_ref,
+        )
 
-        if environment_ref:
-            environment = await deploy_config(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                variant_ref=variant_ref,
-                environment_ref=environment_ref,
-            )
-        if not environment:
-            raise HTTPException(
-                status_code=404,
-                detail="Environment not found.",
-            )
+    if not environment:
+        raise HTTPException(
+            status_code=404,
+            detail="Environment not found.",
+        )
 
-        return environment
-
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return environment

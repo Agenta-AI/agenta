@@ -1776,7 +1776,7 @@ async def remove_app_by_id(app_id: str, project_id: str):
 
 async def update_variant_parameters(
     app_variant_id: str, parameters: Dict[str, Any], project_id: str, user_uid: str
-) -> None:
+) -> AppVariantDB:
     """
     Update the parameters of an app variant in the database.
 
@@ -1827,6 +1827,8 @@ async def update_variant_parameters(
 
         session.add(variant_revision)
         await session.commit()
+
+        return app_variant_db
 
 
 async def get_app_variant_instance_by_id(
