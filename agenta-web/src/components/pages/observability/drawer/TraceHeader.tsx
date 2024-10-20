@@ -1,10 +1,11 @@
 import {JSSTheme} from "@/lib/Types"
-import {_AgentaRootsResponse, AgentaRootsDTO} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import React, {useMemo, useCallback} from "react"
+import React, {useCallback} from "react"
 import {createUseStyles} from "react-jss"
+import DeleteTraceModal from "../components/DeleteTraceModal"
 
 interface TraceHeaderProps {
     activeTrace: _AgentaRootsResponse
@@ -42,29 +43,33 @@ const TraceHeader = ({
     }, [activeTraceIndex, traces, setSelectedTraceId])
 
     return (
-        <div className="flex items-center justify-between">
-            <Space>
-                <div>
-                    <Button
-                        onClick={handlePrevTrace}
-                        type="text"
-                        disabled={activeTraceIndex === 0}
-                        icon={<CaretUp size={16} />}
-                    />
-                    <Button
-                        onClick={handleNextTrace}
-                        type="text"
-                        disabled={activeTraceIndex === traces.length - 1}
-                        icon={<CaretDown size={16} />}
-                    />
-                </div>
+        <>
+            <div className="flex items-center justify-between">
+                <Space>
+                    <div>
+                        <Button
+                            onClick={handlePrevTrace}
+                            type="text"
+                            disabled={activeTraceIndex === 0}
+                            icon={<CaretUp size={16} />}
+                        />
+                        <Button
+                            onClick={handleNextTrace}
+                            type="text"
+                            disabled={activeTraceIndex === traces.length - 1}
+                            icon={<CaretDown size={16} />}
+                        />
+                    </div>
 
-                <Typography.Text className={classes.title}>Trace</Typography.Text>
-                <Tag className="font-normal"># {activeTrace.root.id}</Tag>
-            </Space>
+                    <Typography.Text className={classes.title}>Trace</Typography.Text>
+                    <Tag className="font-normal"># {activeTrace.root.id}</Tag>
+                </Space>
 
-            <Button icon={<DeleteOutlined />} />
-        </div>
+                <Button icon={<DeleteOutlined />} />
+            </div>
+
+            <DeleteTraceModal />
+        </>
     )
 }
 
