@@ -6,7 +6,6 @@ from fastapi import (
     Depends,
     Query,
     status,
-    BackgroundTasks,
     HTTPException,
 )
 
@@ -171,12 +170,10 @@ class ObservabilityRouter:
                                         id=tree_id,
                                         type=_types_by_tree[tree_id],
                                     ),
-                                    nodes={
-                                        span.node.name: AgentaNodeDTO(
-                                            **span.model_dump()
-                                        )
+                                    nodes=[
+                                        AgentaNodeDTO(**span.model_dump())
                                         for span in nodes
-                                    },
+                                    ],
                                 )
                                 for tree_id, nodes in _nodes_by_tree.items()
                             ],
@@ -197,10 +194,9 @@ class ObservabilityRouter:
                                     id=tree_id,
                                     type=_types_by_tree[tree_id],
                                 ),
-                                nodes={
-                                    span.node.name: AgentaNodeDTO(**span.model_dump())
-                                    for span in nodes
-                                },
+                                nodes=[
+                                    AgentaNodeDTO(**span.model_dump()) for span in nodes
+                                ],
                             )
                         )
 
@@ -217,9 +213,7 @@ class ObservabilityRouter:
 
             return AgentaNodesResponse(
                 version=VERSION,
-                nodes={
-                    span.node.name: AgentaNodeDTO(**span.model_dump()) for span in spans
-                },
+                nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
 
     ### MUTATIONS
@@ -228,7 +222,6 @@ class ObservabilityRouter:
     async def otlp_collect_traces(
         self,
         request: Request,
-        # background_tasks: BackgroundTasks,
     ):
         """
         Collect traces via OTLP.
@@ -254,7 +247,6 @@ class ObservabilityRouter:
             for otel_span_dto in otel_span_dtos
         ]
 
-        # background_tasks.add_task(self.service.ingest, span_dtos=span_dtos)
         await self.service.ingest(span_dtos=span_dtos)
 
         return CollectStatusResponse(version=self.VERSION, status="processing")
