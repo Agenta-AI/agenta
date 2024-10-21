@@ -43,6 +43,9 @@ numpy = "1.26.3"
 autoevals = "^0.0.83"
 supertokens-python = "^0.24.2"
 
+protobuf = "^4.25.4"
+litellm ="^1.48.0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 httpx = "^0.24.0"
