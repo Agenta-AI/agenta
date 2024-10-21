@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
-from sqlalchemy import func, or_
 from sqlalchemy.future import select
+from sqlalchemy import func, or_, asc
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, aliased, load_only
@@ -1257,7 +1257,10 @@ async def fetch_environment_revisions_for_environment(
             query = query.options(
                 joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username)  # type: ignore
             )
-        result = await session.execute(query)
+
+        result = await session.execute(
+            query.order_by(asc(AppEnvironmentRevisionDB.created_at))
+        )
         environment_revisions = result.scalars().all()
         return environment_revisions
 
