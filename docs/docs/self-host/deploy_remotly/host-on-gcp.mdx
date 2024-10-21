@@ -3,6 +3,8 @@ title: Deploy on Google Cloud Engine
 description: "Installing Agenta on GCP Compute Engine using terraform"
 ---
 
+import Image from "@theme/IdealImage";
+
 :::tip
 This guide is for provisioning and deploying agenta on GCP Compute Engine **using Terraform**. If you prefer to provision the instance manually, you can use the [guide for deploying on a remote machine](/self-host/deploy_remotly/host-remotely).
 :::
@@ -30,7 +32,7 @@ Step 2 until 6 can be skipped if you already have a project with billing enabled
 3. **Confirm Billing**; [Make sure that billing is enabled for your Google Cloud project.](https://cloud.google.com/billing/docs/how-to/verify-billing-enabled#console)
 4. **Create a Service account**; Click [here to Create a Service account](https://cloud.google.com/iam/docs/service-accounts-create) and specify the compute admin role.
 
-   <img height="600" src="/images/agenta_service_account.png" />
+   <Image img={require("/images/agenta_service_account.png")} height="600" />
 
 5. **Get Service account key**; Click [here to obtain the keys for the service account](https://console.cloud.google.com/iam-admin/serviceaccounts?walkthrough_id=iam--create-service-account-keys&start_index=1#step_index=1) you created.
 6. Enable Google Compute Engine API: Navigate to [Compute Engine API](https://console.cloud.google.com/apis/library/compute.googleapis.com) and make sure to select the correct project at the top, then enable Compute Engine API.
@@ -47,7 +49,7 @@ Step 2 until 6 can be skipped if you already have a project with billing enabled
 
 In order to ssh into the instance you need to:
 
-1. Uncomment these lines in the [Terraform instance file](https://github.com/Agenta-AI/agenta/blob/main/self-host/gcp/agenta_instance.tf)
+1. Uncomment these lines in the [Terraform instance file](https://github.com/Agenta-AI/agenta/blob/main/self-host/gcp/agenta-instance.tf)
 
 ```bash
 metadata = {

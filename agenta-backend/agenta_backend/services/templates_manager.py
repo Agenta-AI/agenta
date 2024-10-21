@@ -14,10 +14,12 @@ from datetime import datetime, timezone
 
 from agenta_backend.services.helpers import convert_to_utc_datetime
 
+from agenta_backend.resources.templates.templates import templates
+
 if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
-templates_base_url = os.getenv("TEMPLATES_BASE_URL")
+
 agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
 docker_hub_url = os.getenv("DOCKER_HUB_URL")
 
@@ -33,14 +35,14 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     Returns:
         None
     """
-    templates = await retrieve_templates_from_dockerhub_cached(cache)
+    docker_templates = await retrieve_templates_from_dockerhub_cached(cache)
 
     templates_ids_not_to_remove = []
-    templates_info = await retrieve_templates_info_from_s3(cache)
-    for temp in templates:
-        if temp["name"] in list(templates_info.keys()):
+
+    for temp in docker_templates:
+        if temp["name"] in list(templates.keys()):
             templates_ids_not_to_remove.append(int(temp["id"]))
-            temp_info = templates_info[temp["name"]]
+            temp_info = templates[temp["name"]]
             last_pushed = convert_to_utc_datetime(temp.get("last_pushed"))
 
             template_id = await db_manager.add_template(
@@ -96,34 +98,6 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     return response_data
 
 
-async def retrieve_templates_info_from_s3(
-    cache: bool,
-) -> Dict[str, Dict[str, Any]]:
-    """Retrieves templates information from s3 and caches the data in Redis for future use.
-
-    Args:
-        cache: A boolean value that indicates whether to use the cached data or not.
-
-    Returns:
-        Information about organization in s3 (cached or network-call)
-    """
-
-    r = redis_utils.redis_connection()
-    if cache:
-        cached_data = r.get("temp_data")
-        if cached_data is not None:
-            print("Using cache...")
-            return json.loads(cached_data)
-
-    # If not cached, fetch data from Docker Hub and cache it in Redis
-    response = await get_templates_info_from_s3(f"{templates_base_url}/llm_info.json")
-
-    # Cache the data in Redis for 60 minutes
-    r.set("temp_data", json.dumps(response), ex=900)
-    print("Using network call...")
-    return response
-
-
 @backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
 async def retrieve_templates_from_dockerhub(
     url: str, repo_name: str
@@ -143,31 +117,6 @@ async def retrieve_templates_from_dockerhub(
 
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{url}/{repo_name}/tags", timeout=90)
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data
-
-        response_data = response.json()
-        return response_data
-
-
-@backoff.on_exception(
-    backoff.expo, (ConnectError, TimeoutException, CancelledError), max_tries=5
-)
-async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
-    """
-    Business logic to retrieve templates information from S3.
-
-    Args:
-        url (str): The URL endpoint for retrieving templates info.
-
-    Returns:
-        response_data (Dict[str, Dict[str, Any]]): A dictionary \
-            containing dictionaries of templates information.
-    """
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=90)
         if response.status_code == 200:
             response_data = response.json()
             return response_data

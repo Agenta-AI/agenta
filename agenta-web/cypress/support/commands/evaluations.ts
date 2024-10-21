@@ -24,26 +24,18 @@ Cypress.Commands.add("createVariant", () => {
             cy.get('[data-cy="create-new-app-button"]').click()
             cy.get('[data-cy="create-from-template"]').click()
         } else {
-            cy.get('[data-cy="create-from-template__no-app"]').click()
+            cy.get('[data-cy="create-from-template"]').click()
         }
     })
-
-    cy.contains("Single Prompt OpenAI")
-        .parentsUntil('[data-cy^="app-template-card"]')
-        .last()
-        .contains("create app", {matchCase: false})
-        .click()
 
     const appName = randString(5)
     cy.task("log", `App name: ${appName}`)
 
-    cy.get('[data-cy="enter-app-name-modal"]')
-        .should("exist")
-        .within(() => {
-            cy.get("input").type(appName)
-        })
+    cy.get('[data-cy^="enter-app-name-input"]').type(appName)
 
-    cy.get('[data-cy="enter-app-name-modal-button"]').click()
+    cy.get('[data-cy="app-template-card"]').contains("Single Prompt OpenAI").click()
+
+    cy.get('[data-cy="create-app-from-template-button"]').click()
 
     cy.url().should("include", "/playground")
     cy.url().then((url) => {
@@ -57,7 +49,8 @@ Cypress.Commands.add("createVariant", () => {
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
-    cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
+    cy.visit("/apps/testsets")
+    cy.url().should("include", "/testsets")
     cy.get('[data-cy="create-testset-modal-button"]').click()
     cy.get(".ant-modal-content").should("exist")
     cy.get('[data-cy="create-testset-from-scratch"]').click()
