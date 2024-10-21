@@ -4,7 +4,6 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 
 from agenta_backend.utils.common import isCloud
-from agenta_backend.models.db.postgres_engine import db_engine
 
 if isCloud():
     from agenta_backend.commons.models.db_models import UserDB_ as UserDB
@@ -12,6 +11,8 @@ else:
     from agenta_backend.models.db_models import UserDB
 
 from agenta_backend.models.api.user_models import UserUpdate
+
+from agenta_backend.dbs.postgres.shared.engine import engine
 
 
 async def create_new_user(payload: dict) -> UserDB:
@@ -25,7 +26,7 @@ async def create_new_user(payload: dict) -> UserDB:
         UserDB: The created user object.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         user = UserDB(**payload)
 
         session.add(user)
@@ -50,7 +51,7 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         NoResultFound: User with session id xxxx not found.
     """
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid=user_uid))
         user = result.scalars().first()
 
