@@ -69,3 +69,71 @@ simple_rag_trace = {
         ],
     },
 }
+
+
+simple_finance_assisstant_trace = {
+    "data": {},
+    "trace": {
+        "trace_id": "66a61777a1e481ab498bc7b5",
+        "cost": None,
+        "usage": None,
+        "latency": 12.372497,
+        "spans": [
+            {
+                "id": "66a61777a1e481ab498bc7b4",
+                "name": "diversify",
+                "parent_span_id": None,
+                "start_time": "2024-07-25T17:06:46.141563Z",
+                "end_time": "2024-07-25T17:06:46.885700Z",
+                "spankind": "WORKFLOW",
+                "metadata": {"cost": None, "latency": 2.641, "usage": None},
+                "user_id": "—",
+                "inputs": {
+                    "currency": "USD",
+                    "amount": 800000,
+                    "stocks": [],
+                    "real_estate_properties": "Konga KFI, Almord City, Cambridge Lounge",
+                    "percentage_returns": "6%, 9%, 15%",
+                    "durations": "6 months, 9 months, 15 months",
+                },
+                "internals": None,
+                "outputs": {
+                    "report": [
+                        "**Investment Amount:**\nUSD 800,000\n\n**Real Estate Properties:**\n1. Konga KFI: 6% return, 6 months duration\n2. Almord City: 9% return, 9 months duration\n3. Cambridge Lounge: 15% return, 15 months duration\n\n**Allocation Strategy:**\nTo optimize the investment by balancing risk and return potential, I will allocate a higher percentage to properties with higher returns and longer durations while still maintaining diversification.\n\n**Allocation Breakdown:**\n1. Konga KFI: 30%\n2. Almord City: 30%\n3. Cambridge Lounge: 40%\n\n**Final Allocation:**\n1. Konga KFI: USD 240,000\n2. Almord City: USD 240,000\n3. Cambridge Lounge: USD 320,000"
+                    ]
+                },
+                "config": {
+                    "temperature": 0.7,
+                    "prompt_system": "You are a financial advisor that helps users allocate their investments. Users will provide an amount of money they wish to invest along with details about stocks and real estate properties. Your goal is to diversify this amount effectively.\n\nUser Inputs: Investment Amount: The total amount the user wants to invest.\nStocks: A list of stocks the user is interested in.\nReal Estate Properties: A list of properties, including their expected returns and investment durations.",
+                    "prompt_user": "\nMy currency is {currency}. The total amount I want to invest is {amount}.\n",
+                    "max_tokens": 2000,
+                    "model": "gpt-4o",
+                    "top_p": 1.0,
+                    "invest_in_stocks": 0,
+                    "invest_in_realestate": 1,
+                    "frequence_penalty": 0.0,
+                    "presence_penalty": 0.0,
+                },
+            },
+            {
+                "id": "66a61777a1e481ab498bc7b6",
+                "name": "reporter",
+                "parent_span_id": "66a61777a1e481ab498bc7b4",
+                "start_time": "2024-07-25T17:06:46.141563Z",
+                "end_time": "2024-07-25T17:06:46.885700Z",
+                "spankind": "LLM",
+                "metadata": {"cost": None, "latency": 2.64, "usage": None},
+                "user_id": "—",
+                "inputs": {
+                    "user_prompt": "\nMy currency is USD. The total amount I want to invest is 800000.\n\nThe user wants to invest in the following stocks: [].\n\nThe user wants to invest in the following real estate properties: Konga KFI, Almord City, Cambridge Lounge. The percentage returns for these properties are 6%, 9%, 15%, and the investment durations are 6 months, 9 months, 15 months.\n"
+                },
+                "internals": None,
+                "outputs": {
+                    "report": [
+                        "**Investment Amount:**\nUSD 800,000\n\n**Real Estate Properties:**\n1. Konga KFI: 6% return, 6 months duration\n2. Almord City: 9% return, 9 months duration\n3. Cambridge Lounge: 15% return, 15 months duration\n\n**Allocation Strategy:**\nTo optimize the investment by balancing risk and return potential, I will allocate a higher percentage to properties with higher returns and longer durations while still maintaining diversification.\n\n**Allocation Breakdown:**\n1. Konga KFI: 30%\n2. Almord City: 30%\n3. Cambridge Lounge: 40%\n\n**Final Allocation:**\n1. Konga KFI: USD 240,000\n2. Almord City: USD 240,000\n3. Cambridge Lounge: USD 320,000"
+                    ]
+                },
+            },
+        ],
+    },
+}

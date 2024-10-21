@@ -68,7 +68,7 @@ async def test_update_testset():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -112,7 +112,7 @@ async def test_get_testsets():
         )
 
         assert response.status_code == 200
-        assert len(response.json()) == 1
+        assert len(response.json()) == 2
 
 
 @pytest.mark.asyncio()
@@ -124,7 +124,7 @@ async def test_get_testset():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -146,7 +146,7 @@ async def test_delete_testsets():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testsets = testset_result.scalars().all()
 

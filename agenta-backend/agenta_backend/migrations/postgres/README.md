@@ -19,7 +19,7 @@ docker exec -it agenta-backend-1 bash
 The above command will run the backend container on bash.
 
 ```bash
-alembic -c alembic.oss.ini revision --autogenerate -m "migration message"
+docker exec -w /app/agenta_backend/migrations/postgres agenta-backend-1 alembic -c alembic.oss.ini revision --autogenerate -m "migration message"
 ```
 
 The above command will create a script that contains the changes that was made to the database schema. Kindly update "migration message" with a message that is clear to indicate what change was made. Here are some examples:
