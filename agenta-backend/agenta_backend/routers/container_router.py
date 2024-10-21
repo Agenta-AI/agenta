@@ -177,23 +177,25 @@ async def construct_app_container_url(
             object_db = await db_manager.fetch_app_variant_by_id(variant_id)
         else:
             # NOTE: required for backward compatibility
-]            object_db = None
 
+            object_db = None
 
         # Check app access
         if isCloudEE() and object_db is not None:
-]            has_permission = await check_action_access(
+            has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(object_db.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
-]            if not has_permission:
+
+            if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
-]                raise HTTPException(status_code=403, detail=error_msg)
 
-]        if getattr(object_db, "deployment_id", None):  # this is a base
-]            deployment = await db_manager.get_deployment_by_id(
+                raise HTTPException(status_code=403, detail=error_msg)
+
+        if getattr(object_db, "deployment_id", None):  # this is a base
+            deployment = await db_manager.get_deployment_by_id(
                 str(object_db.deployment_id)  # type: ignore
             )
         elif getattr(object_db, "base_id", None):  # this is a variant
@@ -205,7 +207,9 @@ async def construct_app_container_url(
                 status_code=400,
                 detail="Deployment not found",
             )
+
         return URI(uri=deployment.uri)
     except Exception as e:
         status_code = e.status_code if hasattr(e, "status_code") else 500
+
         return JSONResponse({"detail": str(e)}, status_code=status_code)
