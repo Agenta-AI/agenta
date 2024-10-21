@@ -89,9 +89,6 @@ def execute_code_safely(
     # Compile the code in a restricted environment
     byte_code = compile_restricted(code, filename="<inline>", mode="exec")
 
-    # Execute the code
-    exec(byte_code, environment)
-
     # Call the evaluation function, extract the result if it exists
     # and is a float between 0 and 1
     try:
