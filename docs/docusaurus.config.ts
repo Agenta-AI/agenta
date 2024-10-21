@@ -17,8 +17,9 @@ const config: Config = {
   baseUrl: "/",
   organizationName: "Agenta-AI",
   projectName: "agenta",
-  onBrokenLinks: "ignore",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -249,7 +250,7 @@ const config: Config = {
             specPath: "docs/reference/openapi.json",
             outputDir: "docs/reference/api",
             downloadUrl:
-              "https://raw.githubusercontent.com/PaloAltoNetworks/docusaurus-template-openapi-docs/main/examples/agenta.yaml",
+              "https://raw.githubusercontent.com/Agenta-AI/agenta/refs/heads/main/docs/docs/reference/openapi.json",
             sidebarOptions: {
               groupPathsBy: "tag",
               categoryLinkSource: "tag",
@@ -265,6 +266,16 @@ const config: Config = {
         appUrl: "https://docs.agenta.ai",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
+      },
+    ],
+    [
+      "@docusaurus/plugin-ideal-image",
+      {
+        quality: 85,
+        max: 1600, // max resized image's size.
+        min: 600, // min resized image's size. if original is lower, use that size.
+        steps: 3, // the max number of images generated between min and max (inclusive)
+        disableInDev: false,
       },
     ],
 
