@@ -52,21 +52,21 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
     const classes = useStyles()
 
     const templatePoints = [
-        "Test and compare prompts and models",
-        "Evaluate outputs in the webUI",
+        "Experiment and compare prompts and models",
+        "Evaluate outputs in the web UI",
         "Deploy and version prompts",
         "Track all LLM calls",
     ]
     const complexLLM = [
-        "Create a playground for RAG, chain-of-prompts or agents",
-        "Use Langchain, Llama Index, or any framework",
-        "Evaluate and publish configuration from the webUI",
-        "Collaborate with subject matter experts ",
+        "Experiment with RAG, or agent architectures in the web UI",
+        "Create custom playgrounds to debug and trace calls",
+        "Easily integrate your LLM app code into the platform",
+        "Evaluate workflows end-to-end in the web UI",
     ]
     return (
         <section className="flex items-center gap-4">
             <Card
-                title="Create your first prompt"
+                title="Create a prompt"
                 className={classes.card}
                 onClick={onCreateFromTemplate}
                 data-cy="create-from-template"
