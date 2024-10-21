@@ -82,7 +82,9 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                 <Space direction="vertical" size={24} className="w-full">
                     {meta && meta.request && (
                         <Space direction="vertical">
-                            <Typography.Text className={classes.subTitle}>Summary</Typography.Text>
+                            <Typography.Text className={classes.subTitle}>
+                                Meta Data
+                            </Typography.Text>
                             <Space style={{flexWrap: "wrap"}}>
                                 {Object.entries(meta.request).map(([key, value], index) => (
                                     <ResultTag
