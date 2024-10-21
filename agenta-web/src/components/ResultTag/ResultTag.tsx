@@ -1,5 +1,5 @@
 import {JSSTheme} from "@/lib/Types"
-import {Popover, Space, Tag} from "antd"
+import {Popover, Tag} from "antd"
 import React, {memo} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -59,9 +59,9 @@ const ResultTag = memo(({value1, value2, popoverContent, ...props}: ResultTagPro
         <Popover
             placement="bottom"
             trigger="click"
-            overlayStyle={{width: 256}}
+            overlayStyle={{width: 240}}
             arrow={false}
-            title={<Space direction="vertical">{popoverContent}</Space>}
+            title={popoverContent}
         >
             {tag}
         </Popover>

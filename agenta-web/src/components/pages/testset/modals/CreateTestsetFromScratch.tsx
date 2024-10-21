@@ -33,6 +33,7 @@ type Props = {
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
+    appId: string
 }
 
 const CreateTestsetFromScratch: React.FC<Props> = ({
@@ -42,10 +43,10 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     setEditTestsetValues,
     setCurrent,
     onCancel,
+    appId,
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appId = router.query.app_id as string
     const [testsetName, setTestsetName] = useState(
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
@@ -68,7 +69,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const rowData = data || (await generateInitialRowData())
             const response = await createNewTestset(appId, testsetName, rowData)
             message.success("Test set created successfully")
-            router.push(`/apps/${appId}/testsets/${response.data.id}`)
+            router.push(`/apps/testsets/${response.data.id}`)
         } catch (error) {
             console.error("Error saving test set:", error)
             message.error("Failed to create Test set. Please try again!")

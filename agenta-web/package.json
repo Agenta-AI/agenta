@@ -1,6 +1,6 @@
 {
     "name": "agenta",
-    "version": "0.25.3",
+    "version": "0.25.4",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -38,6 +38,7 @@
         "@tremor/react": "^3.15.0",
         "@types/diff": "^5.0.9",
         "@types/js-beautify": "^1.14.0",
+        "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.14.201",
         "@types/mdx": "^2.0.6",
         "@types/papaparse": "^5.3.14",
@@ -61,6 +62,7 @@
         "eslint-config-next": "^14.2.4",
         "jotai": "^2.5.0",
         "js-beautify": "^1.14.8",
+        "js-yaml": "^4.1.0",
         "lodash": "^4.17.21",
         "next": "^14.2.4",
         "nextjs-cors": "^2.2.0",

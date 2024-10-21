@@ -73,7 +73,7 @@ interface NodeContextDTO {
     name: string
 }
 
-enum NodeType {
+export enum NodeType {
     AGENT = "agent",
     WORKFLOW = "workflow",
     CHAIN = "chain",
