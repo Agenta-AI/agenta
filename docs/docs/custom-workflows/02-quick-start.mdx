@@ -1,0 +1,145 @@
+---
+title: "Quick Start"
+description: "Learn how to use your custom application with Agenta"
+---
+
+This guide will show you how to create a custom workflow that consists of a chain of two prompts, add it to Agenta, and then run evaluations on it.
+
+## How to create a custom application in Agenta?
+
+To add your custom application in Agenta, you need to write the application code using the, then add the application to Agenta using the CLI.
+
+The [Agenta SDK](/reference/sdk/quick_start) takes care of specifying the configuration of your application (prompts, model parameters, chunk size, etc.), and integrates it with Agenta. The [Agenta CLI](/reference/cli/quick-usage) takes care of building the application image, deploying it, and exposing it to Agenta.
+
+## 1. Writing the application
+
+We are writing a chaing of prompt application. Let's first start by writing the simple code without making use of agenta. The application we are writing will take a blog post, the first propmt will summarize it, and the second propmt will write a tweet based on the summary
+
+```python chain-of-prompt before adding agenta
+from openai import OpenAI
+client = OpenAI()
+prompt1 = "Summarize the following blog post: {blog_post}""
+prompt2 = "Write a tweet based on this {output_1}""
+
+
+def generate(blog_post:str):
+    formatted_prompt1 = prompt1.format(blog_post)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt1}])
+    output_1 = completion.choices[0].message.content
+    formatted_prompt2 = prompt2.format(output_1)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}])
+    return completion.choices[0].message.content
+
+```
+
+## 2. Adding agenta
+
+We're going to add the lines to be able to use this application in agenta then go step by step on what we did
+
+```python
+from openai import OpenAI
+# highlight-start
+import agenta as ag
+
+ag.init()
+# highlight-end
+
+client = OpenAI()
+prompt1 = "Summarize the following blog post: {blog_post}""
+prompt2 = "Write a tweet based on this {output_1}""
+
+# highlight-start
+class CoPConfig(BaseName):
+    prompt1: str  = Field(default=prompt1)
+    prompt2: str = Field(default=prompt2)
+# highlight-end
+
+# highlight-next-line
+@ag.route("/", schema=CoPConfig)
+def generate(blog_post:str):
+    # highlight-next-line
+    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+    formatted_prompt1 = config.prompt1.format(blog_post)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt1}])
+    output_1 = completion.choices[0].message.content
+    formatted_prompt2 = config.prompt2.format(output_1)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}])
+    return completion.choices[0].message.content
+```
+
+### 1. Define workflow configuration
+
+In this case, we have two prompts in this workflow, they will be the two things in the configuration.
+To define a configuration we are just going to create a pydantic object with two prompts (for simplicity, we are fix the model, temperature, topk..)
+
+```python
+class CoPConfig(BaseName):
+    prompt1: str  = Field(default=prompt1)
+    prompt2: str = Field(default=prompt2)
+```
+
+### 2. Specify the entrypoints
+
+Use Agenta decorators to expose the entry point functions to Agenta. Adding the entrypoints will add endpoints for agenta to communicate with the code.
+
+```python
+@ag.route("/")
+def generate(blog_post)
+```
+
+### 3. Use the configuration from the endpoint
+
+We are going last to change the function to use the configuration provided by that endpoint.
+
+```python
+@ag.route("/", schema=CoPConfig)
+def generate(blog_post):
+    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+```
+
+## Setting up the folder structure
+
+Before serving the application in Agenta using the CLI, we need to add the application's requirements to the requirements.txt file.
+
+```python requirements.txt
+agenta
+openai
+```
+
+Additionally, we need to add the .env file with any required environment variables. In this case, we need to add the OpenAI API key.
+
+```bash .env
+OPENAI_API_KEY=sk-...
+```
+
+The Agenta SDK will automatically load the environment variables from the .env file.
+
+Both these files need to be in the same folder as the application code.
+
+## Serving the application
+
+To serve the application, we first need to initialize the project in Agenta. We run the following command in the folder containing the application code and the rest of the files.
+
+```bash
+agenta init
+```
+
+This command will prompt you to provide the name of the application, the host for Agenta (Agenta cloud), and whether to start from a blank project (yes in this case since we wrote the code) or to populate the folder with a template application (no in this case).
+
+After running this command, you should see a new config.toml file containing the application's configuration in the folder. Additionally, you should see a new empty project in the Agenta web UI.
+
+Now, we can serve the application by running the following command.
+
+```bash
+agenta variant serve myapp.py
+```
+
+This command will serve the application in Agenta. The application is now added to the Agenta web interface and can be used from there.
+
+:::info
+Under the hood, this command will build an image for the application, deploy a container with the image, and expose a REST API to the application which is used by Agenta to communicate with the application.
+:::
+
+## Using the application in agenta
+
+The application should now be visible in Agenta. A new application variant is always created under the name `<filename>.default`. Variants are always named in this format `<filename>.<variant_name>`. This allows you to determine which source code was used to create the application (`<filename>`). When first created, we always create a 'default' configuration. This is the configuration specified in the code (when using `register_default`).
