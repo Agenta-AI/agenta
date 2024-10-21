@@ -118,7 +118,7 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
 
                     <div className={classes.filterContainer}>
                         {filter.map((item, idx) => (
-                            <Space>
+                            <Space key={idx}>
                                 <p className={`!w-[70px] text-end`}>{idx == 0 ? "Where" : "And"}</p>
 
                                 <Select
