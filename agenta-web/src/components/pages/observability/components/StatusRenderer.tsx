@@ -1,5 +1,10 @@
 import {_AgentaRootsResponse, NodeStatusCode, NodeStatusDTO} from "@/services/observability/types"
-import {InfoCircleOutlined} from "@ant-design/icons"
+import {
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    CloseCircleOutlined,
+    InfoCircleOutlined,
+} from "@ant-design/icons"
 import {Space, Tag, Tooltip} from "antd"
 import React from "react"
 
@@ -8,28 +13,33 @@ export const statusMapper = (status: NodeStatusCode) => {
         case NodeStatusCode.UNSET:
             return {
                 label: "initiated",
-                color: "processing",
+                color: "blue",
+                icon: <ClockCircleOutlined />,
             }
         case NodeStatusCode.ERROR:
             return {
                 label: "failed",
                 color: "error",
+                icon: <CloseCircleOutlined />,
             }
         default:
             return {
                 label: "success",
                 color: "success",
+                icon: <CheckCircleOutlined />,
             }
     }
 }
 
 const StatusRenderer = (status: NodeStatusDTO) => {
-    const {label, color} = statusMapper(status.code)
+    const {label, color, icon} = statusMapper(status.code)
     const errorMsg = status.code === NodeStatusCode.ERROR ? status.message : null
 
     return (
         <Space align="center" size={0}>
-            <Tag color={color}>{label}</Tag>
+            <Tag color={color} icon={icon}>
+                {label}
+            </Tag>
             {errorMsg && (
                 <Tooltip title={errorMsg} placement="bottom">
                     <InfoCircleOutlined />

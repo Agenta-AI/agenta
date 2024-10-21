@@ -1,4 +1,5 @@
 import GenericDrawer from "@/components/GenericDrawer"
+import {nodeTypeStyles} from "@/components/pages/observability/components/AvatarTreeContent"
 import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
@@ -57,20 +58,14 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const [selected, setSelected] = useState(activeTrace?.key)
 
-    const [selectedItem, setSelectedItem] = useState<_AgentaRootsResponse | null>(
-        getNodeById(traces, selected),
+    const selectedItem = useMemo(
+        () => (traces?.length ? getNodeById(traces, selected) : null),
+        [selected, traces],
     )
 
     useEffect(() => {
         setSelected(activeTrace?.key)
     }, [activeTrace])
-
-    const handleTreeNodeClick = (nodeId: string) => {
-        const selectedNode = activeTrace ? getNodeById(activeTrace, nodeId) : null
-        if (selectedNode) {
-            setSelectedItem(selectedNode)
-        }
-    }
 
     const onTraceTabChange = (e: RadioChangeEvent) => {
         setTraceTabs(e.target.value)
@@ -116,7 +111,18 @@ const ObservabilityDashboard = ({}: Props) => {
             }),
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.key.split("-")[0]}`} />
+                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
+
+                return !record.parent ? (
+                    <ResultTag value1={`# ${record.key.split("-")[0]}`} />
+                ) : (
+                    <Space align="center" size={4}>
+                        <div className="grid place-items-center">
+                            <Icon size={16} />
+                        </div>
+                        <Typography>{record.node.name}</Typography>
+                    </Space>
+                )
             },
         },
         {
@@ -238,10 +244,7 @@ const ObservabilityDashboard = ({}: Props) => {
                         <TraceTree
                             activeTrace={activeTrace}
                             selected={selected}
-                            setSelected={(nodeId) => {
-                                setSelected(nodeId)
-                                handleTreeNodeClick(nodeId.toString())
-                            }}
+                            setSelected={setSelected}
                         />
                     }
                 />
