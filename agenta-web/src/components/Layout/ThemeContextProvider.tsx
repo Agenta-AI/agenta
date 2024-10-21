@@ -76,6 +76,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                     algorithm: theme.defaultAlgorithm,
                     token: {
                         fontFamily: inter.style.fontFamily,
+                        fontFamilyCode: inter.style.fontFamily,
                         ...antdTokens.token,
                         ...antdTokens.components,
                     },

@@ -1409,8 +1409,7 @@
             "colorLink": "#1c2c3d",
             "colorErrorHover": "#de4040",
             "colorErrorActive": "#ab0d0d",
-            "colorError": "#d61010",
-            "fontFamilyCode": "'inherit', 'inherit'"
+            "colorError": "#d61010"
         },
         "TreeSelect": {
             "paddingXS": 8,
