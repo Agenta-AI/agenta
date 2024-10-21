@@ -6,6 +6,7 @@ import {CheckOutlined} from "@ant-design/icons"
 import {Input, Modal, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {useUpdateEffect} from "usehooks-ts"
 
 type EditAppModalProps = {
     appDetails: ListAppsItem
@@ -28,6 +29,10 @@ const EditAppModal = ({appDetails, ...props}: EditAppModalProps) => {
     const {apps, mutate} = useAppsData()
     const [appNameInput, setAppNameInput] = useState(appDetails.app_name)
     const [editAppLoading, setEditAppLoading] = useState(false)
+
+    useUpdateEffect(() => {
+        setAppNameInput(appDetails.app_name)
+    }, [apps])
 
     const appNameExist = useMemo(
         () =>
