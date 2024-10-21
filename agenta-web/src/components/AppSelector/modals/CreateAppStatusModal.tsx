@@ -122,7 +122,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         ...prev,
                         [status]: {
                             type: "loading",
-                            message: "Adding template data",
+                            message: "Starting service (takes ~20s)",
                         },
                     }
                     if (obj.creating_app?.type === "loading") obj.creating_app.type = "success"
