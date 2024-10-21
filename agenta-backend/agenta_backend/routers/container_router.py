@@ -158,7 +158,6 @@ async def construct_app_container_url(
     Raises:
         HTTPException: If the base or variant cannot be found or the user does not have access.
     """
-
     try:
         # assert that one of base_id or variant_id is provided
         assert base_id or variant_id, "Please provide either base_id or variant_id"
@@ -178,6 +177,7 @@ async def construct_app_container_url(
             object_db = await db_manager.fetch_app_variant_by_id(variant_id)
         else:
             # NOTE: required for backward compatibility
+
             object_db = None
 
         # Check app access
@@ -187,25 +187,29 @@ async def construct_app_container_url(
                 project_id=str(object_db.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
+
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
                 logger.error(error_msg)
+
                 raise HTTPException(status_code=403, detail=error_msg)
 
-            if getattr(object_db, "deployment_id", None):  # this is a base
-                deployment = await db_manager.get_deployment_by_id(
-                    str(object_db.deployment_id)  # type: ignore
-                )
-            elif getattr(object_db, "base_id", None):  # this is a variant
-                deployment = await db_manager.get_deployment_by_id(
-                    str(object_db.base.deployment_id)  # type: ignore
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Deployment not found",
-                )
-            return URI(uri=deployment.uri)
+        if getattr(object_db, "deployment_id", None):  # this is a base
+            deployment = await db_manager.get_deployment_by_id(
+                str(object_db.deployment_id)  # type: ignore
+            )
+        elif getattr(object_db, "base_id", None):  # this is a variant
+            deployment = await db_manager.get_deployment_by_id(
+                str(object_db.base.deployment_id)  # type: ignore
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Deployment not found",
+            )
+
+        return URI(uri=deployment.uri)
     except Exception as e:
         status_code = e.status_code if hasattr(e, "status_code") else 500
+
         return JSONResponse({"detail": str(e)}, status_code=status_code)
