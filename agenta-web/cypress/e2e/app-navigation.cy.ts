@@ -28,28 +28,19 @@ describe("App Navigation without errors", () => {
         cy.get('[data-cy="app-testset-list"]').should("exist")
     })
 
-    it("should navigate successfully to Automatic Evaluation results evaluators page", () => {
-        cy.clickLinkAndWait('[data-cy="app-auto-evaluations-link"]')
-        cy.clickLinkAndWait('[data-cy="app-evaluators-link"]')
-        cy.url().should("include", "/evaluations/new-evaluator")
-    })
+    it("should navigate successfully to Evaluations page", () => {
+        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
+        cy.url().should("include", "/evaluations")
+        cy.contains(/evaluations/i)
 
-    it("should navigate successfully to Automatic Evaluation results page", () => {
-        cy.clickLinkAndWait('[data-cy="app-auto-evaluations-link"]')
-        cy.clickLinkAndWait('[data-cy="app-evaluations-results-link"]')
-        cy.url().should("include", "/evaluations/results")
-    })
+        cy.get(".ant-tabs-tab").eq(1).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=human_annotation")
 
-    it("should navigate successfully to A/B Test page", () => {
-        cy.clickLinkAndWait('[data-cy="app-human-evaluations-link"]')
-        cy.clickLinkAndWait('[data-cy="app-human-ab-testing-link"]')
-        cy.location("pathname").should("include", "/annotations/human_a_b_testing")
-    })
+        cy.get(".ant-tabs-tab").eq(2).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=human_ab_testing")
 
-    it("should navigate successfully to Single Model Test page", () => {
-        cy.clickLinkAndWait('[data-cy="app-human-evaluations-link"]')
-        cy.clickLinkAndWait('[data-cy="app-single-model-test-link"]')
-        cy.location("pathname").should("include", "/annotations/single_model_test")
+        cy.get(".ant-tabs-tab").eq(0).click()
+        cy.url().should("include", "/evaluations?selectedEvaluation=auto_evaluation")
     })
 
     if (isDemo()) {

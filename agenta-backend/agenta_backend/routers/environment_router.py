@@ -1,7 +1,9 @@
 import logging
+from typing import Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
+
 
 from agenta_backend.services import db_manager, app_manager
 from agenta_backend.utils.common import APIRouter, isCloudEE
@@ -32,11 +34,13 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
+        variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=payload.variant_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.variant_id,
-                object_type="app_variant",
+                project_id=str(variant.project_id),
                 permission=Permission.DEPLOY_APPLICATION,
             )
             logger.debug(f"User has permission deploy to environment: {has_permission}")
@@ -59,6 +63,7 @@ async def deploy_to_environment(
             user_uid=request.state.user_id,
             object_id=payload.variant_id,
             object_type="variant",
+            project_id=str(variant.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
     except Exception as e:

@@ -1,0 +1,148 @@
+---
+title: "Create Test Sets"
+---
+
+import Image from "@theme/IdealImage";
+
+This guide outlines the various methods for creating test sets in Agenta and provides specifications for the test set schema.
+
+Test sets are used for runnning automatic or human evaluation. They can also be loaded into the playground, allowing you to experiment with different prompts.
+
+Test sets contain input data for the LLM application. They may also include a reference output (i.e., expected output or ground truth), though this is optional.
+
+You can create a test set in Agenta using the following methods:
+
+- [By uploading a CSV or JSON file](#creating-a-test-set-from-a-csv-or-json)
+- [Using the API](#creating-a-test-set-using-the-api)
+- [Using the UI](#creatingediting-a-test-set-from-the-ui)
+- [From the playground](#creating-a-test-set-from-the-playground)
+- [From traces in observability](#adding-data-from-traces)
+
+## Creating a Test Set from a CSV or JSON
+
+To create a test set from a CSV or JSON file:
+
+1. Go to `Test sets`
+2. Click `Upload test sets`
+3. Select either `CSV` or `JSON`
+
+<Image img={require("/images/test-sets/upload_test_set.png")} />
+
+### CSV Format
+
+We use CSV with commas (,) as separators and double quotes (") as quote characters. The first row should contain the header with column names. Each input should have its own column. The column containing the reference answer can have any name, but we use "correct_answer" by default.
+
+:::info
+If you choose a different column name for the reference answer, you'll need to configure the evaluator later with that specific name.
+:::
+
+Here's an example of a valid CSV:
+
+```csv
+text,instruction,correct_answer
+Hello,How are you?,I'm good.
+"Tell me a joke.",Sure, here's one:...
+```
+
+### JSON Format
+
+The test set should be in JSON format with the following structure:
+
+1. A JSON file containing an array of objects.
+2. Each object in the array represents a row, with keys as column headers and values as row data. Here's an example of a valid JSON file:
+
+```json
+[
+  { "recipe_name": "Chicken Parmesan", "correct_answer": "Chicken" },
+  { "recipe_name": "a, special, recipe", "correct_answer": "Beef" }
+]
+```
+
+### Schema for Chat Applications
+
+For chat applications created using the chat template in Agenta, the input should be saved in the column called `chat`, which would contain the input list of messages:
+
+```json
+[
+  { "content": "message.", "role": "user" },
+  { "content": "message.", "role": "assistant" }
+  // Add more messages if necessary
+]
+```
+
+The reference answer column (by default `correct_answer`) should follow the same format:
+
+```json
+{ "content": "message.", "role": "assistant" }
+```
+
+## Creating a Test Set Using the API
+
+You can upload a test set using our API. Find the [API endpoint reference here](/reference/api/upload-file).
+
+Here's an example of such a call:
+
+**HTTP Request:**
+
+```
+POST /testsets/{app_id}/
+
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "testsetname",
+  "csvdata": [
+    { "column1": "row1col1", "column2": "row1col2" },
+    { "column1": "row2col1", "column2": "row2col2" }
+  ]
+}
+```
+
+## Creating/Editing a Test Set from the UI
+
+To create or edit a test set from the UI:
+
+1. Go to `Test sets`
+2. Choose `Create a test set with UI` or select the test set
+3. Name your test set and specify the columns for input types.
+4. Add the dataset.
+
+Remember to click `Save test set`
+
+<Image img={require("/images/test-sets/add_test_set_ui.png")} />
+
+## Creating a Test Set from the Playground
+
+The playground offers a convenient way to create and add data to a test set. This workflow is useful if you want to build your test set ad hoc, each time you find an interesting input for the LLM app, you can immediately add these inputs to the test set and optionally set a reference answer.
+
+To add a data point to a test set from the playground, simply click the `Add to test set` button located near the `Run` button.
+
+A drawer will display the inputs and outputs from the playground. Here, you can modify inputs and correct answers if needed. Select an existing test set to add to, or choose `+Add new` to create a new one. Once you're satisfied, click `Add` to finalize.
+
+:::warning
+Currently, when adding a test point from the playground, the correct answer is always added to a column called `correct_answer`.
+:::
+
+:::warning
+When adding a new data point, ensure that the column names in the test set match those of the LLM application. All columns from the playground (input columns and `correct_answer`) must exist in the test set. They will be created automatically if you're making a new test set. Any additional columns in the test set not available in the playground will be left empty.
+:::
+
+<Image img={require("/images/test-sets/add_test_set_playground.png")} />
+
+### Adding Chat History from the Playground
+
+When adding chat history, you can choose to include all turns from the conversation. For example:
+
+- User: Hi
+- Assistant: Hi, how can I help you?
+- User: I would like to book a table
+- Assistant: Sure, for how many people?
+
+If you select "Turn by Turn," two rows will be added to the test set: one for "Hi/Hi, how can I help you?" and another for "Hi/Hi, how can I help you?/I would like to book a table/Sure, for how many people?"
+
+## Adding Data From Traces
+
+You can add any data logged to agenta to test sets. Simply navigate to observability, select the trace (or any span), then click on `Add to testset` or the `+` button.

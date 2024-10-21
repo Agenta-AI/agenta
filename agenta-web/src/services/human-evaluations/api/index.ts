@@ -8,8 +8,10 @@ import {
     AICritiqueCreate,
 } from "@/lib/Types"
 import {
+    abTestingEvaluationTransformer,
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
+    singleModelTestEvaluationTransformer,
 } from "@/lib/transformers"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
@@ -29,6 +31,51 @@ export const fetchAllLoadEvaluations = async (appId: string, ignoreAxiosError: b
         } as any,
     )
     return response.data
+}
+
+export const fetchSingleModelEvaluationResult = async (appId: string) => {
+    const evals: Evaluation[] = (await fetchAllLoadEvaluations(appId)).map(
+        fromEvaluationResponseToEvaluation,
+    )
+    const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
+    const newEvals = results.map((result, ix) => {
+        const item = evals[ix]
+        if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
+            return singleModelTestEvaluationTransformer({item, result})
+        }
+    })
+
+    const newEvalResults = newEvals
+        .filter((evaluation) => evaluation !== undefined)
+        .filter(
+            (item: any) =>
+                item.resultsData !== undefined ||
+                !(Object.keys(item.scoresData || {}).length === 0) ||
+                item.avgScore !== undefined,
+        )
+    return newEvalResults
+}
+
+export const fetchAbTestingEvaluationResult = async (appId: string) => {
+    const evals = await fetchAllLoadEvaluations(appId)
+
+    const fetchPromises = evals.map(async (item: any) => {
+        return fetchEvaluationResults(item.id)
+            .then((results) => {
+                if (item.evaluation_type === EvaluationType.human_a_b_testing) {
+                    if (Object.keys(results.votes_data).length > 0) {
+                        return abTestingEvaluationTransformer({item, results})
+                    }
+                }
+            })
+            .catch((err) => console.error(err))
+    })
+
+    const results = (await Promise.all(fetchPromises))
+        .filter((evaluation) => evaluation !== undefined)
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+
+    return results
 }
 
 export const fetchLoadEvaluation = async (evaluationId: string) => {

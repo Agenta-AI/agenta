@@ -41,6 +41,7 @@ evaluators = [
         },
         "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
         "oss": True,
+        "tags": ["functional"],
     },
     {
         "name": "Contains JSON",
@@ -49,6 +50,7 @@ evaluators = [
         "settings_template": {},
         "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
         "oss": True,
+        "tags": ["functional", "classifiers"],
     },
     {
         "name": "Similarity Match",
@@ -75,11 +77,13 @@ evaluators = [
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
         "oss": True,
+        "tags": ["similarity", "functional"],
     },
     {
         "name": "Semantic Similarity Match",
         "key": "auto_semantic_similarity",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "description": "Semantic Similarity Match evaluator measures the similarity between two pieces of text by analyzing their meaning and context. It compares the semantic content, providing a score that reflects how closely the texts match in terms of meaning, rather than just exact word matches.",
         "settings_template": {
             "correct_answer_key": {
@@ -92,6 +96,7 @@ evaluators = [
             },
         },
         "oss": True,
+        "tags": ["similarity", "ai_llm"],
     },
     {
         "name": "Regex Test",
@@ -114,6 +119,7 @@ evaluators = [
             },
         },
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "JSON Field Match",
@@ -138,6 +144,7 @@ evaluators = [
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
         "oss": True,
+        "tags": ["functional"],
     },
     {
         "name": "JSON Diff Match",
@@ -176,11 +183,13 @@ evaluators = [
             },
         },
         "oss": True,
+        "tags": ["similarity", "functional"],
     },
     {
         "name": "LLM-as-a-judge",
         "key": "auto_ai_critique",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": {
             "prompt_template": {
                 "label": "Prompt Template",
@@ -200,16 +209,25 @@ evaluators = [
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
         "oss": True,
+        "tags": ["ai_llm", "functional"],
     },
     {
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
         "direct_use": False,
         "settings_template": {
+            "requires_llm_api_keys": {
+                "label": "Requires LLM API Key(s)",
+                "type": "boolean",
+                "required": True,
+                "default": False,
+                "advanced": True,
+                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
+            },
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]], # output of the llm app\n    datapoint: Dict[str, str] # contains the testset row \n) -> float:\n    if output in datapoint.get('correct_answer', None):\n        return 1.0\n    else:\n        return 0.0\n",
+                "default": "from typing import Dict, Union, Any\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]], # output of the llm app\n    correct_answer: str # contains the testset row \n) -> float:\n    if output in correct_answer:\n        return 1.0\n    else:\n        return 0.0\n",
                 "description": "Code for evaluating submissions",
                 "required": True,
             },
@@ -224,12 +242,21 @@ evaluators = [
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
         "oss": True,
+        "tags": ["functional"],
     },
     {
         "name": "Webhook test",
         "key": "auto_webhook_test",
         "direct_use": False,
         "settings_template": {
+            "requires_llm_api_keys": {
+                "label": "Requires LLM API Key(s)",
+                "type": "boolean",
+                "required": True,
+                "default": False,
+                "advanced": True,
+                "description": "Indicates whether the evaluation requires LLM API key(s) to function.",
+            },
             "webhook_url": {
                 "label": "Webhook URL",
                 "type": "string",
@@ -247,6 +274,7 @@ evaluators = [
         },
         "description": "Webhook test evaluator sends the generated answer and the correct_answer to a webhook and expects a response, in JSON format, indicating the correctness of the answer, along with a 200 HTTP status. You need to provide the URL of the webhook and the response of the webhook must be between 0 and 1.",
         "oss": True,
+        "tags": ["functional"],
     },
     {
         "name": "Starts With",
@@ -268,6 +296,7 @@ evaluators = [
         },
         "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "Ends With",
@@ -289,6 +318,7 @@ evaluators = [
         },
         "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "Contains",
@@ -310,6 +340,7 @@ evaluators = [
         },
         "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "Contains Any",
@@ -331,6 +362,7 @@ evaluators = [
         },
         "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "Contains All",
@@ -352,6 +384,7 @@ evaluators = [
         },
         "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
         "oss": True,
+        "tags": ["classifiers", "functional"],
     },
     {
         "name": "Levenshtein Distance",
@@ -375,20 +408,25 @@ evaluators = [
         },
         "description": "This evaluator calculates the Levenshtein distance between the output and the correct answer. If a threshold is provided in the settings, it returns a boolean indicating whether the distance is within the threshold. If no threshold is provided, it returns the actual Levenshtein distance as a numerical value.",
         "oss": True,
+        "tags": ["functional"],
     },
     {
         "name": "RAG Faithfulness",
         "key": "rag_faithfulness",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
+        "tags": ["rag"],
     },
     {
         "name": "RAG Context Relevancy",
         "key": "rag_context_relevancy",
         "direct_use": False,
+        "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
+        "tags": ["rag"],
     },
 ]
 

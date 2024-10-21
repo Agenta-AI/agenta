@@ -1,6 +1,6 @@
 {
     "name": "agenta",
-    "version": "0.24.4",
+    "version": "0.25.4",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -50,7 +50,7 @@
         "@types/uuid": "^9.0.7",
         "ag-grid-community": "^31.2.0",
         "ag-grid-react": "^31.2.0",
-        "antd": "^5.4.7",
+        "antd": "^5.20.6",
         "autoprefixer": "10.4.14",
         "axios": "^1.4.0",
         "classnames": "^2.3.2",
@@ -80,8 +80,8 @@
         "react-resizable": "^3.0.5",
         "react-syntax-highlighter": "^15.5.0",
         "react-youtube": "^10.1.0",
-        "supertokens-auth-react": "^0.34.0",
-        "supertokens-node": "^15.0.4",
+        "supertokens-auth-react": "^0.47.0",
+        "supertokens-node": "^20.1.2",
         "swr": "^2.1.5",
         "tailwindcss": "^3.4.4",
         "typescript": "5.0.4",
@@ -92,7 +92,7 @@
         "@swc/cli": "^0.3.12",
         "@swc/core": "^1.4.15",
         "@types/node": "^20.8.10",
-        "cypress": "^13.4.0",
+        "cypress": "^13.15.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.2.5"
     }

@@ -1,5 +1,3 @@
-import os
-import inspect
 import logging
 from typing import Any, Optional, Union, List
 
@@ -8,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body
 
 from agenta_backend.models import converters
+
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import (
     app_manager,
@@ -76,7 +75,7 @@ async def add_variant_from_base_and_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=str(base_db.project_id),
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -96,6 +95,7 @@ async def add_variant_from_base_and_config(
             new_config_name=payload.new_config_name,
             parameters=payload.parameters,
             user_uid=request.state.user_id,
+            project_id=str(base_db.project_id),
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
 
@@ -104,11 +104,12 @@ async def add_variant_from_base_and_config(
             user_uid=request.state.user_id,
             object_id=str(db_app_variant.app_id),
             object_type="app",
+            project_id=str(base_db.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
 
         app_variant_db = await db_manager.get_app_variant_instance_by_id(
-            str(db_app_variant.id)
+            str(db_app_variant.id), str(db_app_variant.project_id)
         )
         return await converters.app_variant_db_to_output(app_variant_db)
 
@@ -134,12 +135,13 @@ async def remove_variant(
     Raises:
         HTTPException: If there is a problem removing the app variant
     """
+
     try:
+        variant = await db_manager.fetch_app_variant_by_id(variant_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=variant_id,
-                object_type="app_variant",
+                project_id=str(variant.project_id),
                 permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             logger.debug(f"User has Permission to delete app variant: {has_permission}")
@@ -156,10 +158,13 @@ async def remove_variant(
             user_uid=request.state.user_id,
             object_id=variant_id,
             object_type="variant",
+            project_id=str(variant.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
 
-        await app_manager.terminate_and_remove_app_variant(app_variant_id=variant_id)
+        await app_manager.terminate_and_remove_app_variant(
+            project_id=str(variant.project_id), app_variant_id=variant_id
+        )
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -192,11 +197,11 @@ async def update_variant_parameters(
         JSONResponse: A JSON response containing the updated app variant parameters.
     """
     try:
+        variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=variant_id,
-                object_type="app_variant",
+                project_id=str(variant_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             logger.debug(
@@ -214,6 +219,7 @@ async def update_variant_parameters(
             app_variant_id=variant_id,
             parameters=payload.parameters,
             user_uid=request.state.user_id,
+            project_id=str(variant_db.project_id),
         )
 
         # Update last_modified_by app information
@@ -221,6 +227,7 @@ async def update_variant_parameters(
             user_uid=request.state.user_id,
             object_id=variant_id,
             object_type="variant",
+            project_id=str(variant_db.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
@@ -261,7 +268,7 @@ async def update_variant_image(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=db_app_variant,
+                project_id=str(db_app_variant.project_id),
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -276,7 +283,7 @@ async def update_variant_image(
                 )
 
         await app_manager.update_variant_image(
-            db_app_variant, image, request.state.user_id
+            db_app_variant, str(db_app_variant.project_id), image, request.state.user_id
         )
 
         # Update last_modified_by app information
@@ -284,6 +291,7 @@ async def update_variant_image(
             user_uid=request.state.user_id,
             object_id=str(db_app_variant.app_id),
             object_type="app",
+            project_id=str(db_app_variant.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
@@ -328,13 +336,14 @@ async def start_variant(
     Raises:
         HTTPException: If the app container cannot be started.
     """
+
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     # Check user has permission to start variant
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app_variant_db,
+            project_id=str(app_variant_db.project_id),
             permission=Permission.CREATE_APPLICATION,
         )
         logger.debug(f"User has Permission to start variant: {has_permission}")
@@ -352,7 +361,12 @@ async def start_variant(
     envvars = {} if env_vars is None else env_vars.env_vars
 
     if action.action == VariantActionEnum.START:
-        url: URI = await app_manager.start_variant(app_variant_db, envvars)
+        url: URI = await app_manager.start_variant(
+            app_variant_db,
+            str(app_variant_db.project_id),
+            envvars,
+            request.state.user_id,
+        )
 
         # Deploy to production
         await db_manager.deploy_to_environment(
@@ -364,7 +378,10 @@ async def start_variant(
 
 
 @router.get("/{variant_id}/logs/", operation_id="retrieve_variant_logs")
-async def retrieve_variant_logs(variant_id: str, request: Request):
+async def retrieve_variant_logs(
+    variant_id: str,
+    request: Request,
+):
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
         deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
@@ -393,7 +410,7 @@ async def get_variant(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_variant,
+                project_id=str(app_variant.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to get variant: {has_permission}")
@@ -416,7 +433,10 @@ async def get_variant(
     operation_id="get_variant_revisions",
     response_model=List[AppVariantRevision],
 )
-async def get_variant_revisions(variant_id: str, request: Request):
+async def get_variant_revisions(
+    variant_id: str,
+    request: Request,
+):
     logger.debug("getting variant revisions: ", variant_id)
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(
@@ -426,7 +446,7 @@ async def get_variant_revisions(variant_id: str, request: Request):
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_variant,
+                project_id=str(app_variant.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to get variant: {has_permission}")
@@ -439,7 +459,7 @@ async def get_variant_revisions(variant_id: str, request: Request):
                 )
 
         app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-            app_variant=app_variant
+            app_variant=app_variant, project_id=str(app_variant.project_id)
         )
         return await converters.app_variant_db_revisions_to_output(
             app_variant_revisions
@@ -454,7 +474,11 @@ async def get_variant_revisions(variant_id: str, request: Request):
     operation_id="get_variant_revision",
     response_model=AppVariantRevision,
 )
-async def get_variant_revision(variant_id: str, revision_number: int, request: Request):
+async def get_variant_revision(
+    variant_id: str,
+    revision_number: int,
+    request: Request,
+):
     logger.debug("getting variant revision: ", variant_id, revision_number)
     try:
         assert (
@@ -467,7 +491,7 @@ async def get_variant_revision(variant_id: str, revision_number: int, request: R
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=app_variant,
+                project_id=str(app_variant.project_id),
                 permission=Permission.VIEW_APPLICATION,
             )
             logger.debug(f"User has Permission to get variant: {has_permission}")

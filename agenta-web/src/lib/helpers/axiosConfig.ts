@@ -1,6 +1,6 @@
 import axiosApi from "axios"
 import {getErrorMessage, globalErrorHandler} from "./errorHandler"
-import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
+import {signOut} from "supertokens-auth-react/recipe/session"
 import router from "next/router"
 import {getAgentaApiUrl} from "./utils"
 import {isObject} from "lodash"

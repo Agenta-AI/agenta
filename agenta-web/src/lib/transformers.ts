@@ -209,3 +209,90 @@ export const fromBaseResponseToTraceSpanType = (
 
     return [top_level_spans, spans_dict]
 }
+
+export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
+    const nodeMap: Record<string, any> = {}
+
+    function addTree(item: TraceSpan) {
+        if (item.name) {
+            const content = {
+                ...item.content,
+                ...(item.children ? transformTraceTreeToJson(item.children) : null),
+            }
+
+            if (!nodeMap[item.name]) {
+                nodeMap[item.name] = content
+            } else {
+                if (!Array.isArray(nodeMap[item.name])) {
+                    nodeMap[item.name] = [nodeMap[item.name]]
+                }
+                nodeMap[item.name].push(content)
+            }
+        }
+    }
+
+    tree.forEach((item) => {
+        addTree(item)
+    })
+
+    const filterEmptyValues = (obj: Record<string, any>): any => {
+        if (Array.isArray(obj)) {
+            return obj
+                .map(filterEmptyValues)
+                .filter(
+                    (item) =>
+                        item !== null &&
+                        !(typeof item === "object" && Object.keys(item).length === 0),
+                )
+        } else if (typeof obj === "object" && obj !== null) {
+            return Object.entries(obj).reduce(
+                (acc, [key, value]) => {
+                    const filteredValue = filterEmptyValues(value)
+                    if (
+                        filteredValue !== null &&
+                        !(
+                            typeof filteredValue === "object" &&
+                            Object.keys(filteredValue).length === 0
+                        )
+                    ) {
+                        acc[key] = filteredValue
+                    }
+                    return acc
+                },
+                {} as Record<string, any>,
+            )
+        } else {
+            return obj
+        }
+    }
+
+    return filterEmptyValues(nodeMap)
+}
+
+export const generatePaths = (obj: Record<string, any>, currentPath = "") => {
+    let paths: {value: string}[] = []
+
+    if (typeof obj === "object" && obj !== null && !Array.isArray(obj)) {
+        Object.entries(obj).forEach(([key, value]) => {
+            const newPath = currentPath ? `${currentPath}.${key}` : key
+            if (value && typeof value === "object" && Object.keys(value).length) {
+                paths.push({value: newPath})
+                paths = paths.concat(generatePaths(value, newPath))
+            } else if (value && typeof value !== "object") {
+                paths.push({value: newPath})
+            }
+        })
+    } else if (Array.isArray(obj)) {
+        obj.forEach((value, index) => {
+            const newPath = `${currentPath}[${index}]`
+            if (value && typeof value === "object" && Object.keys(value).length) {
+                paths.push({value: newPath})
+                paths = paths.concat(generatePaths(value, newPath))
+            } else if (value && typeof value !== "object") {
+                paths.push({value: newPath})
+            }
+        })
+    }
+
+    return paths
+}

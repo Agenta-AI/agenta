@@ -1,9 +1,9 @@
 import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
 import EditAppModal from "@/components/AppSelector/modals/EditAppModal"
-import AbTestingEvalOverview from "@/components/pages/overview/abTestingEvaluation/AbTestingEvalOverview"
+import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
-import SingleModelEvalOverview from "@/components/pages/overview/singleModelEvaluation/SingleModelEvalOverview"
+import SingleModelEvaluation from "@/components/HumanEvaluations/SingleModelEvaluation"
 import VariantsOverview from "@/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
@@ -141,7 +141,7 @@ export default function Overview() {
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button type="text" icon={<MoreOutlined />} />
                     </Dropdown>
                 </Space>
 
@@ -165,9 +165,9 @@ export default function Overview() {
 
                 <AutomaticEvalOverview />
 
-                <AbTestingEvalOverview />
+                <AbTestingEvaluation viewType="overview" />
 
-                <SingleModelEvalOverview />
+                <SingleModelEvaluation viewType="overview" />
             </div>
             {currentApp && (
                 <DeleteAppModal
