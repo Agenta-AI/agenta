@@ -77,8 +77,6 @@ def to_jsonable_with_fallback(
 class UniversalBaseModel(pydantic.BaseModel):
     class Config:
         populate_by_name = True
-        # smart_union = True
-        # allow_population_by_field_name = True
         json_encoders = {dt.datetime: serialize_datetime}
 
     def json(self, **kwargs: typing.Any) -> str:
