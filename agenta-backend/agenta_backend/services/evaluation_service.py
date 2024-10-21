@@ -87,7 +87,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             ]
         except KeyError:
             await db_manager.delete_human_evaluation(
-                evaluation_id=str(new_evaluation.id), project_id=project_id
+                evaluation_id=str(new_evaluation.id)
             )
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
