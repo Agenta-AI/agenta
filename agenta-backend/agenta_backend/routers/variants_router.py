@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, Union, List, Dict
 
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
@@ -8,10 +8,7 @@ from fastapi import HTTPException, Request, Body
 from agenta_backend.models import converters
 
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import (
-    app_manager,
-    db_manager,
-)
+from agenta_backend.services import app_manager, db_manager
 
 if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
@@ -520,3 +517,202 @@ async def get_variant_revision(
         logger.exception(f"An error occurred: {str(e)}")
         status_code = e.status_code if hasattr(e, "status_code") else 500
         raise HTTPException(status_code=status_code, detail=str(e))
+
+
+### --- CONFIGS --- ###
+
+from agenta_backend.utils.exceptions import handle_exceptions
+
+from agenta_backend.services.variants_manager import (
+    ReferenceDTO,
+    ConfigDTO,
+)
+
+from agenta_backend.services.variants_manager import (
+    add_config,
+    fetch_config_by_variant_ref,
+    fetch_config_by_environment_ref,
+    fork_config_by_variant_ref,
+    fork_config_by_environment_ref,
+    commit_config,
+    deploy_config,
+)
+
+
+class ReferenceRequestModel(ReferenceDTO):
+    pass
+
+
+class ConfigRequestModel(ConfigDTO):
+    pass
+
+
+class ConfigResponseModel(ConfigDTO):
+    pass
+
+
+@router.post(
+    "/configs/add",
+    operation_id="configs_add",
+    response_model=ConfigResponseModel,
+)
+@handle_exceptions()
+async def configs_add(
+    request: Request,
+    variant_ref: ReferenceRequestModel,
+    application_ref: ReferenceRequestModel,
+):
+    config = await fetch_config_by_variant_ref(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+    if config:
+        raise HTTPException(
+            status_code=400,
+            detail="Config already exists.",
+        )
+
+    config = await add_config(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
+
+
+@router.get(
+    "/configs/fetch",
+    operation_id="configs_fetch",
+    response_model=ConfigResponseModel,
+)
+@handle_exceptions()
+async def configs_fetch(
+    request: Request,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
+    config = None
+
+    if variant_ref:
+        config = await fetch_config_by_variant_ref(
+            project_id=request.state.project_id,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+    elif environment_ref:
+        config = await fetch_config_by_environment_ref(
+            project_id=request.state.project_id,
+            environment_ref=environment_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
+
+
+@router.post(
+    "/configs/fork",
+    operation_id="configs_fork",
+    response_model=ConfigResponseModel,
+)
+@handle_exceptions()
+async def configs_fork(
+    request: Request,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
+    config = None
+
+    if variant_ref:
+        config = await fork_config_by_variant_ref(
+            project_id=request.state.project_id,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+    elif environment_ref:
+        config = await fork_config_by_environment_ref(
+            project_id=request.state.project_id,
+            environment_ref=environment_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
+
+
+@router.post(
+    "/configs/commit",
+    operation_id="configs_commit",
+    response_model=ConfigResponseModel,
+)
+async def configs_commit(
+    request: Request,
+    config: ConfigRequestModel,
+):
+    config = await commit_config(
+        project_id=request.state.project_id,
+        config=config,
+        user_id=request.state.user_id,
+    )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
+
+
+@router.post(
+    "/configs/deploy",
+    operation_id="configs_deploy",
+    response_model=ConfigResponseModel,
+)
+async def configs_deploy(
+    request: Request,
+    variant_ref: ReferenceRequestModel,
+    environment_ref: ReferenceRequestModel,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
+    config = await deploy_config(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        environment_ref=environment_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
+    return config
