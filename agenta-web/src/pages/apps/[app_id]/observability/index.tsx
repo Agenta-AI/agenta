@@ -4,18 +4,21 @@ import StatusRenderer from "@/components/pages/observability/components/StatusRe
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import Filters from "@/components/Filters/Filters"
+import Sort from "@/components/Filters/Sort"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {JSSTheme} from "@/lib/Types"
+import {Filter, JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Space, Table, Typography} from "antd"
+import {Radio, RadioChangeEvent, Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {getNestedProperties, getTimeRangeUnit, matcheFilterCriteria} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -30,7 +33,21 @@ interface Props {}
 const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+    const [searchTerm, setSearchTerm] = useState("")
+    const [filterTrace, setFilterTrace] = useState<Filter[]>([] as Filter[])
+    const [sortTrace, setSortTrace] = useState("14 days")
+    const [traceTabs, setTraceTabs] = useState("root calls")
     const {traces} = useTraces()
+
+    const filterColumns = [
+        {column: "inputs", mapping: "data.inputs.topic"},
+        {column: "outputs", mapping: "data.outputs"},
+        {column: "status", mapping: "status.code"},
+        {column: "costs", mapping: "metrics.acc.costs.total"},
+        {column: "tokens", mapping: "metrics.acc.tokens.total"},
+        {column: "node_name", mapping: "node.name"},
+        {column: "node_type", mapping: "node.type"},
+    ]
 
     const activeTraceIndex = useMemo(
         () => traces?.findIndex((item) => item.root.id === selectedTraceId),
@@ -49,6 +66,40 @@ const ObservabilityDashboard = ({}: Props) => {
     useEffect(() => {
         setSelected(activeTrace?.key)
     }, [activeTrace])
+
+    const onTraceTabChange = (e: RadioChangeEvent) => {
+        setTraceTabs(e.target.value)
+    }
+
+    const filteredTrace = useMemo(() => {
+        let filtered = traces
+
+        if (filterTrace[0]?.keyword) {
+            filterTrace.map((item) => {
+                const {column, condition, keyword} = item
+                filtered = filtered?.filter((trace) => {
+                    const propertyValue = getNestedProperties(trace, column)
+                    return matcheFilterCriteria({data: propertyValue, condition, keyword})
+                })
+            })
+        }
+
+        if (sortTrace) {
+            const now = dayjs()
+            const {duration, unit} = getTimeRangeUnit(sortTrace)
+
+            if (duration === Infinity) {
+                return filtered
+            }
+
+            filtered = filtered?.filter((item) => {
+                const itemDate = dayjs(item.lifecycle.created_at)
+                return itemDate.isAfter(now.subtract(duration, unit))
+            })
+        }
+
+        return filtered
+    }, [traces, sortTrace, filterTrace])
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
         {
@@ -144,19 +195,35 @@ const ObservabilityDashboard = ({}: Props) => {
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
             {traces?.length ? (
-                <Table
-                    columns={columns}
-                    dataSource={traces}
-                    bordered
-                    style={{cursor: "pointer"}}
-                    onRow={(record) => ({
-                        onClick: () => {
-                            setSelectedTraceId(record.root.id)
-                        },
-                    })}
-                    pagination={false}
-                    scroll={{x: "max-content"}}
-                />
+                <section className="flex flex-col gap-2">
+                    <Space>
+                        <Filters
+                            filterValue={filterTrace}
+                            setFilterValue={setFilterTrace}
+                            columns={filterColumns}
+                        />
+                        <Sort setSort={setSortTrace} sort={sortTrace} />
+
+                        <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
+                            <Radio.Button value="root calls">Root calls</Radio.Button>
+                            <Radio.Button value="generations">Generation</Radio.Button>
+                            <Radio.Button value="all runs">All runs</Radio.Button>
+                        </Radio.Group>
+                    </Space>
+                    <Table
+                        columns={columns}
+                        dataSource={filteredTrace}
+                        bordered
+                        style={{cursor: "pointer"}}
+                        onRow={(record) => ({
+                            onClick: () => {
+                                setSelectedTraceId(record.root.id)
+                            },
+                        })}
+                        pagination={false}
+                        scroll={{x: "max-content"}}
+                    />
+                </section>
             ) : null}
 
             {activeTrace && !!traces?.length && (

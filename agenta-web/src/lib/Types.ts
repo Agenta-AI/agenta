@@ -662,3 +662,23 @@ export interface HumanEvaluationListTableDataType {
     variant_revision_ids: string[]
     variantNames: string[]
 }
+
+export type Filter = {
+    condition: FilterConditions
+    column: string
+    keyword: string
+}
+
+export type FilterConditions =
+    | "contains"
+    | "does not contain"
+    | "starts with"
+    | "ends with"
+    | "exists"
+    | "does not exist"
+    | "="
+    | ">"
+    | "<"
+    | ">="
+    | "<="
+    | ""
