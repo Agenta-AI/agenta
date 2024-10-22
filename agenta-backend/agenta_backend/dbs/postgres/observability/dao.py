@@ -114,14 +114,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             # --------
 
             # DEBUGGING
-            # print(
-            #    str(
-            #        query.compile(
-            #            dialect=postgresql.dialect(),
-            #            compile_kwargs={"literal_binds": True},
-            #        )
-            #    )
-            # )
+            print(
+                str(
+                    query.compile(
+                        dialect=postgresql.dialect(),
+                        compile_kwargs={"literal_binds": True},
+                    )
+                )
+            )
             # ---------
 
             # QUERY EXECUTION
