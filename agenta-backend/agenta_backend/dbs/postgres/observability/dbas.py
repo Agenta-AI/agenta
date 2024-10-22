@@ -44,7 +44,7 @@ class AttributesDBA(DisplayBase):
     __abstract__ = True
 
     # inputs, internals, outputs, etc.
-    data = Column(JSON, nullable=True)
+    data = Column(String, nullable=True)
     # scores, costs, tokens, durations, etc.
     metrics = Column(JSON, nullable=True)
     # configs, resources, etc.

@@ -16,6 +16,8 @@ from agenta_backend.core.observability.dtos import (
     OTelExtraDTO,
 )
 
+from json import dumps, loads
+
 
 def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
     return SpanDTO(
@@ -67,7 +69,7 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
             else None
         ),
         # ATTRIBUTES
-        data=span.data,
+        data=loads(span.data),
         metrics=span.metrics,
         meta=span.meta,
         tags=span.tags,
@@ -122,7 +124,7 @@ def map_span_create_dto_to_dbe(
             else None
         ),
         # ATTRIBUTES
-        data=span_create_dto.data,
+        data=dumps(span_create_dto.data),
         metrics=span_create_dto.metrics,
         meta=span_create_dto.meta,
         tags=span_create_dto.tags,
@@ -178,7 +180,7 @@ def map_span_dto_to_dbe(
             else None
         ),
         # ATTRIBUTES
-        data=span_dto.data,
+        data=dumps(span_dto.data),
         metrics=span_dto.metrics,
         meta=span_dto.meta,
         tags=span_dto.tags,
