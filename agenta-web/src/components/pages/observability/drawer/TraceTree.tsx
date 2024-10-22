@@ -25,7 +25,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: "100%",
         padding: "1px 0",
         "& .ant-tree-node-content-wrapper": {
-            width: 240,
+            minWidth: 240,
         },
         "& .ant-tree-node-selected": {
             outline: `1px solid ${theme.colorBorder}`,
@@ -72,8 +72,10 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
 
     return (
         <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
-            <AvatarTreeContent value={value} />
-            <div className="flex flex-col">
+            <div className="w-8">
+                <AvatarTreeContent value={value} />
+            </div>
+            <div className="flex flex-col flex-1">
                 <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
                 <Space className={classes.treeContent}>
                     <div>
@@ -81,10 +83,12 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                         {formatLatency(time.span / 1000000)}
                     </div>
 
-                    <div>
-                        <Coins />
-                        {formatCurrency(metrics?.acc?.costs?.total)}
-                    </div>
+                    {metrics?.acc?.costs?.total && (
+                        <div>
+                            <Coins />
+                            {formatCurrency(metrics?.acc?.costs?.total)}
+                        </div>
+                    )}
 
                     {!!metrics?.acc?.tokens?.total && (
                         <div>
