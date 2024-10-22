@@ -682,3 +682,16 @@ export type FilterConditions =
     | ">="
     | "<="
     | ""
+
+export type SortTypes =
+    | "30 mins"
+    | "1 hour"
+    | "6 hour"
+    | "24 hour"
+    | "3 days"
+    | "7 days"
+    | "14 days"
+    | "1 month"
+    | "3 month"
+    | "all time"
+    | ""

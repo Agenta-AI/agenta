@@ -1,27 +1,35 @@
-import React from "react"
+import React, {useState} from "react"
 import {Hourglass} from "@phosphor-icons/react"
 import {Select} from "antd"
+import {SortTypes} from "@/lib/Types"
 
 type Props = {
-    setSort: React.Dispatch<React.SetStateAction<string>>
-    sort?: string
+    onSortApply: (sort: SortTypes) => void
+    defaultSortValue: SortTypes
 }
 
-const Sort: React.FC<Props> = ({setSort, sort}) => {
+const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
+    const [sort, setSort] = useState<SortTypes>(defaultSortValue)
+
     return (
         <Select
             style={{width: 120}}
             suffixIcon={null}
             value={sort}
-            onChange={(value) => setSort(value)}
-            placeholder={
-                <div className="flex items-center justify-center gap-2">
-                    <Hourglass size={14} /> Sort by time
-                </div>
-            }
+            onChange={(value) => {
+                setSort(value)
+                onSortApply(value)
+            }}
             labelRender={(value) => (
                 <div className="flex items-center justify-center gap-2">
-                    <Hourglass size={14} /> {sort !== "all time" && "Last"} {value.value}
+                    <Hourglass size={14} />{" "}
+                    {sort ? (
+                        <>
+                            {sort !== "all time" && "Last"} {value.value}
+                        </>
+                    ) : (
+                        "Sort by Date"
+                    )}
                 </div>
             )}
             options={[
