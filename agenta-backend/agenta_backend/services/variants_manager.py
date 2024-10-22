@@ -39,7 +39,7 @@ logger = getLogger(__name__)
 logger.setLevel(INFO)
 
 ### POSTGRES ASSUMPTIONS
-# UNIQUE: (project_id, {entity}_id)
+# UNIQUE: (project_id, {entity}_id) -- PK
 # UNIQUE: (project_id, application_id, {entity}_slug, {entity}_version)
 
 
@@ -50,6 +50,8 @@ class ReferenceDTO(BaseModel):
     id: Optional[UUID]  # unique per version
 
 
+# DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
+# HERE IT IS A PROXY FOR A variant
 class ConfigDTO(BaseModel):
     params: Dict[str, Any]
     url: str
@@ -367,19 +369,6 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    # --> FETCHING: variant
-    logger.warning("[ADD]     Fetching: variant")
-
-    app_variant, app_variant_revision = await _fetch_variant(
-        project_id=project_id,
-        variant_ref=variant_ref,
-        application_ref=application_ref,
-    )
-
-    if app_variant or app_variant_revision:
-        return None
-    # <-- FETCHING: variant
-
     # --> FETCHING: app
     logger.warning("[ADD]     Fetching: app")
 
@@ -405,7 +394,7 @@ async def add_config(
         return None
     # <-- FETCHING: bases
 
-    base_id = bases[0].id
+    base_id = bases[0].id  # needs to be changed to use the 'default base'
 
     # --> ADDING: variant
     logger.warning("[ADD]     Creating: variant")
