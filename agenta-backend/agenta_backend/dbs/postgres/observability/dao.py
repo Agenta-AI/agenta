@@ -26,6 +26,8 @@ from agenta_backend.core.observability.dtos import (
     SpanCreateDTO,
 )
 
+from sqlalchemy.dialects import postgresql
+
 
 class ObservabilityDAO(ObservabilityDAOInterface):
     def __init__(self):
@@ -112,6 +114,17 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     grouping_column.in_(select(subquery.c["grouping_key"]))
                 )
             # --------
+
+            # DEBUGGING
+            # print(
+            #    str(
+            #        query.compile(
+            #            dialect=postgresql.dialect(),
+            #            compile_kwargs={"literal_binds": True},
+            #        )
+            #    )
+            # )
+            # ---------
 
             # QUERY EXECUTION
             spans = (await session.execute(query)).scalars().all()
