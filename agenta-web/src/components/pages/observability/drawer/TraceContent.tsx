@@ -54,6 +54,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             padding: theme.padding,
             flex: 1,
             overflowY: "auto",
+            "& .ant-tabs-content": {
+                height: "100%",
+                "& .ant-tabs-tabpane": {
+                    height: "100%",
+                },
+            },
         },
     },
     tokenContainer: {
@@ -69,7 +75,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {node, time, meta, data, status, metrics, parent} = activeTrace
+    const {node, time, meta, data, status, metrics, parent, key, children, ...filteredTrace} =
+        activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(node.type, status)
@@ -182,7 +189,14 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
         {
             key: "raw_data",
             label: "Raw Data",
-            children: "Content of Tab Pane 2",
+            children: (
+                <AccordionTreePanel
+                    label={"Raw Data"}
+                    value={{node, time, meta, status, metrics, parent, ...filteredTrace}}
+                    enableFormatSwitcher
+                    fullEditorHeight
+                />
+            ),
         },
     ]
 
